@@ -38,6 +38,8 @@ class PracticeItem {
     var sessionId: UUID? = null
     var questionId: UUID? = null
     var revisionId: UUID? = null
+    var materialRevisionId: UUID? = null
+    var answerBlanks: String? = null
     var position: Int = 0
     var answerText: String? = null
     var answerBoolean: Boolean? = null

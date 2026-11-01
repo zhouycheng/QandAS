@@ -7,3 +7,4 @@
 .layout-dragging { box-shadow: 0 8rpx 24rpx rgba(43,127,252,.22); opacity: .9; }
 .layout-insert { position: absolute; top: -10rpx; left: 0; right: 0; border-top: 5rpx solid #2b7ffc; color: #2b7ffc; font-size: 20rpx; z-index: 12; }
 .layout-end { color: #2b7ffc; border-top: 5rpx solid #2b7ffc; font-size: 20rpx; }
+.layout-preview { min-height: 80rpx; display: flex; align-items: center; justify-content: center; color: #596779; font-size: 26rpx; }

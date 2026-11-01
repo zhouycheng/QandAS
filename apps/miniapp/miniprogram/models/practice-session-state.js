@@ -103,6 +103,10 @@ function serializeSession(rawSession) {
       return {
         questionId: answer.questionId || questionIds[index],
         selectedKeys: Array.isArray(answer.selectedKeys) ? answer.selectedKeys.slice() : [],
+        ...(typeof answer.text === 'string' ? { text: answer.text } : {}),
+        ...(Array.isArray(answer.blanks) ? { blanks: answer.blanks.map(value => String(value || '').slice(0, 500)) } : {}),
+        ...(typeof answer.confirmed === 'boolean' ? { confirmed: answer.confirmed } : {}),
+        ...(answer.selfAssessment ? { selfAssessment: answer.selfAssessment } : {}),
         isCorrect: !!answer.isCorrect
       }
     }),
@@ -198,6 +202,10 @@ function normalizeSession(rawSession) {
         selectedKeys: Array.isArray(answer.selectedKeys)
           ? answer.selectedKeys.filter((key) => typeof key === 'string')
           : [],
+        ...(typeof answer.text === 'string' ? { text: answer.text.slice(0, 10000) } : {}),
+        ...(Array.isArray(answer.blanks) ? { blanks: answer.blanks.slice(0, 20).map(value => String(value || '').slice(0, 500)) } : {}),
+        ...(typeof answer.confirmed === 'boolean' ? { confirmed: answer.confirmed } : {}),
+        ...(['CORRECT', 'WRONG'].includes(answer.selfAssessment) ? { selfAssessment: answer.selfAssessment } : {}),
         isCorrect: !!answer.isCorrect
       }
     }),
@@ -209,7 +217,7 @@ function normalizeSession(rawSession) {
       }
 
       const answer = rawAnswers[index]
-      return answer ? (answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG) : QUESTION_STATE.UNANSWERED
+      return answer && answer.confirmed !== false ? (answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG) : QUESTION_STATE.UNANSWERED
     }),
     // 历史版本没有这个字段：缺省成空数组即可，不需要迁移脚本
     markedIds: Array.isArray(rawSession.markedIds)
@@ -239,7 +247,7 @@ function deriveQuestionStates(answers, total) {
   return Array.from({ length: safeTotal }, (_, index) => {
     const answer = answers[index]
 
-    if (!answer) {
+    if (!answer || answer.confirmed === false) {
       return QUESTION_STATE.UNANSWERED
     }
 

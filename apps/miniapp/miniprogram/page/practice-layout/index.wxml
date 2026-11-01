@@ -4,6 +4,7 @@
   <scroll-view class="pra-body" scroll-y scroll-top="{{scrollTop}}" bindscroll="handleScroll" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
     <include src="../../templates/practice-content.wxml" />
     <view class="layout-end" wx:if="{{dragTarget === 'end'}}">松手放在这里</view>
+    <picker range="{{previewTypes}}" value="{{previewIndex}}" bindchange="handlePreviewType"><view class="layout-preview" hover-class="chip-flat-hover">预览题型：{{previewTypes[previewIndex]}} ›</view></picker>
     <view class="layout-reset" bindtap="handleResetLayout" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80" aria-role="button">恢复默认布局</view>
   </scroll-view>
   <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>

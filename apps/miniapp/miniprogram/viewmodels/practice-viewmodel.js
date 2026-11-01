@@ -308,7 +308,7 @@ class PracticeViewModel {
       return null
     }
 
-    if (this.online || this.trial) return this.load(Object.assign({}, this.routeOptions, { sessionId: '', resume: '' }))
+    if (this.online || this.trial) return this.load(Object.assign({}, this.routeOptions, { sessionId: '', resume: '', selectionKey: '', seed: Date.now() }))
     const result = this.session.reset()
 
     // 「再练一次」是一轮新练习，立即覆盖掉上一份会话
@@ -368,6 +368,12 @@ class PracticeViewModel {
     }
   }
 
+  openFeedback() {
+    if (!this.session) return null
+    const state = this.session.state
+    return require('../utils/feedback-entry.js').feedbackEntry(this.storage, 'question', state.questions[state.currentIndex])
+  }
+
   createRedoWrongCommand(questionIds) {
     const ids = (questionIds || []).filter(Boolean)
 
@@ -416,6 +422,13 @@ class PracticeViewModel {
   setAnswerText(text) {
     if (!this.session || this.editingLocked) return null
     const result = this.session.setAnswerText(text)
+    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { submitOk: false, submitError: error.message }) }
+    return result
+  }
+
+  setBlank(index, value) {
+    if (!this.session || this.editingLocked) return null
+    const result = this.session.setBlank(index, value)
     try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { submitOk: false, submitError: error.message }) }
     return result
   }
@@ -713,6 +726,7 @@ class PracticeViewModel {
         questionId: question.id,
         selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]),
         text: item.answer.text || '',
+        blanks: item.answer.blanks || [],
         confirmed: item.confirmed,
         selfAssessment: item.selfAssessment || null,
         isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome === 'CORRECT'

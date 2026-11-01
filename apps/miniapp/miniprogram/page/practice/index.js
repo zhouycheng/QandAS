@@ -114,6 +114,7 @@ Page(withPageLifecycle({
   waitInBackground() { this.returnBankDetail() },
 
   inputAnswerText(e) { this.applyViewModelResult(this.viewModel.setAnswerText(e.detail.value)) },
+  inputBlank(e) { this.applyViewModelResult(this.viewModel.setBlank(Number(e.currentTarget.dataset.index), e.detail.value)) },
   assessShortAnswer(e) { this.applyViewModelResult(this.viewModel.assessShortAnswer(e.currentTarget.dataset.value)) },
 
   assessResult(e) { this.applyViewModelResult(this.viewModel.assessResult(e.currentTarget.dataset.id, e.currentTarget.dataset.value)) },
@@ -363,6 +364,10 @@ Page(withPageLifecycle({
   handleOpenQuestionDetail(e) {
     const questionId = e.currentTarget.dataset.id
     this.applyViewModelResult(this.viewModel.createQuestionDetailCommand(questionId))
+  },
+
+  openFeedback() {
+    this.applyViewModelResult(this.viewModel.openFeedback())
   },
 
   applyViewModelEffects(result) {

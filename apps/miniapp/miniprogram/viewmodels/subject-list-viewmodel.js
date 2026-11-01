@@ -507,27 +507,16 @@ class SubjectListViewModel {
       return empty
     }
 
-    const count = Math.min(MOCK_EXAM_QUESTION_COUNT, total)
-    const duration = resolveMockDuration(count)
-    const query = [
-      `subjectId=${encodeURIComponent(subjectId)}`,
-      online ? `bankId=${encodeURIComponent(bank.id)}` : 'scope=subject',
-      'mode=test',
-      `count=${encodeURIComponent(count)}`,
-      `duration=${encodeURIComponent(duration)}`,
-      `seed=${Date.now()}`
-    ]
-
-    return {
-      command: {
-        type: 'openRouteWithLoading',
-        payload: {
-          url: `/page/practice/index?${query.join('&')}`,
-          title: '正在生成试卷',
-          description: `${this.getSubjectName(subjectId)} · ${count} 题 / ${duration} 分钟`
-        }
-      }
+    const build = (count, selectionKey) => {
+      if (!count) return empty
+      const duration = resolveMockDuration(count)
+      const query = [`subjectId=${encodeURIComponent(subjectId)}`, online ? `bankId=${encodeURIComponent(bank.id)}` : 'scope=subject', 'mode=test', `count=${count}`, `duration=${duration}`, `seed=${Date.now()}`]
+      if (selectionKey) query.push(`selectionKey=${encodeURIComponent(selectionKey)}`)
+      return { command: { type: 'openRouteWithLoading', payload: { url: `/page/practice/index?${query.join('&')}`, title: '正在生成试卷', description: `${this.getSubjectName(subjectId)} · ${count} 题 / ${duration} 分钟` } } }
     }
+    const count = Math.min(MOCK_EXAM_QUESTION_COUNT, total)
+    if (online) return this.repository.previewRemotePracticeScope(this.storage, { questionBankId: bank.id, count, order: 'RANDOM', selectionKind: 'NORMAL' }).then(preview => build(preview.selectedCount, preview.selectionKey))
+    return build(count)
   }
 
   async loadRemoteMock() {

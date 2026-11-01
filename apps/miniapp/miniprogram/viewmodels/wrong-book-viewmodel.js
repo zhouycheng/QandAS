@@ -684,9 +684,9 @@ class WrongBookViewModel {
         selectionKind: options.kind,
         collectionChip: options.chip
       }).then(preview => {
-        const count = Math.min(Number(preview.availableCount) || 0, 1000)
+        const count = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000)
         if (!count) return { command: { type: 'toast', title: '当前没有可练习的题目' } }
-        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${facets[0].questionBankId}&subjectId=${facets[0].subjectId}&selectionKind=${options.kind}&collectionChip=${options.chip}&count=${count}` } }
+        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${facets[0].questionBankId}&subjectId=${facets[0].subjectId}&selectionKind=${options.kind}&collectionChip=${options.chip}&count=${count}${preview.selectionKey ? '&selectionKey=' + preview.selectionKey : ''}` } }
       })
     }
     const items = this.applyFilters(

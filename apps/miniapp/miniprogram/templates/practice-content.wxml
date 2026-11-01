@@ -11,12 +11,18 @@
   <view class="pra-module module-stem {{editLayout ? 'layout-module' : ''}} {{dragId === 'stem' ? 'layout-dragging' : ''}}" style="order: {{layoutRanks.stem}};" data-module="stem">
     <view class="layout-insert" wx:if="{{editLayout && dragTarget === 'stem'}}">松手放在这里</view>
     <view class="layout-handle" wx:if="{{editLayout}}" data-module="stem" aria-label="拖动{{moduleLabels.stem}}调整顺序" catchtouchstart="{{layoutDrag.start}}" catchtouchmove="{{layoutDrag.move}}" catchtouchend="{{layoutDrag.end}}" catchtouchcancel="{{layoutDrag.cancel}}"><view class="layout-grip" aria-hidden="true"></view></view>
+<view class="pra-material" wx:if="{{currentQuestion.material}}"><text class="pra-side-title">阅读材料</text><text>{{currentQuestion.material.passage}}</text></view>
+<question-images paths="{{currentQuestion.material.imagePaths}}" wx:if="{{currentQuestion.material}}" />
 <view class="pra-stem">{{currentQuestion.stem}}</view>
+<question-images paths="{{currentQuestion.imagePaths}}" />
   </view>
   <view class="pra-module module-response {{editLayout ? 'layout-module' : ''}} {{dragId === 'response' ? 'layout-dragging' : ''}}" style="order: {{layoutRanks.response}};" data-module="response">
     <view class="layout-insert" wx:if="{{editLayout && dragTarget === 'response'}}">松手放在这里</view>
     <view class="layout-handle" wx:if="{{editLayout}}" data-module="response" aria-label="拖动{{moduleLabels.response}}调整顺序" catchtouchstart="{{layoutDrag.start}}" catchtouchmove="{{layoutDrag.move}}" catchtouchend="{{layoutDrag.end}}" catchtouchcancel="{{layoutDrag.cancel}}"><view class="layout-grip" aria-hidden="true"></view></view>
 <textarea wx:if="{{currentQuestion.isShortAnswer}}" value="{{answerText}}" disabled="{{hasAnswered}}" maxlength="10000" placeholder="填写你的答案" bindinput="inputAnswerText" />
+        <view class="pra-blank" wx:for="{{blankInputs}}" wx:key="index" wx:if="{{currentQuestion.isFillBlank}}">
+          <text>{{item.label}}</text><input value="{{item.value}}" disabled="{{hasAnswered}}" maxlength="500" placeholder="填写答案" data-index="{{item.index}}" bindinput="inputBlank" />
+        </view>
         <view class="pra-options">
           <view
             wx:for="{{currentQuestion.options}}"
@@ -45,6 +51,7 @@
           <text class="pra-result-tag {{isCurrentAnswerCorrect ? 'ok' : 'no'}}">{{currentQuestion.isShortAnswer ? '参考答案' : (isCurrentAnswerCorrect ? '答对啦' : '答错了')}}</text>
           <text class="pra-analysis-answer">{{currentCorrectAnswerText}}</text>
         </view>
+        <view class="pra-scoring" wx:for="{{currentQuestion.scoringPoints}}" wx:key="*this">{{index + 1}}. {{item}}</view>
 
         <view class="pra-explanation {{explanationOpen ? 'is-open' : ''}}" wx:if="{{shouldShowExplanation}}">
           <text class="pra-side-title">解析</text>
@@ -68,6 +75,7 @@
     <view class="layout-insert" wx:if="{{editLayout && dragTarget === 'tools'}}">松手放在这里</view>
     <view class="layout-handle" wx:if="{{editLayout}}" data-module="tools" aria-label="拖动{{moduleLabels.tools}}调整顺序" catchtouchstart="{{layoutDrag.start}}" catchtouchmove="{{layoutDrag.move}}" catchtouchend="{{layoutDrag.end}}" catchtouchcancel="{{layoutDrag.cancel}}"><view class="layout-grip" aria-hidden="true"></view></view>
 <view class="pra-tools">
+        <view class="pra-tool" bindtap="openFeedback" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80"><text class="pra-tool-text">纠错</text></view>
         <view
           class="pra-tool {{isCurrentQuestionFavorite ? 'on' : ''}}"
           bindtap="toggleFavorite"

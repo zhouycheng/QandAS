@@ -22,7 +22,7 @@ async function required(method, path, body) {
 }
 function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
-  if (saved) return Promise.resolve(saved)
+  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved)
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))
   if (creating) return creating
   creating = create(storage, options).finally(() => { creating = null })
@@ -35,8 +35,11 @@ async function create(storage, options) {
   const bank = require('./remote-data-repository.js').getBankMeta(options.bankId) || await required('GET', '/question-banks/' + options.bankId)
   const scope = { questionBankId: bank.id || options.bankId, count: Math.min(Number(options.count) || bank.questionCount || bank.activeQuestionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
   if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
-  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersion: bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE' })
+  const preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(storage, options.selectionKey, scope.questionBankId) : null
+  if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
+  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE' })
   if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
+  await require('./question-assets.js').completeSnapshot(storage, snapshot)
   snapshot.route = Object.assign({}, options, { bankId: snapshot.questionBankId })
   snapshot.title = bank.name
   snapshot.status = 'IN_PROGRESS'

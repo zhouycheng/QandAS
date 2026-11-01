@@ -1,6 +1,7 @@
 const { buildAnswerRecords } = require('../utils/practice-progress.js')
 const { normalizePreferences } = require('../utils/preferences.js')
 const { ranks } = require('../utils/practice-layout.js')
+const { gradeBlanks, blankAnswerText } = require('../utils/fill-blank.js')
 const {
   QUESTION_STATE,
   SESSION_STATUS,
@@ -84,6 +85,7 @@ function getInitialPracticeViewData() {
     waitingSeconds: 0,
     editingLocked: false,
     answerText: '',
+    blankInputs: [],
     mode: PRACTICE_MODES.PRACTICE,
     // 初始即给一份默认偏好：页面首帧就要读 preferences.showOverviewEntry / fontSize，
     // 缺了会让答题卡入口闪一下、字号也来不及生效
@@ -767,7 +769,7 @@ class PracticeSession {
       const answer = rawAnswer || {}
       // answered 必须显式区分：未作答的 isCorrect 也是 false，
       // 只靠 isCorrect 筛选会把"没做"和"做错"混成一类
-      const answered = !!rawAnswer
+      const answered = !!rawAnswer && rawAnswer.confirmed !== false
 
       return {
         id: question.id,
@@ -776,8 +778,12 @@ class PracticeSession {
         isShortAnswer: !!question.isShortAnswer,
         selfAssessment: answer.selfAssessment || '',
         stem: question.stem,
-        selectedText: answer.text || this.getAnswerText(question, answer.selectedKeys) || '未作答',
-        correctText: question.isShortAnswer ? question.referenceAnswer : this.getAnswerText(question, question.answerKeys),
+        material: question.material || null,
+        assetIds: question.assetIds || [],
+        imagePaths: question.imagePaths || [],
+        scoringPoints: question.scoringPoints || [],
+        selectedText: question.isFillBlank ? (answer.blanks || []).map((value, i) => `第 ${i + 1} 空：${value || '未填写'}`).join('\n') || '未作答' : answer.text || this.getAnswerText(question, answer.selectedKeys) || '未作答',
+        correctText: question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : this.getAnswerText(question, question.answerKeys),
         answered,
         isCorrect: answered && !!answer.isCorrect,
         explanation: this.getExplanation(question),
@@ -880,7 +886,7 @@ class PracticeSession {
   showQuestionAtIndex(index, extraData) {
     const question = this.state.questions[index]
     const savedAnswer = this.state.answers[index] || null
-    const selectedKeys = savedAnswer ? savedAnswer.selectedKeys : []
+    const selectedKeys = savedAnswer ? savedAnswer.selectedKeys || [] : []
     const hasAnswered = !!savedAnswer && savedAnswer.confirmed !== false
     // 模拟测试模式下不即时反馈，交卷后才统一公布答案
     const shouldRevealAnswer = this.state.isViewMode || (hasAnswered && !this.state.isTestMode)
@@ -894,6 +900,7 @@ class PracticeSession {
       currentQuestion: this.getQuestionView(question, selectedKeys, shouldRevealAnswer),
       selectedKeys,
       answerText: savedAnswer ? savedAnswer.text || '' : '',
+      blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: `第 ${i + 1} 空`, value: savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
       hasAnswered,
       shouldRevealAnswer,
       shouldShowExplanation,
@@ -912,7 +919,7 @@ class PracticeSession {
   commitCurrentAnswer(selectedKeys) {
     const question = this.getCurrentBaseQuestion()
 
-    if (!question || (!question.isShortAnswer && !selectedKeys.length)) {
+    if (!question || (!question.isShortAnswer && !question.isFillBlank && !selectedKeys.length)) {
       return null
     }
 
@@ -927,6 +934,12 @@ class PracticeSession {
       return
     }
 
+    if (question.isFillBlank) {
+      const previous = this.state.answers[this.state.currentIndex] || {}
+      const blanks = previous.blanks || Array(question.blankCount).fill('')
+      this.state.answers[this.state.currentIndex] = { questionId: question.id, blanks: blanks.slice(), selectedKeys: [], confirmed: true, isCorrect: gradeBlanks(question, blanks) }
+      return
+    }
     if (question.isShortAnswer) {
       const previous = this.state.answers[this.state.currentIndex] || {}
       this.state.answers[this.state.currentIndex] = { questionId: question.id, text: this.state.answerText, selectedKeys: [], confirmed: true, selfAssessment: previous.selfAssessment || null, isCorrect: previous.selfAssessment === 'CORRECT' }
@@ -963,6 +976,16 @@ class PracticeSession {
     return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
   }
 
+  setBlank(index, value) {
+    const question = this.getCurrentBaseQuestion()
+    if (!question || !question.isFillBlank || this.state.hasAnswered || this.state.isCompleted || !Number.isInteger(index) || index < 0 || index >= question.blankCount) return null
+    const previous = this.state.answers[this.state.currentIndex] || {}
+    const blanks = previous.blanks ? previous.blanks.slice() : Array(question.blankCount).fill('')
+    blanks[index] = String(value || '').slice(0, 500)
+    this.state.answers[this.state.currentIndex] = { questionId: question.id, blanks, selectedKeys: [], confirmed: false, isCorrect: false }
+    return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
+  }
+
   assessShortAnswer(value) {
     const question = this.getCurrentBaseQuestion()
     const answer = this.state.answers[this.state.currentIndex]
@@ -975,7 +998,14 @@ class PracticeSession {
   shouldConfirmCurrentAnswer() {
     const question = this.getCurrentBaseQuestion()
 
-    return !!question && !this.state.hasAnswered && (question.isShortAnswer ? !!this.state.answerText.trim() : question.isMultiple && this.state.selectedKeys.length > 0)
+    return !!question && !this.state.hasAnswered && this.hasConfirmableInput(question, this.state.currentIndex, this.state.selectedKeys)
+  }
+
+  hasConfirmableInput(question, index, keys) {
+    const answer = this.state.answers[index] || {}
+    if (question.isFillBlank) return (answer.blanks || []).some(value => value.trim())
+    if (question.isShortAnswer) return !!(answer.text || '').trim()
+    return question.isMultiple && keys.length > 0
   }
 
   updateState(patch, effects) {
@@ -997,7 +1027,7 @@ class PracticeSession {
       return null
     }
 
-    return Object.assign({ id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, assetIds: question.assetIds || [] }, {
+    return Object.assign({ id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
       options: question.options.map((option) => ({
         key: option.key,
         label: option.label,
@@ -1014,7 +1044,7 @@ class PracticeSession {
     return this.state.questions.map((question, index) => ({
       number: index + 1,
       index,
-      answered: !!answers[index],
+      answered: !!answers[index] && answers[index].confirmed !== false,
       isCorrect: answers[index] ? !!answers[index].isCorrect : false,
       selectedKeys: answers[index] ? answers[index].selectedKeys : [],
       isCurrent: index === currentIndex,
@@ -1057,7 +1087,7 @@ class PracticeSession {
     if (!hasAnswered) {
       const question = this.state.questions[index]
 
-      if (question && (question.isShortAnswer ? !!this.state.answerText.trim() : question.isMultiple && selectedKeys.length)) {
+      if (question && this.hasConfirmableInput(question, index, selectedKeys)) {
         return '确认答案'
       }
     }
@@ -1101,7 +1131,7 @@ class PracticeSession {
       return ''
     }
 
-    return question.isShortAnswer ? question.referenceAnswer : `正确答案 ${question.answerKeys.join('')}`
+    return question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : `正确答案 ${question.answerKeys.join('')}`
   }
 
   getExplanation(question) {

@@ -45,7 +45,7 @@ class FileService(private val files: FileAssetMapper,private val access: Content
     }
     fun read(actor: Actor?,id: UUID): ByteArray {
         val row=files.selectById(id) ?: missing()
-        if(actor?.kind=="ADMIN") access.bank(actor,row.bankId!!) else if(!sql.publiclyVisible(id) && (actor==null || !sql.issuedTo(actor.id,id))) missing()
+        if(actor?.kind=="ADMIN") access.bank(actor,row.bankId!!) else if(!sql.publiclyVisible(id,actor?.id) && (actor==null || !sql.issuedTo(actor.id,id))) missing()
         if(!row.storageKey.matches(Regex("[0-9a-f-]{36}\\.png"))) missing()
         val path=root().resolve(row.storageKey)
         val bytes=try { Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS).use { ImageNormalizer.readBounded(it,5L*1024*1024) } } catch(_: java.io.IOException) { throw ApiException(HttpStatus.SERVICE_UNAVAILABLE,"FILE_UNAVAILABLE","图片暂不可读取") }

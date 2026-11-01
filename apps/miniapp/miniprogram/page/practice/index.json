@@ -3,6 +3,7 @@
   "navigationBarBackgroundColor": "#FFFFFF",
   "navigationBarTextStyle": "black",
   "usingComponents": {
+    "question-images": "/components/question-images/index",
     "question-overview-sheet": "/components/question-overview-sheet/index",
     "bottom-sheet": "/components/bottom-sheet/index"
   }

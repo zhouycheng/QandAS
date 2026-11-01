@@ -1,4 +1,4 @@
 {
   "navigationBarTitleText": "题目详情",
-  "usingComponents": {}
+  "usingComponents": { "question-images": "/components/question-images/index" }
 }

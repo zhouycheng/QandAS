@@ -26,24 +26,35 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         scope.chapterIds.forEach { if(chapters.selectById(it)?.bankId!=scope.questionBankId) invalid("/scope/chapterIds") }
         if(scope.questionIds.size>1000 || scope.questionIds.distinct().size!=scope.questionIds.size) invalid("/scope/questionIds")
         if(scope.questionIds.isNotEmpty() && sql.eligibleCount(actor?.id,scope)!=scope.questionIds.size.toLong()) invalid("/scope/questionIds","QUESTION_SCOPE_MISMATCH","所选题目不属于当前可练习范围")
+        if(scope.selectionKind=="NORMAL" && scope.questionIds.isNotEmpty()) {
+            scope.questionIds.mapNotNull { questions.selectById(it)?.readingParentId }.distinct().forEach { parent ->
+                if(contentSql.readingChildren(parent).any { it.status=="ACTIVE" && it.id !in scope.questionIds }) invalid("/scope/questionIds","READING_GROUP_INCOMPLETE","普通练习请按完整阅读题组选择")
+            }
+        }
         return bank
     }
-    fun preview(actor: Actor?,scope: ScopeInput): ScopeView { val bank=validateScope(actor,scope);return ScopeView(sql.eligibleCount(actor?.id,scope),bank.contentVersion) }
+    fun preview(actor: Actor?,scope: ScopeInput): ScopeView {
+        val bank=validateScope(actor,scope);val selected=sql.eligible(actor?.id,scope)
+        return ScopeView(sql.eligibleCount(actor?.id,scope),bank.contentVersion,selected.size,selected.map { it.id!! })
+    }
+    private fun grading(id: UUID,q: QuestionView)=OfflineGrading(id,q.correctAnswer,q.correctValue,q.referenceAnswer,q.explanation,q.blanks,q.blankMatch,q.scoringPoints)
+    private fun display(q: QuestionView)=q.copy(correctAnswer=null,correctValue=null,referenceAnswer=null,explanation=null,blanks=null,blankMatch=null,scoringPoints=null)
     fun trialSnapshot(input: TrialSnapshotInput): TrialSnapshotView {
         val bank=validateScope(null,input.scope)
         val locked=contentSql.lockBank(bank.id!!) ?: missing()
         access.bank(null,bank.id!!)
         requireVersion(input.expectedContentVersion,locked.contentVersion)
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
-        if(sql.eligibleCount(null,input.scope)<input.scope.count) invalid("/scope/count","INSUFFICIENT_QUESTIONS","符合条件的题目数量不足")
+        val selected=sql.eligible(null,input.scope)
+        if(selected.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val grading=mutableListOf<OfflineGrading>()
-        val items=sql.eligible(null,input.scope).mapIndexed { position,q ->
+        val items=selected.mapIndexed { position,q ->
             val id=UUID.randomUUID();val answer=content.questionView(q,answers=true)
-            grading.add(OfflineGrading(id,answer.correctAnswer,answer.correctValue,answer.referenceAnswer,answer.explanation))
-            PracticeItemView(id,position,answer.copy(correctAnswer=null,correctValue=null,referenceAnswer=null,explanation=null),null,false,false,null,null)
+            grading.add(grading(id,answer))
+            PracticeItemView(id,position,display(answer),null,false,false,null,null)
         }
         return TrialSnapshotView(UUID.randomUUID(),bank.id!!,input.feedback,
-            PracticeConfiguration(input.scope.chapterIds,input.scope.count,input.scope.order,"NORMAL",input.feedback,locked.contentVersion,input.scope.questionIds),items,grading,clock.instant())
+            PracticeConfiguration(input.scope.chapterIds,items.size,input.scope.order,"NORMAL",input.feedback,locked.contentVersion,selected.map { it.id!! }),items,grading,clock.instant())
     }
     fun create(actor: Actor,input: CreatePracticeInput): PracticeView {
         val bank=validateScope(actor,input.scope)
@@ -53,13 +64,13 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         access.bank(actor,bank.id!!)
         requireVersion(input.expectedContentVersion,locked.contentVersion)
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
-        if(sql.eligibleCount(actor.id,input.scope)<input.scope.count) invalid("/scope/count","INSUFFICIENT_QUESTIONS","符合条件的题目数量不足")
         val chosen=sql.eligible(actor.id,input.scope)
+        if(chosen.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;clientType=actor.clientType;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
-        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,input.scope.count,input.scope.order,input.scope.selectionKind,input.feedback,locked.contentVersion,input.scope.questionIds,input.scope.collectionChip))
+        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,locked.contentVersion,chosen.map { it.id!! },input.scope.collectionChip))
         session.writerDeviceId=input.deviceId;session.writerToken=UUID.randomUUID()
         rows.insert(session)
-        chosen.forEachIndexed { i,q -> itemRows.insert(PracticeItem().apply { id=UUID.randomUUID();sessionId=session.id;questionId=q.id;revisionId=q.currentRevisionId;position=i }) }
+        chosen.forEachIndexed { i,q -> itemRows.insert(PracticeItem().apply { id=UUID.randomUUID();sessionId=session.id;questionId=q.id;revisionId=q.currentRevisionId;materialRevisionId=content.materialRevision(q);position=i }) }
         system.activity(actor.id,actor.clientType)
         return view(session,input.deviceId,true)
     }
@@ -68,12 +79,12 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     }
     private fun answer(item: PracticeItem): AnswerInput? {
         val choices=sql.choices(item.id!!)
-        return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);else -> null }
+        return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);item.answerBlanks!=null -> AnswerInput(blanks=json.readValue(item.answerBlanks,Array<String>::class.java).toList());else -> null }
     }
     private fun views(session: PracticeSession): List<PracticeItemView> = sql.items(session.id!!).map { item ->
         val reveal=session.status=="SUBMITTED" || session.feedback=="IMMEDIATE" && item.confirmed
         val question=questions.selectById(item.questionId) ?: missing()
-        PracticeItemView(item.id!!,item.position,content.questionView(question,item.revisionId!!,reveal),answer(item),item.confirmed,item.marked,item.outcome.takeIf { reveal },item.selfAssessment.takeIf { reveal })
+        PracticeItemView(item.id!!,item.position,content.questionView(question,item.revisionId!!,reveal,item.materialRevisionId),answer(item),item.confirmed,item.marked,item.outcome.takeIf { reveal },item.selfAssessment.takeIf { reveal })
     }
     private fun writerView(row: PracticeSession,deviceId: UUID?): WriterView = WriterView(
         if(row.writerDeviceId==null) "RELEASED" else if(row.writerDeviceId==deviceId) "ACTIVE" else "WAITING",
@@ -81,7 +92,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     private fun view(row: PracticeSession,deviceId: UUID?=null,offline: Boolean=false): PracticeView {
         val grading=if(offline) sql.items(row.id!!).map { item ->
             val q=content.questionView(questions.selectById(item.questionId),item.revisionId!!,true)
-            OfflineGrading(item.id!!,q.correctAnswer,q.correctValue,q.referenceAnswer,q.explanation)
+            grading(item.id!!,q)
         } else null
         val items=views(row)
         return PracticeView(row.id!!,row.bankId!!,row.status,row.version,row.currentIndex,row.durationSeconds,row.feedback,items,row.createdAt,
@@ -152,7 +163,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
             if(row.feedback=="IMMEDIATE" && item.confirmed && (normalized!=previous || !change.confirmed)) conflict("ANSWER_CONFIRMED","已确认的答案不能修改")
             if(change.confirmed && normalized==null) invalid("/items/confirmed")
             if(normalized==previous && change.confirmed==item.confirmed && change.marked==item.marked) return@forEach
-            item.answerText=normalized?.text;item.answerBoolean=normalized?.value;item.confirmed=change.confirmed;item.marked=change.marked
+            item.answerText=normalized?.text;item.answerBoolean=normalized?.value;item.answerBlanks=normalized?.blanks?.let { json.writeValueAsString(it) };item.confirmed=change.confirmed;item.marked=change.marked
             item.outcome=if(row.feedback=="IMMEDIATE" && change.confirmed) Grading.outcome(question,normalized) else null
             sql.clearChoices(item.id!!);normalized?.optionKeys?.forEach { sql.addChoice(item.id!!,item.revisionId!!,it) };sql.updateAnswer(item)
         }
@@ -165,7 +176,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         val finalItems=sql.items(id)
         finalItems.forEach { item ->
             val question=content.questionView(questions.selectById(item.questionId),item.revisionId!!,true)
-            val submitted=answer(item).takeIf { question.type!="MULTIPLE_CHOICE" || item.confirmed }
+            val submitted=answer(item).takeIf { question.type !in setOf("MULTIPLE_CHOICE","FILL_BLANK") || item.confirmed }
             item.outcome=Grading.outcome(question,submitted);sql.updateAnswer(item)
         }
         val short=finalItems.filter { questions.selectById(it.questionId).let { q -> content.questionView(q,it.revisionId!!,false).type=="SHORT_ANSWER" } }

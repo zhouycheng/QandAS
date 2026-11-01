@@ -15,7 +15,10 @@
           <text class="detail-source">{{subjectName}} · {{bankName}}</text>
         </view>
 
+        <view wx:if="{{material}}" class="detail-material"><text class="section-title">阅读材料</text><text>{{material.passage}}</text></view>
+        <question-images wx:if="{{material}}" paths="{{material.imagePaths}}" />
         <text class="detail-stem">{{stem}}</text>
+        <question-images paths="{{imagePaths}}" />
 
         <view
           wx:for="{{options}}"
@@ -45,6 +48,7 @@
       <view wx:if="{{explanation}}" class="explain-card card">
         <text class="section-title">解析</text>
         <text class="explain-text">{{explanation}}</text>
+        <view wx:for="{{scoringPoints}}" wx:key="*this">{{index + 1}}. {{item}}</view>
       </view>
 
       <view
@@ -54,6 +58,7 @@
         hover-start-time="0"
         hover-stay-time="80"
       >{{isFavorite ? '已收藏' : '收藏本题'}}</view>
+      <view class="favorite-btn" bindtap="handleFeedback" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">题目纠错</view>
     </scroll-view>
   </block>
 </view>

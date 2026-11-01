@@ -1,0 +1,2 @@
+.question-image { display: block; width: 100%; margin: 20rpx 0; border-radius: 12rpx; }
+.image-hover { opacity: .8; }

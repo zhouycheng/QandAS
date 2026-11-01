@@ -1,1 +1,1 @@
-{ "navigationBarTitleText": "自定义布局", "navigationBarBackgroundColor": "#ffffff", "navigationBarTextStyle": "black", "disableScroll": true, "usingComponents": {} }
+{ "navigationBarTitleText": "自定义布局", "navigationBarBackgroundColor": "#ffffff", "navigationBarTextStyle": "black", "disableScroll": true, "usingComponents": { "question-images": "/components/question-images/index" } }

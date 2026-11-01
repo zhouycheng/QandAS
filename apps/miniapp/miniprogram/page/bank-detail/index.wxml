@@ -37,7 +37,11 @@
 
   <view class="load-note" wx:if="{{catalogLoading}}">正在读取题库…</view>
   <view class="load-note" wx:if="{{catalogError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{catalogError}} · 点击重试</view>
-  <view class="load-note" wx:if="{{!catalogLoading && !catalogError && !subject}}">暂无已发布的题库</view>
+  <view class="load-note" wx:if="{{!catalogLoading && !catalogError && !subject}}">
+    <view>{{loggedIn ? '当前资料范围内暂无题库' : '暂无已发布的题库'}}</view>
+    <view wx:if="{{loggedIn}}" bindtap="handleChangeProfile" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">修改个人资料</view>
+    <view bindtap="handleRequestCourse" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">反馈缺少课程</view>
+  </view>
 
   <view class="workbench" wx:if="{{subject}}">
     <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}">

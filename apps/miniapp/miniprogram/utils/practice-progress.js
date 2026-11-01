@@ -204,8 +204,8 @@ function buildAnswerRecords(questions, answers) {
 
     return {
       id: question ? question.id : '',
-      answered: !!answer,
-      correct: !!(answer && answer.isCorrect)
+      answered: !!answer && answer.confirmed !== false,
+      correct: !!(answer && answer.confirmed !== false && answer.isCorrect)
     }
   })
 }

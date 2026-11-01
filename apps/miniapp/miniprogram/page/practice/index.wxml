@@ -198,7 +198,10 @@
             <text class="res-item-type">{{item.typeText}}</text>
             <text class="res-item-flag {{item.answered ? (item.isCorrect ? 'ok' : 'no') : 'skip'}}">{{item.answered ? (item.isCorrect ? '正确' : '错误') : '未答'}}</text>
           </view>
+          <view class="pra-material" wx:if="{{item.material}}">{{item.material.passage}}</view>
+          <question-images wx:if="{{item.material}}" paths="{{item.material.imagePaths}}" />
           <text class="res-item-stem">{{item.stem}}</text>
+          <question-images paths="{{item.imagePaths}}" />
           <view class="res-item-line">
             <text class="res-item-label">你的答案</text>
             <text class="res-item-value">{{item.selectedText}}</text>

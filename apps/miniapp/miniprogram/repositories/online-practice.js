@@ -1,6 +1,8 @@
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const { createSyncQueue } = require('./practice-sync-queue.js')
+const { gradeBlanks } = require('../utils/fill-blank.js')
+const assets = require('./question-assets.js')
 let runtime = null
 
 function mapQuestion(item, grading) {
@@ -9,8 +11,10 @@ function mapQuestion(item, grading) {
   const boolean = q.type === 'TRUE_FALSE'
   return {
     id: q.id, itemId: item.itemId, revisionId: q.revisionId, type: q.type,
-    typeText: { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', SHORT_ANSWER: '简答题' }[q.type],
+    typeText: { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' }[q.type],
     stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
+    isFillBlank: q.type === 'FILL_BLANK', blankCount: q.blankCount || 0, blanks: g.blanks || [], blankMatch: g.blankMatch || {},
+    scoringPoints: g.scoringPoints || [], material: q.material || null, imagePaths: q.imagePaths || [],
     options: boolean ? [{ key: 'true', label: '对', text: '正确' }, { key: 'false', label: '错', text: '错误' }] : (q.options || []).map(o => ({ key: o.key, label: o.key, text: o.content })),
     answerKeys: boolean ? [String(g.correctValue)] : (g.correctAnswer || []),
     referenceAnswer: g.referenceAnswer || '', explanation: g.explanation || '', assetIds: q.assetIds || []
@@ -39,7 +43,7 @@ class OnlinePractice {
   }
   key(id) { return `qandaOnline:${this.userId}:${id}` }
   get(id) { this.identity(); return this.storage.get(this.key(id)) || null }
-  put(id, value) { this.storage.set(this.key(id), value) }
+  put(id, value) { assets.reuseResultImages(value); this.storage.set(this.key(id), value) }
   deviceId() {
     let id = this.storage.get('qandaDeviceId')
     if (!id) { id = http.uuid(); this.storage.set('qandaDeviceId', id) }
@@ -66,19 +70,19 @@ class OnlinePractice {
         cached = this.get(id)
       }
       let ordinary = cached
-      if (cached && cached.status === 'SUBMITTED') return cached
+      if (cached && cached.status === 'SUBMITTED') return assets.completeSnapshot(this.storage, cached)
       if (!cached || !cached.writer || !cached.writer.writerToken || cached.writer.deviceId !== this.deviceId()) {
         const remote = await this.required('GET', `/practice/sessions/${id}`)
         ordinary = remote
         if (remote.status === 'SUBMITTED') {
           remote.result = await this.required('GET', `/practice/sessions/${id}/result`)
           remote.items = remote.result.items
-          return this.remember(remote, options)
+          return this.remember(await assets.completeSnapshot(this.storage, remote), options)
         }
       }
       if (cached && cached.writer && cached.writer.deviceId === this.deviceId() && cached.writer.writerToken && !this.getWaiting(id)) {
         // 原写入权恢复本机草稿，接管续答读取最新快照。
-        return cached
+        return assets.completeSnapshot(this.storage, cached)
       }
       const writer = await this.required('POST', `/practice/sessions/${id}/writer-acquire`, { deviceId: this.deviceId() }, { idempotencyKey: http.uuid() })
       if (writer.state !== 'ACTIVE' || !writer.writerToken) {
@@ -88,7 +92,7 @@ class OnlinePractice {
       }
       const snapshot = await this.required('GET', `/practice/sessions/${id}/snapshot?deviceId=${this.deviceId()}`, null, { headers: { 'X-Practice-Writer': writer.writerToken } })
       snapshot.writer = writer
-      const prepared = this.remember(snapshot, options)
+      const prepared = this.remember(await assets.completeSnapshot(this.storage, snapshot), options)
       this.forgetWaiting(id)
       return prepared
     }
@@ -116,7 +120,9 @@ class OnlinePractice {
       const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || bank.questionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
       scope.collectionChip = options.collectionChip || 'all'
       if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
-      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE', deviceId: this.deviceId() } }
+      const preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankId) : null
+      if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
+      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE', deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }
@@ -127,7 +133,7 @@ class OnlinePractice {
     }
     const snapshot = response.data
     snapshot.title = intent.title
-    const created = this.remember(snapshot, intent.route)
+    const created = this.remember(await assets.completeSnapshot(this.storage, snapshot), intent.route)
     this.storage.set(storageKey, (this.storage.get(storageKey) || []).filter(value => value.key !== intent.key))
     return created
   }
@@ -183,7 +189,7 @@ class OnlinePractice {
     const questions = this.quiz(snapshot).questions
     return { sessionId: snapshot.id, questionIds: questions.map(q => q.id), questionOrder: questions.map((_, i) => i), currentIndex: snapshot.currentIndex, elapsedTime: snapshot.durationSeconds,
       markedIds: snapshot.items.filter(i => i.marked).map(i => i.question.id),
-      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome ? item.outcome === 'CORRECT' : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
+      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', blanks: item.answer.blanks || [], confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome ? item.outcome === 'CORRECT' : item.question.type === 'FILL_BLANK' ? gradeBlanks(questions[index], item.answer.blanks) : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
       status: snapshot.status === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS', config: snapshot.route }
   }
   save(session) {
@@ -202,7 +208,7 @@ class OnlinePractice {
       const question = session.state.questions[i]
       const editing = i === state.currentIndex && (!answer || answer.confirmed === false)
       const keys = editing ? session.state.selectedKeys : answer ? answer.selectedKeys : []
-      return { itemId: item.itemId, answer: question.isShortAnswer ? (answer && answer.text && answer.text.trim() ? { text: answer.text } : null) : keys && keys.length ? (question.type === 'TRUE_FALSE' ? { value: keys[0] === 'true' } : { optionKeys: keys }) : null, confirmed: !!answer && answer.confirmed !== false, marked: state.markedIds.includes(item.question.id) }
+      return { itemId: item.itemId, answer: question.isFillBlank ? (answer && answer.blanks && answer.blanks.some(value => value.trim()) ? { blanks: answer.blanks } : null) : question.isShortAnswer ? (answer && answer.text && answer.text.trim() ? { text: answer.text } : null) : keys && keys.length ? (question.type === 'TRUE_FALSE' ? { value: keys[0] === 'true' } : { optionKeys: keys }) : null, confirmed: !!answer && answer.confirmed !== false, marked: state.markedIds.includes(item.question.id) }
     })
     this.put(snapshot.id, snapshot)
     const saved = this.queue.save(snapshot.id, { progress: { currentIndex: state.currentIndex, durationSeconds: state.elapsedTime, items }, state })

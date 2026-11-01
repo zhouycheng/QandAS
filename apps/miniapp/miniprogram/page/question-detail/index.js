@@ -16,6 +16,10 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.toggleFavorite(this.data.questionId))
   },
 
+  handleFeedback() {
+    this.applyViewModelResult(this.viewModel.openFeedback())
+  },
+
   applyViewModelResult(result) {
     if (result && typeof result.then === 'function') {
       return result.then((value) => this.applyViewModelResult(value)).catch((error) => wx.showToast({ title: error.message || '请求失败', icon: 'none' }))
@@ -27,5 +31,6 @@ Page(withPageLifecycle({
     if (result.data) {
       this.setData(result.data)
     }
+    if (result.command && result.command.type === 'navigate') require('../../utils/navigation.js').navigateTo(result.command.url)
   }
 }))

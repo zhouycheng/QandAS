@@ -893,3 +893,9 @@
 .pra-module { position: relative; }
 .pra-content .pra-tools { padding: 20rpx 0; }
 .pra-module textarea { width: 100%; min-height: 180rpx; padding: 20rpx; box-sizing: border-box; background: #f4f5f9; border-radius: 16rpx; }
+.pra-material { margin-bottom: 28rpx; padding: 24rpx; background: #f5f7fa; border-radius: 16rpx; white-space: pre-wrap; }
+.pra-material text { display: block; }
+.pra-material .pra-side-title { margin-bottom: 16rpx; }
+.pra-blank { display: flex; align-items: center; gap: 20rpx; margin-bottom: 20rpx; }
+.pra-blank input { flex: 1; min-width: 0; padding: 22rpx; background: #f5f7fa; border-radius: 12rpx; }
+.pra-scoring { margin-top: 12rpx; white-space: pre-wrap; }

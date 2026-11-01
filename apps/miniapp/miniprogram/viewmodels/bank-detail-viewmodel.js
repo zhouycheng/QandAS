@@ -175,6 +175,7 @@ class BankDetailViewModel {
     ;['searchKeyword', 'searchActive', 'searchResults', 'searchEmptyText', 'configSheetVisible'].forEach(key => delete data[key])
     const subjectState = this.repository.getRemoteSubjectPage(this.remoteSubjectPage || 1)
     const subjectPage = subjectState.data
+    data.loggedIn = !!this.repository.getAuth(this.storage).token
     Object.assign(data, { catalogLoading: (current.status === 'loading' || subjectState.status === 'loading') && !ids.size, catalogError: current.error || subjectState.error,
       catalogHasMore: !!current.data && (this.remotePage || 1) * 20 < current.data.total,
       subjectsHasMore: !!subjectPage && (this.remoteSubjectPage || 1) * 20 < subjectPage.total })
@@ -187,6 +188,14 @@ class BankDetailViewModel {
     if (!current.error) this.remotePage = (this.remotePage || 1) + 1
     this.loadingMoreBanks = this.refreshRemote(this.currentSubjectId).finally(() => { this.loadingMoreBanks = null })
     return this.loadingMoreBanks
+  }
+
+  changeProfile() {
+    return { command: { type: 'navigate', url: this.repository.getAuth(this.storage).token ? '/page/account/index' : '/page/login/index' } }
+  }
+
+  requestCourse() {
+    return require('../utils/feedback-entry.js').feedbackEntry(this.storage, 'course')
   }
 
   loadMoreSubjects() {
@@ -855,16 +864,18 @@ class BankDetailViewModel {
       }
     })
 
-    if (remote && this.sheet.onlyWrong) {
+    if (remote && target.bankId) {
       return this.repository.previewRemotePracticeScope(this.storage, {
         questionBankId: target.bankId,
-        count: 1000,
-        selectionKind: 'WRONG',
+        count: this.sheet.onlyWrong ? 1000 : Math.min(target.questionCount || 1000, 1000),
+        order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
+        selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',
         collectionChip: 'all'
       }).then(preview => {
-        const availableCount = Math.min(Number(preview.availableCount) || 0, 1000)
-        if (!availableCount) return { command: { type: 'toast', title: '当前筛选下没有可练习的错题' } }
+        const availableCount = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000)
+        if (!availableCount) return { command: { type: 'toast', title: '当前范围没有可练习的题目' } }
         query.push(`count=${availableCount}`)
+        if (preview.selectionKey) query.push(`selectionKey=${preview.selectionKey}`)
         return buildCommand(availableCount)
       })
     }
