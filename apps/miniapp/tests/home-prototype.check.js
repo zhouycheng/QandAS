@@ -135,9 +135,12 @@ function checkStructure() {
   assert('公告 - 图片为带透明通道的小尺寸 PNG',
     megaphone.toString('hex', 0, 8) === '89504e470d0a1a0a' && megaphone[25] === 6 && megaphone.length < 100000)
   assert('公告 - 静止状态没有动画', !/\.hero-notice-icon\s*\{[^}]*animation:/.test(homeWxss))
-  assert('公告 - 有公告时持续摇动', /\.hero-notice-icon-active\s*\{[^}]*animation:\s*notice-shake 1\.4s ease-in-out infinite/.test(homeWxss))
-  assert('公告 - 定义了 notice-shake 关键帧', /@keyframes\s+notice-shake/.test(homeWxss))
-  assert('公告 - 轻幅摇动及缩放循环', ['rotate(0deg) scale(1)', 'rotate(-6deg) scale(1.03)', 'rotate(5deg) scale(1.06)', 'rotate(-3deg) scale(1.03)'].every(frame => homeWxss.includes(frame)))
+  assert('公告 - 有公告时循环轻抬招呼', /\.hero-notice-icon-active\s*\{[^}]*animation:\s*notice-call 3\.6s cubic-bezier\(0\.4, 0, 0\.2, 1\) infinite/.test(homeWxss))
+  assert('公告 - 围绕喇叭主体转动', /\.hero-notice-icon\s*\{[^}]*transform-origin:\s*42% 62%/.test(homeWxss))
+  const noticeFrames = homeWxss.match(/@keyframes notice-call\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+  assert('公告 - 循环首尾一致且后半周期停稳', /0%, 8%, 50%, 100%\s*\{\s*transform: translateY\(0\) rotate\(0deg\) scale\(1\)/.test(noticeFrames))
+  assert('公告 - 轻抬后递减回弹', ['rotate(-3deg) scale(0.98)', 'translateY(-5rpx) rotate(6deg) scale(1.04)', 'rotate(-2.5deg) scale(1.01)', 'rotate(1deg) scale(1)'].every(frame => noticeFrames.includes(frame)))
+  assert('公告 - 点击反馈保持动画几何', !/\.hero-notice-hover\s*\{[^}]*(transform|animation):/.test(homeWxss))
   assert('公告 - 点击热区至少 96rpx', /\.hero-notice-btn\s*\{[^}]*width:\s*96rpx[^}]*height:\s*96rpx/.test(homeWxss))
   assert('公告 - 标签水平居中并固定在喇叭下方', homeWxml.includes('<text class="hero-notice-label">公告</text>') && /\.hero-notice-label\s*\{[^}]*left:\s*50%[^}]*transform:\s*translateX\(-50%\)/.test(homeWxss))
   assert('公告 - 标签文案始终水平单行', /\.hero-notice-label\s*\{[^}]*white-space:\s*nowrap/.test(homeWxss))

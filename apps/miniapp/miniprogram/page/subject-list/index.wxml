@@ -1,5 +1,5 @@
 <!-- 首页（原型 552:1410）
-     结构：蓝色头部（品牌 + 搜索 + 公告圆钮）→ 白色圆角内容区（倒计时卡 + 四宫格）
+     结构：蓝色头部（品牌 + 搜索 + 公告入口）→ 白色圆角内容区（倒计时卡 + 四宫格）
      头部与内容区之间靠负 margin 咬合，内容区圆角把蓝底"切"出一道弧，不需要额外装饰图。 -->
 <view class="page home-page stagger">
   <view class="hero" style="padding-top: {{homeStatusBarHeight}}px;">
@@ -29,7 +29,7 @@
         <view class="search-icon"></view>
       </view>
 
-      <!-- 有可见公告时，喇叭持续摇动。 -->
+      <!-- 有可见公告时，喇叭循环轻抬招呼，标签保持固定。 -->
       <view
         class="hero-notice-btn"
         aria-role="button"
