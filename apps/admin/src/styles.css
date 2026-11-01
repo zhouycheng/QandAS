@@ -1934,10 +1934,10 @@ textarea:focus-visible {
 .directory-detail-panel .arco-table-td { border-color: #eff3f8; }
 .activity-page .arco-table-th { white-space: nowrap; }
 .activity-page .arco-table-th, .activity-page .arco-table-td { padding: 12px; }
-.directory-entity { display: flex; align-items: center; gap: 12px; padding: 6px 0; max-width: 100%; border: 0; background: transparent; color: #344f72; text-align: left; cursor: pointer; }
+.directory-entity { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 6px 0; max-width: 100%; border: 0; background: transparent; color: #344f72; text-align: left; cursor: pointer; }
 .directory-entity:hover strong { color: var(--primary); }
-.directory-entity > span:last-child { display: flex; flex-direction: column; gap: 6px; }
-.directory-entity strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.directory-entity > span:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 6px; }
+.directory-entity strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .directory-entity small { font-size: 11px; color: #9aa8bb; }
 .directory-entity-icon { display: grid; place-items: center; flex: 0 0 35px; height: 35px; border-radius: 8px; color: #7e9ac7; background: #eff5fe; font-size: 19px; }
 .directory-entity-icon.major { background: #f2effb; color: #9984c7; }
