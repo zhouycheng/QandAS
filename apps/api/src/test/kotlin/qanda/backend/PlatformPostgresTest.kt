@@ -89,6 +89,7 @@ class PlatformPostgresTest {
     @LocalServerPort var port: Int=0
     @Autowired lateinit var json: ObjectMapper
     @Autowired lateinit var jdbc: JdbcTemplate
+    @Autowired lateinit var transactionManager: org.springframework.transaction.PlatformTransactionManager
     @Autowired lateinit var adminService: AdminService
     @Autowired lateinit var mailCrypto: MailCrypto
     @Autowired lateinit var outbox: OutboxService
@@ -643,40 +644,66 @@ class PlatformPostgresTest {
         assertTrue(call("GET","/admin/dashboard")["answeredCount"].asInt()>=4)
     }
 
-    @Test fun `administrator separation assigned content and last platform administrator are enforced`() {
+    @Test fun `administrators share full access with independent sessions and last administrator protection`() {
         val student=student()
         call("GET","/admin/users",token=student.token,status=403);call("GET","/me",token=adminToken,status=403)
-        val admin=id(call("POST","/admin/administrators",mapOf("username" to "editor_${UUID.randomUUID().toString().take(8)}","name" to "内容管理员","role" to "CONTENT_ADMIN","password" to password)))
+        val admin=id(call("POST","/admin/administrators",mapOf("username" to "admin_${UUID.randomUUID().toString().take(8)}","name" to "新管理员","password" to password)))
         val username=jdbc.queryForObject("SELECT username FROM admin_account WHERE id=?",String::class.java,admin)!!
-        val token=call("POST","/admin/auth/sessions",mapOf("username" to username,"password" to password,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
-        val assigned=fixture(maintainers=listOf(admin));val other=fixture()
-        val bank=call("GET","/admin/question-banks/${assigned.bank}",token=token)
-        val edit=mapOf("subjectId" to assigned.subject,"name" to "编辑后的题库","description" to "已发布题库说明","expectedVersion" to bank["version"].asLong())
-        call("PUT","/admin/question-banks/${assigned.bank}",edit,token)
-        assertEquals(admin.toString(),call("GET","/admin/question-banks/${assigned.bank}",token=token)["maintainerIds"].first().asText())
-        call("PUT","/admin/question-banks/${assigned.bank}",edit+mapOf("expectedVersion" to bank["version"].asLong()+1,"maintainerIds" to emptyList<UUID>()),token,403)
-        call("GET","/admin/question-banks/${other.bank}",token=token,status=404)
-        call("GET","/admin/users",token=token,status=403)
-        call("DELETE","/admin/administrators/$platformId?expectedVersion=1",status=409)
+        fun login()=call("POST","/admin/auth/sessions",mapOf("username" to username,"password" to password,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
+        val token=login();val secondToken=login();assertNotEquals(token,secondToken)
+        assertEquals("SUPER_ADMIN",call("GET","/admin/auth/me",token=token)["role"].asText())
+        val other=fixture();val bank=call("GET","/admin/question-banks/${other.bank}",token=token)
+        val edit=mapOf("subjectId" to other.subject,"name" to "编辑后的题库","description" to "已发布题库说明","expectedVersion" to bank["version"].asLong(),"maintainerIds" to listOf(admin))
+        call("PUT","/admin/question-banks/${other.bank}",edit,token)
+        assertEquals(admin.toString(),call("GET","/admin/question-banks/${other.bank}",token=token)["maintainerIds"].first().asText())
+        call("GET","/admin/users",token=token);call("GET","/admin/administrators",token=token)
+        call("GET","/admin/course-requests",token=token);call("GET","/admin/monitoring/health",token=token)
+        val third=id(call("POST","/admin/administrators",mapOf("username" to "third_${UUID.randomUUID().toString().take(8)}","name" to "同事","status" to "DISABLED","password" to password),token))
+        assertEquals("SUPER_ADMIN",call("GET","/admin/administrators/$third",token=token)["role"].asText())
         val self=call("GET","/admin/auth/me")
         assertFalse(self.has("passwordHash"));assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM user_account WHERE id=?",Int::class.java,platformId))
-        call("PUT","/admin/administrators/$admin",mapOf("username" to username,"name" to "更新后的编辑","role" to "CONTENT_ADMIN","expectedVersion" to 1))
+        call("PUT","/admin/administrators/$admin",mapOf("username" to username,"name" to "更新后的管理员","expectedVersion" to 1))
         call("POST","/admin/auth/logout",token=token)
         call("GET","/admin/auth/me",token=token,status=401)
-        val nextToken=call("POST","/admin/auth/sessions",mapOf("username" to username,"password" to password,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
+        call("GET","/admin/auth/me",token=secondToken)
         call("DELETE","/admin/administrators/$admin?expectedVersion=2")
-        call("GET","/admin/auth/me",token=nextToken,status=401)
-        assertTrue(call("GET","/admin/audit-logs")["total"].asInt()>0)
+        call("GET","/admin/auth/me",token=secondToken,status=401)
+        org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult { transaction ->
+            jdbc.update("UPDATE admin_account SET status='INACTIVE' WHERE id<>? AND status='ACTIVE'",platformId)
+            val version=jdbc.queryForObject("SELECT version FROM admin_account WHERE id=?",Long::class.java,platformId)!!
+            val error=assertThrows(qanda.backend.platform.http.ApiException::class.java) { adminService.disable(platformId,version) }
+            assertEquals("LAST_ADMIN",error.code)
+            transaction.setRollbackOnly()
+        }
+        assertTrue(call("GET","/admin/audit-logs?pageSize=100")["items"].any { it["actorAdminId"].asText()==admin.toString() && it["operation"].asText()=="CREATE_ADMIN" })
     }
 
     @Test fun `administrator status contract maps disabled and rejects undocumented inactive`() {
         val username="disabled_${UUID.randomUUID().toString().take(8)}"
-        val createdDisabled=id(call("POST","/admin/administrators",mapOf("username" to username,"name" to "停用管理员","role" to "CONTENT_ADMIN","status" to "DISABLED","password" to password)))
+        val createdDisabled=id(call("POST","/admin/administrators",mapOf("username" to username,"name" to "停用管理员","status" to "DISABLED","password" to password)))
         assertEquals("DISABLED",call("GET","/admin/administrators?pageSize=100")["items"].first { it["id"].asText()==createdDisabled.toString() }["status"].asText())
-        call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","role" to "CONTENT_ADMIN","status" to "DISABLED","expectedVersion" to 1))
+        call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","status" to "DISABLED","expectedVersion" to 1))
         val listed=call("GET","/admin/administrators?pageSize=100")["items"].first { it["id"].asText()==createdDisabled.toString() }
         assertEquals("DISABLED",listed["status"].asText())
-        call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","role" to "CONTENT_ADMIN","status" to "INACTIVE","expectedVersion" to 2),status=422)
+        call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","status" to "INACTIVE","expectedVersion" to 2),status=422)
+        call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","role" to "CONTENT_ADMIN","expectedVersion" to 2),status=422)
+    }
+
+    @Test fun `administrator migration preserves account data and restricts roles`() {
+        java.sql.DriverManager.getConnection(postgres.jdbcUrl,postgres.username,postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("CREATE TEMP TABLE admin_account (id integer PRIMARY KEY, role varchar(20) NOT NULL CHECK(role IN ('PLATFORM_ADMIN','CONTENT_ADMIN')), status text NOT NULL, credential_version bigint NOT NULL, version bigint NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())")
+                statement.execute("INSERT INTO admin_account(id,role,status,credential_version,version) VALUES (1,'PLATFORM_ADMIN','ACTIVE',4,8),(2,'CONTENT_ADMIN','INACTIVE',7,9)")
+                val migration=javaClass.getResourceAsStream("/db/migrations/20261101_super_admin.sql")!!.bufferedReader().use { it.readText() }
+                statement.execute(migration);statement.execute(migration)
+                statement.executeQuery("SELECT role,status,credential_version,version FROM admin_account ORDER BY id").use { rows ->
+                    assertTrue(rows.next());assertEquals("SUPER_ADMIN",rows.getString(1));assertEquals("ACTIVE",rows.getString(2));assertEquals(4L,rows.getLong(3));assertEquals(9L,rows.getLong(4))
+                    assertTrue(rows.next());assertEquals("SUPER_ADMIN",rows.getString(1));assertEquals("INACTIVE",rows.getString(2));assertEquals(7L,rows.getLong(3));assertEquals(10L,rows.getLong(4))
+                    assertFalse(rows.next())
+                }
+                assertThrows(java.sql.SQLException::class.java) { statement.execute("UPDATE admin_account SET role='CONTENT_ADMIN' WHERE id=1") }
+            }
+        }
     }
 
     @Test fun `idempotency compares payload and importing invalid documents rolls back the whole batch`() {

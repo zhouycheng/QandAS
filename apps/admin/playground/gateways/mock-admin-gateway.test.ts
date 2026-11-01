@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CreateQuestionInput, QuestionBank } from '../../src/types/admin'
 import { parseQuestionFile } from '../../src/lib/content-rules'
-import { isAuthenticated, saveAdminSession } from '../../src/lib/auth'
+import { getAdminSession, isAuthenticated, saveAdminSession } from '../../src/lib/auth'
 import { recommendedBanks } from '../../src/lib/recommendations'
 import { questionImportExamples } from '../../src/lib/question-import-examples'
 
@@ -21,7 +21,11 @@ async function run<T>(operation: () => Promise<T>): Promise<T> {
   if ('error' in settled) throw settled.error
   return settled.value
 }
-const session = (index = 0) => saveAdminSession({ account: store.getState().adminAccounts[index], accessToken: 'mock-session-' + index, expiresAt: new Date(Date.now() + 86400000).toISOString(), sessionMinutes: 30 })
+const session = (index = 0) => {
+  const account = store.getState().adminAccounts[index], accessToken = 'mock-session-' + index, expiresAt = new Date(Date.now() + 86400000).toISOString()
+  storage.setItem('qanda-mock-session:' + accessToken, JSON.stringify({ id: account.id, credentialVersion: account.credentialVersion ?? 1, expiresAt }))
+  saveAdminSession({ account, accessToken, expiresAt, sessionMinutes: 30 })
+}
 beforeAll(async () => {
   vi.stubGlobal('localStorage', storage)
   vi.stubGlobal('window', { localStorage: storage, setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args) })
@@ -163,6 +167,16 @@ describe('六类内容、整批导入与原键重试', () => {
 })
 
 describe('管理员会话、运营与场景隔离', () => {
+  it('保存的演示数据升级时保留账号和业务内容', async () => {
+    const saved = JSON.parse(JSON.stringify(store.getState()))
+    saved.adminAccounts[0].role = 'PLATFORM_ADMIN'
+    saved.adminAccounts[1].role = 'CONTENT_ADMIN'
+    saved.subjects[0].name = '已保存课程'
+    storage.setItem('qanda-admin-playground-v1-contract', JSON.stringify({ state: saved, version: 1 }))
+    await store.persist.rehydrate()
+    expect(store.getState().adminAccounts.every(account => account.role === 'SUPER_ADMIN')).toBe(true)
+    expect(store.getState().subjects[0].name).toBe('已保存课程')
+  })
   it('失败锁定、登录合同与空闲过期', async () => {
     memory.clear()
     for (let i = 0; i < 5; i++) await expect(run(() => gateway.loginAdmin('admin', 'wrong'))).rejects.toThrow('账号或密码')
@@ -176,22 +190,53 @@ describe('管理员会话、运营与场景隔离', () => {
     expect(isAuthenticated()).toBe(false)
     await expect(run(() => gateway.listUsers())).rejects.toThrow('重新登录')
   })
-  it('新建管理员遵守密码规则，角色决定可见资源与操作', async () => {
-    const account = await run(() => gateway.saveAdminAccount(undefined, { name: '老师', username: 'new_admin', role: 'CONTENT_ADMIN', status: 'ACTIVE', password: 'Password12345' }))
-    expect((await run(() => gateway.loginAdmin('new_admin', 'Password12345'))).account.id).toBe(account.id)
-    await expect(run(() => gateway.saveAdminAccount(undefined, { name: '弱密码', username: 'weak_admin', role: 'CONTENT_ADMIN', status: 'ACTIVE', password: '123' }))).rejects.toThrow('密码至少')
-    session(store.getState().adminAccounts.findIndex(a => a.id === 'admin-2'))
-    await expect(run(() => gateway.listUsers())).rejects.toThrow('平台管理员')
-    await expect(run(() => gateway.getActivity({}))).rejects.toThrow('平台管理员')
-    store.setState({ questionBanks: store.getState().questionBanks.map((b,i) => i ? { ...b, maintainerIds: [] } : b) })
-    expect((await run(() => gateway.listQuestionBanks())).items.map(b => b.id)).toEqual(['bank-calculus'])
-    await expect(run(() => gateway.createQuestion({ ...question, questionBankId: 'bank-english-grammar' }))).rejects.toThrow('未分配')
+  it('新管理员拥有完整管理权限并保留独立会话和审计', async () => {
+    const account = await run(() => gateway.saveAdminAccount(undefined, { name: '老师', username: 'new_admin', status: 'ACTIVE', password: 'Password12345' }))
+    expect(account.role).toBe('SUPER_ADMIN')
+    await expect(run(() => gateway.saveAdminAccount(undefined, { name: '弱密码', username: 'weak_admin', status: 'ACTIVE', password: '123' }))).rejects.toThrow('密码至少')
+    const first = await run(() => gateway.loginAdmin('admin', 'mock'))
+    const second = await run(() => gateway.loginAdmin('new_admin', 'Password12345'))
+    expect(second.account.id).toBe(account.id)
+    expect(second.accessToken).not.toBe(first.accessToken)
+    saveAdminSession(second)
+    store.setState({ questionBanks: store.getState().questionBanks.map(b => ({ ...b, maintainerIds: [] })) })
+    expect((await run(() => gateway.listQuestionBanks())).total).toBeGreaterThan(1)
+    await run(() => gateway.createQuestion({ ...question, questionBankId: 'bank-english-grammar' }))
+    await run(() => gateway.listUsers())
+    await run(() => gateway.getActivity({}))
+    await run(() => gateway.listFeedback({ kind: 'COURSE_REQUEST' }))
+    const third = await run(() => gateway.saveAdminAccount(undefined, { name: '同事', username: 'third_admin', status: 'ACTIVE', password: 'Password12345' }))
+    expect(store.getState().operationLogs.some(log => log.actor === 'new_admin' && log.content.includes(third.username))).toBe(true)
+    saveAdminSession(first)
+    await run(() => gateway.disableAdminAccount(account.id, account.version))
+    saveAdminSession(second)
+    await expect(run(() => gateway.listUsers())).rejects.toThrow('重新登录')
+    expect(getAdminSession()).toBeNull()
+    saveAdminSession(first)
+    await run(() => gateway.listUsers())
   })
-  it('当前管理员不能停用，最后一名平台管理员不能降权', async () => {
+  it('最后一个有效管理员不能停用', async () => {
     const account = store.getState().adminAccounts[0]
-    await expect(run(() => gateway.disableAdminAccount(account.id, account.version))).rejects.toThrow('当前登录')
     store.setState({ adminAccounts: [account] })
-    await expect(run(() => gateway.saveAdminAccount(account.id, { ...account, expectedVersion: account.version, role: 'CONTENT_ADMIN' }))).rejects.toThrow('至少保留')
+    await expect(run(() => gateway.disableAdminAccount(account.id, account.version))).rejects.toThrow('至少保留')
+  })
+  it('管理员账号和密码使用与服务端一致的边界', async () => {
+    const account = await run(() => gateway.saveAdminAccount(undefined, { name: '  老师  ', username: '  Long.Name  ', password: 'Password12345' }))
+    expect(account).toMatchObject({ name: '老师', username: 'long.name', status: 'ACTIVE', role: 'SUPER_ADMIN' })
+    await expect(run(() => gateway.saveAdminAccount(undefined, { name: '老师', username: 'a'.repeat(65), password: 'Password12345' }))).rejects.toThrow('64')
+    await expect(run(() => gateway.saveAdminAccount(undefined, { name: '老师', username: 'long_password', password: 'A1' + 'x'.repeat(127) }))).rejects.toThrow('密码至少')
+    await expect(run(() => gateway.saveAdminAccount(account.id, { ...account, password: '', expectedVersion: account.version }))).rejects.toThrow('密码至少')
+  })
+  it('修改密码只使该账号的会话失效', async () => {
+    const first = await run(() => gateway.loginAdmin('admin', 'mock'))
+    const second = await run(() => gateway.loginAdmin('content_editor', 'mock'))
+    saveAdminSession(first)
+    await run(() => gateway.saveAdminAccount(second.account.id, { ...second.account, password: 'NewPassword123', expectedVersion: second.account.version }))
+    saveAdminSession(second)
+    await expect(run(() => gateway.listUsers())).rejects.toThrow('重新登录')
+    saveAdminSession(first)
+    await run(() => gateway.listUsers())
+    expect((await run(() => gateway.loginAdmin('content_editor', 'NewPassword123'))).account.id).toBe(second.account.id)
   })
   it('回复后学生原始反馈保持不变，版本防止重复覆盖', async () => {
     const before = structuredClone(store.getState().feedback[0])

@@ -11,8 +11,8 @@ class ContentAccess(private val sql: ContentQueries,private val banks: QuestionB
             if(write) forbidden()
             return sql.bank(id,actor?.id) ?: missing()
         }
+        if(actor.kind!="ADMIN" || actor.role!="SUPER_ADMIN") forbidden()
         val bank=(if(write) sql.lockBank(id) else banks.selectById(id)) ?: missing()
-        if(actor.role!="PLATFORM_ADMIN" && actor.id !in sql.maintainers(id)) missing()
         return bank
     }
 }

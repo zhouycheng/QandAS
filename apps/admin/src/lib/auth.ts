@@ -18,7 +18,7 @@ export function getAdminSession(): AdminSession | null {
       typeof value.id === 'string' &&
       typeof value.username === 'string' &&
       typeof value.accessToken === 'string' && value.accessToken.length > 0 &&
-      ['PLATFORM_ADMIN', 'CONTENT_ADMIN'].includes(value.role) &&
+      value.role === 'SUPER_ADMIN' &&
       Number.isFinite(Date.parse(value.expiresAt)) &&
       Number.isFinite(value.lastActivity) &&
       Number.isFinite(value.timeoutMinutes) &&

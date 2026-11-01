@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../../components/error-state'
 import { useAdminGateway } from '../../gateways/gateway-context'
-import { getAdminSession } from '../../lib/auth'
 import { publicationColors, publicationLabels } from '../../lib/recommendations'
 import type { BankPublicationStatus, QuestionBank, Subject } from '../../types/admin'
 import { BankSettingsDrawer } from './bank-settings-drawer'
@@ -17,7 +16,6 @@ export function QuestionBanksPage() {
   const gateway = useAdminGateway(), client = useQueryClient(), navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const courseId = params.get('course') || undefined
-  const platform = getAdminSession()?.role === 'PLATFORM_ADMIN'
   const [courseSearch, setCourseSearch] = useState(''), [keyword, setKeyword] = useState('')
   const [coursePage, setCoursePage] = useState(1), [page, setPage] = useState(1)
   const [status, setStatus] = useState<BankPublicationStatus>()
@@ -36,18 +34,18 @@ export function QuestionBanksPage() {
   return <section className="bw-page" aria-label="题库工作台">
     <div className="bw-catalogue">
       <aside className="bw-courses">
-        <div className="bw-section-heading"><h2>课程目录</h2>{platform && <Button type="text" icon={<IconPlus />} aria-label="新建课程" onClick={() => setCourseEditor(null)} />}</div>
+        <div className="bw-section-heading"><h2>课程目录</h2><Button type="text" icon={<IconPlus />} aria-label="新建课程" onClick={() => setCourseEditor(null)} /></div>
         <Input.Search aria-label="搜索课程" placeholder="搜索课程名称" value={courseSearch} onChange={value => { setCourseSearch(value); setCoursePage(1) }} allowClear />
         <button className={`bw-course-choice ${!courseId ? 'active' : ''}`} onClick={() => selectCourse()}>全部课程</button>
         {courses.error && <ErrorState message={courses.error.message} onRetry={() => void courses.refetch()} />}
         {courses.data?.items.map(subject => <div className={`bw-course-row ${courseId === subject.id ? 'active' : ''}`} key={subject.id}>
           <button className="bw-course-choice" onClick={() => selectCourse(subject.id)}><IconBook /><span>{subject.name}{subject.status === 'INACTIVE' && <em>已停用</em>}</span></button>
-          {platform && <Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => key === 'access' ? setAccess(subject) : setCourseEditor(subject)}><Menu.Item key="edit">编辑 / 停用课程</Menu.Item><Menu.Item key="access">单独开放用户</Menu.Item></Menu>}><Button type="text" size="mini" icon={<IconMore />} aria-label={'管理课程 ' + subject.name} /></Dropdown>}
+          <Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => key === 'access' ? setAccess(subject) : setCourseEditor(subject)}><Menu.Item key="edit">编辑 / 停用课程</Menu.Item><Menu.Item key="access">单独开放用户</Menu.Item></Menu>}><Button type="text" size="mini" icon={<IconMore />} aria-label={'管理课程 ' + subject.name} /></Dropdown>
         </div>)}
         <Pagination simple size="small" current={coursePage} total={courses.data?.total ?? 0} pageSize={20} onChange={setCoursePage} />
       </aside>
       <div className="bw-bank-panel">
-        <div className="bw-panel-heading"><h2>{course.data?.name ?? '全部题库'}</h2>{platform && <Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button>}</div>
+        <div className="bw-panel-heading"><h2>{course.data?.name ?? '全部题库'}</h2><Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button></div>
         {course.error && <ErrorState message={course.error.message} onRetry={() => void course.refetch()} />}
         <div className="bw-status-filters">{(['ALL', 'DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'] as const).map(value => <button key={value} className={(status ?? 'ALL') === value ? 'active' : ''} aria-pressed={(status ?? 'ALL') === value} onClick={() => { setStatus(value === 'ALL' ? undefined : value); setPage(1) }}>{value === 'ALL' ? '全部' : publicationLabels[value]}</button>)}</div>
         <div className="bw-list-toolbar"><Input.Search aria-label="搜索题库" placeholder="搜索题库名称" value={keyword} onChange={value => { setKeyword(value); setPage(1) }} allowClear /><Button icon={<IconRefresh />} aria-label="刷新题库" loading={banks.isFetching} onClick={() => void banks.refetch()} /></div>

@@ -34,13 +34,12 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null): Page<BankView> {
         if(publicationStatus!=null && publicationStatus !in listOf("DRAFT","PUBLISHED","UNPUBLISHED","ARCHIVED")) invalid("/publicationStatus")
-        val publicOnly=actor?.kind!="ADMIN";val adminId=actor?.takeIf { it.kind=="ADMIN" && it.role!="PLATFORM_ADMIN" }?.id
+        val publicOnly=actor?.kind!="ADMIN"
         val userId=actor?.takeIf { it.kind=="USER" }?.id
-        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,adminId,p.offset,p.pageSize,userId,publicationStatus),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,adminId,userId,publicationStatus),p.page,p.pageSize)
+        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus),p.page,p.pageSize)
     }
     fun bank(actor: Actor?,id: UUID)=bankView(access.bank(actor,id),actor?.kind=="ADMIN")
     fun saveBank(actor: Actor,id: UUID?,input: BankInput): MutationResult {
-        if(id==null && actor.role!="PLATFORM_ADMIN") forbidden()
         val row=id?.let { access.bank(actor,it,true) } ?: QuestionBank().apply { this.id=UUID.randomUUID();createdBy=actor.id;subjectId=input.subjectId }
         if(id!=null) { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version);if(row.subjectId!=input.subjectId) invalid("/subjectId","IMMUTABLE_PARENT","题库所属课程不可变更") }
         if(directory.subject(input.subjectId)==null) invalid("/subjectId")
@@ -49,14 +48,13 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         val normalized=input.audiences.map { normalizeAudience(it) }
         if(normalized.distinct().size!=normalized.size) invalid("/audiences")
         input.maintainerIds?.let { ids ->
-            if(actor.role!="PLATFORM_ADMIN" && ids.sorted()!=sql.maintainers(row.id!!).sorted()) forbidden()
             if(ids.size>100 || ids.distinct().size!=ids.size) invalid("/maintainerIds")
             ids.forEach { if(!accounts.activeAdmin(it)) invalid("/maintainerIds") }
         }
         row.name=name(input.name);row.description=text(input.description,2000);row.textbook=text(input.textbook,500);row.status=activeStatus(input.status);row.scopeType=input.scopeType;row.updatedAt=Instant.now()
         if(id==null) banks.insert(row) else { row.version++;banks.updateById(row) }
         sql.clearAudiences(row.id!!);normalized.forEach { audiences.insert(BankAudience().apply { this.id=UUID.randomUUID();bankId=row.id;collegeId=it.collegeId;majorId=it.majorId;grade=it.grade }) }
-        if(actor.role=="PLATFORM_ADMIN" && input.maintainerIds!=null) { sql.clearMaintainers(row.id!!);input.maintainerIds.forEach { sql.addMaintainer(row.id!!,it) } }
+        if(input.maintainerIds!=null) { sql.clearMaintainers(row.id!!);input.maintainerIds.forEach { sql.addMaintainer(row.id!!,it) } }
         if(row.publicationStatus=="PUBLISHED" && row.status=="ACTIVE") validatePublication(row)
         return MutationResult(row.id!!,row.version)
     }

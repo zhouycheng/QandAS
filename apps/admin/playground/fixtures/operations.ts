@@ -28,7 +28,7 @@ export const adminAccountFixtures: StoredAdminAccount[] = [
   ['security_01', '小王'],
 ].map(([username, name], i) => ({
   version: 1,
-  role: i === 1 ? 'CONTENT_ADMIN' : 'PLATFORM_ADMIN',
+  role: 'SUPER_ADMIN',
   id: `admin-${i + 1}`,
   name,
   username,

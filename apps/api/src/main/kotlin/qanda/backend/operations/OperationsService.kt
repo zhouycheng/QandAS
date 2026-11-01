@@ -32,8 +32,8 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
         library.revision(row.questionId!!,row.revisionId!!,admin),row.createdAt,row.updatedAt)
     private fun requestView(row: CourseRequest)=CourseRequestView(row.id!!,row.userId!!,row.courseName,row.majorId,row.body,row.status,row.response,row.version,row.createdAt,row.updatedAt)
     fun feedback(actor: Actor,status: String?,p: PageSpec): Page<FeedbackView> {
-        val userId=actor.takeIf { it.kind=="USER" }?.id;val adminId=actor.takeIf { it.kind=="ADMIN" && it.role!="PLATFORM_ADMIN" }?.id
-        return Page(sql.feedback(userId,adminId,status,p.offset,p.pageSize).map { feedbackView(it,actor.kind=="ADMIN") },sql.feedbackCount(userId,adminId,status),p.page,p.pageSize)
+        val userId=actor.takeIf { it.kind=="USER" }?.id
+        return Page(sql.feedback(userId,status,p.offset,p.pageSize).map { feedbackView(it,actor.kind=="ADMIN") },sql.feedbackCount(userId,status),p.page,p.pageSize)
     }
     fun requests(actor: Actor,status: String?,p: PageSpec): Page<CourseRequestView> {
         val userId=actor.takeIf { it.kind=="USER" }?.id

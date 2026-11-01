@@ -27,7 +27,7 @@ export function LoginPage() {
       else localStorage.removeItem('qanda-admin-remember')
       const target = (location.state as { from?: string } | null)?.from
       navigate(
-        account.account.role === 'CONTENT_ADMIN' ? '/question-banks' : target?.startsWith('/') && !target.startsWith('//') && target !== '/login' ? target : '/dashboard',
+        target?.startsWith('/') && !target.startsWith('//') && target !== '/login' ? target : '/dashboard',
         { replace: true },
       )
     },
@@ -81,7 +81,7 @@ export function LoginPage() {
               onClick={() =>
                 Modal.info({
                   title: '找回密码',
-                  content: '请联系系统管理员重置密码。当前演示账号：admin / mock。',
+                  content: gateway.mode === 'mock' ? '请联系管理员重置密码。当前演示账号：admin / mock。' : '请联系管理员重置密码。',
                 })
               }
             >
@@ -92,7 +92,7 @@ export function LoginPage() {
             登录管理端
           </Button>
         </Form>
-        <p className="login-hint">本地演示账号：admin / mock</p>
+        {!import.meta.env.VITE_API_BASE_URL && <p className="login-hint">本地演示账号：admin / mock</p>}
       </section>
     </main>
   )

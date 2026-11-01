@@ -23,7 +23,13 @@ const groups = [
       ['/feedback', '学生反馈', 'file'],
       ['/announcements', '公告管理', 'announcement'],
       ['/users', '用户管理', 'users'],
-      ['/administrators', '管理员权限', 'shield'],
+    ],
+  },
+  {
+    title: '设置',
+    icon: 'settings',
+    items: [
+      ['/administrators', '管理员账号', 'shield'],
       ['/security', '安全规则', 'settings'],
       ['/logs', '操作日志', 'file'],
     ],
@@ -106,7 +112,8 @@ export function AdminLayout() {
       <nav aria-label="管理导航">
         {groups.map((group) => (
           <div className="nav-group" key={group.title}>
-            {group.items.filter(([path]) => session?.role === 'PLATFORM_ADMIN' || path === '/question-banks' || path === '/feedback').map(([path, label, icon]) => (
+            <div className="nav-group-title"><DesignIcon name={group.icon} /><span>{group.title}</span></div>
+            {group.items.map(([path, label, icon]) => (
               <Link
                 className={`nav-link ${location.pathname === path || location.pathname.startsWith(path + '/') ? 'active' : ''}`}
                 key={path}

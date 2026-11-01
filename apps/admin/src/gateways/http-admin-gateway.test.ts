@@ -6,6 +6,14 @@ const json = (body: unknown, status = 200, headers?: Record<string, string>) => 
 const page = { items: [], total: 0, page: 1, pageSize: 20 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 describe('HTTP 管理合同', () => {
+  it('默认请求保持浏览器 fetch 的全局上下文', async () => {
+    vi.stubGlobal('fetch', function (this: unknown) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation')
+      return Promise.resolve(json(page))
+    })
+    const api = new HttpAdminContentGateway('', undefined, () => '')
+    expect((await api.listColleges()).items).toEqual([])
+  })
   it('列表只请求当前页，并传递范围、排序与请求追踪', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json(page))
     const api = new HttpAdminContentGateway('https://api.example.test/api/v1/', fetcher, () => 'admin-token')
@@ -25,12 +33,17 @@ describe('HTTP 管理合同', () => {
   })
   it('管理员登录只读取会话与当前身份，退出使用真实合同', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ accessToken: 'new', expiresAt: '2027-01-01T00:00:00Z', sessionMinutes: 60 }))
-      .mockResolvedValueOnce(json({ id: 'admin', role: 'CONTENT_ADMIN' })).mockResolvedValueOnce(json({ id: 'session', version: 1 }))
+      .mockResolvedValueOnce(json({ id: 'admin', role: 'SUPER_ADMIN' })).mockResolvedValueOnce(json({ id: 'session', version: 1 }))
     const api = new HttpAdminContentGateway('', fetcher, () => '')
     expect((await api.loginAdmin('editor', 'password')).sessionMinutes).toBe(60)
     expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer new' })
     await api.logoutAdmin()
     expect(fetcher.mock.calls.map(row => row[0])).toEqual(['/api/v1/admin/auth/sessions', '/api/v1/admin/auth/me', '/api/v1/admin/auth/logout'])
+  })
+  it('创建管理员返回规范化账号和默认身份', async () => {
+    const api = new HttpAdminContentGateway('', vi.fn<typeof fetch>().mockResolvedValue(json({ id: 'admin', version: 1 })), () => 'token')
+    const account = await api.saveAdminAccount(undefined, { name: ' 老师 ', username: ' Admin.Name ', password: 'Password12345' })
+    expect(account).toMatchObject({ name: '老师', username: 'admin.name', status: 'ACTIVE', role: 'SUPER_ADMIN' })
   })
   it('响应丢失、服务端失败和限流重试保留原幂等键，账号切换分开', async () => {
     let token = 'a'

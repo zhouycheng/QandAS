@@ -41,13 +41,17 @@ node apps/api/scripts/backend.mjs docker-up
 
 PostgreSQL 在全新数据卷首次初始化时执行 `src/main/resources/db/schema.sql` 和 `monitoring-permissions.sql`。应用启动检查当前表结构；已有库结构不匹配时停止启动。各业务记录的 `version`、内容修订与同步序号用于并发和练习一致性，独立于应用发布版本。
 
-首次创建平台管理员：
+已有数据库从双管理员角色升级时，先执行 `src/main/resources/db/migrations/20261101_super_admin.sql`，再启动新版本；脚本将旧角色统一为 `SUPER_ADMIN`，保留账号状态和凭据，并递增受影响账号的版本。
+
+首次创建超级管理员：
 
 ```sh
 node apps/api/scripts/backend.mjs docker-bootstrap
 ```
 
 该命令在临时 API 容器的终端中读取用户名、姓名和密码。普通启动不创建默认管理员或默认密码。
+
+管理员统一使用 `SUPER_ADMIN`，拥有完整管理权限；题库维护者记录工作分工。开发数据库以当前 v1.0 初始化结构为准，账号的 `version` 用于并发编辑校验。独立联调环境的采用过程与验证结果记录在[三端联调记录](../../docs/three-client-integration.md)。
 
 ## 日常操作
 

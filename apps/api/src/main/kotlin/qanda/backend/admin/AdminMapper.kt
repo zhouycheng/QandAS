@@ -10,7 +10,7 @@ import java.util.UUID
     fun byUsername(@Param("username") username: String): AdminAccount?
     fun lockControl(): Instant?
     fun completeBootstrap()
-    fun platformCount(): Long
+    fun activeAdminCount(): Long
     fun userPage(@Param("keyword") keyword: String?,@Param("collegeId") collegeId: UUID?,@Param("majorId") majorId: UUID?,@Param("status") status: String?,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("grade") grade: Int?): List<UserAccount>
     fun userCount(@Param("keyword") keyword: String?,@Param("collegeId") collegeId: UUID?,@Param("majorId") majorId: UUID?,@Param("status") status: String?,@Param("grade") grade: Int?): Long
 }

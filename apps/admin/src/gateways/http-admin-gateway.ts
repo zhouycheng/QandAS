@@ -19,7 +19,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   private pending = new Map<string, string>()
   private provisionalToken = ''
   private imageKeys = new WeakMap<File, string>()
-  constructor(private baseUrl = '', private fetcher: typeof fetch = fetch, private token = () => getAdminSession()?.accessToken ?? '') {
+  constructor(private baseUrl = '', private fetcher: typeof fetch = globalThis.fetch.bind(globalThis), private token = () => getAdminSession()?.accessToken ?? '') {
     this.baseUrl = baseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '')
   }
   private async request<T>(method: string, path: string, body?: unknown, query?: object, key?: string, binary = false): Promise<T> {
@@ -148,7 +148,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   listAdminAccounts(query?: PageQuery) { return this.page<AdminAccount>('/admin/administrators', query) }
   async saveAdminAccount(id: string | undefined, input: AdminAccountInput) {
     const result = await this.write(id ? 'PUT' : 'POST', '/admin/administrators' + (id ? '/' + segment(id) : ''), input)
-    return { id: result.id, version: result.version, username: input.username, name: input.name, status: input.status, role: input.role, createdAt: '' }
+    return { id: result.id, version: result.version, username: input.username.trim().toLowerCase(), name: input.name.trim().normalize('NFC'), status: input.status ?? 'ACTIVE', role: 'SUPER_ADMIN' as const, createdAt: '' }
   }
   async disableAdminAccount(id: string, expectedVersion: number) { await this.write('DELETE', '/admin/administrators/' + segment(id), undefined, { expectedVersion }) }
   listAnnouncements(query?: PageQuery) { return this.page<Announcement>('/admin/announcements', query) }

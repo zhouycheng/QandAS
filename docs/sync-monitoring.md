@@ -93,11 +93,11 @@ gateway 对监控路由关闭 `proxy_buffering` 和缓存，读取超时 45 秒�
 | `POST /practice/sessions/{id}/progress-commands` | 练习所属学生 | `202 ProgressCommandView` |
 | `GET /practice/sessions/{id}/progress-commands/{commandId}` | 练习所属学生 | 状态、落库回执或失败原因 |
 | `PUT /practice/sessions/{id}/progress-ack` | 练习所属学生 | 成功即已落库，等待超时使用原键重试 |
-| `GET /admin/statistics/online-users` | 平台管理员 | 分页账号与采样时间 |
-| `GET /admin/monitoring/sync/stream` | 平台管理员 | `text/event-stream` |
-| `GET /admin/monitoring/health` | 平台管理员 | 模块、接口及后台任务摘要 |
-| `GET /admin/sync/dead-letters/head` | 平台管理员 | 队首元数据，空队列 `item=null` |
-| `POST /admin/sync/dead-letters/{commandId}/replay` | 平台管理员 | 幂等、审计的恢复处理 |
+| `GET /admin/statistics/online-users` | 超级管理员 | 分页账号与采样时间 |
+| `GET /admin/monitoring/sync/stream` | 超级管理员 | `text/event-stream` |
+| `GET /admin/monitoring/health` | 超级管理员 | 模块、接口及后台任务摘要 |
+| `GET /admin/sync/dead-letters/head` | 超级管理员 | 队首元数据，空队列 `item=null` |
+| `POST /admin/sync/dead-letters/{commandId}/replay` | 超级管理员 | 幂等、审计的恢复处理 |
 
 ## 运行与数据边界
 

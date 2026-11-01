@@ -8,8 +8,8 @@ class DashboardRow { var collegeCount: Long=0;var subjectCount: Long=0;var quest
 @Mapper interface OperationsMapper {
     fun issuedRevision(@Param("userId") userId: UUID,@Param("revisionId") revisionId: UUID): Boolean
     fun lockFeedback(@Param("id") id: UUID): QuestionFeedback?
-    fun feedback(@Param("userId") userId: UUID?,@Param("adminId") adminId: UUID?,@Param("status") status: String?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<QuestionFeedback>
-    fun feedbackCount(@Param("userId") userId: UUID?,@Param("adminId") adminId: UUID?,@Param("status") status: String?): Long
+    fun feedback(@Param("userId") userId: UUID?,@Param("status") status: String?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<QuestionFeedback>
+    fun feedbackCount(@Param("userId") userId: UUID?,@Param("status") status: String?): Long
     fun lockRequest(@Param("id") id: UUID): CourseRequest?
     fun requests(@Param("userId") userId: UUID?,@Param("status") status: String?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<CourseRequest>
     fun requestCount(@Param("userId") userId: UUID?,@Param("status") status: String?): Long

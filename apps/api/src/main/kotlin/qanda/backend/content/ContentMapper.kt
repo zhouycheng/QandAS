@@ -17,8 +17,8 @@ class QuestionSummaryRow { var id: UUID?=null;var bankId: UUID?=null;var subject
     fun questionSummaries(@Param("ids") ids: List<UUID>): List<QuestionSummaryRow>
     fun bank(@Param("id") id: UUID,@Param("userId") userId: UUID?=null): QuestionBank?
     fun lockBank(@Param("id") id: UUID): QuestionBank?
-    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("adminId") adminId: UUID?,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): List<QuestionBank>
-    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("adminId") adminId: UUID?,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): Long
+    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): List<QuestionBank>
+    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): Long
     fun questionCount(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean): Long
     fun questions(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): List<Question>
     fun filteredQuestionCount(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): Long
@@ -28,7 +28,6 @@ class QuestionSummaryRow { var id: UUID?=null;var bankId: UUID?=null;var subject
     fun insertOption(@Param("option") option: QuestionOption)
     fun attachments(@Param("revisionId") revisionId: UUID): List<UUID>
     fun attach(@Param("revisionId") revisionId: UUID,@Param("fileId") fileId: UUID)
-    fun maintainers(@Param("bankId") bankId: UUID): List<UUID>
     fun clearMaintainers(@Param("bankId") bankId: UUID)
     fun addMaintainer(@Param("bankId") bankId: UUID,@Param("adminId") adminId: UUID)
     fun clearAudiences(@Param("bankId") bankId: UUID)

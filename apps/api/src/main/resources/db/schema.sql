@@ -37,7 +37,7 @@ CREATE TABLE user_wechat (
 );
 CREATE TABLE admin_account (
  id uuid PRIMARY KEY, username varchar(64) NOT NULL UNIQUE, name varchar(40) NOT NULL, password_hash varchar(256) NOT NULL,
- role varchar(20) NOT NULL CHECK(role IN ('PLATFORM_ADMIN','CONTENT_ADMIN')),
+ role varchar(20) NOT NULL CHECK(role = 'SUPER_ADMIN'),
  status varchar(12) NOT NULL CHECK(status IN ('ACTIVE','INACTIVE')), version bigint NOT NULL DEFAULT 1 CHECK(version>0),
  credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0), created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(), last_login_at timestamptz

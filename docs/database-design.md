@@ -1,6 +1,6 @@
 # QandA 数据库设计
 
-本文件依据 v1.0 初始化 DDL 和隔离 PostgreSQL 实际导出的元数据整理。当前为 **43 张表、63 项外键**；复合外键按一项关系计算。完整字段、约束和索引与 `schema.sql` 对齐，验证源为 `apps/api/.backend-runtime/verification/database-schema.json`。
+本文件依据 v1.0 初始化 DDL 和隔离 PostgreSQL 实际导出的元数据整理。当前为 **43 张表、63 项外键**；复合外键按一项关系计算。字段、约束和索引以 `schema.sql` 为准；管理员角色约束已按当前 DDL 更新，待下一轮隔离数据库导出复核。
 
 数据库保存稳定用户、内容修订和业务事实；RabbitMQ 保存等待处理的进度消息。模块归属见[后端架构](backend-architecture.md)，消息与回执协议见[同步与监控](sync-monitoring.md)。
 
@@ -415,7 +415,7 @@ CREATE UNIQUE INDEX login_attempt_pkey ON public.login_attempt USING btree (scop
 | `username` | `varchar(64)` | 否 | — | 管理员登录名 |
 | `name` | `varchar(40)` | 否 | — | 显示名称 |
 | `password_hash` | `varchar(256)` | 否 | — | 密码单向散列 |
-| `role` | `varchar(20)` | 否 | — | 管理员角色 |
+| `role` | `varchar(20)` | 否 | — | 管理员身份，固定为 `SUPER_ADMIN` |
 | `status` | `varchar(12)` | 否 | — | 业务状态，取值见 CHECK |
 | `version` | `int8` | 否 | `1` | 业务并发版本 |
 | `credential_version` | `int8` | 否 | `1` | 凭据版本，使旧会话失效 |
@@ -428,7 +428,7 @@ CREATE UNIQUE INDEX login_attempt_pkey ON public.login_attempt USING btree (scop
 ```text
 admin_account_credential_version_check: CHECK ((credential_version > 0))
 admin_account_pkey: PRIMARY KEY (id)
-admin_account_role_check: CHECK (((role)::text = ANY ((ARRAY['PLATFORM_ADMIN'::character varying, 'CONTENT_ADMIN'::character varying])::text[])))
+admin_account_role_check: CHECK (((role)::text = 'SUPER_ADMIN'::text))
 admin_account_status_check: CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'INACTIVE'::character varying])::text[])))
 admin_account_username_key: UNIQUE (username)
 admin_account_version_check: CHECK ((version > 0))
@@ -706,7 +706,7 @@ CREATE INDEX question_bank_subject_idx ON public.question_bank USING btree (subj
 
 #### `bank_maintainer`
 
-模块：`content`。题库与内容管理员的多对多维护关系。
+模块：`content`。题库与管理员的多对多维护分工关系，不限制管理员的访问权限。
 
 | 字段 | PostgreSQL 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- |
@@ -1622,6 +1622,6 @@ CREATE INDEX audit_log_user_idx ON public.audit_log USING btree (actor_user_id);
 
 ## 结构更新与核验
 
-DDL 保存在 `apps/api/src/main/resources/db/schema.sql`，权限保存在相邻的 `monitoring-permissions.sql`。当前开发基线采用完整初始化结构；本轮只在隔离环境建库，现有开发库和卷保持原状。
+DDL 保存在 `apps/api/src/main/resources/db/schema.sql`，权限保存在相邻的 `monitoring-permissions.sql`。已有数据库从双管理员角色升级时，先执行 `apps/api/src/main/resources/db/migrations/20261101_super_admin.sql`；本轮只在隔离环境建库，现有开发库和卷保持原状。
 
 `PlatformPostgresTest` 在验收末尾从 `pg_constraint`、`information_schema.columns` 和 `pg_indexes` 导出元数据。结构变化时须同步本文件、模块归属与合同；字段字典中的外键数应与实际元数据一致。运行过程中的业务版本、修订号、写入权和序号继续各自承担一致性职责。

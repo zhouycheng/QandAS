@@ -50,6 +50,6 @@ class OnlineUsersController(private val service: OnlineUsers,private val session
     @GetMapping("/online-users")
     fun list(@RequestParam(required=false) collegeId: UUID?,@RequestParam(required=false) majorId: UUID?,@RequestParam(required=false) grade: Int?,
         @RequestParam(required=false) platform: String?,@RequestParam(required=false) keyword: String?,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): OnlineUsersView {
-        sessions.admin(true);return service.list(collegeId,majorId,grade,platform,keyword,PageSpec(page,pageSize))
+        sessions.admin();return service.list(collegeId,majorId,grade,platform,keyword,PageSpec(page,pageSize))
     }
 }

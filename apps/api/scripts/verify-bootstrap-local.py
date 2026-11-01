@@ -112,7 +112,7 @@ try:
         status, session = http("/admin/auth/sessions", {"username": username, "password": password, "deviceId": str(uuid.uuid4())})
         assert status == 200
         status, actor = http("/admin/auth/me", token=session["accessToken"])
-        assert status == 200 and actor["role"] == "PLATFORM_ADMIN"
+        assert status == 200 and actor["role"] == "SUPER_ADMIN"
         assert http("/me", token=session["accessToken"])[0] == 403
         server.terminate()
         server.wait(timeout=10)

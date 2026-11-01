@@ -35,21 +35,22 @@ export interface AdminAccount extends Versioned {
   name: string
   username: string
   status: 'ACTIVE' | 'DISABLED'
-  role: 'PLATFORM_ADMIN' | 'CONTENT_ADMIN'
+  role: 'SUPER_ADMIN'
   createdAt: string
   lastLoginAt?: string
 }
 export interface AdminAccountInput {
   name: string
   username: string
-  status: AdminAccount['status']
-  role: AdminAccount['role']
+  status?: AdminAccount['status']
+  role?: AdminAccount['role']
   password?: string
   expectedVersion?: number
 }
 export interface AdminLogin { account: AdminAccount; accessToken: string; expiresAt: string; sessionMinutes: number }
 export interface StoredAdminAccount extends AdminAccount {
   passwordHash: string
+  credentialVersion?: number
 }
 
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED'

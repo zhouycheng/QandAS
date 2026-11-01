@@ -46,15 +46,15 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/dashboard" element={<ProtectedRoute platformOnly><DashboardPage /></ProtectedRoute>} />
-          <Route path="/activity" element={<ProtectedRoute platformOnly><ActivityPage /></ProtectedRoute>} />
-          <Route path="/monitoring" element={<ProtectedRoute platformOnly><MonitoringPage /></ProtectedRoute>} />
-          <Route path="/colleges" element={<ProtectedRoute platformOnly><CollegesPage /></ProtectedRoute>} />
-          <Route path="/users" element={<ProtectedRoute platformOnly><UsersPage /></ProtectedRoute>} />
-          <Route path="/announcements" element={<ProtectedRoute platformOnly><AnnouncementsPage /></ProtectedRoute>} />
-          <Route path="/administrators" element={<ProtectedRoute platformOnly><AdministratorsPage /></ProtectedRoute>} />
-          <Route path="/security" element={<ProtectedRoute platformOnly><SecurityPage /></ProtectedRoute>} />
-          <Route path="/logs" element={<ProtectedRoute platformOnly><LogsPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/monitoring" element={<MonitoringPage />} />
+          <Route path="/colleges" element={<CollegesPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/announcements" element={<AnnouncementsPage />} />
+          <Route path="/administrators" element={<AdministratorsPage />} />
+          <Route path="/security" element={<SecurityPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/question-banks" element={<QuestionBanksPage />} />
           <Route path="/question-banks/:id" element={<BankWorkspacePage />} />

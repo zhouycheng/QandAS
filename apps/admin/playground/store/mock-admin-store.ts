@@ -67,7 +67,11 @@ export const useMockAdminStore = create<MockAdminState>()(
     }),
     {
       name: 'qanda-admin-playground-v1-contract',
-      version: 1,
+      version: 2,
+      migrate: (persisted) => {
+        const state = persisted as MockAdminState
+        return { ...state, adminAccounts: (state.adminAccounts ?? initialData.adminAccounts).map(account => ({ ...account, role: 'SUPER_ADMIN' as const })) }
+      },
     },
   ),
 )

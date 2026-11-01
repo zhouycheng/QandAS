@@ -11,7 +11,7 @@ class AdminAccount {
     var username: String = ""
     var name: String = ""
     var passwordHash: String = ""
-    var role: String = "CONTENT_ADMIN"
+    var role: String = "SUPER_ADMIN"
     var status: String = "ACTIVE"
     var version: Long = 1
     var credentialVersion: Long = 1

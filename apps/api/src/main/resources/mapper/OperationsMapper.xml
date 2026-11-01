@@ -3,7 +3,7 @@
 <mapper namespace="qanda.backend.operations.OperationsMapper">
   <select id="issuedRevision" resultType="boolean">SELECT EXISTS(SELECT 1 FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND i.revision_id=#{revisionId})</select>
   <select id="lockFeedback" resultType="qanda.backend.operations.QuestionFeedback">SELECT * FROM question_feedback WHERE id=#{id} FOR UPDATE</select>
-  <sql id="feedbackFilter">FROM question_feedback f JOIN question q ON q.id=f.question_id <where><if test="userId != null">f.user_id=#{userId} </if><if test="adminId != null">AND EXISTS(SELECT 1 FROM bank_maintainer bm WHERE bm.bank_id=q.bank_id AND bm.admin_id=#{adminId}) </if><if test="status != null">AND f.status=#{status} </if></where></sql>
+  <sql id="feedbackFilter">FROM question_feedback f <where><if test="userId != null">f.user_id=#{userId} </if><if test="status != null">AND f.status=#{status} </if></where></sql>
   <select id="feedback" resultType="qanda.backend.operations.QuestionFeedback">SELECT f.* <include refid="feedbackFilter"/> ORDER BY f.created_at DESC,f.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="feedbackCount" resultType="long">SELECT count(*) <include refid="feedbackFilter"/></select>
   <select id="lockRequest" resultType="qanda.backend.operations.CourseRequest">SELECT * FROM course_request WHERE id=#{id} FOR UPDATE</select>

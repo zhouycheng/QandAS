@@ -58,11 +58,11 @@ class SyncStreams(private val health: SyncHealth,private val sessions: Sessions)
 @RequestMapping("/api/v1/admin/monitoring")
 class MonitoringController(private val health: SyncHealth,private val streams: SyncStreams,private val sessions: Sessions) {
     @GetMapping("/health",produces=["application/json"])
-    fun health(): SystemHealthView { sessions.admin(true);return health.health() }
+    fun health(): SystemHealthView { sessions.admin();return health.health() }
     @GetMapping("/sync/stream",produces=["text/event-stream"])
     @Operation(responses=[ApiResponse(responseCode="200",description="SSE 同步健康快照；每 5 秒更新",content=[Content(mediaType="text/event-stream",schema=Schema(implementation=SyncHealthView::class))])])
     fun stream(response: HttpServletResponse): SseEmitter {
-        val actor=sessions.admin(true)
+        val actor=sessions.admin()
         response.setHeader("X-Accel-Buffering","no")
         return streams.subscribe(actor)
     }

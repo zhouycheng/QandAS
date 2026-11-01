@@ -61,16 +61,15 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
     }
     fun save(id: UUID?,input: AdminInput): MutationResult {
         sql.lockControl()
-        if(input.role !in setOf("PLATFORM_ADMIN","CONTENT_ADMIN")) invalid("/role")
+        if(input.role!="SUPER_ADMIN") invalid("/role")
         val status=when(input.status) { "ACTIVE" -> "ACTIVE";"DISABLED" -> "INACTIVE";else -> invalid("/status") }
         val old=id?.let { identity.lockAdmin(it) ?: missing() }
         old?.let { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),it.version) }
-        if(old?.role=="PLATFORM_ADMIN" && old.status=="ACTIVE" && (input.role!="PLATFORM_ADMIN" || input.status!="ACTIVE") && sql.platformCount()<=1) conflict("LAST_PLATFORM_ADMIN","至少保留一个有效的平台管理员")
+        if(old?.status=="ACTIVE" && status!="ACTIVE" && sql.activeAdminCount()<=1) conflict("LAST_ADMIN","至少保留一个有效的管理员")
         val hash=input.password?.let(::password) ?: old?.passwordHash ?: invalid("/password")
-        val oldRole=old?.role
         val row=old ?: AdminAccount().apply { this.id=UUID.randomUUID() }
         row.username=username(input.username);row.name=name(input.name,40);row.role=input.role;row.status=status
-        val credentialsChanged=old!=null && (input.password!=null || row.status!="ACTIVE" || row.role!=oldRole)
+        val credentialsChanged=old!=null && (input.password!=null || row.status!="ACTIVE")
         row.passwordHash=hash;row.version=if(old==null) 1 else row.version+1;row.updatedAt=clock.instant()
         if(credentialsChanged) { row.credentialVersion++;identity.revokeAdminSessions(row.id!!) }
         if(old==null) rows.insert(row) else rows.updateById(row)
@@ -81,8 +80,8 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         return save(id,AdminInput(old.username,old.name,old.role,"DISABLED",expectedVersion=expectedVersion))
     }
     fun bootstrap(username: String,name: String,password: String): UUID {
-        if(sql.lockControl()!=null || sql.platformCount()>0) conflict("BOOTSTRAP_COMPLETED","首个管理员已创建")
-        val result=save(null,AdminInput(username,name,"PLATFORM_ADMIN",password=password));sql.completeBootstrap();return result.id
+        if(sql.lockControl()!=null || sql.activeAdminCount()>0) conflict("BOOTSTRAP_COMPLETED","首个管理员已创建")
+        val result=save(null,AdminInput(username,name,password=password));sql.completeBootstrap();return result.id
     }
     fun policy(): PolicyView=policies.selectById(1).let { PolicyView(it.lockEnabled,it.maxAttempts,it.lockMinutes,it.sessionMinutes,it.minPasswordLength,it.requireLetter,it.requireNumber,it.requireMixedCase,it.version,it.updatedAt) }
     fun policy(input: PolicyInput): PolicyView {
