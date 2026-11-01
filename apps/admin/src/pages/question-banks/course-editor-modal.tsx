@@ -14,8 +14,8 @@ export function CourseEditorModal({ course, onClose, onSaved }: {
   const [dirty, setDirty] = useState(false)
   const save = useMutation({
     mutationFn: (values: { name: string; status: ContentStatus }) => course
-      ? gateway.updateSubject(course.id, { ...values, majorIds: course.majorIds })
-      : gateway.createSubject({ ...values, majorIds: [] }),
+      ? gateway.updateSubject(course.id, { ...values, expectedVersion: course.version })
+      : gateway.createSubject(values),
     onSuccess: (result) => { Message.success('课程已保存'); onSaved(result) },
   })
   const cancel = () => {

@@ -1,4 +1,4 @@
-import type { AdminAccount } from '../types/operations'
+import type { AdminAccount, AdminLogin } from '../types/operations'
 
 const AUTH_KEY = 'qanda-admin-auth'
 export interface AdminSession {
@@ -7,6 +7,9 @@ export interface AdminSession {
   name: string
   lastActivity: number
   timeoutMinutes: number
+  accessToken: string
+  expiresAt: string
+  role: AdminAccount['role']
 }
 export function getAdminSession(): AdminSession | null {
   try {
@@ -14,6 +17,9 @@ export function getAdminSession(): AdminSession | null {
     return value &&
       typeof value.id === 'string' &&
       typeof value.username === 'string' &&
+      typeof value.accessToken === 'string' && value.accessToken.length > 0 &&
+      ['PLATFORM_ADMIN', 'CONTENT_ADMIN'].includes(value.role) &&
+      Number.isFinite(Date.parse(value.expiresAt)) &&
       Number.isFinite(value.lastActivity) &&
       Number.isFinite(value.timeoutMinutes) &&
       value.timeoutMinutes >= 5 &&
@@ -26,9 +32,9 @@ export function getAdminSession(): AdminSession | null {
 }
 export function isAuthenticated() {
   const session = getAdminSession()
-  return Boolean(session && Date.now() - session.lastActivity < session.timeoutMinutes * 60000)
+  return Boolean(session && Date.now() < Date.parse(session.expiresAt) && Date.now() - session.lastActivity < session.timeoutMinutes * 60000)
 }
-export function saveAdminSession(account: AdminAccount, timeoutMinutes: number) {
+export function saveAdminSession({ account, accessToken, expiresAt, sessionMinutes }: AdminLogin) {
   window.localStorage.setItem(
     AUTH_KEY,
     JSON.stringify({
@@ -36,7 +42,8 @@ export function saveAdminSession(account: AdminAccount, timeoutMinutes: number) 
       username: account.username,
       name: account.name,
       lastActivity: Date.now(),
-      timeoutMinutes,
+      timeoutMinutes: sessionMinutes,
+      accessToken, expiresAt, role: account.role,
     }),
   )
 }

@@ -1,7 +1,6 @@
 import type { Question } from '../../src/types/admin'
 import { collegeFixtures } from '../fixtures/colleges'
 import { majorFixtures } from '../fixtures/majors'
-import { createGradeFixtures } from '../fixtures/grades'
 import { questionBankFixtures } from '../fixtures/question-banks'
 import { questionFixtures } from '../fixtures/questions'
 import { subjectFixtures } from '../fixtures/subjects'
@@ -28,6 +27,7 @@ export const scenarioLabels: Record<PlaygroundScenario, string> = {
 function createLargeQuestion(index: number): Question {
   const id = index + 1
   return {
+    version: 1,
     id: `question-large-${id}`,
     questionBankId: id % 3 === 0 ? 'bank-english-grammar' : 'bank-calculus',
     stem: `性能验证题目 ${id}：请选择正确答案。`,
@@ -69,20 +69,20 @@ export function getScenarioData(scenario: PlaygroundScenario) {
     users: scenario === 'empty' ? [] : structuredClone(userFixtures),
     announcements: scenario === 'empty' ? [] : structuredClone(announcementFixtures),
     activityRecords: scenario === 'empty' ? [] : createActivityFixtures(),
+    foregroundSessions: scenario === 'empty' ? [] : userFixtures.slice(0, 3).map(user => ({ userId: user.id, platform: 'MINI_PROGRAM' as const, seenAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), revoked: false })),
     operationLogs: [] as import('../../src/types/operations').OperationLog[],
     chapters: scenario === 'empty' ? [] : structuredClone(chapterFixtures),
     feedback: scenario === 'empty' ? [] : structuredClone(feedbackFixtures),
     userCourses: scenario === 'empty' ? [] : structuredClone(userCourseFixtures),
   }
   if (scenario === 'empty') {
-    return { colleges: [], majors: [], grades: [], subjects: [], questionBanks: [], questions: [], ...operations }
+    return { colleges: [], majors: [], subjects: [], questionBanks: [], questions: [], ...operations }
   }
 
   return {
     ...operations,
     colleges: structuredClone(collegeFixtures),
     majors: structuredClone(majorFixtures),
-    grades: createGradeFixtures(majorFixtures, operations.users, questionBankFixtures),
     subjects: structuredClone(subjectFixtures),
     questionBanks: structuredClone(questionBankFixtures),
     questions:

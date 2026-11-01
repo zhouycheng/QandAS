@@ -7,6 +7,7 @@ import '@arco-design/web-react/dist/css/arco.css'
 import App from './App'
 import { GatewayProvider } from './gateways/gateway-context'
 import { MockAdminContentGateway } from '../playground/gateways/mock-admin-gateway'
+import { HttpAdminContentGateway } from './gateways/http-admin-gateway'
 import './styles.css'
 
 const queryClient = new QueryClient({
@@ -16,7 +17,7 @@ const queryClient = new QueryClient({
   },
 })
 
-const gateway = new MockAdminContentGateway()
+const gateway = import.meta.env.VITE_API_BASE_URL ? new HttpAdminContentGateway(import.meta.env.VITE_API_BASE_URL) : new MockAdminContentGateway()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

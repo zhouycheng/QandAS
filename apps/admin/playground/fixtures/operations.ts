@@ -7,16 +7,15 @@ import type {
 } from '../../src/types/operations'
 
 export const defaultSecurity: SecuritySettings = {
+  version: 1,
   lockEnabled: true,
   maxAttempts: 5,
   lockMinutes: 30,
   sessionMinutes: 30,
-  newDeviceVerification: false,
-  minPasswordLength: 8,
+  minPasswordLength: 12,
   requireLetter: true,
   requireNumber: true,
   requireMixedCase: false,
-  changeInitialPassword: false,
 }
 
 // The existing demo credential remains admin / mock. New accounts use the configured password rules.
@@ -28,16 +27,19 @@ export const adminAccountFixtures: StoredAdminAccount[] = [
   ['auditor_02', '小许'],
   ['security_01', '小王'],
 ].map(([username, name], i) => ({
+  version: 1,
+  role: i === 1 ? 'CONTENT_ADMIN' : 'PLATFORM_ADMIN',
   id: `admin-${i + 1}`,
   name,
   username,
   passwordHash: demoPasswordHash,
-  status: i === 3 ? 'INACTIVE' : 'ACTIVE',
+  status: i === 3 ? 'DISABLED' : 'ACTIVE',
   createdAt: `2026-0${i + 1}-10T02:20:00.000Z`,
   lastLoginAt: '2026-10-24T01:15:00.000Z',
 }))
 
 export const userFixtures: ManagedUser[] = ['林', '陈', '周', '许', '王', '赵'].map((surname, i) => ({
+  version: 1,
   id: `user-${i + 1}`,
   name: `${surname}同学`,
   account: ['A103', 'A104', 'A105', 'B208', 'C016', 'B317'][i],
@@ -52,13 +54,13 @@ export const userFixtures: ManagedUser[] = ['林', '陈', '周', '许', '王', '
         : i % 2
           ? 'major-software-engineering'
           : 'major-computer-science',
-  enrollmentYear: i === 4 ? undefined : i % 2 ? 2024 : 2025,
+  grade: i === 4 ? undefined : i % 2 ? 3 : 2,
   registeredAt: `2026-10-${String(10 + i).padStart(2, '0')}T08:00:00Z`,
   status: i === 3 ? 'DISABLED' : 'ACTIVE',
   answeredCount: [1248, 856, 2315, 412, 1892, 298][i],
   activeDays: [28, 25, 27, 18, 26, 12][i],
   preferredHours: ['19:00–21:00', '20:00–22:00', '18:00–20:00'][i % 3],
-  platforms: i % 2 ? ['WEB'] : ['MINIAPP', 'WEB'],
+  platforms: i % 2 ? ['WEB'] : ['MINI_PROGRAM', 'WEB'],
   lastActiveAt: `2026-10-2${5 - i}T01:15:00.000Z`,
 }))
 
@@ -69,13 +71,14 @@ export const announcementFixtures: Announcement[] = [
   '英语题库内容调整说明',
   '考试提醒功能上线',
 ].map((title, i) => ({
+  version: 1,
   id: `announcement-${i + 1}`,
   title,
   summary: '查看平台最新动态与学习内容。',
   body: '一、更新内容\n本周新增部分题目，并修订题目表述与解析。\n\n二、使用建议\n请进入对应科目完成相关练习，巩固所学知识。',
   audience: 'ALL',
   userIds: [],
-  platforms: ['MINIAPP', 'WEB'],
+  platforms: ['MINI_PROGRAM', 'WEB'],
   status: i === 2 ? 'DRAFT' : i === 3 ? 'SCHEDULED' : 'PUBLISHED',
   publishAt: i === 3 ? '2099-12-05T01:00:00.000Z' : i === 2 ? undefined : '2026-10-24T02:00:00.000Z',
   updatedAt: '2026-10-24T02:00:00.000Z',
@@ -87,14 +90,15 @@ export function createActivityFixtures(): ActivityRecord[] {
     const day = new Date()
     day.setDate(day.getDate() - (89 - i))
     const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
-    for (const platform of ['MINIAPP', 'WEB'] as const) {
+    for (const platform of ['MINI_PROGRAM', 'WEB'] as const) {
       const userIds = userFixtures
-        .filter((u, j) => u.platforms.includes(platform) && (i + j) % 4 !== 0)
+        .filter((u, j) => u.platforms?.includes(platform) && (i + j) % 4 !== 0)
         .map((u) => u.id)
       const answeredCount = userIds.length * (20 + (i % 11))
       records.push({
         date,
         platform,
+        learning: userIds.map((userId, index) => ({ userId, answeredCount: 20 + i % 11, correctCount: 15 + i % 6, durationSeconds: (index + 1) * 120 + i % 90 })),
         userIds,
         newUsers: i < 7 ? userIds.length : 0,
         returningUsers: i < 7 ? 0 : userIds.length,

@@ -1,10 +1,12 @@
 import { Space, Tag, Typography } from '@arco-design/web-react'
 import { questionTypeLabels } from '../../lib/labels'
 import { answerSummary } from '../../lib/question-content'
+import { QuestionImages } from '../../components/question-images'
 import type { QuestionContent } from '../../types/admin'
 
 export function QuestionContentView({ question }: { question: QuestionContent }) {
   return <div className="bw-content-view">
+    {!!question.assetIds?.length && <QuestionImages ids={question.assetIds} />}
     <section><Typography.Title heading={6}>{question.type === 'READING' ? '题组标题' : '题干'}</Typography.Title><p>{question.stem}</p></section>
     {question.type === 'READING' ? <>
       <section className="bw-reading-material"><Typography.Title heading={6}>阅读材料</Typography.Title><p>{question.passage}</p></section>

@@ -33,11 +33,24 @@ describe('新增题型的录入与导入边界', () => {
     expect(validateQuestion({ ...question, blanks: [{ answers: ['two words'] }] }).blanks?.[0].answers).toEqual(['two words'])
   })
 
-  it('简答题必须有参考答案和评分要点，拒绝空内容及超长要点', () => {
+  it('简答题参考答案必填且评分要点选填，拒绝空内容及超长要点', () => {
     expect(() => validateQuestion({ ...input(examples.SHORT_ANSWER), referenceAnswer: '' })).toThrow('参考答案必填')
-    expect(() => validateQuestion({ ...input(examples.SHORT_ANSWER), scoringPoints: [] })).toThrow('评分要点')
+    expect(validateQuestion({ ...input(examples.SHORT_ANSWER), scoringPoints: [] }).scoringPoints).toEqual([])
     expect(() => validateQuestion({ ...input(examples.SHORT_ANSWER), scoringPoints: [' '] })).toThrow('评分要点必填')
-    expect(() => validateQuestion({ ...input(examples.SHORT_ANSWER), scoringPoints: ['a'.repeat(501)] })).toThrow('500')
+    expect(() => validateQuestion({ ...input(examples.SHORT_ANSWER), scoringPoints: ['a'.repeat(1001)] })).toThrow('1000')
+  })
+
+  it('编辑与导入采用后端的文本、附件和选项边界', () => {
+    const question = { ...input(examples.SHORT_ANSWER), stem: '题'.repeat(10000), explanation: '解'.repeat(10000), referenceAnswer: '答'.repeat(10000), scoringPoints: ['点'.repeat(1000)] }
+    expect(validateQuestion(question).referenceAnswer).toHaveLength(10000)
+    expect(() => validateQuestion({ ...question, stem: question.stem + '题' })).toThrow('10000')
+    expect(() => validateQuestion({ ...question, explanation: '\u0000' })).toThrow('无效字符')
+    expect(() => validateQuestion({ ...question, assetIds: ['same', 'same'] })).toThrow('不能为空或重复')
+    expect(() => validateQuestion({ ...question, assetIds: Array.from({ length: 21 }, (_, i) => String(i)) })).toThrow('20')
+    const choice = input(examples.SINGLE_CHOICE)
+    expect(() => validateQuestion({ ...choice, options: [{ key: 'a!', content: '内容' }, choice.options[1]] })).toThrow('选项标识')
+    expect(() => validateQuestion({ ...choice, options: [{ key: 'A', content: '字'.repeat(4001) }, choice.options[1]] })).toThrow('4000')
+    expect(validateQuestion({ ...input(examples.READING), stem: '' }).stem).toBe('')
   })
 
   it('阅读题组需要材料和小题，不能嵌套题组或复用小题标识', () => {
@@ -58,7 +71,7 @@ describe('新增题型的录入与导入边界', () => {
   })
 
   it('导入题量限制按阅读小题计算，不能用题组绕过每文件上限', () => {
-    expect(() => parseQuestionFile(JSON.stringify(Array.from({ length: 1001 }, () => examples.READING)), 'target')).toThrow('每个文件最多 2000 道题')
+    expect(() => parseQuestionFile(JSON.stringify(Array.from({ length: 1501 }, () => examples.READING)), 'target')).toThrow('每个文件最多 3000 道题')
   })
 })
 

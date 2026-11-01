@@ -1,23 +1,7 @@
-import { useQuery, type QueryClient } from '@tanstack/react-query'
-import { useAdminGateway } from '../../gateways/gateway-context'
-
-export function useWorkbenchData() {
-  const gateway = useAdminGateway()
-  return useQuery({
-    queryKey: ['bank-workbench'],
-    queryFn: async () => {
-      const [subjects, banks, colleges, majors, grades] = await Promise.all([
-        gateway.listSubjects(), gateway.listQuestionBanks(), gateway.listColleges(), gateway.listMajors(), gateway.listGrades(),
-      ])
-      return { subjects, banks, colleges, majors, grades }
-    },
-  })
-}
-
-export type WorkbenchData = NonNullable<ReturnType<typeof useWorkbenchData>['data']>
+import type { QueryClient } from '@tanstack/react-query'
 
 export function refreshWorkbench(client: QueryClient) {
-  for (const key of ['bank-workbench', 'questions', 'question-detail', 'chapters', 'dashboard-summary', 'organization-directory', 'question-banks', 'subjects']) {
+  for (const key of ['resource-select', 'bank-detail', 'publication-checks', 'questions', 'question-detail', 'chapters', 'dashboard-summary', 'organization-directory', 'question-banks', 'subjects', 'subject-access']) {
     void client.invalidateQueries({ queryKey: [key] })
   }
 }

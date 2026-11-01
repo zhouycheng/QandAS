@@ -14,6 +14,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconArrowDown, IconArrowUp, IconClose, IconMinus, IconPlus, IconUpload } from '@arco-design/web-react/icon'
 import { useAdminGateway } from '../../gateways/gateway-context'
+import { importBody } from '../../gateways/question-wire'
+import type { ImportQuestionsInput } from '../../types/operations'
+import { refreshWorkbench } from './workbench-data'
 import { parseQuestionFile } from '../../lib/content-rules'
 import { questionTypeLabels } from '../../lib/labels'
 import { answerSummary, countQuestions } from '../../lib/question-content'
@@ -41,6 +44,7 @@ export function ImportQuestionsModal({
   const chapters = useQuery({ queryKey: ['chapters', bank.id], queryFn: () => gateway.listChapters(bank.id) })
   const [chapterId, setChapterId] = useState(defaultChapterId)
   const input = useRef<HTMLInputElement>(null)
+  const intent = useRef<{ body: string; input: ImportQuestionsInput; previewed: boolean }>()
   const generation = useRef(0)
   const [files, setFiles] = useState<ImportFile[]>([])
   const [preview, setPreview] = useState<ImportFile>()
@@ -66,7 +70,7 @@ export function ImportQuestionsModal({
     for (const { file, id } of next) {
       try {
         if (!file.name.toLowerCase().endsWith('.json')) throw new Error('仅支持 JSON 文件')
-        if (file.size > 5 * 1024 * 1024) throw new Error('文件不能超过 5 MB')
+        if (file.size > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB')
         if (token !== generation.current) return
         setFiles((current) => current.map((f) => (f.id === id ? { ...f, progress: 40 } : f)))
         const questions = parseQuestionFile(await file.text(), bank.id)
@@ -85,19 +89,17 @@ export function ImportQuestionsModal({
     }
   }
   const save = useMutation({
-    mutationFn: () =>
-      gateway.importQuestions({
-        questionBankId: bank.id,
-        questions: files
-          .flatMap((f) => f.questions)
-          .map((q) => ({ ...q, chapterId: chapterId ?? q.chapterId })),
-      }),
+    mutationFn: async () => {
+      const request: ImportQuestionsInput = { questionBankId: bank.id, questions: files.flatMap(f => f.questions).map(q => ({ ...q, chapterId: chapterId ?? q.chapterId })), expectedContentVersion: bank.contentVersion, idempotencyKey: '' }
+      const body = JSON.stringify(importBody(request))
+      if (new TextEncoder().encode(body).length > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB，请移除部分文件。')
+      if (!intent.current || intent.current.body !== body) intent.current = { body, input: { ...request, idempotencyKey: crypto.randomUUID() }, previewed: false }
+      const current = intent.current
+      if (!current.previewed) { await gateway.previewImport(current.input); current.previewed = true }
+      return gateway.importQuestions(current.input)
+    },
     onSuccess: (count) => {
-      void client.invalidateQueries({ queryKey: ['questions'] })
-      void client.invalidateQueries({ queryKey: ['question-banks'] })
-      void client.invalidateQueries({ queryKey: ['bank-workbench'] })
-      void client.invalidateQueries({ queryKey: ['dashboard-summary'] })
-      void client.invalidateQueries({ queryKey: ['logs'] })
+      refreshWorkbench(client)
       Message.success(`已导入 ${count} 道题`)
       onClose()
     },
@@ -109,7 +111,7 @@ export function ImportQuestionsModal({
     !chapters.isLoading &&
     files.length > 0 &&
     files.every((f) => f.progress === 100 && !f.error) &&
-    total <= 10000
+    total <= 3000
   const move = (id: string, direction: number) =>
     setFiles((current) => {
       const next = [...current]
@@ -200,7 +202,7 @@ export function ImportQuestionsModal({
               e.target.value = ''
             }}
           />
-          <small className="muted">每个文件最多 5 MB / 2000 题，一次最多 20 个文件 / 10000 题；阅读理解按小题计数</small>
+          <small className="muted">每批最多 3000 道实际作答题、8 MiB 请求体，可合并最多 20 个 JSON 文件；阅读理解按小题计数</small>
         </div>
         <h3>文件识别进度</h3>
         <Table
@@ -269,11 +271,11 @@ export function ImportQuestionsModal({
         />
         <Alert
           style={{ marginTop: 20 }}
-          type={total > 10000 ? 'error' : 'info'}
+          type={total > 3000 ? 'error' : 'info'}
           content={
-            total > 10000
-              ? '题目总量超过 10000，请移除部分文件。'
-              : '全部文件识别成功后可确认导入；通过上下箭头调整文件顺序。支持管理端格式及小程序导出的 questions JSON。导入不会覆盖已有题目。'
+            total > 3000
+              ? '题目总量超过 3000，请移除部分文件。'
+              : '全部文件识别成功后可确认导入；通过上下箭头调整文件顺序。整批校验通过后写入；失败保留文件和原幂等键以便重试。'
           }
         />
         <details className="import-example">

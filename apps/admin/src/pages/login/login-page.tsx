@@ -19,16 +19,15 @@ export function LoginPage() {
   const signIn = useMutation({
     mutationFn: async (values: LoginValues) => ({
       account: await gateway.loginAdmin(values.username.trim(), values.password),
-      settings: await gateway.getSecuritySettings(),
       username: values.username.trim(),
     }),
-    onSuccess: ({ account, settings, username }) => {
-      saveAdminSession(account, settings.sessionMinutes)
+    onSuccess: ({ account, username }) => {
+      saveAdminSession(account)
       if (remember) localStorage.setItem('qanda-admin-remember', username)
       else localStorage.removeItem('qanda-admin-remember')
       const target = (location.state as { from?: string } | null)?.from
       navigate(
-        target?.startsWith('/') && !target.startsWith('//') && target !== '/login' ? target : '/dashboard',
+        account.account.role === 'CONTENT_ADMIN' ? '/question-banks' : target?.startsWith('/') && !target.startsWith('//') && target !== '/login' ? target : '/dashboard',
         { replace: true },
       )
     },
