@@ -7,14 +7,14 @@ import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
 import qanda.backend.platform.http.ApiException
 import qanda.backend.platform.http.ErrorDetails
-import qanda.backend.platform.persistence.SystemMapper
+import qanda.backend.platform.security.TransactionLocks
 import qanda.backend.platform.mail.OutboxService
 import java.time.Clock
 import java.util.UUID
 
 @Service
 class ChallengeService(private val sql: IdentityMapper, private val rows: EmailChallengeMapper, private val users: UserAccountMapper,
-                       private val crypto: IdentityCrypto, private val outbox: OutboxService, private val system: SystemMapper,
+                       private val crypto: IdentityCrypto, private val outbox: OutboxService, private val system: TransactionLocks,
                        private val clock: Clock, manager: PlatformTransactionManager) {
     private val verification=TransactionTemplate(manager).apply { propagationBehavior=TransactionDefinition.PROPAGATION_REQUIRES_NEW }
 

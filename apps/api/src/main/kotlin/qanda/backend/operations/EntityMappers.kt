@@ -5,4 +5,3 @@ import org.apache.ibatis.annotations.Mapper
 
 @Mapper interface QuestionFeedbackMapper: BaseMapper<QuestionFeedback>
 @Mapper interface CourseRequestMapper: BaseMapper<CourseRequest>
-@Mapper interface AnnouncementMapper: BaseMapper<Announcement>

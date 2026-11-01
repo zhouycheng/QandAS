@@ -1,5 +1,7 @@
 package qanda.backend.admin
 
+import qanda.backend.platform.queries.AuditView
+
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.web.bind.annotation.*
 import qanda.backend.identity.*

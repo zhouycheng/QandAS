@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="qanda.backend.announcements.AnnouncementQueries">
+  <select id="lockAnnouncement" resultType="qanda.backend.announcements.Announcement">SELECT * FROM announcement WHERE id=#{id} FOR UPDATE</select>
+  <sql id="announcementFilter"><if test="userId != null">WHERE (status='PUBLISHED' OR status='SCHEDULED' AND publish_at &lt;= now()) AND EXISTS(SELECT 1 FROM announcement_platform p WHERE p.announcement_id=a.id AND p.platform=#{platform}) AND (audience='ALL' OR EXISTS(SELECT 1 FROM announcement_recipient r WHERE r.announcement_id=a.id AND r.user_id=#{userId})) </if></sql>
+  <select id="announcements" resultType="qanda.backend.announcements.Announcement">SELECT * FROM announcement a <include refid="announcementFilter"/> ORDER BY a.updated_at DESC,a.id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="announcementCount" resultType="long">SELECT count(*) FROM announcement a <include refid="announcementFilter"/></select>
+  <select id="platforms" resultType="string">SELECT platform FROM announcement_platform WHERE announcement_id=#{id} ORDER BY platform</select>
+  <select id="recipients" resultType="java.util.UUID">SELECT user_id FROM announcement_recipient WHERE announcement_id=#{id} ORDER BY user_id</select>
+  <delete id="clearPlatforms">DELETE FROM announcement_platform WHERE announcement_id=#{id}</delete>
+  <delete id="clearRecipients">DELETE FROM announcement_recipient WHERE announcement_id=#{id}</delete>
+  <insert id="addPlatform">INSERT INTO announcement_platform(announcement_id,platform) VALUES(#{id},#{platform})</insert>
+  <insert id="addRecipient">INSERT INTO announcement_recipient(announcement_id,user_id) VALUES(#{id},#{userId})</insert>
+  <update id="updateAnnouncement">UPDATE announcement SET title=#{row.title},summary=#{row.summary},body=#{row.body},audience=#{row.audience},status=#{row.status},publish_at=#{row.publishAt},version=#{row.version},updated_at=#{row.updatedAt} WHERE id=#{row.id}</update>
+</mapper>

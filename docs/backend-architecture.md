@@ -1,91 +1,94 @@
-# QandA 后端架构与数据库
+# QandA 后端模块与运行边界
 
-## 工程与职责
+应用制品与合同保持 `1.0.0`，接口前缀为 `/api/v1`。当前使用 Kotlin 2.2.21、JDK 21、Spring Boot 3.5.16、MyBatis-Plus 3.5.18、PostgreSQL 17。同一 JAR 按角色运行核心 API、后台消费者和监控三个进程。
 
-后端是一个 Spring Boot 应用和一个 Maven 工程，应用及接口合同保持 `1.0.0`。Kotlin 2.2.21、JDK 21、Spring Boot 3.5.16 与 MyBatis-Plus 3.5.18 共同构成当前构建基线。
+完整数据库关系、字段和索引见[数据库设计](database-design.md)，同步状态、指标和运行操作见[同步与监控](sync-monitoring.md)，本轮实际证据见[验收记录](sync-monitoring-verification.md)。
 
-按业务划分 `identity`、`admin`、`catalog`、`content`、`discovery`、`practice`、`learning`、`operations`，`platform` 提供事务、安全、文件、邮件、HTTP 和初始化能力。
+## 模块与数据归属
 
-每个业务模块中，Controller 接收请求并返回 DTO，Service 处理权限、规则和事务，Mapper 执行数据库访问，实体只描述持久化记录。单表 CRUD 使用 `BaseMapper`，简单过滤使用 `QueryWrapper`；复杂查询、复合主键、锁定和统计在 Mapper XML 中完成。MyBatis-Plus 3.5.18 的 Kotlin 元数据要求 2.4 编译器，而工程保留 Kotlin 2.2.21，因此仅使用该版本的 Java API，并在编译配置中跳过依赖元数据版本检查。
+| 业务模块 | 代码位置 | 数据与公开能力 |
+| --- | --- | --- |
+| 学生账号 | `identity` | 注册、登录、会话、资料；`identity.api.AccountDirectory` 提供账号查询，`Sessions` 统一身份检查 |
+| 管理员 | `admin` | 管理员身份、权限与安全规则；复用账号模块的会话校验 |
+| 学院专业与课程 | `catalog` | 学院、专业、课程、课程单独开放；`catalog.api.CatalogDirectory` 提供分类引用与可用性 |
+| 题库内容 | `content` | 题库、范围、章节、修订、选项、附件、发布导入；`content.api.ContentLibrary` 提供访问校验、修订快照与组卷数据 |
+| 练习 | `practice` | 组卷、作答、判题、自评、正式成绩；调用同步模块维护写入权 |
+| 数据同步 | `sync.api`、`application.ProgressCommands` | 写入权、确认序号、持久消息、进度命令与回执；应用服务协调账号、练习与队列事务 |
+| 学习记录 | `learning`、`discovery` | 收藏、错题、个人课程、历史及学习摘要；`learning.api.ReadContracts` 是跨模块的只读 SQL 合同 |
+| 公告 | `announcements` | 公告内容、客户端及接收范围，拥有独立 Controller、Service 和查询 |
+| 反馈运营 | `operations` | 题目纠错、缺课需求、处理结果与内容概览 |
+| 监控 | `monitoring` | 前台心跳、活跃投影、在线明细、趋势排行、队列与接口健康、SSE |
+| 平台支撑 | `platform` | 事务命令、幂等回执、审计、HTTP、安全、文件、邮件和业务事件 |
 
-写命令由统一事务保存业务变更、成功审计和幂等回执。业务 Service 复用同一数据源；验证码错误次数、登录失败次数及失败审计在独立事务保存。Controller 和 Service 不拼接 SQL，初始化程序负责执行 DDL。
+实体和 Mapper 属于模块内部。跨模块服务调用使用公开接口或明确的查询合同，不注入其他业务模块的 Mapper，不返回其持久化实体。共享展示查询 DTO 位于 `platform.queries`。单表操作采用 MyBatis-Plus Java API，复杂查询采用 XML；同步事务使用 JdbcTemplate 执行显式锁和状态转换。
 
-## 数据关系
+`ModuleBoundaryTest` 检查跨模块 Mapper/实体引用、服务循环依赖、XML 引用能否解析以及跨模块 SQL 是否指向公开合同。业务读视图是允许的跨表查询入口，表之间的外键继续保护数据关系。
 
-数据库按用途分组，使用同一个 PostgreSQL 数据库和外键关系。表数量服从实体职责和关系，减少的是重复事实和不一致的数据来源。
+## 运行拓扑
 
 ```mermaid
-erDiagram
-    college ||--o{ major : contains
-    user_account ||--|| user_profile : has
-    major o|--o{ user_profile : selected
-    college o|--o{ user_profile : selected_without_major
-    subject ||--o{ question_bank : contains
-    question_bank ||--o{ chapter : contains
-    question_bank ||--o{ question : contains
-    chapter o|--o{ question : organizes
-    question ||--|{ question_revision : records
-    question_revision ||--o{ question_option : contains
-    user_account ||--o{ user_subject : selects
-    subject ||--o{ user_subject : selected_by
-    user_account ||--o{ practice_session : starts
-    practice_session ||--|{ practice_item : fixes
-    question_revision ||--o{ practice_item : referenced_by
-    practice_session ||--o| practice_result : produces
+flowchart LR
+    C["小程序 / 用户 Web"] --> G["gateway"]
+    A["管理端"] --> G
+    G --> API["api：账号 / 目录 / 练习 / 公告"]
+    G --> M["monitor：在线 / 活跃 / SSE"]
+    API --> Q["RabbitMQ：进度 / 重试 / 死信"]
+    Q --> W["worker：4 个同步消费者"]
+    API --> DB[("PostgreSQL")]
+    W --> DB
+    DB --> M
+    P["Prometheus：5 秒采集，保留 15 天"] --> M
+    API --> P
+    W --> P
+    Q --> P
 ```
 
-| 用途 | 表 |
+箭头表示数据依赖。Prometheus 主动抓取各进程 Actuator 和 RabbitMQ 指标；监控进程统一查询、缓存，再向浏览器分发。管理端的 SSE 请求经 gateway 路由至 monitor；死信恢复仍由核心 API 的写命令入口执行。
+
+| 进程 | 执行工作 | 默认数据库连接数 | 资源约束 |
+| --- | --- | --- | --- |
+| api | 核心 HTTP、进度登记与发布、交卷及接管 | 8 | Compose 内存上限 768 MiB |
+| worker | RabbitMQ 消费、活跃事件投影、邮件投递 | 6 | 768 MiB；同步 4 个消费者、预取 1；定时线程池 4 |
+| monitor | 聚合只读查询、指标采样、SSE | 2 | 512 MiB；SQL 超时 3 秒；64 条 SSE 连接上限 |
+
+三个进程拥有独立连接池。monitor 连接通过 `SET ROLE qanda_monitor` 限定常规 SQL 权限，业务查询只读，认证可更新会话最近访问时间，错误处理可追加审计；统计投影事务通过 `SET LOCAL ROLE qanda_activity_writer` 限定写入范围。当前使用共享数据库登录凭据后切换数据库角色，属于应用内权限约束；独立低权限登录凭据是进一步部署隔离的工作。
+
+公告是同步查询模块，查询超时 3 秒。邮件有独立出站表、租约与错误处理，活跃统计有独立事件表和批次处理；两者使用各自定时任务，同步消息使用 RabbitMQ 监听器线程。后台任务共享 worker 进程，进程级故障仍会同时影响这些后台任务。
+
+## 事务和一致性
+
+- 业务写命令在同一 PostgreSQL 事务中保存业务变更、幂等回执、成功审计和业务事件。登录失败、验证码失败等原有独立事务继续保存防护信息。
+- 进度接收先鉴权、检查写入权并登记命令，再发布消息；RabbitMQ 发布确认后返回 `202`。消息正文保存在持久队列，数据库命令表保存摘要与处理元数据。
+- 消费端重新检查身份、写入凭证、业务版本和本地序号；进度、命令完成状态及回执同事务提交，随后 ACK。重复投递读取同一回执。
+- 交卷、取消、交出写入权会锁定练习并检查未完成进度。新设备等待旧端最后一批进度落库。
+- 登录与学习事务只写 `domain_event_outbox`，后台按事件发生时间更新每日活跃，延迟处理仍归入正确的北京时间日期。
+- 公告、活跃查询和监控图表请求各自失败，不进入答题事务。客户端的已下载练习和持久草稿支持故障期间续答。
+
+## 资料、内容和历史
+
+用户可自由修改学院、专业、当前年级；选择专业时由专业推导学院，数据库约束两种归属互斥。年级由设置值和所属学年计算，每年北京时间 9 月 1 日递增，最高为已毕业。
+
+登录用户的目录、搜索、单题及新练习统一使用资料匹配、全校开放和课程单独开放范围；游客浏览已发布内容。资料变化不改变历史练习归属。
+
+题目稳定 ID 与不可变内容修订分离。阅读小题引用同题库的材料，练习固定小题及材料修订。修订、选项、附件、正式结果及审计由数据库触发器保护；已发放练习的题目、题序和材料绑定同样固定。内容停用、题库下架及归档保留历史引用。
+
+练习按独立 ID 保存，可以并行保留多场练习。每场练习的业务版本、内容修订、写入凭证及确认序号分别表达。正式结果由服务端判题；简答自评单独记录，结果计数有非负和范围约束。
+
+## 故障边界
+
+| 故障 | 当前行为 |
 | --- | --- |
-| 用户和组织档案 | `user_account`、`user_profile`、`user_wechat`、`college`、`major` |
-| 管理档案与内容职责 | `admin_account`、`bank_maintainer` |
-| 内容档案与明细 | `subject`、`question_bank`、`bank_audience`、`chapter`、`question`、`question_revision`、`question_option`、`question_attachment` |
-| 用户主动选择 | `user_subject`、`user_favorite` |
-| 练习事实 | `practice_session`、`practice_item`、`practice_item_choice`、`practice_result` |
-| 反馈和运营 | `question_feedback`、`course_request`、`announcement`、`announcement_platform`、`announcement_recipient`、`user_activity` |
-| 系统运行 | `user_session`、`admin_session`、`security_policy`、`admin_control`、`login_attempt`、`email_challenge`、`wechat_ticket`、`mail_delivery`、`file_asset`、`command_receipt`、`audit_log` |
+| 公告查询失败 | 公告返回错误；其他业务使用各自请求 |
+| monitor 退出或采集失败 | 页面保留最后成功数据并标记过期；API 和 worker 继续运行 |
+| worker 停止 | 已确认消息留在 RabbitMQ，客户端保留原命令与草稿；正式交卷等待进度完成 |
+| RabbitMQ 不可用 | 新同步返回可重试错误，原幂等键保持；账号、目录及公告不依赖消息发布 |
+| 目录不可用 | 创建新练习受影响，完整下载的练习继续本地作答 |
+| PostgreSQL 或核心进程退出 | 依赖它的核心功能受影响；客户端继续保留草稿 |
 
-完整 DDL 以[当前建表脚本](../apps/api/src/main/resources/db/schema.sql)为准。
+当前仍共享 PostgreSQL，核心模块仍在同一 api 进程，后台任务仍在同一 worker 进程。独立进程、查询预算与模块接口限制影响范围；数据库停机和共享进程退出是明确的共同故障边界。
 
-### 档案与引用
+## 接口与安全
 
-- 学院与专业为一对多。用户选专业时只保存专业外键，由专业推导学院；只选学院时保存学院外键。数据库约束两个归属字段互斥。
-- 学生资料、院系与入学年份可以为空。管理员账号独立保存，固定平台管理员和内容管理员两种角色。题库维护者通过关联表指定。
-- 课程拥有多个题库，题库拥有章节和题目。章节可空，复合外键保证题目的章节与题库一致。章节含题时先移走题目再删除。
-- 题库的适用范围为全校或多行条件。同一行条件同时满足，多行取任一匹配；专业条件从专业推导学院。适用范围用于推荐。
-- 我的课程按用户、课程唯一；常用题库的复合外键保证其属于同一课程。收藏按用户、题目唯一。
+学生和管理员分别认证，服务端保存令牌摘要。请求使用独立追踪号，写命令使用 UUID 幂等键，更新使用业务版本。JSON 校验拒绝重复键、未知字段和无效 UTF-8。查询与接口预算按当前进程执行。
 
-### 题目、练习与历史
-
-题目保留稳定 ID，修订表保存题型、题干、解析、判断答案或简答参考答案，选择项放入子表。图片通过修订与文件关联。修订、选项、附件、练习结果和审计事实由数据库触发器保护。
-
-练习创建时固定修订和题序，恢复读取原记录。每个用户在同一题库最多有一个进行中的练习，可以取消后重新创建。进度保存使用会话并发字段；即时反馈中已确认的作答不可修改，标记与收藏分别保存。
-
-交卷锁定会话，在同一事务内完成判题、唯一结果和会话状态更新。多选题未确认时按未答处理；简答题先保存作答，交卷后由学生自评。客观题结果保持固定，自评结果单独更新。题库下架后保留已发放练习的快照和对应图片访问。
-
-有业务引用的学院、专业、课程、题库和题目采用停用、下架或归档。移除我的课程只删除快捷入口。开发环境通过显式初始化命令执行完整建表脚本，业务修订号和并发字段继续服务于数据一致性。
-
-## 安全与基础设施
-
-学生和管理员使用独立会话表，服务端只保存令牌摘要，账号状态和凭据变更会使旧会话失效。内容管理员只能维护被分配的题库及其反馈；系统账号和用户运营由平台管理员管理。平台管理员的最后一个有效账号受到事务锁保护。
-
-验证码使用 MAC 保存，最多尝试五次。邮件正文在出站表中加密；领取任务使用租约和行锁，结果未知时保留未知状态。生产提供端和开发测试提供端均通过配置校验。
-
-图片验证媒体签名、解码尺寸、像素和字节上限，再规范化为 PNG；文件名由服务端生成，读取时检查授权、路径、大小和 SHA-256。文件写入失败或数据库回滚时清理本次文件，进程崩溃产生的孤立文件需要后续对账。
-
-请求带独立追踪号，错误响应使用统一 JSON，日志不记录密码、验证码和令牌。JSON 拒绝重复键、未知字段和无效 UTF-8。请求预算按当前进程执行；多实例部署前需要共享限流设施。
-
-## 统计口径
-
-- 自然日使用 `Asia/Shanghai`，时间字段在数据库中保存为 `timestamptz`。`DAY` 查询一个自然日，`WEEK` 和 `MONTH` 分别查询截止日期前的 7 天和 30 天，区间在响应中明确返回。
-- 交卷才生成一次练习结果；重复交卷不增加练习数和答题数。
-- 客观题正确率为答对数除以客观题已答数；未答另列。简答题的作答、自评数量、正确与错误单列。
-- 活跃表示发生登录、保存练习或交卷行为；按用户、端、日期去重，跨端汇总再次按用户去重。
-- 留存为前一个等长区间的活跃用户中，在当前区间再次活跃的比例；前区间无人时返回零。
-- 院系统计按用户当前资料归属，排名只提供给平台管理员。逐日查询补齐无练习日期。
-- 错题保留历史作答统计，最近一次有效判题或自评决定掌握状态；未答不会清除旧的掌握状态。
-
-## 接口与客户端
-
-接口根路径为 `/api/v1`。按业务提供账号与档案、课程题库、推荐与我的课程、在线练习、学习与统计、反馈公告和后台管理接口。写命令使用 UUID 格式的 `Idempotency-Key`，更新使用业务并发校验字段。资料使用 `PUT` 完整替换，清空字段会清除相应资料。
-
-[聚合 OpenAPI](../apps/api/contracts/openapi.yaml)由运行中的 Controller 和 DTO 生成，模块合同引用共享模型。Postman 和逐操作验收台账据此生成。管理端与小程序的现有 Mock、页面及本地数据保持各自边界，客户端接入需按当前合同实现适配。
+Actuator 的健康与 Prometheus 端点位于内部端口，RabbitMQ、Prometheus 和监控进程不直接对外暴露。gateway 提供统一业务入口。完整合同由 Controller/DTO 导出；模块拆分保留已有 operationId，新操作同步到 Postman 和[接口台账](miniapp-api-integration.md)。

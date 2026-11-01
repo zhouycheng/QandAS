@@ -2,8 +2,6 @@ package qanda.backend.discovery
 
 import org.apache.ibatis.annotations.Mapper
 import org.apache.ibatis.annotations.Param
-import qanda.backend.catalog.Subject
-import qanda.backend.content.QuestionBank
 import java.time.Instant
 import java.util.UUID
 
@@ -19,7 +17,7 @@ class FavoriteRow { var questionId: UUID?=null;var bankId: UUID?=null;var stem: 
     fun unfavorite(@Param("userId") userId: UUID,@Param("questionId") questionId: UUID)
     fun favorites(@Param("userId") userId: UUID,@Param("offset") offset: Int,@Param("limit") limit: Int): List<FavoriteRow>
     fun favoriteCount(@Param("userId") userId: UUID): Long
-    fun recommendedSubjects(@Param("userId") userId: UUID,@Param("offset") offset: Int,@Param("limit") limit: Int): List<Subject>
+    fun recommendedSubjects(@Param("userId") userId: UUID,@Param("offset") offset: Int,@Param("limit") limit: Int): List<UUID>
     fun recommendedCount(@Param("userId") userId: UUID): Long
-    fun recommendedBanks(@Param("userId") userId: UUID,@Param("subjectId") subjectId: UUID): List<QuestionBank>
+    fun recommendedBanks(@Param("userId") userId: UUID,@Param("subjectId") subjectId: UUID): List<UUID>
 }

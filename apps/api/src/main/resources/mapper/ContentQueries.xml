@@ -4,16 +4,8 @@
   <select id="chapterCounts" resultType="qanda.backend.content.ChapterCount">SELECT chapter_id id,count(*) count FROM question WHERE bank_id=#{bankId} AND NOT is_group AND chapter_id IS NOT NULL GROUP BY chapter_id</select>
   <sql id="ids"><foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
   <select id="favoriteQuestionIds" resultType="java.util.UUID">SELECT question_id FROM user_favorite WHERE user_id=#{userId} AND question_id IN <include refid="ids"/> ORDER BY question_id</select>
-  <select id="subjectListFacts" resultType="qanda.backend.content.SubjectListFacts">
-    <include refid="qanda.backend.learning.LearningMapper.wrongFacts"/>
-    SELECT s.id subject_id,count(DISTINCT b.id) FILTER(WHERE q.id IS NOT NULL) bank_count,count(q.id) question_count,
-      count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count
-    FROM subject s LEFT JOIN question_bank b ON b.subject_id=s.id AND bank_visible(b.id,#{userId})
-    LEFT JOIN question q ON q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1
-    WHERE s.id IN <include refid="ids"/> GROUP BY s.id
-  </select>
   <select id="bankListFacts" resultType="qanda.backend.content.BankListFacts">
-    <if test="userId != null"><include refid="qanda.backend.learning.LearningMapper.wrongFacts"/> </if>
+    <if test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/> </if>
     SELECT b.id bank_id,s.name subject_name,count(q.id) question_count,count(q.id) FILTER(WHERE q.status='ACTIVE') active_question_count,
       <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count</otherwise></choose>
     FROM question_bank b JOIN subject s ON s.id=b.subject_id LEFT JOIN question q ON q.bank_id=b.id AND NOT q.is_group

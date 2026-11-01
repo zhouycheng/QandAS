@@ -7,7 +7,8 @@ import qanda.backend.identity.*
 import qanda.backend.platform.http.*
 import qanda.backend.platform.http.invalid
 import qanda.backend.platform.http.conflict
-import qanda.backend.platform.persistence.SystemMapper
+import qanda.backend.platform.queries.AuditReader
+import qanda.backend.platform.queries.AuditView
 import qanda.backend.platform.security.*
 import java.time.Clock
 import java.util.Locale
@@ -17,7 +18,7 @@ import java.util.UUID
 @Transactional
 class AdminService(private val rows: AdminAccountMapper,private val sessionRows: AdminSessionMapper,private val policies: SecurityPolicyMapper,
                    private val sql: AdminQueries,private val identity: IdentityMapper,private val users: UserAccountMapper,
-                   private val identityViews: IdentityService,private val system: SystemMapper,
+                   private val identityViews: IdentityService,private val audit: AuditReader,
                    private val crypto: IdentityCrypto,private val attempts: LoginAttempts,private val clock: Clock) {
     fun view(row: AdminAccount)=AdminView(row.id!!,row.username,row.name,row.role,if(row.status=="INACTIVE") "DISABLED" else row.status,row.version,row.createdAt,row.lastLoginAt)
     fun current(actor: Actor): AdminView = view(rows.selectById(actor.id) ?: missing())
@@ -56,8 +57,7 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
     }
     fun auditLogs(page: PageSpec,keyword: String?=null,result: String?=null): Page<AuditView> {
         if(result!=null && result !in setOf("SUCCESS","FAILURE")) invalid("/result")
-        val items=system.auditPage(page.offset,page.pageSize,keyword,result).map { AuditView(it.id!!,it.actorUserId,it.actorAdminId,it.operation,it.outcome,it.reasonCode,it.requestId!!,it.createdAt) }
-        return Page(items,system.auditCount(keyword,result),page.page,page.pageSize)
+        return audit.page(page,keyword,result)
     }
     fun save(id: UUID?,input: AdminInput): MutationResult {
         sql.lockControl()

@@ -5,14 +5,12 @@ import org.apache.ibatis.annotations.Param
 import java.util.UUID
 
 class BankListFacts { var bankId: UUID?=null;var subjectName: String="";var questionCount: Long=0;var activeQuestionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
-class SubjectListFacts { var subjectId: UUID?=null;var bankCount: Long=0;var questionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
 class BankMaintainerRow { var bankId: UUID?=null;var adminId: UUID?=null }
 class ChapterCount { var id: UUID?=null;var count: Long=0 }
 class QuestionSummaryRow { var id: UUID?=null;var bankId: UUID?=null;var subjectId: UUID?=null;var chapterId: UUID?=null;var status: String="";var version: Long=0;var revisionId: UUID?=null;var revision: Int=0;var type: String="";var stem: String="";var subjectName: String="";var bankName: String="" }
 @Mapper interface ContentQueries {
     fun chapterCounts(@Param("bankId") bankId: UUID): List<ChapterCount>
     fun favoriteQuestionIds(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
-    fun subjectListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID): List<SubjectListFacts>
     fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<BankListFacts>
     fun bankAudiences(@Param("ids") ids: List<UUID>): List<BankAudience>
     fun bankMaintainers(@Param("ids") ids: List<UUID>): List<BankMaintainerRow>

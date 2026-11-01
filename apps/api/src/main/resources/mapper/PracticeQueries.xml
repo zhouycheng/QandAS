@@ -11,7 +11,7 @@
     <if test="scope.collectionChip == 'recent'">AND EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND ps.submitted_at &gt;= now()-interval '7 days' AND (i.outcome IN ('CORRECT','WRONG') OR i.self_assessment IS NOT NULL))</if>
     <if test="scope.collectionChip == 'pending' or scope.collectionChip == 'practiced'">AND <if test="scope.collectionChip == 'pending'">NOT</if> EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND (i.outcome IN ('CORRECT','WRONG') OR i.self_assessment IS NOT NULL))</if>
   </sql>
-  <select id="eligible" resultType="qanda.backend.content.Question">
+  <select id="eligible" resultType="qanda.backend.content.api.QuestionReference">
     WITH candidates AS(SELECT q.*,<choose><when test="scope.selectionKind == 'NORMAL'">coalesce(q.reading_parent_id,q.id)</when><otherwise>q.id</otherwise></choose> group_id,
       coalesce(parent.created_at,q.created_at) group_created,
       <choose><when test="scope.questionIds.size > 0">array_position(ARRAY[<foreach collection="scope.questionIds" item="id" separator=",">CAST(#{id} AS uuid)</foreach>],q.id)</when><otherwise>0</otherwise></choose> requested_position

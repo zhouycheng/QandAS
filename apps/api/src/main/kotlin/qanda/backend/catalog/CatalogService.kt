@@ -9,7 +9,7 @@ import java.util.UUID
 
 @Service
 @Transactional
-class CatalogService(private val colleges: CollegeMapper,private val majors: MajorMapper,private val subjects: SubjectMapper,private val sql: CatalogQueries,private val content: qanda.backend.content.ContentQueries) {
+class CatalogService(private val colleges: CollegeMapper,private val majors: MajorMapper,private val subjects: SubjectMapper,private val sql: CatalogQueries) {
     fun userAccess(id: UUID,p: PageSpec): Page<SubjectAccessView> {
         subjects.selectById(id) ?: missing()
         return Page(sql.userAccess(id,p.offset,p.pageSize),sql.userAccessCount(id),p.page,p.pageSize)
@@ -45,13 +45,13 @@ class CatalogService(private val colleges: CollegeMapper,private val majors: Maj
     }
     fun subjects(p: PageSpec,keyword: String?,publicOnly: Boolean,userId: UUID?=null,includeProgress: Boolean=false): Page<SubjectView> {
         val rows=sql.subjects(keyword,publicOnly,p.offset,p.pageSize,userId).map(::subjectView)
-        val facts=if(userId!=null && includeProgress && rows.isNotEmpty()) content.subjectListFacts(rows.map { it.id },userId).associateBy { it.subjectId } else emptyMap()
-        return Page(rows.map { row -> facts[row.id]?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.content.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount)) } ?: row },sql.subjectCount(keyword,publicOnly,userId),p.page,p.pageSize)
+        val facts=if(userId!=null && includeProgress && rows.isNotEmpty()) sql.subjectListFacts(rows.map { it.id },userId).associateBy { it.subjectId } else emptyMap()
+        return Page(rows.map { row -> facts[row.id]?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.platform.queries.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount)) } ?: row },sql.subjectCount(keyword,publicOnly,userId),p.page,p.pageSize)
     }
     fun subject(id: UUID,publicOnly: Boolean,userId: UUID?=null,includeProgress: Boolean=false): SubjectView {
         val row=subjectView((if(publicOnly) sql.publishedSubject(id,userId) else subjects.selectById(id)) ?: missing())
-        val facts=if(userId!=null && includeProgress) content.subjectListFacts(listOf(id),userId).firstOrNull() else null
-        return facts?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.content.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount)) } ?: row
+        val facts=if(userId!=null && includeProgress) sql.subjectListFacts(listOf(id),userId).firstOrNull() else null
+        return facts?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.platform.queries.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount)) } ?: row
     }
     fun college(id: UUID?,input: CollegeInput): MutationResult {
         val row=id?.let { sql.lockCollege(it) ?: missing() } ?: College().apply { this.id=UUID.randomUUID() }

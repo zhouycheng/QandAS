@@ -16,4 +16,12 @@
   <select id="userExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM user_account WHERE id=#{id})</select>
   <insert id="grant">INSERT INTO subject_user_access(subject_id,user_id,granted_by) VALUES(#{id},#{userId},#{adminId}) ON CONFLICT DO NOTHING</insert>
   <delete id="revoke">DELETE FROM subject_user_access WHERE subject_id=#{id} AND user_id=#{userId}</delete>
+  <select id="subjectListFacts" resultType="qanda.backend.catalog.SubjectListFacts">
+    <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>
+    SELECT s.id subject_id,count(DISTINCT b.id) FILTER(WHERE q.id IS NOT NULL) bank_count,count(q.id) question_count,
+      count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count
+    FROM subject s LEFT JOIN question_bank b ON b.subject_id=s.id AND bank_visible(b.id,#{userId})
+    LEFT JOIN question q ON q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1
+    WHERE s.id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> GROUP BY s.id
+  </select>
 </mapper>

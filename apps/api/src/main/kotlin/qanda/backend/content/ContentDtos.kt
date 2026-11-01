@@ -3,6 +3,7 @@ package qanda.backend.content
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Instant
 import java.util.UUID
+import qanda.backend.platform.queries.BankProgressView
 import jakarta.validation.constraints.Size
 
 data class AudienceInput(val collegeId: UUID?=null,val majorId: UUID?=null,val grade: Int?=null)
@@ -10,7 +11,6 @@ data class BankInput(val subjectId: UUID,val name: String,val description: Strin
                      @field:Schema(allowableValues=["ALL","TARGETED"]) val scopeType: String="ALL",val audiences: List<AudienceInput> = emptyList(),@field:Schema(description="省略时保留维护者；仅平台管理员可以变更名单") val maintainerIds: List<UUID>?=null,val expectedVersion: Long?=null)
 data class BankView(val id: UUID,val subjectId: UUID,val name: String,val description: String,val textbook: String,val status: String,val publicationStatus: String,
                     @field:Schema(allowableValues=["ALL","TARGETED"]) val scopeType: String,val audiences: List<AudienceInput>,val maintainerIds: List<UUID>,val version: Long,val contentVersion: Long,val questionCount: Long,val activeQuestionCount: Long,val updatedAt: Instant,val subjectName: String?=null,val progress: BankProgressView?=null)
-data class BankProgressView(val answeredCount: Long,val correctCount: Long,val wrongCount: Long)
 data class ChapterInput(val name: String,val sortOrder: Int,val expectedVersion: Long?=null)
 data class ChapterView(val id: UUID,val questionBankId: UUID,val name: String,val sortOrder: Int,val version: Long,val questionCount: Long=0)
 data class PublicationCheck(val label: String,val passed: Boolean,val detail: String)

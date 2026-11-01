@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import qanda.backend.discovery.FavoriteView
 import qanda.backend.platform.http.*
-import qanda.backend.practice.PracticeSession
 import qanda.backend.practice.PracticeSummary
 import java.time.Clock
 import java.time.Instant
@@ -39,7 +38,7 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
     val chip: String="all",val sort: String="recent",val since: Instant)
 @Mapper interface LearningReadMapper {
     fun overview(@Param("userId") userId: UUID): OverviewRow
-    fun latestSession(@Param("userId") userId: UUID): PracticeSession?
+    fun latestSession(@Param("userId") userId: UUID): PracticeSummary?
     fun collection(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter,@Param("offset") offset: Int,@Param("limit") limit: Int): List<CollectionRow>
     fun collectionCount(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): Long
     fun collectionTotals(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): CollectionTotals
@@ -51,7 +50,7 @@ class LearningReadService(private val sql: LearningReadMapper,private val clock:
     fun overview(userId: UUID): LearningOverviewView {
         val r=sql.overview(userId);val s=sql.latestSession(userId)
         return LearningOverviewView(r.answeredCount,r.correctCount,r.wrongCount,r.masteredCount,r.favoriteCount,r.totalCount,
-            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s?.let { PracticeSummary(it.id!!,it.bankId!!,it.status,it.version,it.durationSeconds,it.createdAt,it.submittedAt) })
+            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s)
     }
     private fun filter(kind: String,status: String="UNMASTERED",subjectId: UUID?=null,bankId: UUID?=null,chip: String="all",sort: String="recent"): CollectionFilter {
         if(kind !in setOf("WRONG","FAVORITE")) invalid("/kind")

@@ -3,20 +3,21 @@ package qanda.backend.content
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import qanda.backend.admin.AdminAccountMapper
-import qanda.backend.catalog.*
+import qanda.backend.identity.api.AccountDirectory
+import qanda.backend.catalog.api.CatalogDirectory
 import qanda.backend.platform.files.FileAssetMapper
 import qanda.backend.platform.http.*
 import qanda.backend.platform.security.Actor
 import java.time.Instant
 import java.util.UUID
+import qanda.backend.platform.queries.BankProgressView
 import com.fasterxml.jackson.databind.ObjectMapper
 
 @Service
 @Transactional
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
                      private val revisions: QuestionRevisionMapper,private val audiences: BankAudienceMapper,private val files: FileAssetMapper,
-                     private val admins: AdminAccountMapper,private val colleges: CollegeMapper,private val majors: MajorMapper,private val subjects: SubjectMapper,
+                     private val accounts: AccountDirectory,private val directory: CatalogDirectory,
                      private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper) {
     fun bankView(row: QuestionBank,admin: Boolean): BankView = bankViews(listOf(row),admin).first()
     private fun bankViews(rows: List<QuestionBank>,admin: Boolean,userId: UUID?=null): List<BankView> {
@@ -42,7 +43,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         if(id==null && actor.role!="PLATFORM_ADMIN") forbidden()
         val row=id?.let { access.bank(actor,it,true) } ?: QuestionBank().apply { this.id=UUID.randomUUID();createdBy=actor.id;subjectId=input.subjectId }
         if(id!=null) { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version);if(row.subjectId!=input.subjectId) invalid("/subjectId","IMMUTABLE_PARENT","题库所属课程不可变更") }
-        if(subjects.selectById(input.subjectId)==null) invalid("/subjectId")
+        if(directory.subject(input.subjectId)==null) invalid("/subjectId")
         if(input.scopeType !in setOf("ALL","TARGETED") || input.audiences.size>100) invalid("/scopeType")
         if(input.scopeType=="ALL" && input.audiences.isNotEmpty()) invalid("/audiences")
         val normalized=input.audiences.map { normalizeAudience(it) }
@@ -50,7 +51,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         input.maintainerIds?.let { ids ->
             if(actor.role!="PLATFORM_ADMIN" && ids.sorted()!=sql.maintainers(row.id!!).sorted()) forbidden()
             if(ids.size>100 || ids.distinct().size!=ids.size) invalid("/maintainerIds")
-            ids.forEach { if(admins.selectById(it)?.status!="ACTIVE") invalid("/maintainerIds") }
+            ids.forEach { if(!accounts.activeAdmin(it)) invalid("/maintainerIds") }
         }
         row.name=name(input.name);row.description=text(input.description,2000);row.textbook=text(input.textbook,500);row.status=activeStatus(input.status);row.scopeType=input.scopeType;row.updatedAt=Instant.now()
         if(id==null) banks.insert(row) else { row.version++;banks.updateById(row) }
@@ -60,9 +61,9 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         return MutationResult(row.id!!,row.version)
     }
     private fun normalizeAudience(input: AudienceInput): AudienceInput {
-        val major=input.majorId?.let { majors.selectById(it) ?: invalid("/audiences/majorId") }
+        val major=input.majorId?.let { directory.major(it) ?: invalid("/audiences/majorId") }
         if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("/audiences/collegeId")
-        if(input.collegeId!=null && colleges.selectById(input.collegeId)==null || major==null && input.collegeId==null && input.grade==null) invalid("/audiences")
+        if(input.collegeId!=null && directory.college(input.collegeId)==null || major==null && input.collegeId==null && input.grade==null) invalid("/audiences")
         if(input.grade!=null && input.grade !in 1..5) invalid("/audiences/grade")
         return input.copy(collegeId=if(major==null) input.collegeId else null)
     }
@@ -104,7 +105,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     fun publicationChecks(actor: Actor,id: UUID): List<PublicationCheck> = publicationChecks(access.bank(actor,id))
     private fun publicationChecks(row: QuestionBank): List<PublicationCheck> = listOf(
-        PublicationCheck("课程与题库已启用",row.status=="ACTIVE" && subjects.selectById(row.subjectId)?.status=="ACTIVE","停用的内容不能发布"),
+        PublicationCheck("课程与题库已启用",row.status=="ACTIVE" && directory.subject(row.subjectId)?.status=="ACTIVE","停用的内容不能发布"),
         PublicationCheck("题库说明已填写",row.description.isNotBlank(),"说明题库用途与内容"),
         PublicationCheck("存在有效题目",sql.questionCount(row.id!!,true)>0,"阅读题组按小题计数"),
         PublicationCheck("启用题目解析完整",sql.publicationIssues(row.id!!)==0L,"题型、答案和章节归属在保存时校验"),

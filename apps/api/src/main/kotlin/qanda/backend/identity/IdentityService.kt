@@ -3,14 +3,14 @@ package qanda.backend.identity
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import qanda.backend.catalog.*
+import qanda.backend.catalog.api.CatalogDirectory
 import qanda.backend.identity.api.WechatCodeExchange
 import qanda.backend.platform.http.MutationResult
 import qanda.backend.platform.http.requireVersion
 import qanda.backend.platform.http.missing
-import qanda.backend.platform.persistence.SystemMapper
 import qanda.backend.platform.security.Actor
 import qanda.backend.platform.security.LoginAttempts
+import qanda.backend.platform.events.ActivityEvents
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -21,15 +21,15 @@ import java.util.UUID
 class IdentityService(private val users: UserAccountMapper,private val profiles: UserProfileMapper,private val bindings: UserWechatMapper,
                       private val sessionRows: UserSessionMapper,private val tickets: WechatTicketMapper,private val challengeRows: EmailChallengeMapper,private val sql: IdentityMapper,
                       private val crypto: IdentityCrypto,private val challenges: ChallengeService,private val wechat: WechatCodeExchange,
-                      private val colleges: CollegeMapper,private val majors: MajorMapper,private val attempts: LoginAttempts,
-                      private val system: SystemMapper,private val clock: Clock) {
+                      private val directory: CatalogDirectory,private val attempts: LoginAttempts,
+                      private val clock: Clock,private val activity: ActivityEvents) {
     fun view(id: UUID): UserView {
         val user=users.selectById(id) ?: missing();val profile=profiles.selectById(id)
-        val college=profile?.majorId?.let { majors.selectById(it)?.collegeId } ?: profile?.collegeId
+        val college=profile?.majorId?.let { directory.major(it)?.collegeId } ?: profile?.collegeId
         val today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))
         val grade=AcademicGrade.current(profile?.grade,profile?.gradeAcademicYear,today)
         return UserView(id,user.accountCode,user.nickname,user.email,bindings.selectCount(QueryWrapper<UserWechat>().eq("user_id",id))>0,
-            college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { colleges.selectById(it)?.name },profile?.majorId?.let { majors.selectById(it)?.name },
+            college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { directory.college(it)?.name },profile?.majorId?.let { directory.major(it)?.name },
             AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null)
     }
     fun register(input: RegistrationInput): MutationResult {
@@ -74,18 +74,18 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         sql.lockUser(user.id!!)?.let { if(it.status!="ACTIVE" || it.credentialVersion!=user.credentialVersion) unauthenticated() }
         val token="u_"+crypto.randomToken();val row=UserSession().apply { id=UUID.randomUUID();userId=user.id;tokenDigest=crypto.tokenDigest(token)
             credentialVersion=user.credentialVersion;deviceId=device;clientType=client;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=issuedAt.plusSeconds(30*86400L) }
-        sessionRows.insert(row);system.activity(user.id!!,client)
+        sessionRows.insert(row);activity.record(user.id!!,client)
         return TokenView(token,row.id!!,row.expiresAt)
     }
     fun updateProfile(actor: Actor,input: ProfileInput): MutationResult {
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
         val previous=profiles.selectById(actor.id) ?: missing()
-        val college=input.collegeId?.let { colleges.selectById(it) ?: invalid("collegeId") }
-        val major=input.majorId?.let { majors.selectById(it) ?: invalid("majorId") }
-        val previousCollege=previous.majorId?.let { majors.selectById(it)?.collegeId } ?: previous.collegeId
+        val college=input.collegeId?.let { directory.college(it) ?: invalid("collegeId") }
+        val major=input.majorId?.let { directory.major(it) ?: invalid("majorId") }
+        val previousCollege=previous.majorId?.let { directory.major(it)?.collegeId } ?: previous.collegeId
         if(college?.status=="INACTIVE" && college.id!=previousCollege || major?.status=="INACTIVE" && major.id!=previous.majorId) invalid("majorId")
         if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("majorId")
-        if(major!=null && major.id!=previous.majorId && colleges.selectById(major.collegeId)?.status!="ACTIVE") invalid("majorId")
+        if(major!=null && major.id!=previous.majorId && directory.college(major.collegeId)?.status!="ACTIVE") invalid("majorId")
         if(input.currentGrade!=null && input.currentGrade !in 1..5) invalid("currentGrade")
         val grade=input.currentGrade ?: previous.grade
         val year=if(input.currentGrade!=null) AcademicGrade.academicYear(LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))) else previous.gradeAcademicYear
@@ -127,7 +127,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     fun heartbeat(actor: Actor): HeartbeatView {
         val now=clock.instant()
         if(sql.touchForeground(actor.sessionId,actor.id,now)!=1) unauthenticated()
-        system.activity(actor.id,actor.clientType!!)
+        activity.record(actor.id,actor.clientType)
         return HeartbeatView(now,now.plusSeconds(120))
     }
     fun revoke(actor: Actor,id: UUID): MutationResult {

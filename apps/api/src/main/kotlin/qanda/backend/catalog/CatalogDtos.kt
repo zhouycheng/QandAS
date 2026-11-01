@@ -10,7 +10,7 @@ data class SubjectInput(val name: String,val description: String="",@field:Schem
 data class CollegeView(val id: UUID,val name: String,val code: String,val status: String,val version: Long,val studentCount: Long?=null)
 data class MajorView(val id: UUID,val collegeId: UUID,val name: String,val code: String,val status: String,val version: Long,val studentCount: Long?=null)
 data class SubjectView(val id: UUID,val name: String,val description: String,val status: String,val version: Long,
-    val bankCount: Long?=null,val questionCount: Long?=null,val progress: qanda.backend.content.BankProgressView?=null)
+    val bankCount: Long?=null,val questionCount: Long?=null,val progress: qanda.backend.platform.queries.BankProgressView?=null)
 data class SubjectAccessInput(val userId: UUID,val expectedVersion: Long)
 data class SubjectAccessView(val userId: UUID,val nickname: String,val accountCode: String,val createdAt: Instant)
 data class DirectorySummary(val collegeCount: Long,val majorCount: Long,val studentCount: Long,val grades: List<GradeCount>)
