@@ -107,6 +107,7 @@ class PlatformPostgresTest {
     private lateinit var adminToken: String
     private lateinit var platformId: UUID
     private val password="Learner-password-123"
+    private val studentPassword="Learner123"
     private data class Student(val id: UUID,val email: String,val token: String)
     private data class Fixture(val subject: UUID,val bank: UUID,val questions: List<UUID>)
 
@@ -387,8 +388,8 @@ class PlatformPostgresTest {
     private fun student(): Student {
         val email="${UUID.randomUUID()}@example.test"
         val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to email),null,201)
-        val registration=call("POST","/auth/email-registrations",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"password" to password,"nickname" to "测试学生"),null,201)
-        val login=call("POST","/auth/sessions",mapOf("email" to email,"password" to password,"deviceId" to UUID.randomUUID(),"clientType" to "WEB"),null)
+        val registration=call("POST","/auth/email-registrations",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"password" to studentPassword,"nickname" to "测试学生"),null,201)
+        val login=call("POST","/auth/sessions",mapOf("email" to email,"password" to studentPassword,"deviceId" to UUID.randomUUID(),"clientType" to "WEB"),null)
         return Student(id(registration),email,login["accessToken"].asText())
     }
     private fun question(bank: UUID,type: String): Map<String,Any?> = mapOf("questionBankId" to bank,"type" to type,"stem" to "原题$type","explanation" to "原解析",
@@ -484,7 +485,7 @@ class PlatformPostgresTest {
         val filter="collegeId=$college&majorId=$major&grade=1"
         call("POST","/me/activity/heartbeat",token=null,status=401)
         call("POST","/me/activity/heartbeat",token=one.token)
-        val secondDevice=call("POST","/auth/sessions",mapOf("email" to one.email,"password" to password,"deviceId" to UUID.randomUUID(),"clientType" to "MINI_PROGRAM"),null)
+        val secondDevice=call("POST","/auth/sessions",mapOf("email" to one.email,"password" to studentPassword,"deviceId" to UUID.randomUUID(),"clientType" to "MINI_PROGRAM"),null)
         val secondToken=secondDevice["accessToken"].asText()
         call("POST","/me/activity/heartbeat",token=secondToken)
         call("POST","/me/activity/heartbeat",token=two.token)
@@ -941,6 +942,13 @@ class PlatformPostgresTest {
         val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v3/api-docs")).GET().build(),HttpResponse.BodyHandlers.ofString())
         assertEquals(200,response.statusCode(),response.body());val spec=json.readTree(response.body())
         assertEquals("1.0.0",spec["info"]["version"].asText());assertTrue(spec["paths"].has("/api/v1/practice/sessions"));assertTrue(spec["components"]["schemas"].has("QuestionInput"))
+        val schemas=spec["components"]["schemas"]
+        for ((schema,field) in listOf("RegistrationInput" to "password","LoginInput" to "password","ResetPasswordInput" to "newPassword","PasswordInput" to "newPassword")) {
+            val property=schemas[schema]["properties"][field]
+            assertEquals(8,property["minLength"].asInt());assertEquals(16,property["maxLength"].asInt())
+            assertTrue(Regex(property["pattern"].asText()).containsMatchIn("abc12345"))
+            assertFalse(Regex(property["pattern"].asText()).containsMatchIn("abcdefgh"))
+        }
         val operations=spec["paths"].fields().asSequence().flatMap { it.value.fields().asSequence() }.filter { it.key in setOf("get","post","put","patch","delete") }.map { it.value }.toList()
         assertEquals(operations.size,operations.map { it["operationId"].asText() }.distinct().size)
         val dir=Path.of(".backend-runtime/verification");Files.createDirectories(dir);Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))
@@ -950,7 +958,7 @@ class PlatformPostgresTest {
         val address="${UUID.randomUUID()}@example.test"
         val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,201)
         val actual=code(id(challenge));val wrong=if(actual=="000000") "111111" else "000000"
-        val payload=mapOf("challengeId" to id(challenge),"code" to wrong,"password" to password)
+        val payload=mapOf("challengeId" to id(challenge),"code" to wrong,"password" to studentPassword)
         repeat(5) { call("POST","/auth/email-registrations",payload,null,409) }
         assertEquals(5,jdbc.queryForObject("SELECT failed_attempts FROM email_challenge WHERE id=?",Int::class.java,id(challenge)))
         call("POST","/auth/email-registrations",payload+mapOf("code" to actual),null,409)
@@ -990,14 +998,40 @@ class PlatformPostgresTest {
         val s=student()
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",s.email)
         val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to s.email),null,201)
-        val newPassword="New-learner-password-456"
+        val newPassword="NewLearner456"
         call("POST","/auth/password-resets",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"newPassword" to newPassword),null)
         call("GET","/me",token=s.token,status=401)
-        call("POST","/auth/sessions",mapOf("email" to s.email,"password" to password,"deviceId" to UUID.randomUUID()),null,401)
+        call("POST","/auth/sessions",mapOf("email" to s.email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)
         val login=call("POST","/auth/sessions",mapOf("email" to s.email,"password" to newPassword,"deviceId" to UUID.randomUUID()),null)
         val token=login["accessToken"].asText();val me=call("GET","/me",token=token)
         call("PUT","/admin/users/${s.id}/status",mapOf("expectedVersion" to me["version"].asLong(),"status" to "DISABLED"))
         call("GET","/me",token=token,status=401)
+    }
+
+    @Test fun `student password policy covers registration login reset and change`() {
+        val address="${UUID.randomUUID()}@example.test"
+        val registrationProof=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,201)
+        val registration=mapOf("challengeId" to id(registrationProof),"code" to code(id(registrationProof)))
+        val invalidPasswords=listOf("abc1234","abc12345678901234","abcdefgh","12345678")
+        for (bad in invalidPasswords) call("POST","/auth/email-registrations",registration+mapOf("password" to bad),null,422)
+        call("POST","/auth/email-registrations",registration+mapOf("password" to "abc12345"),null,201)
+        fun login(value: String)=call("POST","/auth/sessions",mapOf("email" to address,"password" to value,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
+        login("abc12345")
+        for (bad in invalidPasswords) call("POST","/auth/sessions",mapOf("email" to address,"password" to bad,"deviceId" to UUID.randomUUID()),null,422)
+
+        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
+        val resetProof=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to address),null,201)
+        val reset=mapOf("challengeId" to id(resetProof),"code" to code(id(resetProof)))
+        for (bad in invalidPasswords) assertEquals("/newPassword",call("POST","/auth/password-resets",reset+mapOf("newPassword" to bad),null,422)["fieldErrors"][0]["field"].asText())
+        call("POST","/auth/password-resets",reset+mapOf("newPassword" to "Abc1234567890123"),null)
+        val token=login("Abc1234567890123")
+
+        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
+        val changeProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),token)
+        val change=mapOf("expectedVersion" to call("GET","/me",token=token)["version"].asLong(),"challengeId" to id(changeProof),"code" to code(id(changeProof)))
+        for (bad in invalidPasswords) assertEquals("/newPassword",call("PUT","/me/password",change+mapOf("newPassword" to bad),token,422)["fieldErrors"][0]["field"].asText())
+        call("PUT","/me/password",change+mapOf("newPassword" to "Passw0rd"),token)
+        login("Passw0rd")
     }
 
     @Test fun `configured administrator login locking idle timeout and password rules are enforced`() {
@@ -1136,7 +1170,7 @@ class PlatformPostgresTest {
         call("DELETE","/me/sessions/$otherSession",token=s.token,status=404)
         call("DELETE","/auth/sessions/current",token=other.token)
         call("GET","/me",token=other.token,status=401)
-        val extra=call("POST","/auth/sessions",mapOf("email" to s.email,"password" to password,"deviceId" to UUID.randomUUID()),null)
+        val extra=call("POST","/auth/sessions",mapOf("email" to s.email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
         call("DELETE","/me/sessions/${extra["sessionId"].asText()}",token=s.token)
         call("GET","/me",token=extra["accessToken"].asText(),status=401)
     }
@@ -1152,17 +1186,17 @@ class PlatformPostgresTest {
         val boundToken=wechatToken()
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
         val passwordProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),boundToken)
-        call("PUT","/me/password",mapOf("expectedVersion" to 2,"challengeId" to id(passwordProof),"code" to code(id(passwordProof)),"newPassword" to password),boundToken)
-        val login=call("POST","/auth/sessions",mapOf("email" to address,"password" to password,"deviceId" to UUID.randomUUID()),null)
+        call("PUT","/me/password",mapOf("expectedVersion" to 2,"challengeId" to id(passwordProof),"code" to code(id(passwordProof)),"newPassword" to studentPassword),boundToken)
+        val login=call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
         val currentToken=login["accessToken"].asText()
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
         val oldProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_OLD"),currentToken)
         val replacement="${UUID.randomUUID()}@example.test"
         val newProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_NEW","email" to replacement),currentToken)
         call("PUT","/me/email-binding",mapOf("expectedVersion" to 3,"oldChallengeId" to id(oldProof),"oldCode" to code(id(oldProof)),"newChallengeId" to id(newProof),"newCode" to code(id(newProof))),currentToken)
-        val finalLogin=call("POST","/auth/sessions",mapOf("email" to replacement,"password" to password,"deviceId" to UUID.randomUUID()),null)
+        val finalLogin=call("POST","/auth/sessions",mapOf("email" to replacement,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
         assertEquals(registration["id"],call("GET","/me",token=finalLogin["accessToken"].asText())["id"])
-        call("POST","/auth/sessions",mapOf("email" to address,"password" to password,"deviceId" to UUID.randomUUID()),null,401)
+        call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)
     }
 
     @Test fun `packaged commands initialize an empty isolated database and bootstrap through a real terminal`() {
@@ -1246,7 +1280,7 @@ class PlatformPostgresTest {
                 val result=json.createObjectNode()
                 node.fields().forEachRemaining { (key,value) ->
                     result.set<JsonNode>(key,when {
-                        key in setOf("password","newPassword") -> json.valueToTree("Redacted-password-123")
+                        key in setOf("password","newPassword") -> json.valueToTree("Redacted1234")
                         key=="writerToken" && value.isTextual -> json.valueToTree("00000000-0000-0000-0000-000000000001")
                         key in setOf("accessToken","registrationToken") && value.isTextual -> json.valueToTree((if(value.asText().startsWith("u_")) "u_" else if(value.asText().startsWith("a_")) "a_" else "")+"x".repeat(43))
                         key in setOf("code","oldCode","newCode") && value.isTextual && value.asText().matches(Regex("[0-9]{6}")) -> json.valueToTree("000000")

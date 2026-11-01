@@ -49,9 +49,9 @@
         class="field-input {{errorField === 'password' ? 'field-input-error' : ''}}"
         password
         value="{{password}}"
-        placeholder="请设置 8–20 位字母与数字组合"
+        placeholder="请设置 8–16 位，包含字母和数字"
         placeholder-class="field-ph"
-        maxlength="20"
+        maxlength="16"
         bindinput="handlePasswordInput"
       />
     </view>
@@ -64,7 +64,7 @@
         value="{{confirm}}"
         placeholder="请再次输入密码"
         placeholder-class="field-ph"
-        maxlength="20"
+        maxlength="16"
         bindinput="handleConfirmInput"
       />
     </view>

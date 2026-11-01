@@ -24,6 +24,28 @@ async function main() {
   assert.strictEqual(limited.retryAfter, 12000)
   assert.strictEqual(limited.code, 'RATE_LIMITED')
 
+  const expiredStorage = memory()
+  auth.saveAuth(expiredStorage, { provider: 'email', userId: 'student', token: 'expired-token' })
+  expiredStorage.set('qandaDraft:student:practice', { answer: 'saved' })
+  let expiredCount = 0
+  transport.configure({ tokenProvider: () => auth.getAuth(expiredStorage).token,
+    onUnauthorized: token => { if (auth.expireAuth(expiredStorage, token)) expiredCount += 1 } })
+  let finishRead
+  global.wx.request = input => { finishRead = input.success }
+  const oldRead = transport.request('GET', '/me')
+  await Promise.resolve()
+  auth.saveAuth(expiredStorage, { provider: 'email', userId: 'student', token: 'renewed-token' })
+  finishRead({ statusCode: 401, data: { code: 'UNAUTHENTICATED' } })
+  await oldRead
+  assert.strictEqual(auth.getAuth(expiredStorage).token, 'renewed-token', '旧令牌的迟到响应保留新登录')
+  global.wx.request = input => input.success({ statusCode: 401, data: {} })
+  await transport.request('GET', '/me')
+  await transport.request('GET', '/me')
+  assert.strictEqual(expiredCount, 1)
+  assert.strictEqual(auth.getAuth(expiredStorage).loggedIn, false)
+  assert.deepStrictEqual(expiredStorage.get('qandaDraft:student:practice'), { answer: 'saved' })
+  transport.configure({ tokenProvider: () => 'real-token', onUnauthorized: null })
+
   const storage = memory()
   gateway.setAuthGateway({ loginByEmail: () => ({ ok: false, unavailable: true, reason: '断网' }), login: () => ({ ok: false, reason: '断网' }) })
   assert.strictEqual((await auth.loginWithEmail(storage, { email: 'a@b.com', password: 'abc12345' })).ok, false)

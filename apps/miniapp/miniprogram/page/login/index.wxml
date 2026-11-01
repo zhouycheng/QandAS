@@ -30,7 +30,7 @@
         value="{{password}}"
         placeholder="请输入密码"
         placeholder-class="field-ph"
-        maxlength="20"
+        maxlength="16"
         confirm-type="done"
         bindinput="handlePasswordInput"
         bindconfirm="handleLoginTap"

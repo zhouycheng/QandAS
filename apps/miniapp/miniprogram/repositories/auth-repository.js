@@ -19,6 +19,12 @@ function clearAuth(storage) {
   if (storage) storage.remove(AUTH_STORAGE_KEY)
   return createEmptyAuth()
 }
+function expireAuth(storage, token) {
+  if (!token || getAuth(storage).token !== token) return false
+  clearAuth(storage)
+  notifyIdentity()
+  return true
+}
 function deviceId(storage) {
   let value = storage.get(DEVICE_KEY)
   if (!value) { value = transport.uuid(); storage.set(DEVICE_KEY, value) }
@@ -109,4 +115,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, clearAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile }
+module.exports = { AUTH_STORAGE_KEY, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile }

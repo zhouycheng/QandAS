@@ -15,6 +15,12 @@ node apps/api/scripts/backend.mjs verify
 
 验收覆盖注册和资料、身份隔离、内容权限、发布导入、不可变修订、推荐与课程收藏、两种练习反馈、并发保存和交卷、离线快照、跨设备写入交接、简答自评、错题掌握、反馈处理、公告、上海日期边界和安全策略。命令行验收使用真实 PTY 输入随机首管凭据，并检查重复初始化、重复首管创建、运行模式与数据库名称保护。
 
+### 学生密码专项
+
+学生邮箱注册、登录、找回密码和登录后修改密码使用同一规则：8–16 个 Unicode 码点，至少包含一个英文字母和一个数字；字母大小写均可，允许其他字符和空格，拒绝 NUL 与不完整的代理项。重置或修改密码后，原学生会话失效。管理员密码仍按管理员安全策略校验。
+
+专项检查覆盖长度边界、缺少字母或数字、符号和 Unicode，以及四个接口的成功与拒绝路径。小程序登录、注册和找回密码页面还检查输入长度、提示及前端校验。合同由运行中的 DTO 导出；整体构建后按本页流程重新生成并校验聚合合同与 Postman 样例。
+
 默认运行证据位于忽略目录 `.backend-runtime/verification/`：
 
 | 文件 | 内容 |
@@ -62,4 +68,4 @@ QA_PY=apps/api/.backend-runtime/verification/quality/tools/python/bin/python
 
 导入生成的 [Postman 集合](../postman/QandA-MVP.postman_collection.json)和[本地环境](../postman/QandA-Local.postman_environment.json)。账号、密码、邮箱、验证码和令牌变量为空，由运行者填写；资源 ID、并发字段和当前令牌由响应脚本提取。每个写意图生成幂等键，需要模拟同一意图重试时设置 `commandKey` 为之前的 `lastCommandKey`。请求样例见 [`QandA-MVP.examples.json`](../postman/QandA-MVP.examples.json)。
 
-本次自动化验收使用本地 SMTP 捕获和明确的测试微信身份。真实腾讯云 SES、官方微信、客户端联调及容量压测各自需要对应的运行证据。
+本次自动化验收使用本地 SMTP 捕获和明确的测试微信身份。浏览器管理端与微信开发者工具的首轮实际操作见[三端联调记录](../../../docs/three-client-integration.md)。真实腾讯云 SES、官方微信、真机及容量压测仍需各自的运行证据。

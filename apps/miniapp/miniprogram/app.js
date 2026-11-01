@@ -1,6 +1,7 @@
 const { createWxStorageAdapter } = require('./utils/wx-storage.js')
 const playgroundSwitch = require('./utils/playground-switch.js')
 const practiceRepository = require('./repositories/practice-repository.js')
+const authRepository = require('./repositories/auth-repository.js')
 const http = require('./repositories/http-gateway.js')
 const onlinePractice = require('./repositories/online-practice.js')
 const remoteData = require('./repositories/remote-data-repository.js')
@@ -20,7 +21,15 @@ App({
     const storage = createWxStorageAdapter()
     this.activityHeartbeat = createHeartbeat({ getAuth: () => practiceRepository.getAuth(storage) })
     const config = Object.assign({}, localConfig, typeof wx.getExtConfigSync === 'function' ? wx.getExtConfigSync() || {} : {})
-    http.configure({ baseUrl: config.apiBaseUrl || '', tokenProvider: () => practiceRepository.getAuth(storage).token || '' })
+    http.configure({ baseUrl: config.apiBaseUrl || '', tokenProvider: () => practiceRepository.getAuth(storage).token || '',
+      onUnauthorized: token => {
+        if (!authRepository.expireAuth(storage, token)) return
+        remoteData.bind(storage)
+        const runtime = onlinePractice.current()
+        if (runtime) runtime.identity()
+        wx.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+      }
+    })
     remoteData.enable(true)
     remoteData.bind(storage)
     onlinePractice.enable(storage)

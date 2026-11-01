@@ -156,24 +156,24 @@ async function checkLoginViewModel() {
 
   // 2) 邮箱格式错
   vm.setField('email', 'curry@')
-  vm.setField('password', 'abc12345')
+  vm.setField('password', 'abc12345ABCD')
 
   const badEmail = await vm.submit()
 
   assert('登录页 - 邮箱格式错被拦', badEmail.command.title === '邮箱格式不正确', badEmail.command.title)
 
-  // 3) 密码必须字母+数字
+  // 3) 登录密码必须包含字母和数字
   vm.setField('email', 'curry@test.com')
   vm.setField('password', 'abcdefgh')
 
   const badPassword = await vm.submit()
 
-  assert('登录页 - 纯字母密码被拒', badPassword.command.title.indexOf('字母与数字') >= 0,
+  assert('登录页 - 纯字母密码被拒', badPassword.command.title.indexOf('字母和数字') >= 0,
     badPassword.command.title)
   assert('登录页 - 密码问题标红密码框', badPassword.data.errorField === 'password')
 
   // 4) 未勾协议：拦在最后，别一上来就挡人
-  vm.setField('password', 'abc12345')
+  vm.setField('password', 'abc12345ABCD')
 
   const noAgree = await vm.submit()
 
@@ -196,8 +196,8 @@ async function checkLoginViewModel() {
   assert('登录页 - 断网展示失败原因', degraded.command.title === '未配置接口域名', degraded.command.title)
   assert('登录页 - 失败停留当前页面', degraded.command.type === 'toast', JSON.stringify(degraded.command))
   assert('登录页 - 失败没有用户编号', degradedAuth.userId === '', degradedAuth.userId)
-  assert('登录页 - 密码不写进身份', JSON.stringify(degradedAuth).indexOf('abc12345') < 0)
-  assert('登录页 - storage 里也没有密码', JSON.stringify(storage.raw).indexOf('abc12345') < 0)
+  assert('登录页 - 密码不写进身份', JSON.stringify(degradedAuth).indexOf('abc12345ABCD') < 0)
+  assert('登录页 - storage 里也没有密码', JSON.stringify(storage.raw).indexOf('abc12345ABCD') < 0)
 
   // 6) 真登录
   authGateway.setAuthGateway({
@@ -209,7 +209,7 @@ async function checkLoginViewModel() {
   const okVm = new LoginViewModel({ storage: okStorage })
 
   okVm.setField('email', 'curry@test.com')
-  okVm.setField('password', 'abc12345')
+  okVm.setField('password', 'abc12345ABCD')
   okVm.toggleAgreed()
 
   const logged = await okVm.submit()

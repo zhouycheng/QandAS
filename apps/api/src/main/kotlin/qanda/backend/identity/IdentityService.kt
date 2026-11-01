@@ -33,7 +33,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
             AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null)
     }
     fun register(input: RegistrationInput): MutationResult {
-        val password=crypto.preparePassword(input.password);val display=nickname(input.nickname)
+        val password=crypto.prepareStudentPassword(input.password);val display=nickname(input.nickname)
         val proof=challenges.consume(input.challengeId,"REGISTER",null)
         if(sql.userByEmail(proof.emailKey)!=null) conflict("EMAIL_UNAVAILABLE","该邮箱暂不可注册")
         val user=newUser(display).apply { email=proof.email;emailKey=proof.emailKey;passwordHash=password.encoded }
@@ -44,7 +44,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val address=email(input.email);if(input.clientType !in setOf("WEB","MINI_PROGRAM")) invalid("clientType")
         val scope="student:${address.key}";if(attempts.blocked(scope)) unauthenticated()
         val user=sql.userByEmail(address.key)
-        if(!crypto.verifyPassword(input.password,user?.passwordHash) || user?.status!="ACTIVE") {
+        if(!crypto.verifyStudentPassword(input.password,user?.passwordHash) || user?.status!="ACTIVE") {
             attempts.failure(scope,5,30,true);unauthenticated()
         }
         attempts.clear(scope)
@@ -95,7 +95,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         return MutationResult(actor.id,user.version)
     }
     fun reset(input: ResetPasswordInput): MutationResult {
-        val hash=crypto.preparePassword(input.newPassword).encoded
+        val hash=crypto.prepareStudentPassword(input.newPassword,"newPassword").encoded
         val proof=challengeRows.selectById(input.challengeId) ?: invalidProof();val userId=proof.userId ?: invalidProof()
         val user=sql.lockUser(userId) ?: invalidProof();if(user.status!="ACTIVE") invalidProof()
         challenges.consume(input.challengeId,"RESET_PASSWORD",userId)
@@ -104,7 +104,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     fun changePassword(actor: Actor,input: PasswordInput): MutationResult {
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
-        val hash=crypto.preparePassword(input.newPassword).encoded;challenges.consume(input.challengeId,"CHANGE_PASSWORD",actor.id)
+        val hash=crypto.prepareStudentPassword(input.newPassword,"newPassword").encoded;challenges.consume(input.challengeId,"CHANGE_PASSWORD",actor.id)
         sql.updateCredentials(actor.id,user.email,user.emailKey,hash);sql.revokeUserSessions(actor.id)
         return MutationResult(actor.id,user.version+1)
     }

@@ -1,5 +1,5 @@
 const metrics = require('../utils/loading-metrics.js')
-const config = { baseUrl: '', timeout: 10000, tokenProvider: null }
+const config = { baseUrl: '', timeout: 10000, tokenProvider: null, onUnauthorized: null }
 const pending = []
 let active = 0
 let backgroundActive = 0
@@ -17,6 +17,7 @@ function configure(options) {
   if (typeof input.baseUrl === 'string') config.baseUrl = input.baseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '')
   if (Number(input.timeout) > 0) config.timeout = Number(input.timeout)
   if (Object.prototype.hasOwnProperty.call(input, 'tokenProvider')) config.tokenProvider = input.tokenProvider
+  if (Object.prototype.hasOwnProperty.call(input, 'onUnauthorized')) config.onUnauthorized = input.onUnauthorized
   return getConfig()
 }
 function getConfig() { return { baseUrl: config.baseUrl, timeout: config.timeout } }
@@ -78,6 +79,9 @@ function request(method, path, data, options) {
           done({ ok: statusCode >= 200 && statusCode < 300, unavailable: statusCode === 0, statusCode, data: payload,
             code: payload && payload.code || '', reason: statusCode >= 200 && statusCode < 300 ? '' : payload && payload.message || `请求失败（${statusCode}）`,
             requestId: responseHeaders['x-request-id'] || requestId, retryAfter: retryAfter(responseHeaders), headers: responseHeaders })
+          if (statusCode === 401 && token && config.tokenProvider && config.tokenProvider() === token && config.onUnauthorized) {
+            try { config.onUnauthorized(token) } catch (_) { /* The caller still receives the authentication failure. */ }
+          }
         },
         fail(error) {
           const message = error && error.errMsg || ''

@@ -15,10 +15,9 @@ const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za
 const CODE_PATTERN = /^\d{6}$/
 
 const PASSWORD_MIN = 8
-const PASSWORD_MAX = 20
+const PASSWORD_MAX = 16
 
-/** 设计稿原文：请设置 8–20 位字母与数字组合 */
-const PASSWORD_HINT = '密码需 8–20 位字母与数字组合'
+const PASSWORD_HINT = '密码需 8–16 位，包含字母和数字'
 
 const ERROR = {
   emailEmpty: '请输入邮箱',
@@ -44,22 +43,15 @@ function isValidCode(value) {
   return CODE_PATTERN.test(trimText(value))
 }
 
-/**
- * 密码规则：长度 8–20，且必须同时含字母与数字。
- * 只判长度的做法挡不住 `aaaaaaaa`，设计稿明确写了「字母与数字组合」。
- */
+/** 与后端按 Unicode 码点计数。 */
 function isValidPassword(value) {
   const text = typeof value === 'string' ? value : ''
-
-  if (text.length < PASSWORD_MIN || text.length > PASSWORD_MAX) {
+  const characters = Array.from(text)
+  if (characters.length < PASSWORD_MIN || characters.length > PASSWORD_MAX) {
     return false
   }
-
-  if (!/^[A-Za-z0-9]+$/.test(text)) {
-    return false
-  }
-
-  return /[A-Za-z]/.test(text) && /\d/.test(text)
+  return characters.every(character => character !== '\u0000' && !(character.length === 1 && /[\uD800-\uDFFF]/.test(character))) &&
+    /[A-Za-z]/.test(text) && /[0-9]/.test(text)
 }
 
 function fail(field, message) {
@@ -92,14 +84,12 @@ function checkCode(value) {
   return isValidCode(value) ? null : fail('code', ERROR.codeInvalid)
 }
 
-function checkPassword(value, field) {
-  const key = field || 'password'
-
+function checkPassword(value, emptyMessage) {
   if (!value) {
-    return fail(key, ERROR.passwordEmpty)
+    return fail('password', emptyMessage || ERROR.passwordEmpty)
   }
 
-  return isValidPassword(value) ? null : fail(key, ERROR.passwordInvalid)
+  return isValidPassword(value) ? null : fail('password', ERROR.passwordInvalid)
 }
 
 function checkConfirm(password, confirm) {
@@ -116,7 +106,7 @@ function checkConfirm(password, confirm) {
  */
 function validateLogin(form) {
   const payload = form || {}
-  const errors = [checkEmail(payload.email), checkPassword(payload.password)]
+  const errors = [checkEmail(payload.email), checkPassword(payload.password, '请输入密码')]
 
   if (!payload.agreed) {
     errors.push(fail('agreed', ERROR.agreed))

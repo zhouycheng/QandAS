@@ -100,7 +100,7 @@ const registerBody = `
     <div class="form">
       ${field('邮箱', '请输入邮箱')}
       ${codeField()}
-      ${field('设置密码', '请设置 8–20 位字母与数字组合')}
+      ${field('设置密码', '请设置 8–16 位字母与数字组合')}
       ${field('确认密码', '请再次输入密码')}
     </div>
     <div class="agree-row register-agree">
@@ -120,7 +120,7 @@ const forgotBody = `
     <div class="form">
       ${field('邮箱', '请输入注册邮箱')}
       ${codeField()}
-      ${field('新密码', '请设置 8–20 位字母与数字组合')}
+      ${field('新密码', '请设置 8–16 位字母与数字组合')}
       ${field('确认密码', '请再次输入新密码')}
     </div>
     <span class="hint-line">重置成功后，请使用新密码登录</span>
