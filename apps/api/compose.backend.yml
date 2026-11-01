@@ -5,7 +5,7 @@ services:
     build: .
     env_file: .env.backend
     dns: ["223.5.5.5", "1.1.1.1"]
-    environment:
+    environment: &backend_environment
       BACKEND_BIND_ADDRESS: 0.0.0.0
       BACKEND_API_PORT: 8083
       BACKEND_LOCAL_CONTAINER: "true"
@@ -14,12 +14,15 @@ services:
       BACKEND_CAPTURE_SMTP_PORT: 1025
       BACKEND_FILE_ROOT: /var/lib/qanda/assets
       BACKEND_DOCS_ENABLED: "true"
+      BACKEND_ROLE: api
+      BACKEND_RABBIT_HOST: rabbitmq
+      BACKEND_RABBIT_PASSWORD: ${BACKEND_RABBIT_PASSWORD:?configure a private queue password}
       TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
       TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
       TENCENT_SES_REGION: ${TENCENT_SES_REGION:-}
       TENCENT_SES_FROM_EMAIL: ${TENCENT_SES_FROM_EMAIL:-}
       TENCENT_SES_VERIFICATION_TEMPLATE_ID: ${TENCENT_SES_VERIFICATION_TEMPLATE_ID:-}
-    ports: ["127.0.0.1:${BACKEND_API_PORT:-8083}:8083"]
+    expose: [8083, 9091]
     volumes: ["backend_assets:/var/lib/qanda/assets"]
     depends_on:
       postgres:
@@ -29,6 +32,66 @@ services:
     restart: unless-stopped
     mem_limit: 768m
     stop_grace_period: 30s
+  worker:
+    image: qanda-backend:dev
+    env_file: .env.backend
+    environment:
+      <<: *backend_environment
+      BACKEND_ROLE: worker
+      BACKEND_WORKER_ENABLED: "true"
+      BACKEND_DOCS_ENABLED: "false"
+      BACKEND_DB_POOL_SIZE: 6
+    volumes: ["backend_assets:/var/lib/qanda/assets"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: 768m
+    stop_grace_period: 30s
+  monitor:
+    image: qanda-backend:dev
+    env_file: .env.backend
+    environment:
+      <<: *backend_environment
+      BACKEND_ROLE: monitor
+      BACKEND_MONITORING_ENABLED: "true"
+      BACKEND_DOCS_ENABLED: "false"
+      BACKEND_DB_POOL_SIZE: 2
+      BACKEND_DB_QUERY_TIMEOUT: 3
+      BACKEND_DB_SESSION_INIT: SET TIME ZONE 'UTC'; SET ROLE qanda_monitor; SET statement_timeout='3s'
+      BACKEND_PROMETHEUS_URL: http://prometheus:9090
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: 512m
+  gateway:
+    image: nginx:1.28-alpine
+    ports: ["127.0.0.1:${BACKEND_API_PORT:-8083}:8083"]
+    volumes: ["./monitoring/gateway.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: [api, monitor]
+    restart: unless-stopped
+  rabbitmq:
+    image: rabbitmq:4.2.5-management
+    environment:
+      RABBITMQ_DEFAULT_USER: qanda
+      RABBITMQ_DEFAULT_PASS: ${BACKEND_RABBIT_PASSWORD:?configure a private queue password}
+    volumes:
+      - backend_rabbit:/var/lib/rabbitmq
+      - ./monitoring/rabbitmq-plugins:/etc/rabbitmq/enabled_plugins:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - backend_metrics:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/sync-rules.yml:/etc/prometheus/sync-rules.yml:ro
+    restart: unless-stopped
   postgres:
     image: postgres:17.6-alpine
     environment:
@@ -41,6 +104,7 @@ services:
     volumes:
       - backend_pg:/var/lib/postgresql/data
       - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./src/main/resources/db/monitoring-permissions.sql:/docker-entrypoint-initdb.d/002-monitoring-permissions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qanda_backend -d qanda_backend"]
       interval: 2s
@@ -52,3 +116,5 @@ services:
 volumes:
   backend_pg:
   backend_assets:
+  backend_rabbit:
+  backend_metrics:

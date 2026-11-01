@@ -1,0 +1,29 @@
+groups:
+  - name: sync
+    rules:
+      - record: qanda_sync_ready
+        expr: sum(rabbitmq_detailed_queue_messages_ready{queue="qanda.sync.progress"})
+      - record: qanda_sync_scrape_age
+        expr: max(time() - timestamp(rabbitmq_detailed_queue_messages_ready{queue="qanda.sync.progress"}))
+      - record: qanda_sync_unacked
+        expr: sum(rabbitmq_detailed_queue_messages_unacked{queue="qanda.sync.progress"})
+      - record: qanda_sync_retry
+        expr: sum(rabbitmq_detailed_queue_messages{queue="qanda.sync.retry"})
+      - record: qanda_sync_dead
+        expr: sum(rabbitmq_detailed_queue_messages{queue="qanda.sync.dead"})
+      - record: qanda_sync_consumers
+        expr: sum(rabbitmq_detailed_queue_consumers{queue="qanda.sync.progress"})
+      - record: qanda_sync_produced
+        expr: sum(rate(rabbitmq_detailed_queue_exchange_messages_published_total{queue="qanda.sync.progress"}[60s])) or vector(0)
+      - record: qanda_sync_consumed
+        expr: sum(rate(rabbitmq_detailed_queue_messages_acked_total{queue="qanda.sync.progress"}[60s])) or vector(0)
+      - record: qanda_sync_samples
+        expr: min(count_over_time(up{job="rabbitmq"}[60s]))
+      - record: qanda_sync_resets
+        expr: (sum(resets(rabbitmq_detailed_queue_messages_acked_total{queue="qanda.sync.progress"}[60s])) or vector(0)) + (sum(resets(rabbitmq_detailed_queue_exchange_messages_published_total{queue="qanda.sync.progress"}[60s])) or vector(0))
+      - record: qanda_http_requests
+        expr: sum by(method,uri) (rate(http_server_requests_seconds_count{job="api"}[60s]))
+      - record: qanda_http_errors
+        expr: sum by(method,uri) (rate(http_server_requests_seconds_count{job="api",status=~"5.."}[60s]))
+      - record: qanda_http_p95
+        expr: histogram_quantile(0.95,sum by(le,method,uri) (rate(http_server_requests_seconds_bucket{job="api"}[60s])))

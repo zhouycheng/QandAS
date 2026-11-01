@@ -39,6 +39,7 @@ class OutboxService internal constructor(private val rows: MailDeliveryMapper,pr
     }
     @Scheduled(fixedDelayString="\${qanda.backend.mail.poll-delay-ms:1000}")
     fun tick() {
+        if(environment.getProperty("qanda.backend.role","api") !in setOf("worker","all")) return
         if(!environment.getProperty("qanda.backend.mail.dispatch-enabled",Boolean::class.java,true) || transports.ifAvailable==null) return
         try { dispatchOne() } catch(e: Exception) { log.warn("Mail dispatch deferred: {}",e.javaClass.simpleName) }
     }

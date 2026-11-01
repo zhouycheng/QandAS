@@ -13,7 +13,10 @@ import qanda.backend.platform.persistence.SystemMapper
 @ConditionalOnProperty(name=["qanda.backend.schema-command"],havingValue="false",matchIfMissing=true)
 class SchemaReadiness {
     @Bean @DependsOn("backendSafety","validateProductionProviders")
-    fun databaseReady(sql: SystemMapper)=InitializingBean { check(sql.ready()) { "数据库结构未就绪，请按README运行db-init初始化开发库" } }
+    fun databaseReady(sql: SystemMapper,env: org.springframework.core.env.Environment,jdbc: org.springframework.jdbc.core.JdbcTemplate)=InitializingBean {
+        val ready=if(env.getProperty("qanda.backend.role")=="monitor") jdbc.queryForObject("SELECT count(*) FROM monitoring_student WHERE false",Long::class.java)==0L else sql.ready()
+        check(ready) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
+    }
 }
 data class HealthView(val status: String="UP",val version: String="1.0.0")
 @RestController

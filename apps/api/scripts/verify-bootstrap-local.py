@@ -25,7 +25,7 @@ def http(path, body=None, token=None):
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(base + path, data=data, headers=headers)
     try:
-        response = opener.open(request, timeout=2)
+        response = opener.open(request, timeout=10)
     except urllib.error.HTTPError as error:
         response = error
     return response.code, json.loads(response.read())
