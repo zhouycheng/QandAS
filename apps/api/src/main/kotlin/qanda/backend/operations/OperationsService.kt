@@ -75,5 +75,5 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
     fun deleteAnnouncement(id: UUID,expectedVersion: Long): MutationResult {
         val row=sql.lockAnnouncement(id) ?: missing();requireVersion(expectedVersion,row.version);sql.clearPlatforms(id);sql.clearRecipients(id);announcements.deleteById(id);return MutationResult(id,row.version)
     }
-    fun dashboard(): DashboardView=sql.dashboard().let { DashboardView(it.collegeCount,it.subjectCount,it.questionBankCount,it.questionCount,it.userCount,it.answeredCount,it.pendingFeedbackCount) }
+    fun dashboard(): DashboardView=sql.dashboard().let { DashboardView(it.collegeCount,it.subjectCount,it.questionBankCount,it.questionCount,it.userCount,it.answeredCount,it.pendingFeedbackCount,it.pendingCourseRequestCount,it.publishedBankCount,it.draftBankCount,it.missingExplanationCount,it.unassignedQuestionCount,it.emptyBankCount) }
 }

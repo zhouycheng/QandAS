@@ -12,6 +12,7 @@ import java.util.UUID
 class AdminController(private val service: AdminService,private val sessions: Sessions,private val commands: Commands) {
     @PostMapping("/auth/sessions") fun login(@RequestBody input: AdminLoginInput): TokenView=service.login(input)
     @GetMapping("/auth/me") fun me(): AdminView=service.current(sessions.admin())
+    @GetMapping("/administrators/{id}") fun account(@PathVariable id: UUID): AdminView { sessions.admin(true);return service.account(id) }
     @PostMapping("/auth/logout") fun logout(): MutationResult=service.logout(sessions.admin())
     @GetMapping("/administrators") fun list(@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<AdminView> { sessions.admin(true);return service.list(PageSpec(page,pageSize)) }
     @PostMapping("/administrators")
@@ -28,9 +29,9 @@ class AdminController(private val service: AdminService,private val sessions: Se
     }
     @GetMapping("/users")
     fun users(@RequestParam(required=false) keyword: String?,@RequestParam(required=false) collegeId: UUID?,@RequestParam(required=false) majorId: UUID?,@RequestParam(required=false) status: String?,
-              @RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<UserView> {
+              @RequestParam(required=false) grade: Int?,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<UserView> {
         sessions.admin(true);val p=PageSpec(page,pageSize)
-        return service.listUsers(keyword,collegeId,majorId,status,p)
+        return service.listUsers(keyword,collegeId,majorId,status,p,grade)
     }
     @GetMapping("/users/{id}") fun user(@PathVariable id: UUID): UserView { sessions.admin(true);return service.user(id) }
     @PutMapping("/users/{id}/status")
@@ -42,8 +43,8 @@ class AdminController(private val service: AdminService,private val sessions: Se
     fun policy(@RequestBody input: PolicyInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): PolicyView {
         val actor=sessions.admin(true);return commands.run(actor,key,"SECURITY_POLICY",input,PolicyView::class.java,request.requestId()) { service.policy(input) }
     }
-    @GetMapping("/audit-logs") fun logs(@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<AuditView> {
+    @GetMapping("/audit-logs") fun logs(@RequestParam(required=false) keyword: String?,@RequestParam(required=false) result: String?,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<AuditView> {
         sessions.admin(true);val p=PageSpec(page,pageSize)
-        return service.auditLogs(p)
+        return service.auditLogs(p,keyword,result)
     }
 }

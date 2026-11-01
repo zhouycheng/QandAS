@@ -124,6 +124,12 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     fun sessions(actor: Actor): List<SessionView> = sessionRows.selectList(QueryWrapper<UserSession>().eq("user_id",actor.id).isNull("revoked_at").gt("expires_at",clock.instant()).orderByDesc("issued_at"))
         .map { SessionView(it.id!!,it.deviceId!!,it.clientType,it.issuedAt,it.expiresAt,it.id==actor.sessionId) }
+    fun heartbeat(actor: Actor): HeartbeatView {
+        val now=clock.instant()
+        if(sql.touchForeground(actor.sessionId,actor.id,now)!=1) unauthenticated()
+        system.activity(actor.id,actor.clientType!!)
+        return HeartbeatView(now,now.plusSeconds(120))
+    }
     fun revoke(actor: Actor,id: UUID): MutationResult {
         val row=sql.lockUserSession(id) ?: missing();if(row.userId!=actor.id) missing()
         row.revokedAt=clock.instant();sessionRows.updateById(row);return MutationResult(id,1)

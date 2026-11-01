@@ -83,7 +83,7 @@
       >{{item.statusText}}</view>
     </view>
 
-    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，添加后会在考试前提醒你</text>
+    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，可先保存考试日期与提醒偏好</text>
 
     <view
       class="add-btn"
@@ -112,7 +112,7 @@
           <text class="checkbox-label">{{item.label}}</text>
         </view>
       </view>
-      <text class="checkbox-hint">已结束的考试不再发送提醒</text>
+      <text class="checkbox-hint">设置保存在本机，邮件发送功能待开放</text>
     </view>
   </view>
 </view>

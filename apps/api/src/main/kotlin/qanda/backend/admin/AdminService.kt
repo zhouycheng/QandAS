@@ -21,6 +21,7 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
                    private val crypto: IdentityCrypto,private val attempts: LoginAttempts,private val clock: Clock) {
     fun view(row: AdminAccount)=AdminView(row.id!!,row.username,row.name,row.role,if(row.status=="INACTIVE") "DISABLED" else row.status,row.version,row.createdAt,row.lastLoginAt)
     fun current(actor: Actor): AdminView = view(rows.selectById(actor.id) ?: missing())
+    fun account(id: UUID): AdminView = view(rows.selectById(id) ?: missing())
     fun user(id: UUID): UserView = identityViews.view(id)
     fun username(value: String)=value.trim().lowercase(Locale.ROOT).also { if(!it.matches(Regex("[a-z0-9_.-]{3,64}"))) invalid("/username") }
     private fun password(raw: String): String {
@@ -42,19 +43,21 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         val token="a_"+crypto.randomToken();val session=AdminSession().apply { id=UUID.randomUUID();adminId=account.id;tokenDigest=crypto.tokenDigest(token)
             credentialVersion=account.credentialVersion;deviceId=input.deviceId;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=issuedAt.plusSeconds(86400) }
         sessionRows.insert(session);account.lastLoginAt=clock.instant();rows.updateById(account)
-        return TokenView(token,session.id!!,session.expiresAt)
+        return TokenView(token,session.id!!,session.expiresAt,policy.sessionMinutes)
     }
     fun list(page: PageSpec): Page<AdminView> {
         val result=rows.selectPage(com.baomidou.mybatisplus.extension.plugins.pagination.Page(page.page.toLong(),page.pageSize.toLong()),QueryWrapper<AdminAccount>().orderByDesc("created_at").orderByAsc("id"))
         return Page(result.records.map(::view),result.total,page.page,page.pageSize)
     }
-    fun listUsers(keyword: String?,collegeId: UUID?,majorId: UUID?,status: String?,page: PageSpec): Page<UserView> {
-        val result=sql.userPage(keyword,collegeId,majorId,status,page.offset,page.pageSize).map { identityViews.view(it.id!!) }
-        return Page(result,sql.userCount(keyword,collegeId,majorId,status),page.page,page.pageSize)
+    fun listUsers(keyword: String?,collegeId: UUID?,majorId: UUID?,status: String?,page: PageSpec,grade: Int?=null): Page<UserView> {
+        if(grade!=null && grade !in 1..5) invalid("/grade")
+        val result=sql.userPage(keyword,collegeId,majorId,status,page.offset,page.pageSize,grade).map { identityViews.view(it.id!!) }
+        return Page(result,sql.userCount(keyword,collegeId,majorId,status,grade),page.page,page.pageSize)
     }
-    fun auditLogs(page: PageSpec): Page<AuditView> {
-        val items=system.auditPage(page.offset,page.pageSize).map { AuditView(it.id!!,it.actorUserId,it.actorAdminId,it.operation,it.outcome,it.reasonCode,it.requestId!!,it.createdAt) }
-        return Page(items,system.auditCount(),page.page,page.pageSize)
+    fun auditLogs(page: PageSpec,keyword: String?=null,result: String?=null): Page<AuditView> {
+        if(result!=null && result !in setOf("SUCCESS","FAILURE")) invalid("/result")
+        val items=system.auditPage(page.offset,page.pageSize,keyword,result).map { AuditView(it.id!!,it.actorUserId,it.actorAdminId,it.operation,it.outcome,it.reasonCode,it.requestId!!,it.createdAt) }
+        return Page(items,system.auditCount(keyword,result),page.page,page.pageSize)
     }
     fun save(id: UUID?,input: AdminInput): MutationResult {
         sql.lockControl()

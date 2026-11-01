@@ -15,6 +15,7 @@
     "page/exam-countdown/index",
     "page/account/index",
     "page/reminder/index",
+    "page/feedback/index",
     "page/import-bank/index",
     "page/playground/index"
   ],

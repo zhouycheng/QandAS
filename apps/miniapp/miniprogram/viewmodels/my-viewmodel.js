@@ -119,7 +119,8 @@ class MyViewModel {
         learnRows: [
           { key: 'practice', title: '答题偏好', value: describeExplanationLabel(preferences) },
           { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
-          { key: 'reminder', title: '邮箱提醒', value: reminder.enabled ? '已开启' : '已关闭' },
+          { key: 'reminder', title: '邮箱提醒', value: '本机偏好' },
+          { key: 'feedback', title: '反馈与处理结果', value: '' },
           { key: 'about', title: '关于QandA', value: '' }
         ],
         links: [
@@ -168,6 +169,7 @@ class MyViewModel {
 
   /** 行点击：账号 / 学习设置 / 关于 / 协议，退出登录由页面加确认弹窗后调 logout() */
   tapRow(key) {
+    if (key === 'feedback') return require('../utils/feedback-entry.js').feedbackEntry(this.storage)
     if (key === 'account' || key === 'profile') {
       const auth = this.readAuthView()
 
@@ -204,7 +206,7 @@ class MyViewModel {
         return {
           command: {
             type: 'toast',
-            title: '登录后才能收到邮箱提醒'
+            title: '请登录后设置提醒偏好'
           }
         }
       }

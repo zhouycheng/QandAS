@@ -124,7 +124,7 @@ class ReminderViewModel {
     if (key === 'enabled') {
       result.command = {
         type: 'toast',
-        title: value ? '已开启邮箱提醒' : '已关闭邮箱提醒'
+        title: '已保存本机提醒偏好'
       }
     }
 

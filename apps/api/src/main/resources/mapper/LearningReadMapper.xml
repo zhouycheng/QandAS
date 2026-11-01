@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.learning.LearningReadMapper">
-  <sql id="visible">q.status='ACTIVE' AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'</sql>
+  <sql id="visible">q.status='ACTIVE' AND NOT q.is_group AND bank_visible(b.id,#{userId})</sql>
   <select id="overview" resultType="qanda.backend.learning.OverviewRow">
     <include refid="qanda.backend.learning.LearningMapper.wrongFacts"/>, visible AS (
       SELECT q.id,b.id bank_id,s.id subject_id FROM question q JOIN question_bank b ON b.id=q.bank_id JOIN subject s ON s.id=b.subject_id WHERE <include refid="visible"/>
@@ -12,8 +12,8 @@
       (SELECT count(*) FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1 AND f.judgment='CORRECT' AND t.wrong_count>0) mastered_count,
       (SELECT count(*) FROM user_favorite WHERE user_id=#{userId}) favorite_count,
       (SELECT count(*) FROM visible) total_count,
-      (SELECT count(*) FROM subject WHERE status='ACTIVE') subject_count,
-      (SELECT count(*) FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE') bank_count,
+      (SELECT count(DISTINCT subject_id) FROM visible) subject_count,
+      (SELECT count(DISTINCT bank_id) FROM visible) bank_count,
       (SELECT coalesce(sum(r.duration_seconds),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') duration_seconds,
       (SELECT count(*) FROM practice_session WHERE user_id=#{userId} AND status='SUBMITTED') practice_count
   </select>
@@ -28,14 +28,14 @@
       LEFT JOIN facts latest ON latest.question_id=q.id AND latest.rn=1 LEFT JOIN totals t ON t.question_id=q.id
       <choose>
         <when test="f.kind == 'FAVORITE'">JOIN user_favorite saved ON saved.question_id=q.id AND saved.user_id=#{userId}</when>
-        <otherwise>WHERE t.wrong_count>0 <if test="f.status == 'UNMASTERED'">AND latest.judgment='WRONG'</if><if test="f.status == 'MASTERED'">AND latest.judgment='CORRECT'</if></otherwise>
+        <otherwise>WHERE t.wrong_count>0 <if test="f.status == 'UNMASTERED'">AND latest.judgment='WRONG' </if><if test="f.status == 'MASTERED'">AND latest.judgment='CORRECT' </if></otherwise>
       </choose>
     )
   </sql>
   <sql id="filters"><where>
-    <if test="f.subjectId != null">subject_id=#{f.subjectId}</if><if test="f.bankId != null">AND question_bank_id=#{f.bankId}</if>
-    <if test="f.chip == 'repeat'">AND wrong_count &gt;= 2</if><if test="f.chip == 'recent'">AND last_practiced_at &gt;= #{f.since}</if>
-    <if test="f.chip == 'pending'">AND NOT practiced</if><if test="f.chip == 'practiced'">AND practiced</if>
+    <if test="f.subjectId != null">subject_id=#{f.subjectId} </if><if test="f.bankId != null">AND question_bank_id=#{f.bankId} </if>
+    <if test="f.chip == 'repeat'">AND wrong_count &gt;= 2 </if><if test="f.chip == 'recent'">AND last_practiced_at &gt;= #{f.since} </if>
+    <if test="f.chip == 'pending'">AND NOT practiced </if><if test="f.chip == 'practiced'">AND practiced </if>
   </where></sql>
   <select id="collection" resultType="qanda.backend.learning.CollectionRow">
     <include refid="collection"/> SELECT * FROM collection <include refid="filters"/> ORDER BY

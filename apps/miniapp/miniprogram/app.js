@@ -5,6 +5,7 @@ const http = require('./repositories/http-gateway.js')
 const onlinePractice = require('./repositories/online-practice.js')
 const remoteData = require('./repositories/remote-data-repository.js')
 const localConfig = require('./runtime.local.js')
+const { createHeartbeat } = require('./repositories/activity-heartbeat.js')
 
 App({
   globalData: {
@@ -17,6 +18,7 @@ App({
   onLaunch() {
     this.globalData.launchAt = Date.now()
     const storage = createWxStorageAdapter()
+    this.activityHeartbeat = createHeartbeat({ getAuth: () => practiceRepository.getAuth(storage) })
     const config = Object.assign({}, localConfig, typeof wx.getExtConfigSync === 'function' ? wx.getExtConfigSync() || {} : {})
     http.configure({ baseUrl: config.apiBaseUrl || '', tokenProvider: () => practiceRepository.getAuth(storage).token || '' })
     remoteData.enable(true)
@@ -33,6 +35,7 @@ App({
 
   onShow() {
     this.appVisible = true
+    this.syncActivityHeartbeat()
     this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     const runtime = onlinePractice.current()
     if (!runtime) return
@@ -42,6 +45,7 @@ App({
 
   onHide() {
     this.appVisible = false
+    if (this.activityHeartbeat) this.activityHeartbeat.stop()
     const epoch = this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     if (this.practiceWatch) clearTimeout(this.practiceWatch)
     const runtime = onlinePractice.current()
@@ -58,6 +62,10 @@ App({
         } catch (error) { /* 未确认的草稿保留到下一次联网 */ }
       }
     }).catch(() => {})
+  },
+
+  syncActivityHeartbeat() {
+    if (this.appVisible && this.activityHeartbeat) this.activityHeartbeat.start()
   },
 
   watchPendingPractice() {

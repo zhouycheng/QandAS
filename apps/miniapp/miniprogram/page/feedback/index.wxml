@@ -1,0 +1,27 @@
+<view class="feedback-page">
+  <view wx:if="{{!compose}}" class="tabs">
+    <view class="tab {{kind === 'question' ? 'selected' : ''}}" data-kind="question" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">题目纠错</view>
+    <view class="tab {{kind === 'course' ? 'selected' : ''}}" data-kind="course" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">缺课需求</view>
+  </view>
+  <view wx:if="{{compose}}" class="form">
+    <input wx:if="{{kind === 'course'}}" value="{{courseName}}" data-key="courseName" bindinput="handleInput" maxlength="100" placeholder="需要哪门课程的题库？" />
+    <picker wx:else range="{{categories}}" value="{{categoryIndex}}" bindchange="handleCategory"><view class="field">问题类型：{{categories[categoryIndex]}} ›</view></picker>
+    <textarea value="{{body}}" data-key="body" bindinput="handleInput" maxlength="4000" placeholder="请描述具体问题，便于管理员处理" auto-height />
+    <button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="handleSubmit" hover-class="pressed" hover-start-time="0" hover-stay-time="80">提交反馈</button>
+  </view>
+  <block wx:else>
+    <button wx:if="{{kind === 'course'}}" class="primary" bindtap="handleCompose" hover-class="pressed" hover-start-time="0" hover-stay-time="80">反馈缺少课程</button>
+    <text wx:if="{{loading}}" class="hint">正在读取反馈…</text>
+    <view wx:if="{{error}}" class="hint" bindtap="handleRetry" hover-class="pressed" hover-start-time="0" hover-stay-time="80">{{error}} · 点击重试</view>
+    <text wx:if="{{!loading && !error && !items.length}}" class="hint">暂无反馈记录</text>
+    <view class="entry" wx:for="{{items}}" wx:key="id">
+      <text class="status">{{item.statusText}} · {{item.updatedAt}}</text>
+      <text class="title">{{item.title}}</text><text>{{item.body}}</text>
+      <view wx:if="{{item.response}}" class="reply">管理员回复：{{item.response}}</view>
+    </view>
+    <view class="tabs">
+      <button wx:if="{{page > 1}}" data-step="-1" bindtap="handlePage" hover-class="pressed" hover-start-time="0" hover-stay-time="80">上一页</button>
+      <button wx:if="{{hasMore}}" data-step="1" bindtap="handlePage" hover-class="pressed" hover-start-time="0" hover-stay-time="80">下一页</button>
+    </view>
+  </block>
+</view>

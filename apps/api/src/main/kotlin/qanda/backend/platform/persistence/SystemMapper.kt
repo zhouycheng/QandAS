@@ -14,6 +14,6 @@ class LoginAttempt { var failures: Int = 0; var blockedUntil: Instant? = null }
     fun saveAttempt(@Param("digest") digest: ByteArray, @Param("failures") failures: Int, @Param("until") until: Instant?)
     fun clearAttempt(@Param("digest") digest: ByteArray)
     fun activity(@Param("userId") userId: UUID, @Param("platform") platform: String)
-    fun auditPage(@Param("offset") offset: Int, @Param("limit") limit: Int): List<AuditLog>
-    fun auditCount(): Long
+    fun auditPage(@Param("offset") offset: Int, @Param("limit") limit: Int, @Param("keyword") keyword: String?, @Param("result") result: String?): List<AuditLog>
+    fun auditCount(@Param("keyword") keyword: String?, @Param("result") result: String?): Long
 }

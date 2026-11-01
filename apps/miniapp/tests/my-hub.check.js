@@ -115,7 +115,7 @@ function checkMyViewModel() {
   assert('我的 - 未登录资料头引导登录', guest.auth.displayName === '点击登录', guest.auth.displayName)
   assert('我的 - 未登录副行给账号状态', guest.auth.subText === '未登录', guest.auth.subText)
   assert('我的 - 学习设置依次显示偏好、布局、提醒与关于',
-    guest.learnRows.map((item) => item.key).join(',') === 'practice,layout,reminder,about',
+    guest.learnRows.map((item) => item.key).join(',') === 'practice,layout,reminder,feedback,about',
     JSON.stringify(guest.learnRows.map((item) => item.key)))
   assert('我的 - 法律协议两条', guest.links.length === 2)
 
@@ -153,7 +153,7 @@ function checkMyViewModel() {
     changed.learnRows.find((item) => item.key === 'layout').value === '已自定义',
     changed.learnRows.find((item) => item.key === 'layout').value)
   assert('我的 - 摘要跟随提醒开关',
-    changed.learnRows.find((item) => item.key === 'reminder').value === '已关闭',
+    changed.learnRows.find((item) => item.key === 'reminder').value === '本机偏好',
     changed.learnRows.find((item) => item.key === 'reminder').value)
 
   // 弹层
