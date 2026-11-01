@@ -26,6 +26,7 @@ Page(withPageLifecycle({
 
   onShow() {
     this.pageVisible = true
+    this.observeSaveStatus()
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = this.viewModel.waitingId || (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     // 回到前台：交接中的练习先确认写入权。
     if (this.viewModel && this.viewModel.online && this.viewModel.session) {
@@ -48,6 +49,8 @@ Page(withPageLifecycle({
 
   onHide() {
     this.pageVisible = false
+    if (this.stopSaveStatus) this.stopSaveStatus()
+    this.stopSaveStatus = null
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = ''
     if (this.syncWatch) clearTimeout(this.syncWatch)
     if (!this.viewModel) {
@@ -62,6 +65,8 @@ Page(withPageLifecycle({
 
   onUnload() {
     this.pageVisible = false
+    if (this.stopSaveStatus) this.stopSaveStatus()
+    this.stopSaveStatus = null
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = ''
     // 异常退出（杀进程 / 系统回收）不总会走 onHide，这里是最后一道保险
     if (this.viewModel) {
@@ -81,6 +86,12 @@ Page(withPageLifecycle({
       Promise.resolve(this.viewModel.saveSessionNow()).catch(error => this.showSaveError(error))
     } catch (error) { this.showSaveError(error) }
   },
+
+  observeSaveStatus() {
+    if (this.stopSaveStatus || this.pageVisible === false || !this.viewModel || !this.viewModel.online || !this.viewModel.session) return
+    this.stopSaveStatus = this.viewModel.observeSaveStatus(data => { if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data) })
+  },
+  retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
 
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
@@ -327,6 +338,7 @@ Page(withPageLifecycle({
 
     const runEffects = () => {
       this.applyViewModelEffects(result)
+      this.observeSaveStatus()
     }
 
     if (result.data) {

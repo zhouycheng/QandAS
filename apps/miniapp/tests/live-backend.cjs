@@ -56,7 +56,7 @@ async function main() {
   await Promise.all([remote.refresh(storage, 'home'), remote.refresh(storage, 'recent')])
   const recent = remote.getRecent(storage)
   assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'))
-  assert.ok(requests.some(item => item.path.endsWith('/progress-ack')))
+  assert.ok(requests.some(item => item.path.endsWith('/progress-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
   runtime.queue.stop()
   console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.result.objective.correct, selfRated: completed.result.shortAnswer.rated }))

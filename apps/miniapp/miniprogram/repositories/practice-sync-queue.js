@@ -58,13 +58,22 @@ function createSyncQueue(options) {
     sending[id] = Promise.resolve().then(() => send(id, command)).catch(() => ({ ok: false, statusCode: 0, reason: '网络请求失败' })).then((result) => {
       try {
         const current = get(id)
-        if (result.ok) {
+        if (result.pending) {
+          current.pending.serverAccepted = true
+          current.serverState = result.serverState || 'QUEUED'
+          current.reason = '本机已保存，服务器处理中'
+          current.failures = 0
+          current.nextAttemptAt = now() + 1000
+          persist(id, current)
+          schedule(id, 1000)
+        } else if (result.ok) {
           current.acknowledgedSequence = Math.max(current.acknowledgedSequence, command.sequence)
           current.lastAcknowledgedKey = command.idempotencyKey
           current.pending = null
           current.failures = 0
           current.nextAttemptAt = 0
           current.reason = ''
+          current.serverState = 'COMMITTED'
           current.lastResponse = result
           persist(id, current)
           if (current.sequence > current.acknowledgedSequence) schedule(id, 5000)
@@ -72,6 +81,7 @@ function createSyncQueue(options) {
           current.failures += 1
           current.reason = result.reason || '等待联网同步'
           current.lastStatusCode = result.statusCode || 0
+          current.rejected = !!result.rejected
           const status = result.statusCode || 0
           current.paused = status === 401 || status === 403 || status === 409 || (status >= 400 && status < 500 && status !== 408 && status !== 429)
           const delay = Math.max(result.retryAfter || 0, Math.min(60000, 1000 * Math.pow(2, Math.min(current.failures - 1, 6))) * (0.5 + random() * 0.5))
@@ -88,7 +98,10 @@ function createSyncQueue(options) {
   function resume(id) {
     try {
       const value = get(id)
-      if (value) { value.paused = false; value.reason = ''; value.nextAttemptAt = 0; persist(id, value) }
+      if (value) {
+        if (value.rejected && (value.lastStatusCode === 401 || value.lastStatusCode === 403)) { value.pending = null; value.rejected = false }
+        value.paused = false; value.reason = ''; value.nextAttemptAt = 0; persist(id, value)
+      }
       return flush(id)
     } catch (error) { return Promise.resolve({ ok: false, storageError: true, reason: '无法读取待同步答案' }) }
   }

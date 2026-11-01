@@ -2,11 +2,11 @@ package qanda.backend.practice
 
 import org.apache.ibatis.annotations.Mapper
 import org.apache.ibatis.annotations.Param
-import qanda.backend.content.Question
+import qanda.backend.content.api.QuestionReference
 import java.util.UUID
 
 @Mapper interface PracticeQueries {
-    fun eligible(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): List<Question>
+    fun eligible(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): List<QuestionReference>
     fun eligibleCount(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): Long
     fun lockSession(@Param("id") id: UUID): PracticeSession?
     fun items(@Param("sessionId") sessionId: UUID): List<PracticeItem>

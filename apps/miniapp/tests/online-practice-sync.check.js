@@ -12,7 +12,7 @@ async function main() {
   const sent = []
   http.request = async (method, path, body, options) => {
     sent.push({ method, path, body: JSON.parse(JSON.stringify(body)), options })
-    return { ok: true, data: { version: 2, writer: { deviceId: 'device1', writerToken: 'writer1' } } }
+    return { ok: true, data: { state: 'COMMITTED', acknowledgement: { version: 2, acknowledgedSequence: body.clientSequence, writer: { deviceId: 'device1', writerToken: 'writer1' } } } }
   }
   const item1 = { itemId: 'i1', answer: { optionKeys: ['A'] }, confirmed: true, marked: false }
   const item2 = { itemId: 'i2', answer: null, confirmed: false, marked: false }

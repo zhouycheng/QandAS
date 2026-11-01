@@ -106,6 +106,25 @@ async function main() {
   assert.strictEqual(rateSends, 1)
   throttled.stop(); throttleRestart.stop()
   const broken = createSyncQueue(Object.assign({}, settings, { storage: { get: () => null, set: () => { throw new Error('full') } } }))
+  const accepted = createSyncQueue(Object.assign({}, settings, { send: async () => ({ ok: false, pending: true, serverState: 'QUEUED' }) }))
+  accepted.save('async', { answer: 1 })
+  await accepted.flush('async')
+  const acceptedCommand = accepted.get('async').pending
+  assert(acceptedCommand.serverAccepted)
+  assert.strictEqual(accepted.get('async').acknowledgedSequence, 0, '202 不清除草稿')
+  accepted.save('async', { answer: 2 })
+  accepted.stop()
+  const afterKill = createSyncQueue(Object.assign({}, settings, { send: async (_id, command) => {
+    assert.deepStrictEqual(command, acceptedCommand, '重启后保持原请求和幂等键')
+    return { ok: true, acknowledgedSequence: command.sequence }
+  } }))
+  clock += 1000
+  await afterKill.flush('async')
+  assert.strictEqual(afterKill.get('async').sequence, 2)
+  assert.strictEqual(afterKill.get('async').acknowledgedSequence, 1, '仅确认已发送序号')
+  assert.deepStrictEqual(afterKill.get('async').payload, { answer: 2 })
+  assert.strictEqual(afterKill.removeConfirmed('async'), false)
+  afterKill.stop()
   assert.strictEqual(broken.save('s1', {}).storageError, true)
   restarted.stop(); paused.stop()
   delete global.wx

@@ -108,6 +108,17 @@ class PracticeViewModel {
     return null
   }
 
+  observeSaveStatus(listener) {
+    return this.online && this.session ? this.online.observeStatus(this.session.meta.sessionId, listener) : () => {}
+  }
+  async retrySync() {
+    if (!this.online || !this.session) return null
+    try { this.online.save(this.session) }
+    catch (error) { return { data: this.online.saveStatus(this.session.meta.sessionId), command: { type: 'toast', title: error.message } } }
+    const result = await this.online.queue.resume(this.session.meta.sessionId)
+    return { data: this.online.saveStatus(this.session.meta.sessionId), command: !result.ok && !result.pending ? { type: 'toast', title: result.reason } : null }
+  }
+
   /**
    * 载入练习。两条路径：
    * - 恢复：URL 带 sessionId，或带 resume=1，且仓储里确实有一份未提交的会话；

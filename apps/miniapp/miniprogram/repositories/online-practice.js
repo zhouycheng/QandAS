@@ -23,7 +23,20 @@ function mapQuestion(item, grading) {
 function enable(storage) { runtime = new OnlinePractice(storage); return runtime }
 function current() { return runtime }
 class OnlinePractice {
-  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.releasing = {}; this.finishing = {}; this.creating = {}; this.assessing = {} }
+  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.releasing = {}; this.finishing = {}; this.creating = {}; this.assessing = {}; this.saveErrors = {}; this.statusListeners = new Set() }
+  saveStatus(id) {
+    if (this.saveErrors[id]) return { saveStatusText: '本机保存失败，请重试', canRetrySync: true }
+    const draft = this.queue && this.queue.get(id)
+    if (!draft || (!draft.pending && draft.sequence <= draft.acknowledgedSequence)) return { saveStatusText: '服务器已保存', canRetrySync: false }
+    if (draft.paused || draft.failures) return { saveStatusText: '本机已保存 · ' + (draft.reason || '等待同步'), canRetrySync: true }
+    return { saveStatusText: draft.pending && draft.pending.serverAccepted ? '本机已保存 · 服务器处理中' : '本机已保存 · 等待同步', canRetrySync: false }
+  }
+  observeStatus(id, listener) {
+    const owner = this.userId
+    const update = (changedId) => { if (changedId === id && auth.getAuth(this.storage).userId === owner) listener(this.saveStatus(id)) }
+    this.statusListeners.add(update); update(id)
+    return () => this.statusListeners.delete(update)
+  }
   identity() {
     const identity = auth.getAuth(this.storage)
     if (!identity.loggedIn || !identity.token) throw new Error('请先登录')
@@ -33,6 +46,7 @@ class OnlinePractice {
       const queueUserId = this.userId
       this.queue = createSyncQueue({ storage: this.storage, userId: queueUserId, send: (id, command) => this.send(id, command, queueUserId), onChange: (id, draft) => {
         if (draft.lastAcknowledgedKey) this.storage.remove(`qandaOnline:${queueUserId}:${id}:wire:${draft.lastAcknowledgedKey}`)
+        if (auth.getAuth(this.storage).userId === queueUserId) this.statusListeners.forEach(listener => { try { listener(id) } catch (_) {} })
       } })
     }
     if (this.token !== identity.token) {
@@ -193,6 +207,12 @@ class OnlinePractice {
       status: snapshot.status === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS', config: snapshot.route }
   }
   save(session) {
+    const id = session.getPersistedState().sessionId
+    try { const result = this.saveLocal(session); delete this.saveErrors[id]; return result }
+    catch (error) { this.saveErrors[id] = true; throw error }
+    finally { this.statusListeners.forEach(listener => { try { listener(id) } catch (_) {} }) }
+  }
+  saveLocal(session) {
     this.identity()
     const state = JSON.parse(JSON.stringify(session.getPersistedState()))
     if ((!state.answers[state.currentIndex] || state.answers[state.currentIndex].confirmed === false) && session.state.selectedKeys.length) {
@@ -229,18 +249,42 @@ class OnlinePractice {
       body = Object.assign({}, command.payload.progress, { items: changes, expectedVersion: snapshot.version, writerToken: snapshot.writer.writerToken, clientSequence: command.sequence })
       this.storage.set(key, body)
     }
-    const response = await http.request('PUT', `/practice/sessions/${id}/progress-ack`, body, { token: identity.token, idempotencyKey: command.idempotencyKey, priority: 'background' })
+    const path = `/practice/sessions/${id}/progress-commands`
+    let response = command.serverAccepted
+      ? await http.request('GET', `${path}/${command.idempotencyKey}`, null, { token: identity.token, priority: 'background' })
+      : await http.request('POST', path, body, { token: identity.token, idempotencyKey: command.idempotencyKey, priority: 'background' })
+    if (response.ok) {
+      const state = response.data
+      if (state.state === 'REJECTED') return { ok: false, rejected: true, statusCode: state.failure.status, reason: state.failure.message }
+      if (state.state === 'DEAD_LETTER') return { ok: false, statusCode: 409, reason: '进度处理失败，本机答案已保留，请稍后恢复同步' }
+      if (state.state !== 'COMMITTED') return { ok: false, pending: true, serverState: state.state, reason: '本机已保存，服务器处理中' }
+      if (!state.acknowledgement || !Number.isInteger(state.acknowledgement.acknowledgedSequence) || state.acknowledgement.acknowledgedSequence !== command.sequence || !Number.isInteger(state.acknowledgement.version) || !state.acknowledgement.writer) return { ok: false, statusCode: 503, reason: '保存回执尚未确认，本机答案已保留' }
+      response = Object.assign({}, response, { data: state.acknowledgement })
+    }
     if (response.ok) {
       const latest = this.storage.get(snapshotKey)
-      latest.version = response.data.version; latest.writer = response.data.writer
-      latest.ackItems = latest.ackItems || {}
-      body.items.forEach(item => { latest.ackItems[item.itemId] = item })
+      if (response.data.version >= latest.version) {
+        latest.version = response.data.version; latest.writer = response.data.writer
+        latest.ackItems = latest.ackItems || {}
+        body.items.forEach(item => { latest.ackItems[item.itemId] = item })
+      }
       this.storage.set(snapshotKey, latest)
       if (latest.writer.pendingDeviceId && auth.getAuth(this.storage).userId === queueUserId) this.pendingTakeover = id
     }
     return Object.assign({}, response, response.ok ? response.data : {})
   }
   async flush(id) { this.identity(); return this.queue.flush(id) }
+  async awaitConfirmed(id) {
+    const deadline = Date.now() + 15000
+    while (true) {
+      const pending = this.queue.get(id)
+      if (!pending || (!pending.pending && pending.sequence <= pending.acknowledgedSequence)) return
+      const response = await this.flush(id)
+      if (response.ok) continue
+      if (!(response.pending || response.deferred) || Date.now() >= deadline) throw new Error(response.reason || '进度正在保存，请稍后重试')
+      await new Promise(resolve => setTimeout(resolve, Math.min(response.retryAfter || 1000, 1000)))
+    }
+  }
   finish(session) {
     const key = `${this.identity().userId}:${session.meta.sessionId}`
     if (this.finishing[key]) return this.finishing[key]
@@ -284,12 +328,7 @@ class OnlinePractice {
     if (!snapshot) throw new Error('练习快照不存在')
     if (!snapshot.finishCommand && !snapshot.result) {
       this.save(session)
-      let pending = this.queue.get(id)
-      while (pending && pending.sequence > pending.acknowledgedSequence) {
-        const response = await this.flush(id)
-        if (!response.ok) throw new Error(response.reason || '答题数据待同步，请联网后重试交卷')
-        pending = this.queue.get(id)
-      }
+      await this.awaitConfirmed(id)
       snapshot = this.get(id)
       snapshot.finishCommand = { key: http.uuid(), body: { expectedVersion: snapshot.version, durationSeconds: session.getElapsedSeconds(), items: [], writerToken: snapshot.writer.writerToken } }
       this.put(id, snapshot)
@@ -333,8 +372,7 @@ class OnlinePractice {
     let snapshot = this.get(id)
     if (!snapshot) return false
     if (!snapshot.releaseCommand) {
-      const flushed = await this.flush(id)
-      if (!flushed.ok) return false
+      try { await this.awaitConfirmed(id) } catch (error) { return false }
       const queued = this.queue.get(id)
       if (queued && queued.sequence > queued.acknowledgedSequence) return false
       if (this.identity().userId !== userId) return false

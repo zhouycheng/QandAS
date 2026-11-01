@@ -15,6 +15,7 @@ async function main() {
   let createLost = true
   let offline = false
   let failProgressResponse = false
+  let holdProgress = false
   let finishLost = false
   let ratingLost = false
   let takeoverSnapshotLost = true
@@ -55,11 +56,13 @@ async function main() {
       body = replies[key]
       if (createLost) { createLost = false; input.fail({ errMsg: 'request:fail timeout' }); return }
     }
-    else if (input.url.endsWith('/progress-ack')) {
+    else if (input.url.endsWith('/progress-commands')) {
       if (submitted && !replies[key]) { input.success({ statusCode: 409, data: { code: 'SESSION_CLOSED', message: '练习已结束' } }); return }
       if (!replies[key]) replies[key] = { id: 's1', version: ++version, acknowledgedSequence: input.data.clientSequence, writer: Object.assign({}, writer, { version, acknowledgedSequence: input.data.clientSequence }) }
-      body = replies[key]
+      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : { state: 'COMMITTED', acknowledgement: replies[key] }
       if (failProgressResponse) { failProgressResponse = false; input.fail({ errMsg: 'request:fail timeout' }); return }
+    } else if (/\/progress-commands\/[^/]+$/.test(input.url)) {
+      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : { state: 'COMMITTED', acknowledgement: replies[input.url.split('/').pop()] }
     } else if (input.url.endsWith('/finish')) {
       submitted = true
       body = result
@@ -114,19 +117,20 @@ async function main() {
   offline = false
   await restarted.queue.resume('s1')
   assert.strictEqual(restarted.queue.get('s1').acknowledgedSequence, before.sequence)
-  const progressRequests = requests.filter(r => r.url.endsWith('/progress-ack'))
+  const progressRequests = requests.filter(r => r.url.endsWith('/progress-commands'))
   assert.deepStrictEqual(progressRequests[0].data, progressRequests[1].data)
   assert.strictEqual(progressRequests[0].header['Idempotency-Key'], progressRequests[1].header['Idempotency-Key'])
   full = true
   assert.throws(() => restarted.save(session), /full/)
+  assert.strictEqual(restarted.saveStatus('s1').saveStatusText, '本机保存失败，请重试')
   full = false
   session.finish()
   finishLost = true
   await assert.rejects(() => restarted.finish(session), /请求超时/)
-  const beforeRetryProgress = requests.filter(r => r.url.endsWith('/progress-ack')).length
+  const beforeRetryProgress = requests.filter(r => r.url.endsWith('/progress-commands')).length
   session.accumulatedMs += 2000
   await restarted.finish(session)
-  assert.strictEqual(requests.filter(r => r.url.endsWith('/progress-ack')).length, beforeRetryProgress)
+  assert.strictEqual(requests.filter(r => r.url.endsWith('/progress-commands')).length, beforeRetryProgress)
   const finishRequests = requests.filter(r => r.url.endsWith('/finish'))
   assert.strictEqual(finishRequests[0].header['Idempotency-Key'], finishRequests[1].header['Idempotency-Key'])
   assert.deepStrictEqual(finishRequests[0].data, finishRequests[1].data)
@@ -257,6 +261,28 @@ async function main() {
   assert.strictEqual(resumedView.data.currentExplanation, '解析仅答后显示')
   restoreRuntime.queue.stop()
   restarted.queue.stop()
+  submitted = false
+  const processing = new OnlinePractice(storage)
+  processing.identity()
+  const waitingSnapshot = Object.assign({}, copy(snapshot), { id: 'waiting', route: {} })
+  processing.put('waiting', waitingSnapshot)
+  const waitingSession = new PracticeSession({ quiz: processing.quiz(waitingSnapshot), restored: processing.restored(waitingSnapshot), mode: 'practice' })
+  waitingSession.reset(); waitingSession.restore(processing.restored(waitingSnapshot)); waitingSession.selectOption(0)
+  processing.save(waitingSession); holdProgress = true
+  assert.strictEqual((await processing.flush('waiting')).pending, true)
+  const pending = processing.queue.get('waiting').pending
+  assert(pending.serverAccepted); assert.strictEqual(processing.queue.get('waiting').acknowledgedSequence, 0)
+  assert(processing.saveStatus('waiting').saveStatusText.includes('服务器处理中'))
+  processing.queue.stop()
+  const after202 = new OnlinePractice(storage); after202.identity()
+  assert.deepStrictEqual(after202.queue.get('waiting').pending, pending, '202 后重启保留原始命令')
+  holdProgress = false
+  await after202.queue.resume('waiting')
+  assert.strictEqual(requests.at(-1).method, 'GET')
+  assert(requests.at(-1).url.endsWith('/progress-commands/' + pending.idempotencyKey))
+  assert.strictEqual(after202.queue.get('waiting').acknowledgedSequence, pending.sequence)
+  assert.strictEqual(after202.saveStatus('waiting').saveStatusText, '服务器已保存')
+  after202.queue.stop()
   const beforeSwitch = requests.length
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })
   const denied = await restarted.send('s1', before, 'u1')

@@ -22,12 +22,13 @@ class PracticeSession {
     var createdAt: Instant = Instant.now()
     var submittedAt: Instant? = null
     var configurationSnapshot: String? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var writerDeviceId: UUID? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var writerToken: UUID? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var pendingWriterDeviceId: UUID? = null
+    @TableField(exist = false)
     var acknowledgedSequence: Long = 0
 }
 
