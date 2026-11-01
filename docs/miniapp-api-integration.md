@@ -14,7 +14,7 @@
 
 ## 版本与扩展约束
 
-- 当前基线为 v1.0，合同版本 `1.0.0`。创建练习要求设备标识，进行中的写请求要求有效凭证；进度统一使用精简确认接口，账号资料统一通过 `GET /me` 读取。
+- 当前基线为 v1.0，合同版本 `1.0.0`。创建练习要求设备标识，进行中的写请求要求有效凭证；进度使用异步命令和落库回执，账号资料统一通过 `GET /me` 读取。
 - 练习配置、题目修订与题序在创建时固定。业务版本用于并发校验，本机序号用于确认同步，两者分别递增；接管后服务端为新写入方从零确认序号。
 - 后续增加字段优先保持可选；改变题型含义、计分、字段类型或必填条件时使用新接口或新版本。客户端草稿格式独立版本化，未知格式保留数据并提示更新。
 - 管理端使用独立认证；用户 Web 复用学生接口、业务版本、幂等及交接协议。统计使用服务端统一口径，答案展示由题型、确认状态和反馈模式共同决定。
@@ -140,7 +140,7 @@
 | `POST /api/v1/practice/sessions/{id}/cancel` | `Practice_cancel_POST` | 创建取消练习 | 小程序、用户 Web / 学生 | — | — | 无入口；离开页面保留草稿，显式取消练习入口待补 | 保持当前合同；Controller + OpenAPI |
 | `POST /api/v1/practice/sessions/{id}/finish` | `Practice_finish_POST` | 后端判题与正式结果 | 小程序、用户 Web / 学生 | 交卷及联网后补交 | practice → PracticeViewModel → online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `PUT /api/v1/practice/sessions/{id}/items/{itemId}/self-assessment` | `Practice_assess_PUT` | 保存自评结果 | 小程序、用户 Web / 学生 | 简答题自评同步 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `PUT /api/v1/practice/sessions/{id}/progress-ack` | `Practice_progressAck_PUT` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `PUT /api/v1/practice/sessions/{id}/progress-ack` | `Practice_progressAck_PUT` | 同步等待落库确认 | 小程序、用户 Web / 学生 | — | — | 无入口；保留原成功即落库合同，当前小程序使用异步命令 | 同一队列，超时原键重试；隔离 PostgreSQL/RabbitMQ 验收 |
 | `GET /api/v1/practice/sessions/{id}/result` | `Practice_result_GET` | 读取正式结果 | 小程序、用户 Web / 学生 | 交卷/恢复已完成练习 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `GET /api/v1/practice/sessions/{id}/snapshot` | `Practice_snapshot_GET` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `POST /api/v1/practice/sessions/{id}/writer-acquire` | `Practice_acquireWriter_POST` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
@@ -155,8 +155,15 @@
 | `GET /api/v1/questions/{id}` | `Content_question_GET` | 读取题目正文 | 小程序、用户 Web / 学生、游客 | 错题/收藏进入题目详情 | question-detail → QuestionDetailViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `GET /api/v1/subjects` | `Catalog_subjects_GET` | 课程目录 | 小程序、用户 Web / 学生、游客 | 题库页进入及科目分页 | bank-detail → BankDetailViewModel → practice-repository → remote-data-repository.refreshSubjects → api-transport | 已接入待验收 | 每页 20；includeProgress 可选，批量计数；5 分钟缓存；PostgreSQL 验收 |
 | `GET /api/v1/subjects/{id}` | `Catalog_subject_GET` | 读取课程 | 小程序、用户 Web / 学生、游客 | 直接进入未加载的目标科目 | bank-detail → BankDetailViewModel → practice-repository → remote-data-repository.loadSubject → api-transport | 已接入待验收 | 按 ID 读取；includeProgress 可选；5 分钟缓存；目录第一页外直达自检及 PostgreSQL 验收 |
+| `POST /api/v1/practice/sessions/{id}/progress-commands` | `ProgressCommand_submit_POST` | 提交持久进度命令 | 小程序、用户 Web / 学生 | 作答合并、离开、交卷前同步 | practice/App → PracticeViewModel → online-practice → practice-sync-queue/api-transport | 已接入待验收 | 202 保留草稿及原键；恢复、响应丢失、重复投递检查 |
+| `GET /api/v1/practice/sessions/{id}/progress-commands/{commandId}` | `ProgressCommand_read_GET` | 读取落库回执 | 小程序、用户 Web / 学生 | 受理后查询、杀进程恢复 | practice/App → online-practice → practice-sync-queue/api-transport | 已接入待验收 | COMMITTED 才确认序号；后续答案保留，跨账号拒读 |
+| `GET /api/v1/admin/statistics/online-users` | `OnlineUsers_list_GET` | 在线账号分页明细 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 与在线卡同一判定；搜索、筛选、会话去重及权限检查 |
+| `GET /api/v1/admin/monitoring/sync/stream` | `Monitoring_stream_GET` | SSE 同步健康 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 5 秒快照；采样状态、权限失效、断线重连检查 |
+| `GET /api/v1/admin/monitoring/health` | `Monitoring_health_GET` | 模块接口及任务健康 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立 monitor 与受限只读视图，超时保留采样 |
+| `GET /api/v1/admin/sync/dead-letters/head` | `SyncRecovery_head_GET` | 查看死信元数据 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 只读查看，消息保留；空队列 item=null |
+| `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 受控死信处理 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 原正文摘要校验，发布确认，幂等审计，已完成重复清理 |
 
-当前合同合计 **129** 项操作。小程序有真实调用入口 **45** 项，状态为“已接入待验收”；管理端专用 **66** 项、无完整小程序入口 **17** 项、基础设施接口 **1** 项。方法、路径及 operationId 的集合逐项对齐合同。正式客户端联调另行验收。
+当前合同合计 **136** 项操作。小程序有真实调用入口 **46** 项，状态为“已接入待验收”；管理端专用 **71** 项、无完整小程序入口 **18** 项、基础设施接口 **1** 项。方法、路径及 operationId 的集合逐项对齐合同。正式客户端联调另行验收。
 
 ## 小程序能力与接口缺口
 
@@ -172,7 +179,7 @@
 
 ## 2026-10-31 阶段验证记录
 
-本节保留此前阶段证据；当前三端检查以[独立验收记录](multi-client-compatibility-verification.md)为准。
+本节保留此前阶段证据；三端兼容检查见[独立验收记录](multi-client-compatibility-verification.md)，本轮队列、SSE 与模块检查见[同步监控验收记录](sync-monitoring-verification.md)。
 
 - 游客读取已发布目录、分页搜索、详情、缓存隔离与不请求个人统计通过；后端公开试答验证包含未发布内容拒绝、修订检查、答案分层和正式记录数量不变。
 - `tests/trial-layout.check.js`：两次共享额度、重复创建合并、超时与存储失败、四类题型、离线恢复、登录后回看、账号切换保留额度、布局保存回滚、取消手势和跨屏滚动位置计算通过。
@@ -186,7 +193,7 @@
 
 ## 管理端逐接口调用补充（2026-11-01）
 
-管理端专用接口 66 项，其中页面或登录链实际使用 59 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。此处“已接入待联调”只表示静态调用链、受控适配器与独立服务检查，不表示已完成真实三端联调。平台管理员可用全部管理能力；内容管理员只能读取目录并维护已分配题库、处理对应题目反馈。
+管理端专用接口 71 项，其中页面或登录链实际使用 64 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。此处“已接入待联调”只表示静态调用链、受控适配器与独立服务检查，不表示已完成真实三端联调。平台管理员可用全部管理能力；内容管理员只能读取目录并维护已分配题库、处理对应题目反馈。
 
 | 方法与路径 | operationId | 管理端入口与调用 | 状态与后续 |
 | --- | --- | --- | --- |
@@ -256,3 +263,15 @@
 | `GET /api/v1/admin/users` | `Admin_users_GET` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
 | `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
 | `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+
+## 同步与监控调用补充（2026-11-01）
+
+| 方法与路径 | operationId | 管理端入口与调用 | 状态与证据 |
+| --- | --- | --- | --- |
+| `GET /api/v1/admin/statistics/online-users` | `OnlineUsers_list_GET` | ActivityPage → OnlineUsersDrawer → getOnlineUsers → HTTP Gateway | 已接入待联调；Mock 抽屉和资料入口、独立 SQL 分页与去重通过 |
+| `GET /api/v1/admin/monitoring/sync/stream` | `Monitoring_stream_GET` | MonitoringPage → watchSyncHealth → watchSyncStream | 已接入待联调；流式解析、重连、取消、权限撤销及实际 SSE 检查 |
+| `GET /api/v1/admin/monitoring/health` | `Monitoring_health_GET` | MonitoringPage → getSystemHealth | 已接入待联调；可见时 30 秒刷新，独立 monitor JAR 通过 |
+| `GET /api/v1/admin/sync/dead-letters/head` | `SyncRecovery_head_GET` | MonitoringPage → 查看待处理死信 → getDeadLetterHead | 已接入待联调；RabbitMQ 队首保留及元数据权限检查 |
+| `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 确认处理 → replaySyncCommand | 已接入待联调；原键重试、重放、完成重复清理检查 |
+
+小程序异步进度收到 `202` 后保持原正文与幂等键，回执检查只清理已确认序号。共享请求预算和游客本机试答规则保持原口径。旧 `progress-ack` 作为已落库确认接口保留，当前页面使用新的命令调用链。

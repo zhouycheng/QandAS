@@ -54,11 +54,14 @@ INSERT INTO admin_control(id) VALUES(1);
 CREATE TABLE user_session (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
  credential_version bigint NOT NULL, client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')), device_id uuid NOT NULL,
- issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, foreground_seen_at timestamptz, revoked_at timestamptz,
- CHECK(expires_at>issued_at)
+ issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, revoked_at timestamptz,
+ CHECK(expires_at>issued_at), UNIQUE(id,user_id)
 );
 CREATE INDEX user_session_account_idx ON user_session(user_id,issued_at DESC);
-CREATE INDEX user_session_online_idx ON user_session(foreground_seen_at DESC,user_id) WHERE revoked_at IS NULL;
+CREATE TABLE session_presence (
+ session_id uuid PRIMARY KEY REFERENCES user_session(id), foreground_seen_at timestamptz NOT NULL
+);
+CREATE INDEX session_presence_online_idx ON session_presence(foreground_seen_at DESC,session_id);
 CREATE TABLE admin_session (
  id uuid PRIMARY KEY, admin_id uuid NOT NULL REFERENCES admin_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
  credential_version bigint NOT NULL, device_id uuid NOT NULL, issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL,
@@ -167,14 +170,18 @@ CREATE TABLE practice_session (
  client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')),
  feedback varchar(16) NOT NULL CHECK(feedback IN ('IMMEDIATE','AFTER_FINISH')), status varchar(16) NOT NULL CHECK(status IN ('IN_PROGRESS','SUBMITTED','CANCELLED')),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), current_index integer NOT NULL DEFAULT 0 CHECK(current_index>=0), duration_seconds integer NOT NULL DEFAULT 0 CHECK(duration_seconds>=0),
- configuration_snapshot text NOT NULL, writer_device_id uuid, writer_token uuid, pending_writer_device_id uuid,
- acknowledged_sequence bigint NOT NULL DEFAULT 0 CHECK(acknowledged_sequence>=0), CHECK((writer_device_id IS NULL)=(writer_token IS NULL)),
+ configuration_snapshot text NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), submitted_at timestamptz, UNIQUE(id,user_id), CHECK((status='SUBMITTED')=(submitted_at IS NOT NULL))
 );
 CREATE INDEX practice_active_bank_idx ON practice_session(user_id,bank_id) WHERE status='IN_PROGRESS';
 CREATE INDEX practice_history_idx ON practice_session(user_id,submitted_at DESC,id) WHERE status='SUBMITTED';
 CREATE INDEX practice_recent_idx ON practice_session(user_id,updated_at DESC,id);
 CREATE INDEX practice_statistics_idx ON practice_session(submitted_at,user_id) WHERE status='SUBMITTED';
+CREATE TABLE practice_sync_state (
+ session_id uuid PRIMARY KEY REFERENCES practice_session(id), writer_device_id uuid, writer_token uuid, pending_writer_device_id uuid,
+ acknowledged_sequence bigint NOT NULL DEFAULT 0 CHECK(acknowledged_sequence>=0),
+ CHECK((writer_device_id IS NULL)=(writer_token IS NULL))
+);
 CREATE TABLE practice_item (
  id uuid PRIMARY KEY, session_id uuid NOT NULL REFERENCES practice_session(id), question_id uuid NOT NULL, revision_id uuid NOT NULL,
  material_revision_id uuid REFERENCES question_revision(id), answer_blanks text CHECK(answer_blanks IS NULL OR jsonb_typeof(answer_blanks::jsonb)='array'),
@@ -191,7 +198,9 @@ CREATE TABLE practice_result (
  id uuid PRIMARY KEY, session_id uuid NOT NULL UNIQUE REFERENCES practice_session(id), total_count integer NOT NULL CHECK(total_count>0),
  objective_count integer NOT NULL, answered_count integer NOT NULL, correct_count integer NOT NULL, wrong_count integer NOT NULL, unanswered_count integer NOT NULL,
  short_answer_count integer NOT NULL, duration_seconds integer NOT NULL CHECK(duration_seconds>=0), created_at timestamptz NOT NULL DEFAULT now(),
- CHECK(objective_count=correct_count+wrong_count+unanswered_count), CHECK(total_count=objective_count+short_answer_count)
+ CHECK(objective_count=correct_count+wrong_count+unanswered_count), CHECK(total_count=objective_count+short_answer_count),
+ CHECK(correct_count>=0 AND wrong_count>=0 AND unanswered_count>=0 AND short_answer_count>=0),
+ CHECK(answered_count BETWEEN correct_count+wrong_count AND total_count-unanswered_count)
 );
 CREATE TABLE question_feedback (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), question_id uuid NOT NULL, revision_id uuid NOT NULL,
@@ -235,6 +244,45 @@ CREATE TABLE audit_log (
  request_id uuid NOT NULL, outcome varchar(12) NOT NULL CHECK(outcome IN ('SUCCESS','FAILURE')), reason_code varchar(64), created_at timestamptz NOT NULL DEFAULT now(),
  CHECK(num_nonnulls(actor_user_id,actor_admin_id)<=1)
 );
+CREATE TABLE sync_command (
+ id uuid PRIMARY KEY, session_id uuid NOT NULL, user_id uuid NOT NULL, actor_session_id uuid NOT NULL,
+ client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')), writer_token uuid NOT NULL,
+ client_sequence bigint NOT NULL CHECK(client_sequence>0), payload_digest bytea NOT NULL, digest_key_version integer NOT NULL,
+ request_id uuid NOT NULL, state varchar(20) NOT NULL CHECK(state IN ('ACCEPTING','QUEUED','RETRYING','COMMITTED','REJECTED','DEAD_LETTER')),
+ attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0), error_code varchar(64), error_message varchar(200), error_status integer,
+ receipt_id uuid UNIQUE REFERENCES command_receipt(id), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz,
+ FOREIGN KEY(session_id,user_id) REFERENCES practice_session(id,user_id),
+ FOREIGN KEY(actor_session_id,user_id) REFERENCES user_session(id,user_id),
+ CHECK((state='COMMITTED')=(receipt_id IS NOT NULL)), CHECK((state IN ('COMMITTED','REJECTED'))=(completed_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX sync_command_one_pending_idx ON sync_command(session_id) WHERE state IN ('ACCEPTING','QUEUED','RETRYING','DEAD_LETTER');
+CREATE UNIQUE INDEX sync_command_sequence_idx ON sync_command(session_id,writer_token,client_sequence) WHERE state<>'REJECTED';
+CREATE INDEX sync_command_committed_idx ON sync_command(completed_at) WHERE state='COMMITTED';
+CREATE TABLE domain_event_outbox (
+ id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), platform varchar(16) NOT NULL CHECK(platform IN ('WEB','MINI_PROGRAM')),
+ occurred_at timestamptz NOT NULL, processed_at timestamptz
+);
+CREATE INDEX domain_event_pending_idx ON domain_event_outbox(occurred_at,id) WHERE processed_at IS NULL;
+
+CREATE VIEW monitoring_student AS
+ SELECT u.id user_id,u.account_code,u.nickname,u.status,u.credential_version,u.created_at,
+ coalesce(p.college_id,m.college_id) college_id,c.name college_name,p.major_id,m.name major_name,
+ current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) current_grade
+ FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
+ LEFT JOIN college c ON c.id=coalesce(p.college_id,m.college_id);
+CREATE VIEW monitoring_learning AS
+ SELECT s.id session_id,s.user_id,s.client_type,s.submitted_at,r.answered_count,r.correct_count,r.duration_seconds
+ FROM practice_session s JOIN practice_result r ON r.session_id=s.id WHERE s.status='SUBMITTED';
+CREATE VIEW monitoring_session AS
+ SELECT id,user_id,client_type,expires_at,revoked_at,credential_version FROM user_session;
+CREATE FUNCTION monitoring_online_at(sample_time timestamptz)
+ RETURNS TABLE(session_id uuid,user_id uuid,client_type varchar,foreground_seen_at timestamptz)
+ LANGUAGE sql STABLE AS $$
+ SELECT s.id,s.user_id,s.client_type,p.foreground_seen_at
+ FROM user_session s JOIN session_presence p ON p.session_id=s.id JOIN user_account u ON u.id=s.user_id
+ WHERE s.revoked_at IS NULL AND s.expires_at>sample_time AND u.status='ACTIVE' AND s.credential_version=u.credential_version
+ AND p.foreground_seen_at>sample_time-interval '120 seconds' AND p.foreground_seen_at<=sample_time
+ $$;
 CREATE INDEX audit_log_page_idx ON audit_log(created_at DESC,id);
 CREATE INDEX email_challenge_user_idx ON email_challenge(user_id);
 CREATE INDEX question_bank_creator_idx ON question_bank(created_by);
@@ -271,3 +319,36 @@ CREATE TRIGGER option_immutable BEFORE UPDATE OR DELETE ON question_option FOR E
 CREATE TRIGGER attachment_immutable BEFORE UPDATE OR DELETE ON question_attachment FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();
 CREATE TRIGGER result_immutable BEFORE UPDATE OR DELETE ON practice_result FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();
 CREATE TRIGGER audit_immutable BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();
+
+CREATE FUNCTION validate_question_group() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE q question;
+BEGIN
+ SELECT * INTO q FROM question WHERE id=NEW.id;
+ IF NOT EXISTS(SELECT 1 FROM question_revision r WHERE r.id=q.current_revision_id AND (r.type='READING')=q.is_group)
+ OR (q.reading_parent_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM question p WHERE p.id=q.reading_parent_id AND p.is_group AND p.bank_id=q.bank_id))
+ OR (NOT q.is_group AND EXISTS(SELECT 1 FROM question child WHERE child.reading_parent_id=q.id))
+ THEN RAISE EXCEPTION 'Invalid reading group membership' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END $$;
+CREATE CONSTRAINT TRIGGER question_group_valid AFTER INSERT OR UPDATE ON question DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_question_group();
+
+CREATE FUNCTION validate_practice_item_content() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='UPDATE' THEN
+  IF (OLD.session_id,OLD.question_id,OLD.revision_id,OLD.material_revision_id,OLD.position) IS DISTINCT FROM
+     (NEW.session_id,NEW.question_id,NEW.revision_id,NEW.material_revision_id,NEW.position)
+  THEN RAISE EXCEPTION 'Issued question references are immutable' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM question q JOIN practice_session s ON s.bank_id=q.bank_id WHERE q.id=NEW.question_id AND s.id=NEW.session_id AND NOT q.is_group
+   AND ((q.reading_parent_id IS NULL AND NEW.material_revision_id IS NULL)
+     OR EXISTS(SELECT 1 FROM question_revision r WHERE r.id=NEW.material_revision_id AND r.question_id=q.reading_parent_id AND r.type='READING')))
+ THEN RAISE EXCEPTION 'Practice item content does not match its bank or material' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER practice_item_content_valid BEFORE INSERT OR UPDATE ON practice_item FOR EACH ROW EXECUTE FUNCTION validate_practice_item_content();
+
+CREATE VIEW monitoring_sync_completion AS SELECT created_at,completed_at FROM sync_command WHERE state='COMMITTED';
+CREATE VIEW monitoring_jobs AS SELECT
+ (SELECT count(*) FROM domain_event_outbox WHERE processed_at IS NULL) AS activity,
+ (SELECT count(*) FROM mail_delivery WHERE state IN ('PENDING','SENDING','RETRYABLE_FAILED')) AS mail;

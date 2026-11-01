@@ -30,8 +30,14 @@ class OpenApiConfiguration {
     @Bean fun apiOperations()=OperationCustomizer { operation,handler ->
         val mapping=AnnotatedElementUtils.findMergedAnnotation(handler.method,RequestMapping::class.java)
         val method=mapping?.method?.firstOrNull()?.name ?: "GET"
-        operation.operationId=handler.beanType.simpleName.removeSuffix("Controller")+"_"+handler.method.name+"_"+method
-        operation.tags=listOf(if(handler.beanType.packageName.contains(".platform.")) "platform" else handler.beanType.packageName.substringAfterLast('.'))
+        val owner=when(handler.beanType.simpleName) {
+            "ActivityController" -> "Learning"
+            "AnnouncementController" -> "Operations"
+            "ProgressCommandController" -> if(handler.method.name=="progressAck") "Practice" else "ProgressCommand"
+            else -> handler.beanType.simpleName.removeSuffix("Controller")
+        }
+        operation.operationId=owner+"_"+handler.method.name+"_"+method
+        operation.tags=listOf(when { handler.beanType.packageName.contains(".platform.") -> "platform";handler.beanType.packageName.endsWith(".application") -> "sync";else -> handler.beanType.packageName.substringAfterLast('.') })
         val localPath=mapping?.value?.firstOrNull() ?: ""
         val root=AnnotatedElementUtils.findMergedAnnotation(handler.beanType,RequestMapping::class.java)?.value?.firstOrNull() ?: ""
         val requestSchema=operation.requestBody?.content?.get("application/json")
@@ -61,6 +67,7 @@ class OpenApiConfiguration {
         }
         handlers.getObject().handlerMethods.values.forEach { method -> method.method.genericParameterTypes.forEach { visit(it) };visit(method.method.genericReturnType) }
         visit(ApiError::class.java)
+        visit(qanda.backend.monitoring.SyncHealthView::class.java)
         classes.forEach { clazz ->
             val schema=api.components.schemas[clazz.simpleName] ?: return@forEach
             val parameters=clazz.kotlin.primaryConstructor?.parameters ?: return@forEach

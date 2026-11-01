@@ -69,6 +69,8 @@ def main():
                 variables.setdefault(variable, "")
                 path = path.replace("{" + name + "}", "{{" + variable + "}}")
         headers = [{"key": "X-Request-Id", "value": "{{$guid}}"}]
+        if route.endswith("/sync/stream"):
+            headers.append({"key": "Accept", "value": "text/event-stream"})
         if any(x["in"] == "header" and x["name"] == "Idempotency-Key" for x in parameters):
             headers.append({"key": "Idempotency-Key", "value": "{{effectiveCommandKey}}"})
         for parameter in parameters:
@@ -93,7 +95,7 @@ def main():
                     concrete["deviceId"] = str(uuid.UUID(int=1))
                 if route.startswith("/api/v1/practice/sessions/{id}/") and entry["method"] in ("PUT", "POST") and not route.endswith(("writer-acquire", "self-assessment")):
                     concrete["writerToken"] = str(uuid.UUID(int=1))
-                    if route.endswith(("progress", "progress-ack")):
+                    if route.endswith(("progress", "progress-ack", "progress-commands")):
                         concrete["clientSequence"] = 1
                 assert not contracts.errors(concrete, schema, owner), operation_id
                 body_sample = template(concrete)
@@ -116,6 +118,7 @@ def main():
             variables.setdefault(resource, "")
             post.append(f"if(b.id)pm.environment.set({json.dumps(resource)},b.id);")
         post.append("const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}")
+        post.append("if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}")
         post.append("for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}")
         post.append("}")
         folders.setdefault(entry["owner"], []).append({"name": operation_id, "request": request, "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": pre}}, {"listen": "test", "script": {"type": "text/javascript", "exec": post}}]})

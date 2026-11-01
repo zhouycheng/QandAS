@@ -33,18 +33,49 @@ import javax.imageio.ImageIO
 @Tag("postgres")
 @Testcontainers
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PlatformPostgresTest {
     companion object {
+        private val queueNetwork=org.testcontainers.containers.Network.newNetwork()
         @Container @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/schema.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/z-monitoring-permissions.sql")
         }
         @Container @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
+        @Container @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
+            withNetwork(queueNetwork);withNetworkAliases("rabbitmq")
+            withEnv("RABBITMQ_DEFAULT_USER","qanda");withEnv("RABBITMQ_DEFAULT_PASS","isolated-queue-password")
+            withExposedPorts(5672,15672,15692)
+            withCopyFileToContainer(MountableFile.forHostPath(Path.of("monitoring/rabbitmq-plugins")),"/etc/rabbitmq/enabled_plugins")
+            waitingFor(org.testcontainers.containers.wait.strategy.Wait.forLogMessage(".*Server startup complete.*",1))
+        }
+        @Container @JvmField val prometheus=GenericContainer<Nothing>("prom/prometheus:v3.5.0").apply {
+            withNetwork(queueNetwork);withExposedPorts(9090)
+            withCopyToContainer(org.testcontainers.images.builder.Transferable.of("""
+                global:
+                  scrape_interval: 5s
+                  evaluation_interval: 5s
+                rule_files: [/etc/prometheus/sync-rules.yml]
+                scrape_configs:
+                  - job_name: rabbitmq
+                    metrics_path: /metrics/detailed
+                    params:
+                      family: [queue_coarse_metrics, queue_delivery_metrics, queue_consumer_count, queue_exchange_metrics]
+                    static_configs:
+                      - targets: ['rabbitmq:15692']
+            """.trimIndent()),"/etc/prometheus/prometheus.yml")
+            withCopyFileToContainer(MountableFile.forHostPath(Path.of("monitoring/sync-rules.yml")),"/etc/prometheus/sync-rules.yml")
+        }
         private val assetRoot=Files.createTempDirectory("qanda-v1-assets-")
         private val key=Base64.getEncoder().encodeToString(ByteArray(32) { 13 })
         @JvmStatic @DynamicPropertySource fun properties(r: DynamicPropertyRegistry) {
-            postgres.start();mailpit.start()
+            postgres.start();mailpit.start();rabbit.start();prometheus.start()
+            r.add("qanda.backend.prometheus-url") { "http://${prometheus.host}:${prometheus.getMappedPort(9090)}" }
+            r.add("spring.rabbitmq.host") { rabbit.host };r.add("spring.rabbitmq.port") { rabbit.getMappedPort(5672) }
+            r.add("spring.rabbitmq.username") { "qanda" };r.add("spring.rabbitmq.password") { "isolated-queue-password" }
+            r.add("qanda.backend.role") { "all" };r.add("qanda.backend.worker-enabled") { true };r.add("management.server.port") { 0 }
             r.add("spring.datasource.url") { postgres.jdbcUrl };r.add("spring.datasource.username") { postgres.username };r.add("spring.datasource.password") { postgres.password }
             r.add("qanda.backend.mode") { "test" };r.add("server.address") { "127.0.0.1" }
             r.add("BACKEND_WECHAT_PROVIDER") { "local" };r.add("BACKEND_COMMAND_DIGEST_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_MAC_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_RATE_KEY") { key }
@@ -62,7 +93,14 @@ class PlatformPostgresTest {
     @Autowired lateinit var mailCrypto: MailCrypto
     @Autowired lateinit var outbox: OutboxService
     @Autowired lateinit var sessionService: Sessions
+    @Autowired lateinit var activityProjection: qanda.backend.monitoring.ActivityProjection
+    @Autowired lateinit var consumers: org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry
+    @Autowired lateinit var progressQueue: qanda.backend.sync.api.ProgressQueue
+    @Autowired lateinit var progressCommands: qanda.backend.application.ProgressCommands
     @Autowired lateinit var learningMapper: qanda.backend.learning.LearningMapper
+    @Autowired lateinit var activityMapper: qanda.backend.monitoring.ActivityMapper
+    @Autowired lateinit var onlineUsers: qanda.backend.monitoring.OnlineUsers
+    @Autowired lateinit var syncHealth: qanda.backend.monitoring.SyncHealth
     private val http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
     private val exchanges=java.util.concurrent.ConcurrentLinkedQueue<Map<String,Any?>>()
     private lateinit var adminToken: String
@@ -71,12 +109,226 @@ class PlatformPostgresTest {
     private data class Student(val id: UUID,val email: String,val token: String)
     private data class Fixture(val subject: UUID,val bank: UUID,val questions: List<UUID>)
 
+    private fun eventually(seconds: Long=15,condition: () -> Boolean) {
+        val end=System.nanoTime()+seconds*1_000_000_000
+        while(!condition()) { assertTrue(System.nanoTime()<end,"等待条件超时");Thread.sleep(100) }
+    }
+    private fun progressBody(session: JsonNode)=mapOf("expectedVersion" to session["version"].asLong(),"currentIndex" to 0,"durationSeconds" to 0,
+        "writerToken" to session["writer"]["writerToken"].asText(),"clientSequence" to 1,"items" to answers(session))
+    private fun queueCounter(name: String): Double {
+        val request=HttpRequest.newBuilder(URI("http://${rabbit.host}:${rabbit.getMappedPort(15692)}/metrics/detailed?family=queue_exchange_metrics&family=queue_delivery_metrics")).GET().build()
+        val response=http.send(request,HttpResponse.BodyHandlers.ofString());assertEquals(200,response.statusCode())
+        return response.body().lineSequence().filter { it.startsWith(name+"{") && it.contains("queue=\"qanda.sync.progress\"") }.sumOf { it.substringAfterLast(' ').toDouble() }
+    }
+
+    @Test fun `broker outage preserves registration while account catalog and announcements remain available`() {
+        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val key=UUID.randomUUID();val body=progressBody(session)
+        consumers.stop();rabbit.dockerClient.pauseContainerCmd(rabbit.containerId).exec()
+        try {
+            val sending=java.util.concurrent.CompletableFuture.supplyAsync { raw("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,key) }
+            call("GET","/me",token=s.token)
+            call("GET","/subjects",token=null)
+            call("GET","/announcements",token=s.token)
+            assertEquals(503,sending.get(12,java.util.concurrent.TimeUnit.SECONDS).statusCode())
+            assertEquals("ACCEPTING",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key))
+            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+        } finally { rabbit.dockerClient.unpauseContainerCmd(rabbit.containerId).exec();consumers.start() }
+        call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
+        eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
+        assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+    }
+
+    @Test fun `announcement query timeout leaves catalog and practice available`() {
+        val s=student();val f=fixture();val session=createPractice(s,f)
+        jdbc.dataSource!!.connection.use { blocked ->
+            blocked.autoCommit=false
+            try {
+                blocked.createStatement().use { it.execute("LOCK TABLE announcement IN ACCESS EXCLUSIVE MODE") }
+                val reading=java.util.concurrent.CompletableFuture.supplyAsync { raw("GET","/announcements",null,s.token) }
+                call("GET","/me",token=s.token)
+                call("GET","/subjects",token=null)
+                call("PUT","/practice/sessions/${id(session)}/progress-ack",progressBody(session),s.token)
+                val unavailable=reading.get(10,java.util.concurrent.TimeUnit.SECONDS)
+                assertEquals(503,unavailable.statusCode())
+                assertEquals("TEMPORARILY_UNAVAILABLE",json.readTree(unavailable.body())["code"].asText())
+                assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(session)))
+            } finally { blocked.rollback() }
+        }
+        call("GET","/announcements",token=s.token)
+    }
+
+    @Test fun `monitor database role reads public queries and cannot mutate core or projection data`() {
+        jdbc.dataSource!!.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("SET ROLE qanda_monitor")
+                try {
+                    for(view in listOf("monitoring_student","monitoring_learning","monitoring_jobs","monitoring_sync_completion")) statement.executeQuery("SELECT * FROM $view LIMIT 1").close()
+                    statement.executeQuery("SELECT * FROM monitoring_online_at(now()) LIMIT 1").close()
+                    for(table in listOf("practice_item","practice_result","question_revision","user_activity","domain_event_outbox","sync_command")) {
+                        assertThrows(java.sql.SQLException::class.java) { statement.execute("DELETE FROM $table WHERE false") }
+                    }
+                } finally { statement.execute("RESET ROLE") }
+            }
+        }
+    }
+
+    @Test fun `independent monitor process uses restricted connections and its exit leaves practice running`() {
+        val monitorPort=java.net.ServerSocket(0).use { it.localPort }
+        val log=Path.of(".backend-runtime/verification/monitor-runtime.log");Files.createDirectories(log.parent)
+        val process=ProcessBuilder(Path.of(System.getProperty("java.home"),"bin/java").toString(),"-Xmx256m","-jar",Path.of("target/qanda-backend-1.0.0.jar").toAbsolutePath().toString()).apply {
+            environment().keys.removeIf { it.startsWith("BACKEND_") || it.startsWith("TENCENT_") }
+            environment().putAll(mapOf("BACKEND_MODE" to "test","BACKEND_BIND_ADDRESS" to "127.0.0.1","BACKEND_API_PORT" to monitorPort.toString(),"BACKEND_METRICS_PORT" to "0",
+                "BACKEND_DB_URL" to postgres.jdbcUrl,"BACKEND_DB_USER" to postgres.username,"BACKEND_DB_PASSWORD" to postgres.password,"BACKEND_DB_POOL_SIZE" to "2",
+                "BACKEND_DB_SESSION_INIT" to "SET ROLE qanda_monitor; SET statement_timeout='3s'","BACKEND_ROLE" to "monitor","BACKEND_MONITORING_ENABLED" to "true",
+                "BACKEND_PROMETHEUS_URL" to "http://${prometheus.host}:${prometheus.getMappedPort(9090)}","BACKEND_WECHAT_PROVIDER" to "local","BACKEND_MAIL_ENABLED" to "false","BACKEND_FILES_ENABLED" to "false",
+                "BACKEND_COMMAND_DIGEST_KEYS" to "1:$key","BACKEND_IDENTITY_MAC_KEYS" to "1:$key","BACKEND_IDENTITY_RATE_KEY" to key))
+            redirectErrorStream(true);redirectOutput(log.toFile())
+        }.start()
+        fun monitor(path: String): HttpResponse<String> = http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$monitorPort/api/v1$path")).timeout(Duration.ofSeconds(5)).header("Authorization","Bearer $adminToken").GET().build(),HttpResponse.BodyHandlers.ofString())
+        try {
+            eventually(45) { assertTrue(process.isAlive,"独立监控启动失败，见 monitor-runtime.log");runCatching { monitor("/health").statusCode()==200 }.getOrDefault(false) }
+            assertEquals(200,monitor("/admin/statistics/online-users").statusCode())
+            assertEquals(200,monitor("/admin/statistics/activity").statusCode())
+            assertEquals(200,monitor("/admin/monitoring/health").statusCode())
+            val unavailable=monitor("/subjects")
+            assertEquals(404,unavailable.statusCode())
+            val requestId=UUID.fromString(unavailable.headers().firstValue("X-Request-Id").orElseThrow())
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE request_id=?",Int::class.java,requestId))
+        } finally { process.destroy();if(!process.waitFor(10,java.util.concurrent.TimeUnit.SECONDS)) process.destroyForcibly() }
+        val s=student();val f=fixture();val session=createPractice(s,f)
+        call("PUT","/practice/sessions/${id(session)}/progress-ack",progressBody(session),s.token)
+        call("GET","/announcements",token=s.token)
+    }
+
+    @Test fun `queued commands retain drafts barriers and commit once after delivery and confirm loss`() {
+        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val key=UUID.randomUUID();val body=progressBody(session)
+        consumers.stop()
+        try {
+            val pending=call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
+            assertEquals("QUEUED",pending["state"].asText());assertTrue(pending["acknowledgement"].isNull)
+            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+            assertEquals(pending,call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key))
+            call("POST","/practice/sessions/$sessionId/progress-commands",body+mapOf("durationSeconds" to 1),s.token,409,key)
+            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,409)
+            call("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to body["writerToken"]),s.token,409)
+            call("POST","/practice/sessions/$sessionId/cancel",mapOf("expectedVersion" to 1,"writerToken" to body["writerToken"]),s.token,409)
+            call("POST","/practice/sessions/$sessionId/writer-release",mapOf("expectedVersion" to 1,"deviceId" to session["writer"]["deviceId"].asText(),"writerToken" to body["writerToken"],"clientSequence" to 1),s.token,409)
+            // A lost publisher confirmation leaves registration pending; the original request is republished.
+            jdbc.update("UPDATE sync_command SET state='ACCEPTING' WHERE id=?",key)
+            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
+            val envelope=qanda.backend.application.ProgressEnvelope(key,json.convertValue(body,qanda.backend.practice.ProgressInput::class.java))
+            progressCommands.consume(envelope)
+            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+            // Commit happened before ACK; the real queued copies are now redelivered to consumers.
+            consumers.start()
+            eventually { syncHealth.sample();syncHealth.snapshot().metrics.queued==0.0 }
+            progressCommands.consume(envelope)
+            val done=call("GET","/practice/sessions/$sessionId/progress-commands/$key",token=s.token)
+            assertEquals("COMMITTED",done["state"].asText());assertEquals(1,done["acknowledgement"]["acknowledgedSequence"].asInt())
+            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM command_receipt WHERE command_id=?",Int::class.java,key))
+            call("GET","/practice/sessions/$sessionId/progress-commands/$key",token=student().token,status=404)
+            call("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to body["writerToken"]),s.token)
+        } finally { consumers.start() }
+    }
+
+    @Test fun `expired credentials reject queued writes and technical failures support reviewed replay`() {
+        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val body=progressBody(session);val key=UUID.randomUUID()
+        consumers.stop()
+        try {
+            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
+            repeat(8) { attempt ->
+                val result=progressCommands.failure(key,IllegalStateException("test transport failure"))
+                assertEquals(if(attempt==7) "dead" else "retry",result.first);assertTrue(result.second<=60000)
+            }
+            val envelope=qanda.backend.application.ProgressEnvelope(key,json.convertValue(body,qanda.backend.practice.ProgressInput::class.java))
+            progressQueue.publish(json.writeValueAsBytes(envelope),key,"dead")
+            assertEquals(key.toString(),call("GET","/admin/sync/dead-letters/head")["item"]["commandId"].asText())
+            call("POST","/admin/sync/dead-letters/$key/replay",token=s.token,status=403)
+            val replayKey=UUID.randomUUID()
+            call("POST","/admin/sync/dead-letters/$key/replay",key=replayKey)
+            call("POST","/admin/sync/dead-letters/$key/replay",key=replayKey)
+            consumers.start()
+            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
+            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+            progressQueue.publish(json.writeValueAsBytes(envelope),key,"dead")
+            assertTrue(call("GET","/admin/sync/dead-letters/head")["item"]["reason"].asText().contains("最终回执"))
+            call("POST","/admin/sync/dead-letters/$key/replay")
+            assertTrue(call("GET","/admin/sync/dead-letters/head")["item"].isNull)
+            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
+            consumers.stop()
+            val rejected=createPractice(s,f);val rejectedKey=UUID.randomUUID()
+            call("POST","/practice/sessions/${id(rejected)}/progress-commands",progressBody(rejected),s.token,202,rejectedKey)
+            jdbc.update("UPDATE user_session SET revoked_at=now() WHERE user_id=?",s.id)
+            consumers.start()
+            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,rejectedKey)=="REJECTED" }
+            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(rejected)))
+            assertEquals(401,jdbc.queryForObject("SELECT error_status FROM sync_command WHERE id=?",Int::class.java,rejectedKey))
+            consumers.stop()
+            val owner=student();val staleWriter=createPractice(owner,f);val staleKey=UUID.randomUUID()
+            call("POST","/practice/sessions/${id(staleWriter)}/progress-commands",progressBody(staleWriter),owner.token,202,staleKey)
+            jdbc.update("UPDATE practice_sync_state SET writer_token=? WHERE session_id=?",UUID.randomUUID(),id(staleWriter))
+            consumers.start()
+            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,staleKey)=="REJECTED" }
+            assertEquals(409,jdbc.queryForObject("SELECT error_status FROM sync_command WHERE id=?",Int::class.java,staleKey))
+            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(staleWriter)))
+        } finally { consumers.start() }
+    }
+
+    @Test fun `real broker metrics show paused backlog and SSE revokes expired administrators`() {
+        val s=student();val f=fixture();val sessions=(1..12).map { createPractice(s,f) }
+        consumers.stop()
+        val started=System.nanoTime()
+        val cpu=java.lang.management.ManagementFactory.getOperatingSystemMXBean() as com.sun.management.OperatingSystemMXBean
+        val cpuBefore=cpu.processCpuTime
+        val producedBefore=queueCounter("rabbitmq_detailed_queue_exchange_messages_published_total")
+        val consumedBefore=queueCounter("rabbitmq_detailed_queue_messages_acked_total")
+        try {
+            sessions.forEach { session ->
+                call("POST","/practice/sessions/${id(session)}/progress-commands",progressBody(session),s.token,202)
+                Thread.sleep(500)
+            }
+            assertEquals(12.0,queueCounter("rabbitmq_detailed_queue_exchange_messages_published_total")-producedBefore)
+            eventually(75) { syncHealth.sample();syncHealth.snapshot().status=="HEALTHY" && syncHealth.snapshot().metrics.queued==12.0 }
+            val queued=syncHealth.snapshot()
+            assertEquals(0.0,queued.metrics.processing);assertEquals(0.0,queued.metrics.consumers)
+            assertTrue(queued.metrics.productionPerSecond!!>=0);assertTrue(queued.metrics.consumptionPerSecond!=null)
+            consumers.start()
+            eventually(30) { syncHealth.sample();syncHealth.snapshot().metrics.queued==0.0 && sessions.all { jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(it))==2 } }
+            val drained=syncHealth.snapshot();assertTrue(drained.metrics.committedPerSecond!!>=12/60.0)
+            assertTrue(drained.metrics.consumptionPerSecond!!>0);assertTrue(drained.metrics.p95LatencyMs!!>0)
+            assertEquals(12.0,queueCounter("rabbitmq_detailed_queue_messages_acked_total")-consumedBefore)
+            println("SYNC_METRICS_EVIDENCE commands=12 publishedDelta=12 ackDelta=12 uniqueCommits=12 producerIntervalMs=500 consumers=4 prefetch=1 elapsedMs=${(System.nanoTime()-started)/1_000_000} processCpuMs=${(cpu.processCpuTime-cpuBefore)/1_000_000} snapshot=${json.writeValueAsString(drained)}")
+        } finally { consumers.start() }
+        val systemHealth=call("GET","/admin/monitoring/health")
+        assertEquals(60,systemHealth["sync"]["windowSeconds"].asInt())
+        assertTrue(systemHealth["components"].any { it["name"].asText()=="rabbitmq" })
+        call("GET","/admin/monitoring/health",token=s.token,status=403)
+        val monitorToken=call("POST","/admin/auth/sessions",mapOf("username" to "test_admin","password" to "Administrator-password-123","deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
+        val actor=sessionService.authenticate(monitorToken)
+        val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/api/v1/admin/monitoring/sync/stream")).header("Authorization","Bearer $monitorToken").header("Accept","text/event-stream").GET().build(),HttpResponse.BodyHandlers.ofInputStream())
+        assertEquals(200,response.statusCode());assertEquals("no",response.headers().firstValue("X-Accel-Buffering").orElse(null))
+        response.body().bufferedReader().use { reader ->
+            assertEquals("event:sync-health",reader.readLine())
+            var firstData: JsonNode?=null
+            while(firstData==null) { val line=reader.readLine() ?: error("SSE closed before snapshot");if(line.startsWith("data:")) firstData=json.readTree(line.removePrefix("data:")) }
+            exchanges.add(mapOf("method" to "GET","path" to "/api/v1/admin/monitoring/sync/stream","status" to 200,"requestHeaders" to mapOf("Accept" to "text/event-stream"),
+                "responseHeaders" to response.headers().map().mapValues { it.value.joinToString(",") },"responseBody" to firstData))
+            jdbc.update("UPDATE admin_session SET revoked_at=now() WHERE id=?",actor.sessionId)
+            val future=java.util.concurrent.CompletableFuture.supplyAsync { generateSequence { reader.readLine() }.any { it=="event:auth-expired" } }
+            assertTrue(future.get(25,java.util.concurrent.TimeUnit.SECONDS))
+        }
+        prometheus.dockerClient.pauseContainerCmd(prometheus.containerId).exec()
+        try { syncHealth.sample();assertEquals("STALE",syncHealth.snapshot().status);assertTrue(syncHealth.snapshot().sampledAt!=null) }
+        finally { prometheus.dockerClient.unpauseContainerCmd(prometheus.containerId).exec() }
+    }
+
     @BeforeAll fun bootstrap() {
         platformId=adminService.bootstrap("test_admin","测试管理员","Administrator-password-123")
         adminToken=call("POST","/admin/auth/sessions",mapOf("username" to "test_admin","password" to "Administrator-password-123","deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
         assertEquals(platformId,sessionService.authenticate(adminToken).id)
-        learningMapper.days(qanda.backend.learning.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
-        learningMapper.activityDays(qanda.backend.learning.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
+        learningMapper.days(qanda.backend.platform.queries.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
+        activityMapper.activityDays(qanda.backend.platform.queries.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
     }
     private fun raw(method: String,path: String,body: Any?=null,token: String?=adminToken,key: UUID?=UUID.randomUUID(),contentType: String="application/json",accept: String?=null,extraHeaders: Map<String,String> = emptyMap()): HttpResponse<String> {
         val builder=HttpRequest.newBuilder(URI("http://127.0.0.1:$port/api/v1$path")).timeout(Duration.ofSeconds(30))
@@ -225,6 +477,7 @@ class PlatformPostgresTest {
         val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "活跃专业","code" to "ACTIVITY")))
         listOf(one,two,three).forEach { s ->
             call("PUT","/me/profile",mapOf("expectedVersion" to 1,"nickname" to "活跃学生","collegeId" to college,"majorId" to major,"currentGrade" to 1),s.token)
+            jdbc.update("UPDATE domain_event_outbox SET processed_at=now() WHERE user_id=?",s.id)
             jdbc.update("DELETE FROM user_activity WHERE user_id=?",s.id)
         }
         val filter="collegeId=$college&majorId=$major&grade=1"
@@ -234,6 +487,7 @@ class PlatformPostgresTest {
         val secondToken=secondDevice["accessToken"].asText()
         call("POST","/me/activity/heartbeat",token=secondToken)
         call("POST","/me/activity/heartbeat",token=two.token)
+        activityProjection.drain()
         jdbc.update("INSERT INTO user_activity(user_id,platform,activity_date) VALUES(?,'WEB',(now() AT TIME ZONE 'Asia/Shanghai')::date-6)",two.id)
         jdbc.update("INSERT INTO user_activity(user_id,platform,activity_date) VALUES(?,'WEB',(now() AT TIME ZONE 'Asia/Shanghai')::date-29)",three.id)
         val metrics=call("GET","/admin/statistics/activity?period=WEEK&$filter")
@@ -241,6 +495,13 @@ class PlatformPostgresTest {
         assertEquals(2,metrics["weeklyActive"].asInt());assertEquals(3,metrics["monthlyActive"].asInt())
         assertEquals(7,metrics["records"].size());assertEquals(5,metrics["records"].count { it["activeUsers"].asInt()==0 })
         assertEquals(1,call("GET","/admin/statistics/activity?period=WEEK&$filter&platform=MINI_PROGRAM")["onlineUsers"].asInt())
+        assertEquals(2L,onlineUsers.list(college,major,1,null,null,qanda.backend.platform.http.PageSpec(1,20)).total)
+        val online=call("GET","/admin/statistics/online-users?$filter")
+        assertEquals(2,online["total"].asInt())
+        val onlineOne=online["items"].first { it["userId"].asText()==one.id.toString() }
+        assertEquals(2,onlineOne["onlineSessionCount"].asInt());assertEquals(2,onlineOne["clients"].size())
+        assertEquals(1,call("GET","/admin/statistics/online-users?$filter&platform=MINI_PROGRAM")["total"].asInt())
+        call("GET","/admin/statistics/online-users",token=one.token,status=403)
         val f=fixture();val practice=createPractice(one,f);val practiceId=id(practice)
         jdbc.update("UPDATE practice_session SET created_at=created_at-interval '1 minute' WHERE id=?",practiceId)
         val finish=mapOf("expectedVersion" to 1,"durationSeconds" to 30,"items" to answers(practice),"writerToken" to practice["writer"]["writerToken"].asText())
@@ -255,7 +516,7 @@ class PlatformPostgresTest {
             assertEquals(one.id.toString(),first["userId"].asText());assertEquals(4,first["answeredCount"].asInt());assertEquals(30,first["durationSeconds"].asInt())
             assertEquals(1,first["activeDays"].asInt())
         }
-        jdbc.update("UPDATE user_session SET foreground_seen_at=now()-interval '121 seconds' WHERE user_id=?",two.id)
+        jdbc.update("UPDATE session_presence SET foreground_seen_at=now()-interval '121 seconds' WHERE session_id IN(SELECT id FROM user_session WHERE user_id=?)",two.id)
         call("GET","/me",token=two.token)
         assertEquals(1,call("GET","/admin/statistics/activity?$filter")["onlineUsers"].asInt())
         call("DELETE","/auth/sessions/current",token=one.token)
@@ -796,6 +1057,7 @@ class PlatformPostgresTest {
         assertEquals(0,days[0]["practiceCount"].asInt());assertEquals(1,days[1]["practiceCount"].asInt())
         val daily=call("GET","/me/statistics?period=DAY&periodDate=2026-10-28",token=s.token)
         assertEquals(1,daily["practiceCount"].asInt());assertEquals(3,daily["correctCount"].asInt())
+        activityProjection.drain()
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM user_activity WHERE user_id=? AND platform='WEB'",Int::class.java,s.id))
     }
 
@@ -947,6 +1209,7 @@ class PlatformPostgresTest {
     }
 
     @AfterAll fun exportEvidence() {
+        consumers.stop()
         val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v3/api-docs")).GET().build(),HttpResponse.BodyHandlers.ofString())
         val spec=json.readTree(response.body())
         val operations=spec["paths"].fields().asSequence().flatMap { route -> route.value.fields().asSequence().filter { it.key in setOf("get","post","put","patch","delete") }.map { method -> Triple(route.key,method.key.uppercase(),method.value["operationId"].asText()) } }.toList()
@@ -977,6 +1240,13 @@ class PlatformPostgresTest {
         val dir=Path.of(".backend-runtime/verification");Files.createDirectories(dir)
         Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))
         Files.writeString(dir.resolve("http-redacted.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(events))
+        val tables=jdbc.queryForList("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",String::class.java).map { table -> mapOf(
+            "name" to table,
+            "columns" to jdbc.queryForList("SELECT column_name,data_type,udt_name,character_maximum_length,numeric_precision,numeric_scale,is_nullable,column_default FROM information_schema.columns WHERE table_schema='public' AND table_name=? ORDER BY ordinal_position",table),
+            "constraints" to jdbc.queryForList("SELECT conname name,contype type,pg_get_constraintdef(oid) definition FROM pg_constraint WHERE conrelid=to_regclass(?) ORDER BY conname",table),
+            "indexes" to jdbc.queryForList("SELECT indexname name,indexdef definition FROM pg_indexes WHERE schemaname='public' AND tablename=? ORDER BY indexname",table)
+        ) }
+        Files.writeString(dir.resolve("database-schema.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(tables))
         Files.walk(assetRoot).use { paths -> paths.sorted(java.util.Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) } }
     }
 }

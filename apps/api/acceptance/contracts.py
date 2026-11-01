@@ -111,7 +111,7 @@ class Contracts:
             media = content.get(mime)
             if media is None:
                 errors.append({"keyword": "response-media", "instancePointer": "/headers/content-type"})
-            elif mime == "application/json":
+            elif mime in ("application/json", "text/event-stream"):
                 errors += [{**e, "location": "responseBody"}
                            for e in self.errors(event.get("responseBody"), media["schema"], response_owner)]
         elif event.get("responseBody") is not None:
