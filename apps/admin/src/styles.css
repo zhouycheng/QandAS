@@ -1361,7 +1361,7 @@ textarea:focus-visible {
   gap: 16px;
   margin-bottom: 24px;
 }
-.compact-metrics > div {
+.compact-metrics > div, .compact-metrics > .metric-link {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1370,6 +1370,11 @@ textarea:focus-visible {
   border-radius: 10px;
   background: white;
 }
+.metric-link { text-align: left; font: inherit; cursor: pointer; }
+.metric-link:hover { background: var(--color-fill-2); }
+.metric-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sync-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sync-metrics small { color: var(--color-text-3); }
 .compact-metrics span {
   color: #6b7b92;
   font-size: 13px;

@@ -1,6 +1,8 @@
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
 import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, SubjectAccess, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UserQuery } from '../types/operations'
 
+import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
+
 export interface AdminContentGateway {
   readonly mode: 'mock' | 'http'
   loginAdmin(username: string, password: string): Promise<AdminLogin>
@@ -29,6 +31,11 @@ export interface AdminContentGateway {
   listOperationLogs(query?: LogQuery): Promise<Page<OperationLog>>
   getActivity(query: ActivityQuery): Promise<ActivitySummary>
   getRankings(query: ActivityQuery): Promise<Page<RankingRow>>
+  getOnlineUsers(query: OnlineQuery): Promise<OnlineUsers>
+  getSystemHealth(): Promise<SystemHealth>
+  getDeadLetterHead(): Promise<import('../types/monitoring').DeadLetterHead>
+  replaySyncCommand(commandId: string): Promise<unknown>
+  watchSyncHealth(onSnapshot: (data: SyncSnapshot) => void, onStatus: (status: StreamStatus) => void): () => void
   importQuestions(input: ImportQuestionsInput): Promise<number>
   previewImport(input: ImportQuestionsInput): Promise<{ acceptedCount: number }>
   getDashboardSummary(): Promise<DashboardSummary>

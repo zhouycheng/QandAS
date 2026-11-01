@@ -17,6 +17,7 @@ const groups = [
     items: [
       ['/dashboard', '运营概览', 'dashboard'],
       ['/activity', '活跃度监控', 'activity'],
+      ['/monitoring', '系统监控', 'activity'],
       ['/colleges', '院级管理', 'college'],
       ['/question-banks', '题库工作台', 'book'],
       ['/feedback', '学生反馈', 'file'],

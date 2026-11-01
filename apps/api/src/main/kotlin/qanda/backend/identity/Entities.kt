@@ -53,7 +53,6 @@ class UserSession {
     var issuedAt: Instant = Instant.now()
     var expiresAt: Instant = Instant.now()
     var lastSeenAt: Instant = Instant.now()
-    var foregroundSeenAt: Instant? = null
     var revokedAt: Instant? = null
 }
 

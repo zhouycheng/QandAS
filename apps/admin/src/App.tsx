@@ -20,6 +20,7 @@ const BankWorkspacePage = lazy(() =>
   import('./pages/question-banks/bank-workspace-page').then((module) => ({ default: module.BankWorkspacePage })),
 )
 const ActivityPage = lazy(() => import('./pages/activity/activity-page').then(m => ({ default: m.ActivityPage })))
+const MonitoringPage = lazy(() => import('./pages/monitoring/monitoring-page').then(m => ({ default: m.MonitoringPage })))
 const UsersPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.UsersPage })))
 const FeedbackPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.FeedbackPage })))
 const AnnouncementsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.AnnouncementsPage })))
@@ -47,6 +48,7 @@ export default function App() {
         >
           <Route path="/dashboard" element={<ProtectedRoute platformOnly><DashboardPage /></ProtectedRoute>} />
           <Route path="/activity" element={<ProtectedRoute platformOnly><ActivityPage /></ProtectedRoute>} />
+          <Route path="/monitoring" element={<ProtectedRoute platformOnly><MonitoringPage /></ProtectedRoute>} />
           <Route path="/colleges" element={<ProtectedRoute platformOnly><CollegesPage /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute platformOnly><UsersPage /></ProtectedRoute>} />
           <Route path="/announcements" element={<ProtectedRoute platformOnly><AnnouncementsPage /></ProtectedRoute>} />

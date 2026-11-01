@@ -5,17 +5,13 @@ import org.apache.ibatis.annotations.Param
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import qanda.backend.platform.queries.StatsFilter
 
-data class StatsFilter(val start: Instant,val end: Instant,val userId: UUID?=null,val collegeId: UUID?=null,val majorId: UUID?=null,val platform: String?=null,val grade: Int?=null,val sort: String="ACTIVE_DAYS")
 class StatsRow { var practiceCount: Long=0;var totalCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var unansweredCount: Long=0;var shortAnswerCount: Long=0;var durationSeconds: Long=0 }
 class SelfRow { var rated: Long=0;var correct: Long=0;var wrong: Long=0 }
 class DailyRow { var day: LocalDate=LocalDate.now();var practiceCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var durationSeconds: Long=0 }
 class WrongRow { var questionId: UUID?=null;var bankId: UUID?=null;var stem: String="";var type: String="";var lastOutcome: String="";var lastPracticedAt: Instant=Instant.now();var rightCount: Long=0;var wrongCount: Long=0;var available: Boolean=false }
 class WrongHistoryRow { var sessionId: UUID?=null;var revisionId: UUID?=null;var outcome: String="";var selfAssessment: String?=null;var submittedAt: Instant=Instant.now() }
-class ActivityRow { var day: LocalDate=LocalDate.now();var activeUsers: Long=0;var newUsers: Long=0 }
-class RankingRow { var userId: UUID?=null;var nickname: String="";var answeredCount: Long=0;var correctCount: Long=0;var durationSeconds: Long=0
-    var accountCode: String="";var collegeId: UUID?=null;var collegeName: String?=null;var majorId: UUID?=null;var majorName: String?=null
-    var currentGrade: Int?=null;var activeDays: Long=0;var lastActiveAt: Instant?=null }
 class OrganizationRow { var collegeId: UUID?=null;var majorId: UUID?=null;var collegeName: String?=null;var majorName: String?=null;var users: Long=0;var practiceCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0 }
 @Mapper interface LearningMapper {
     fun stats(@Param("f") filter: StatsFilter): StatsRow
@@ -27,12 +23,6 @@ class OrganizationRow { var collegeId: UUID?=null;var majorId: UUID?=null;var co
     fun questionProgressCount(@Param("userId") userId: UUID,@Param("bankId") bankId: UUID?): Long
     fun wrongHistory(@Param("userId") userId: UUID,@Param("questionId") questionId: UUID,@Param("offset") offset: Int,@Param("limit") limit: Int): List<WrongHistoryRow>
     fun wrongHistoryCount(@Param("userId") userId: UUID,@Param("questionId") questionId: UUID): Long
-    fun activeCount(@Param("f") filter: StatsFilter): Long
-    fun onlineCount(@Param("f") filter: StatsFilter,@Param("now") now: Instant): Long
-    fun activityDays(@Param("f") filter: StatsFilter): List<ActivityRow>
-    fun returningCount(@Param("f") filter: StatsFilter,@Param("previousStart") previousStart: Instant): Long
-    fun ranking(@Param("f") filter: StatsFilter,@Param("offset") offset: Int,@Param("limit") limit: Int): List<RankingRow>
-    fun rankingCount(@Param("f") filter: StatsFilter): Long
     fun organizations(@Param("f") filter: StatsFilter,@Param("offset") offset: Int,@Param("limit") limit: Int): List<OrganizationRow>
     fun organizationCount(@Param("f") filter: StatsFilter): Long
 }

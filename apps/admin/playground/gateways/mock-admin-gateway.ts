@@ -1,4 +1,6 @@
 import type { AdminContentGateway } from '../../src/gateways/admin-content-gateway'
+import type { OnlineQuery, SyncSnapshot, StreamStatus } from '../../src/types/monitoring'
+import { monitoringHealth, monitoringSnapshot } from '../scenarios/monitoring'
 import type {
   BankPublicationStatus,
   Chapter,
@@ -106,6 +108,8 @@ function publicAccount(account: import('../../src/types/operations').StoredAdmin
 }
 
 export class MockAdminContentGateway implements AdminContentGateway {
+  private syncDeadLetter = { commandId: '10000000-0000-4000-8000-000000000001', sessionId: '10000000-0000-4000-8000-000000000002', failure: { code: 'SYNC_PROCESSING_FAILED', message: '数据库暂不可用，已保留原命令', status: 503 }, reason: null }
+  private syncReplayed = false
   readonly mode = 'mock' as const
   async getSubject(id: string) { await simulateRequest(); const subject = getMockAdminState().subjects.find(s => s.id === id); if (!subject) throw new ApiError('课程不存在。', 'NOT_FOUND', 404); return structuredClone(subject) }
   private imports = new Map<string, { body: string; count: number }>()
@@ -561,11 +565,41 @@ export class MockAdminContentGateway implements AdminContentGateway {
     const records = state.activityRecords.filter(r => !query.platform || r.platform === query.platform).map(r => ({ ...r, userIds: r.userIds.filter(id => allowed.has(id)), learning: r.learning.filter(l => allowed.has(l.userId)) }))
     return { users, records }
   }
+  private onlineRows(query: OnlineQuery) {
+    const { users } = this.activityRows(query), state = getMockAdminState(), now = Date.now()
+    const sessions = (state.foregroundSessions || []).filter(s => !s.revoked && Date.parse(s.expiresAt) > now && Date.parse(s.seenAt) > now - 120000 && Date.parse(s.seenAt) <= now && (!query.platform || s.platform === query.platform))
+    return users.filter(u => u.status === 'ACTIVE' && normalize(u.account + ' ' + u.name).includes(normalize(query.keyword))).flatMap(u => {
+      const active = sessions.filter(s => s.userId === u.id)
+      if (!active.length) return []
+      return [{ userId: u.id, nickname: u.name, accountCode: u.account, collegeName: state.colleges.find(c => c.id === u.collegeId)?.name, majorName: state.majors.find(m => m.id === u.majorId)?.name, currentGrade: u.grade,
+        onlineSessionCount: active.length, lastHeartbeatAt: active.map(s => s.seenAt).sort().at(-1)!,
+        clients: [...new Set(active.map(s => s.platform))].map(platform => ({ platform, sessionCount: active.filter(s => s.platform === platform).length, lastHeartbeatAt: active.filter(s => s.platform === platform).map(s => s.seenAt).sort().at(-1)! })) }]
+    }).sort((a, b) => b.lastHeartbeatAt.localeCompare(a.lastHeartbeatAt) || a.userId.localeCompare(b.userId))
+  }
+  async getOnlineUsers(query: OnlineQuery) { await simulateRequest(); platformOnly(); return { ...paged(this.onlineRows(query), query), sampledAt: new Date().toISOString() } }
+  async getSystemHealth() { await simulateRequest(); platformOnly(); return monitoringHealth(this.syncReplayed ? 0 : 1) }
+  async getDeadLetterHead() { await simulateRequest(); platformOnly(); return { item: this.syncReplayed ? null : structuredClone(this.syncDeadLetter) } }
+  async replaySyncCommand(commandId: string) {
+    await simulateRequest('write'); platformOnly()
+    if (commandId !== this.syncDeadLetter.commandId) throw new ApiError('死信队首已变更，请重新查看', 'DEAD_LETTER_CHANGED', 409)
+    if (!this.syncReplayed) recordOperation('数据同步', '重新入队 ' + commandId)
+    this.syncReplayed = true
+    return { id: commandId, version: 1 }
+  }
+  watchSyncHealth(onSnapshot: (data: SyncSnapshot) => void, onStatus: (status: StreamStatus) => void) {
+    let stopped = false, timer: ReturnType<typeof setTimeout>
+    const tick = async () => {
+      try { await simulateRequest(); platformOnly(); if (!stopped) { onStatus('LIVE'); onSnapshot(monitoringSnapshot(this.syncReplayed ? 0 : 1)) } }
+      catch (error) { if (!stopped) { if (error instanceof ApiError && [401, 403].includes(error.status)) { stopped = true; onStatus('AUTH_EXPIRED') } else onStatus('RECONNECTING') } }
+      finally { if (!stopped) timer = setTimeout(() => { void tick() }, 5000) }
+    }
+    onStatus('CONNECTING'); void tick()
+    return () => { stopped = true; clearTimeout(timer) }
+  }
   async getActivity(query: ActivityQuery) {
     await simulateRequest(); platformOnly()
-    const { records, users } = this.activityRows(query), current = today()
-    const now = Date.now()
-    const online = new Set((getMockAdminState().foregroundSessions || []).filter(s => !s.revoked && Date.parse(s.expiresAt) > now && Date.parse(s.seenAt) > now - 120000 && Date.parse(s.seenAt) <= now && (!query.platform || s.platform === query.platform) && users.some(u => u.id === s.userId && u.status === 'ACTIVE')).map(s => s.userId)).size
+    const { records } = this.activityRows(query), current = today()
+    const online = this.onlineRows(query).length
     const ids = (days: number) => new Set(records.filter(r => r.date >= dateOffset(current, 1 - days) && r.date <= current).flatMap(r => r.userIds))
     const end = query.periodDate ?? current, length = query.period === 'MONTH' ? 30 : query.period === 'DAY' ? 1 : 7
     const trend = Array.from({ length }, (_, i) => { const date = dateOffset(end, i - length + 1); return { date, activeUsers: new Set(records.filter(r => r.date === date).flatMap(r => r.userIds)).size } })

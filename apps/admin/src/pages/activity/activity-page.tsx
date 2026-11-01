@@ -7,6 +7,7 @@ import { UserDetailDrawer } from '../../components/user-detail-drawer'
 import { useAdminGateway } from '../../gateways/gateway-context'
 import { GRADE_OPTIONS, gradeLabel } from '../../types/admin'
 import type { ActivityQuery, RankingRow } from '../../types/operations'
+import { OnlineUsersDrawer } from './online-users-drawer'
 
 export function ActivityPage() {
   const gateway = useAdminGateway()
@@ -17,6 +18,7 @@ export function ActivityPage() {
   const [period, setPeriod] = useState<ActivityQuery['period']>('WEEK')
   const [sort, setSort] = useState<ActivityQuery['sort']>('ACTIVE_DAYS')
   const [page, setPage] = useState(1), [userId, setUserId] = useState<string>()
+  const [onlineOpen, setOnlineOpen] = useState(false)
   const setFilter = (next: typeof filters) => { setFilters(next); setPage(1) }
   const cards = useQuery({ queryKey: ['activity', 'cards', filters], queryFn: () => gateway.getActivity({ ...filters, period: 'DAY' }), enabled: visible, refetchInterval: visible ? 30000 : false, refetchIntervalInBackground: false })
   const trend = useQuery({ queryKey: ['activity', 'trend', filters, trendPeriod], queryFn: () => gateway.getActivity({ ...filters, period: trendPeriod }), enabled: visible, refetchInterval: visible ? 60000 : false, refetchIntervalInBackground: false })
@@ -31,7 +33,8 @@ export function ActivityPage() {
     </Space>
     {failed && <Alert type="warning" content={'更新失败：' + failed.message + '。已有数据保留，以下时间为最近成功更新。'} action={<Button onClick={() => { void cards.refetch(); void trend.refetch(); void rankings.refetch() }}>重试</Button>} />}
     <div className="compact-metrics dashboard-metrics">
-      {[['当前在线', cards.data?.onlineUsers], ['今日活跃 DAU', cards.data?.dailyActive], ['近 7 天活跃 WAU', cards.data?.weeklyActive], ['近 30 天活跃 MAU', cards.data?.monthlyActive]].map(([label, count]) => <div key={label}><span>{label}</span><strong>{count ?? '—'}</strong></div>)}
+      <button className="metric-link" onClick={() => setOnlineOpen(true)}><span>当前在线 ↗</span><strong>{cards.data?.onlineUsers ?? '—'}</strong></button>
+      {[['今日活跃 DAU', cards.data?.dailyActive], ['近 7 天活跃 WAU', cards.data?.weeklyActive], ['近 30 天活跃 MAU', cards.data?.monthlyActive]].map(([label, count]) => <div key={label}><span>{label}</span><strong>{count ?? '—'}</strong></div>)}
     </div>
     <p className="muted">人数更新：{cards.data?.updatedAt ? new Date(cards.data.updatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'} · 北京时间 · 登录学生按账号去重</p>
     <Card title="每日活跃人数" bordered={false} extra={<Radio.Group type="button" value={trendPeriod} onChange={setTrendPeriod}><Radio value="WEEK">近 7 天</Radio><Radio value="MONTH">近 30 天</Radio></Radio.Group>}>
@@ -50,5 +53,6 @@ export function ActivityPage() {
       <p className="muted">榜单更新：{rankings.dataUpdatedAt ? new Date(rankings.dataUpdatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'}。答题量与学习时长按已提交正式练习统计。</p>
     </Card>
     {userId && <UserDetailDrawer id={userId} onClose={() => setUserId(undefined)} />}
+    {onlineOpen && <OnlineUsersDrawer filters={filters} visible={visible} onClose={() => setOnlineOpen(false)} />}
   </section>
 }

@@ -47,7 +47,13 @@ class Sessions(private val sql: IdentityMapper, private val users: UserAccountMa
             if(user.status!="ACTIVE" || session.userId!=actor.id || session.revokedAt!=null || !session.expiresAt.isAfter(now) || session.credentialVersion!=user.credentialVersion) unauthenticated()
         } else {
             val admin=sql.lockAdmin(actor.id) ?: unauthenticated();val session=sql.lockAdminSession(actor.sessionId) ?: unauthenticated()
-            if(admin.status!="ACTIVE" || admin.role!=actor.role || session.adminId!=actor.id || session.revokedAt!=null || !session.expiresAt.isAfter(now) || session.credentialVersion!=admin.credentialVersion) unauthenticated()
+            if(admin.status!="ACTIVE" || admin.role!=actor.role || session.adminId!=actor.id || session.revokedAt!=null || !session.expiresAt.isAfter(now) || !session.lastSeenAt.plusSeconds(policies.selectById(1).sessionMinutes*60L).isAfter(now) || session.credentialVersion!=admin.credentialVersion) unauthenticated()
         }
+    }
+    @Transactional(readOnly=true,timeout=3)
+    fun revalidate(actor: Actor) {
+        if(actor.kind!="ADMIN") forbidden()
+        val now=clock.instant();val admin=admins.selectById(actor.id) ?: unauthenticated();val session=sql.adminSessionById(actor.sessionId) ?: unauthenticated()
+        if(admin.status!="ACTIVE" || admin.role!=actor.role || session.adminId!=actor.id || session.revokedAt!=null || !session.expiresAt.isAfter(now) || !session.lastSeenAt.plusSeconds(policies.selectById(1).sessionMinutes*60L).isAfter(now) || session.credentialVersion!=admin.credentialVersion) unauthenticated()
     }
 }

@@ -5,6 +5,8 @@ import { getAdminSession, logout } from '../lib/auth'
 import { importBody, questionFromWire, questionToWire } from './question-wire'
 import { countQuestions } from '../lib/question-content'
 import { ApiError } from './api-error'
+import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
+import { watchSyncStream } from './sync-stream'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
@@ -129,6 +131,16 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   getDashboardSummary() { return this.request<DashboardSummary>('GET', '/admin/dashboard') }
   getActivity(query: ActivityQuery) { return this.request<ActivitySummary>('GET', '/admin/statistics/activity', undefined, query) }
   getRankings(query: ActivityQuery) { return this.page<RankingRow>('/admin/statistics/rankings', query) }
+  getOnlineUsers(query: OnlineQuery) { return this.request<OnlineUsers>('GET', '/admin/statistics/online-users', undefined, { page: 1, pageSize: 20, ...query }) }
+  getSystemHealth() { return this.request<SystemHealth>('GET', '/admin/monitoring/health') }
+  getDeadLetterHead() { return this.request<import('../types/monitoring').DeadLetterHead>('GET', '/admin/sync/dead-letters/head') }
+  replaySyncCommand(commandId: string) { return this.write('POST', `/admin/sync/dead-letters/${segment(commandId)}/replay`) }
+  watchSyncHealth(onSnapshot: (data: SyncSnapshot) => void, onStatus: (status: StreamStatus) => void) {
+    return watchSyncStream(this.fetcher, this.baseUrl + '/api/v1/admin/monitoring/sync/stream', this.token, onSnapshot, status => {
+      if (status === 'AUTH_EXPIRED') { logout(); if (typeof window !== 'undefined') window.dispatchEvent(new Event('storage')) }
+      onStatus(status)
+    })
+  }
   async listUsers(query?: UserQuery) { const result = await this.page<WireUser>('/admin/users', query); return { ...result, items: result.items.map(userView) } }
   async getUser(id: string) { return userView(await this.request<WireUser>('GET', '/admin/users/' + segment(id))) }
   getUserStatistics(id: string) { return this.request<{ answeredCount: number; correctCount: number; durationSeconds: number }>('GET', `/admin/students/${segment(id)}/statistics`, undefined, { period: 'ALL' }) }

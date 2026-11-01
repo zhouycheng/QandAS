@@ -15,6 +15,7 @@ import java.util.UUID
     fun adminSession(@Param("digest") digest: ByteArray): AdminSession?
     fun lockUserSession(@Param("id") id: UUID): UserSession?
     fun lockAdminSession(@Param("id") id: UUID): AdminSession?
+    fun adminSessionById(@Param("id") id: UUID): AdminSession?
     fun touchUserSession(@Param("id") id: UUID, @Param("now") now: Instant)
     fun touchForeground(@Param("id") id: UUID,@Param("userId") userId: UUID,@Param("now") now: Instant): Int
     fun touchAdminSession(@Param("id") id: UUID, @Param("now") now: Instant)
