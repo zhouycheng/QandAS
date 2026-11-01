@@ -1,6 +1,6 @@
 # 小程序接口接入台账
 
-核对日期：2026-10-31。接口集合取自 `apps/api/contracts/openapi.yaml`；逐项以当前 Controller 和小程序页面调用链核对。表中“已接入待验收”表示代码已有真实页面或生命周期调用，真机验收须结合运行记录确认。仅存在导出函数的能力不计为接入。页面请求预算与缓存规则见[页面加载说明](miniapp-page-loading.md)。
+核对日期：2026-11-01。接口集合取自 `apps/api/contracts/openapi.yaml`；逐项以当前 Controller 和小程序页面调用链核对。表中“已接入待验收”表示代码已有真实页面或生命周期调用，真机验收须结合运行记录确认。仅存在导出函数的能力不计为接入。页面请求预算与缓存规则见[页面加载说明](miniapp-page-loading.md)。
 
 ## 调用与数据约定
 
@@ -26,62 +26,72 @@
 
 | 方法与路径 | operationId | 用途 | 适用端 / 权限 | 小程序入口与触发动作 | 调用链 | 接入状态 / 未使用原因与后续建议 | 兼容约束 / 证据 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET /api/v1/admin/administrators` | `Admin_list_GET` | 读取管理员 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/administrators` | `Admin_create_POST` | 创建管理员 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `DELETE /api/v1/admin/administrators/{id}` | `Admin_disable_DELETE` | 删除或撤销管理员 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/administrators/{id}` | `Admin_update_PUT` | 更新管理员 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/announcements` | `Operations_adminAnnouncements_GET` | 读取公告 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/announcements` | `Operations_createAnnouncement_POST` | 创建公告 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `DELETE /api/v1/admin/announcements/{id}` | `Operations_deleteAnnouncement_DELETE` | 删除或撤销公告 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/announcements/{id}` | `Operations_updateAnnouncement_PUT` | 更新公告 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/audit-logs` | `Admin_logs_GET` | 读取操作日志 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/auth/logout` | `Admin_logout_POST` | 创建注销登录 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/auth/me` | `Admin_me_GET` | 读取当前身份 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/auth/sessions` | `Admin_login_POST` | 创建登录会话 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/colleges` | `Catalog_adminColleges_GET` | 读取学院 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/colleges` | `Catalog_createCollege_POST` | 创建学院 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/colleges/{id}` | `Catalog_updateCollege_PUT` | 更新学院 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/colleges/{id}/majors` | `Catalog_adminMajors_GET` | 读取专业 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/course-requests` | `Operations_adminRequests_GET` | 读取缺课需求 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/course-requests/{id}` | `Operations_handleRequest_PUT` | 更新缺课需求 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/dashboard` | `Operations_dashboard_GET` | 读取后台概览 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/majors` | `Catalog_createMajor_POST` | 创建专业 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/majors/{id}` | `Catalog_updateMajor_PUT` | 更新专业 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/question-banks` | `Content_adminBanks_GET` | 读取题库 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/question-banks` | `Content_createBank_POST` | 创建题库 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `DELETE /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_deleteChapter_DELETE` | 删除或撤销章节 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_updateChapter_PUT` | 更新章节 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/question-banks/{id}` | `Content_adminBank_GET` | 读取题库 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/question-banks/{id}` | `Content_updateBank_PUT` | 更新题库 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/question-banks/{id}/chapter-order` | `Content_reorder_PUT` | 更新章节顺序 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/question-banks/{id}/chapters` | `Content_adminChapters_GET` | 读取章节 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/question-banks/{id}/chapters` | `Content_createChapter_POST` | 创建章节 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/question-banks/{id}/images` | `File_upload_POST` | 创建题库图片 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/question-banks/{id}/import-preview` | `Content_preview_POST` | 创建题目导入预览 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/question-banks/{id}/imports` | `Content_importQuestions_POST` | 创建题目导入 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/question-banks/{id}/publication` | `Content_publish_PUT` | 更新题库发布状态 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/question-banks/{id}/questions` | `Content_adminQuestions_GET` | 读取题目 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/question-feedback` | `Operations_adminFeedback_GET` | 读取题目反馈 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/question-feedback/{id}` | `Operations_handleFeedback_PUT` | 更新题目反馈 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/questions` | `Content_createQuestion_POST` | 创建题目 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `DELETE /api/v1/admin/questions/{id}` | `Content_deactivateQuestion_DELETE` | 删除或撤销题目 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/questions/{id}` | `Content_adminQuestion_GET` | 读取题目 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/questions/{id}` | `Content_updateQuestion_PUT` | 更新题目 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/security-policy` | `Admin_policy_GET` | 读取管理员安全策略 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/security-policy` | `Admin_policy_PUT` | 更新管理员安全策略 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/statistics/activity` | `Learning_activity_GET` | 读取平台活跃统计 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/statistics/organizations` | `Learning_organizations_GET` | 读取组织学习统计 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/statistics/rankings` | `Learning_rankings_GET` | 读取学习排名 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/statistics/summary` | `Learning_adminSummary_GET` | 读取学习统计汇总 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/students/{id}/practice-history` | `Learning_studentHistory_GET` | 读取练习历史 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/students/{id}/practice-history/{sessionId}` | `Learning_studentResult_GET` | 读取练习历史 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/students/{id}/statistics` | `Learning_studentSummary_GET` | 读取学习统计 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/subjects` | `Catalog_adminSubjects_GET` | 读取课程 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `POST /api/v1/admin/subjects` | `Catalog_createSubject_POST` | 创建课程 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/subjects/{id}` | `Catalog_updateSubject_PUT` | 更新课程 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/users` | `Admin_users_GET` | 读取学生账号 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | 读取学生账号 | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
-| `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | 更新status | 管理端 / 管理员 | — | — | 其他端专用；随管理端接入验收 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/administrators` | `Admin_list_GET` | 读取管理员 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/administrators` | `Admin_create_POST` | 创建管理员 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `DELETE /api/v1/admin/administrators/{id}` | `Admin_disable_DELETE` | 停用管理员 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/administrators/{id}` | `Admin_account_GET` | 已选维护者资料 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `PUT /api/v1/admin/administrators/{id}` | `Admin_update_PUT` | 更新管理员 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/announcements` | `Operations_adminAnnouncements_GET` | 读取公告 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/announcements` | `Operations_createAnnouncement_POST` | 创建公告 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `DELETE /api/v1/admin/announcements/{id}` | `Operations_deleteAnnouncement_DELETE` | 删除或撤销公告 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/announcements/{id}` | `Operations_updateAnnouncement_PUT` | 更新公告 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/audit-logs` | `Admin_logs_GET` | 读取操作日志 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/auth/logout` | `Admin_logout_POST` | 创建注销登录 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/auth/me` | `Admin_me_GET` | 读取当前身份 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/auth/sessions` | `Admin_login_POST` | 创建登录会话 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/colleges` | `Catalog_adminColleges_GET` | 读取学院 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/colleges` | `Catalog_createCollege_POST` | 创建学院 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/colleges/{id}` | `Catalog_adminCollege_GET` | 已选学院名称 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `PUT /api/v1/admin/colleges/{id}` | `Catalog_updateCollege_PUT` | 更新学院 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/colleges/{id}/majors` | `Catalog_adminMajors_GET` | 读取专业 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/course-requests` | `Operations_adminRequests_GET` | 读取缺课需求 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/course-requests/{id}` | `Operations_handleRequest_PUT` | 更新缺课需求 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/dashboard` | `Operations_dashboard_GET` | 读取后台概览 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/directory-summary` | `Catalog_directory_GET` | 院级及年级人数聚合 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `GET /api/v1/admin/majors` | `Catalog_allMajors_GET` | 专业分页及搜索 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `POST /api/v1/admin/majors` | `Catalog_createMajor_POST` | 创建专业 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/majors/{id}` | `Catalog_adminMajor_GET` | 已选专业名称 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `PUT /api/v1/admin/majors/{id}` | `Catalog_updateMajor_PUT` | 更新专业 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/question-banks` | `Content_adminBanks_GET` | 读取题库 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/question-banks` | `Content_createBank_POST` | 创建题库 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `DELETE /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_deleteChapter_DELETE` | 删除空章节 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_updateChapter_PUT` | 更新章节 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/question-banks/{id}` | `Content_adminBank_GET` | 读取题库 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/question-banks/{id}` | `Content_updateBank_PUT` | 更新题库 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/question-banks/{id}/chapter-order` | `Content_reorder_PUT` | 更新章节顺序 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/question-banks/{id}/chapters` | `Content_adminChapters_GET` | 读取章节 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/question-banks/{id}/chapters` | `Content_createChapter_POST` | 创建章节 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/question-banks/{id}/images` | `File_upload_POST` | 创建题库图片 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/question-banks/{id}/import-preview` | `Content_preview_POST` | 创建题目导入预览 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/question-banks/{id}/imports` | `Content_importQuestions_POST` | 创建题目导入 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/question-banks/{id}/publication` | `Content_publish_PUT` | 更新题库发布状态 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/question-banks/{id}/publication-checks` | `Content_publicationChecks_GET` | 发布检查 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `GET /api/v1/admin/question-banks/{id}/questions` | `Content_adminQuestions_GET` | 读取题目 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/question-feedback` | `Operations_adminFeedback_GET` | 读取题目反馈 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/question-feedback/{id}` | `Operations_handleFeedback_PUT` | 更新题目反馈 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/questions` | `Content_createQuestion_POST` | 创建题目 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `DELETE /api/v1/admin/questions/{id}` | `Content_deactivateQuestion_DELETE` | 停用题目并保留历史 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/questions/{id}` | `Content_adminQuestion_GET` | 读取题目 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/questions/{id}` | `Content_updateQuestion_PUT` | 更新题目 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/security-policy` | `Admin_policy_GET` | 读取管理员安全策略 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/security-policy` | `Admin_policy_PUT` | 更新管理员安全策略 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/statistics/activity` | `Learning_activity_GET` | 读取平台活跃统计 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/statistics/organizations` | `Learning_organizations_GET` | 读取组织学习统计 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/statistics/rankings` | `Learning_rankings_GET` | 读取学习排名 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/statistics/summary` | `Learning_adminSummary_GET` | 读取学习统计汇总 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/students/{id}/practice-history` | `Learning_studentHistory_GET` | 读取练习历史 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/students/{id}/practice-history/{sessionId}` | `Learning_studentResult_GET` | 读取练习历史 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/students/{id}/statistics` | `Learning_studentSummary_GET` | 读取学习统计 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/subjects` | `Catalog_adminSubjects_GET` | 读取课程 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `POST /api/v1/admin/subjects` | `Catalog_createSubject_POST` | 创建课程 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/subjects/{id}` | `Catalog_adminSubject_GET` | 目标课程元数据 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `PUT /api/v1/admin/subjects/{id}` | `Catalog_updateSubject_PUT` | 更新课程 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/subjects/{id}/user-access` | `Catalog_userAccess_GET` | 课程开放用户分页 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `POST /api/v1/admin/subjects/{id}/user-access` | `Catalog_grant_POST` | 按课程开放用户 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `DELETE /api/v1/admin/subjects/{id}/user-access/{userId}` | `Catalog_revoke_DELETE` | 撤销课程单独开放 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | v1.0；Controller、OpenAPI 与独立 HTTP 检查 |
+| `GET /api/v1/admin/users` | `Admin_users_GET` | 读取学生账号 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | 读取学生账号 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
+| `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | 更新status | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
 | `GET /api/v1/announcements` | `Operations_announcements_GET` | 公告摘要与分页正文 | 小程序、用户 Web / 学生 | 首页提示；打开弹窗及加载更多 | subject-list → SubjectListViewModel → practice-repository → remote-data-repository.refreshAnnouncements → api-transport | 已接入待验收 | 首页 1 条，弹窗每页 20；60 秒缓存；remote-data 自检及开发者工具遮罩验收 |
 | `POST /api/v1/auth/email-challenges` | `Identity_requestPublicEmailChallenge_POST` | 验证码挑战 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册/找回密码发送验证码 | register/forgot-password → AuthFormViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `POST /api/v1/auth/email-registrations` | `Identity_registerEmail_POST` | 邮箱注册 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册页提交 | register → RegisterViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
@@ -91,23 +101,26 @@
 | `POST /api/v1/auth/wechat-registrations` | `Identity_registerWechat_POST` | 注册微信用户 | 小程序、用户 Web / 公开挑战/注册或登录 | 首次微信登录 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `POST /api/v1/auth/wechat-sessions` | `Identity_wechatLogin_POST` | 微信身份交换 | 小程序、用户 Web / 公开挑战/注册或登录 | 登录页微信登录 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `GET /api/v1/colleges` | `Catalog_colleges_GET` | 学院目录 | 小程序、用户 Web / 公开目录 | 账号页打开院校选择器及加载更多 | account → AccountViewModel → remote-data-repository → api-transport | 已接入待验收 | 每页 100；24 小时缓存；账号页进入不预取；remote-data 自检 |
-| `GET /api/v1/colleges/{id}/majors` | `Catalog_majors_GET` | 读取专业 | 小程序、用户 Web / 公开目录 | — | — | 无入口；已预留目录读取方法，专业选择控件待补 | 保持当前合同；Controller + OpenAPI |
-| `GET /api/v1/files/{id}` | `File_read_GET` | 读取题目图片 | 各端 / 按文件可见性 | — | — | 基础设施接口；文件 UI 接入状态需逐题核验 | 文件授权与缓存规则；Controller + OpenAPI |
+| `GET /api/v1/colleges/{id}/majors` | `Catalog_majors_GET` | 专业目录 | 小程序、用户 Web / 公开目录 | 个人资料打开专业选择器、加载更多 | account → AccountViewModel → remote-data-repository.loadMajors → api-transport | 已接入待验收 | 停用分类不供新选择；每页 100；旧资料保留 |
+| `GET /api/v1/files/{id}` | `File_read_GET` | 题目及材料附件 | 各端 / 按文件可见性 | 答题与题目详情中的附件组件 | practice/question-detail → ViewModel → question-assets → http-gateway；question-images → question-assets | 已接入待验收 | 完整快照下载后落盘；PNG 校验、账号隔离、去重与最多 4 个并发；question-assets 自检 |
 | `GET /api/v1/health` | `Health_health_GET` | 健康检查 | 各端 / 公开 | — | — | 基础设施接口；由服务健康检查调用 | 保持状态及版本字段兼容；Controller + OpenAPI |
 | `GET /api/v1/me` | `Identity_me_GET` | 读取账号资料 | 小程序、用户 Web / 学生 | 我的/账号页缓存过期更新；登录后读取 | my/account → MyViewModel/AccountViewModel → remote-data-repository → api-transport；登录 → auth-gateway | 已接入待验收 | 5 分钟缓存；可选院校/专业名称；资料编辑与账号隔离自检 |
-| `GET /api/v1/me/course-requests` | `Operations_requests_GET` | 读取缺课需求 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `POST /api/v1/me/course-requests` | `Operations_requestCourse_POST` | 创建缺课需求 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
+| `POST /api/v1/me/activity/heartbeat` | `Identity_heartbeat_POST` | 前台在线与访问活跃 | 小程序、用户 Web / 学生 | 登录成功、App.onShow、前台每 60 秒 | App → activity-heartbeat → api-transport | 已接入待验收 | 学生会话；退后台停发；无离线补传；activity-heartbeat 自检与隔离 PG |
+| `GET /api/v1/me/course-requests` | `Operations_requests_GET` | 缺课需求处理结果 | 小程序、用户 Web / 学生 | 我的 → 反馈记录 → 课程需求分页 | feedback → FeedbackViewModel → feedback-repository.list → api-transport | 已接入待验收 | 每页 20；按用户读取，拒收旧账号响应 |
+| `POST /api/v1/me/course-requests` | `Operations_requestCourse_POST` | 提交缺课需求 | 小程序、用户 Web / 学生 | 无匹配题库 → 反馈缺少课程 | bank-detail → feedback-entry → feedback → FeedbackViewModel → feedback-repository.submit → api-transport | 已接入待验收 | 原内容幂等重试；提交后查看处理结果；feedback 自检 |
 | `PUT /api/v1/me/email-binding` | `Identity_changeEmail_PUT` | 更新邮箱绑定 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
 | `POST /api/v1/me/email-challenges` | `Identity_requestOwnEmailChallenge_POST` | 创建邮箱验证码挑战 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/favorites` | `Discovery_favorites_GET` | 分页收藏列表、全量集合管理 | 小程序、用户 Web / 学生 | 收藏本筛选/排序/翻页；清空操作逐页读取 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection/clearFavorites → api-transport | 已接入待验收 | 每页 5；来源名称、practiced 可选；30 秒缓存；分页统计 PostgreSQL 验收 |
 | `DELETE /api/v1/me/favorites/{id}` | `Discovery_unfavorite_DELETE` | 取消收藏 | 小程序、用户 Web / 学生 | 答题/详情取消收藏及收藏本管理 | practice/question-detail/wrong-book → 对应 ViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `PUT /api/v1/me/favorites/{id}` | `Discovery_favorite_PUT` | 收藏题目 | 小程序、用户 Web / 学生 | 答题或题目详情收藏 | practice/question-detail → 对应 ViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `GET /api/v1/me/learning-overview` | `Learning_overview_GET` | 学习、目录计数和可续答摘要 | 小程序、用户 Web / 学生 | 首页/复盘刷新；设置复用已有摘要 | subject-list/stats → 对应 ViewModel → practice-repository → remote-data-repository.refreshOverview → api-transport | 已接入待验收 | v1.0 新增能力；30 秒缓存；首页 2 请求自检、PostgreSQL 聚合验收 |
 | `PUT /api/v1/me/password` | `Identity_changePassword_PUT` | 更新密码 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/practice-history` | `Learning_history_GET` | 读取练习历史 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/practice-history/{id}` | `Learning_record_GET` | 读取练习历史 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `PUT /api/v1/me/profile` | `Identity_updateProfile_PUT` | 更新昵称与院系资料 | 小程序、用户 Web / 学生 | 账号页保存资料 | account → AccountViewModel → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `GET /api/v1/me/question-feedback` | `Operations_feedback_GET` | 读取题目反馈 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `POST /api/v1/me/question-feedback` | `Operations_submitFeedback_POST` | 创建题目反馈 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
+| `PUT /api/v1/me/profile` | `Identity_updateProfile_PUT` | 保存昵称、学院、专业和当前年级 | 小程序、用户 Web / 学生 | 注册或登录后完善资料；个人资料自由修改 | account → AccountViewModel → remote-data-repository → api-transport | 已接入待验收 | 业务版本；手动年级重设学年；保存后刷新范围并拒收旧响应 |
+| `GET /api/v1/me/question-collections/summary` | `Learning_collectionSummary_GET` | 集合计数、筛选计数与科目/题库分布 | 小程序、用户 Web / 学生 | 错题本/收藏本统计卡及筛选项 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection → api-transport | 已接入待验收 | kind=WRONG 或 FAVORITE；全集合统计，30 秒缓存；7 条集合分页 5+2 的 PostgreSQL 验收 |
+| `GET /api/v1/me/question-feedback` | `Operations_feedback_GET` | 题目纠错处理结果 | 小程序、用户 Web / 学生 | 我的 → 反馈记录 → 题目纠错分页 | feedback → FeedbackViewModel → feedback-repository.list → api-transport | 已接入待验收 | 每页 20；按用户读取，展示管理员回复 |
+| `POST /api/v1/me/question-feedback` | `Operations_submitFeedback_POST` | 提交题目纠错 | 小程序、用户 Web / 学生 | 答题工具栏、题目详情 → 纠错 | practice/question-detail → ViewModel → feedback-entry → FeedbackViewModel → feedback-repository.submit → api-transport | 已接入待验收 | 携带稳定题目与修订 ID；原内容幂等重试 |
 | `GET /api/v1/me/question-progress` | `Learning_questionProgress_GET` | 逐题最近已判定结果与题库进度 | 小程序、用户 Web / 学生 | — | — | 无入口；页面使用概览、目录进度和集合摘要；后续逐题进度页可接入 | 保留现有合同；静态调用检索及首页请求计数 |
 | `GET /api/v1/me/recent-learning` | `Learning_recent_GET` | 最近练习 | 小程序、用户 Web / 学生 | 点击最近练习；题库最近在刷 | subject-list/bank-detail → 对应 ViewModel → practice-repository → remote-data-repository.refreshRecent → api-transport | 已接入待验收 | 每页 20；30 秒缓存；首页继续答题使用 learning-overview；草稿和等待入口自检 |
 | `GET /api/v1/me/recommendations` | `Discovery_recommendations_GET` | 读取课程推荐 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
@@ -121,10 +134,7 @@
 | `PUT /api/v1/me/wechat-binding` | `Identity_bindWechat_PUT` | 更新微信绑定 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/wrong-questions` | `Learning_wrong_GET` | 分页错题列表 | 小程序、用户 Web / 学生 | 错题本筛选/排序/翻页 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection → api-transport | 已接入待验收 | 每页 5；chip/sort 可选；30 秒缓存；分页统计 PostgreSQL 验收 |
 | `GET /api/v1/me/wrong-questions/{id}/history` | `Learning_wrongHistory_GET` | 读取历次答题记录 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `GET /api/v1/me/learning-overview` | `Learning_overview_GET` | 学习、目录计数和可续答摘要 | 小程序、用户 Web / 学生 | 首页/复盘刷新；设置复用已有摘要 | subject-list/stats → 对应 ViewModel → practice-repository → remote-data-repository.refreshOverview → api-transport | 已接入待验收 | v1.0 新增能力；30 秒缓存；首页 2 请求自检、PostgreSQL 聚合验收 |
-| `GET /api/v1/me/question-collections/summary` | `Learning_collectionSummary_GET` | 集合计数、筛选计数与科目/题库分布 | 小程序、用户 Web / 学生 | 错题本/收藏本统计卡及筛选项 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection → api-transport | 已接入待验收 | kind=WRONG 或 FAVORITE；全集合统计，30 秒缓存；7 条集合分页 5+2 的 PostgreSQL 验收 |
-| `POST /api/v1/practice/scope-preview` | `Practice_preview_POST` | 创建练习范围预览 | 小程序、用户 Web / 学生、游客 | — | — | 无入口；创建时服务端校验范围，后续需要题量预览时接入 | 保持当前合同；Controller + OpenAPI |
-| `POST /api/v1/practice/trial-snapshots` | `Practice_trialSnapshot_POST` | 下载公开题库试答快照 | 小程序、用户 Web / 游客 | 题库配置或模拟考试开始试答 | practice → PracticeViewModel.loadTrial → trial-practice.prepare → http-gateway/api-transport | 已接入待验收 | v1.0 新增只读能力；配置、修订、题序与独立判题数据；四题型、存储失败及 PostgreSQL 游客验收 |
+| `POST /api/v1/practice/scope-preview` | `Practice_preview_POST` | 预览实际选题范围 | 小程序、用户 Web / 学生、游客 | 题库开始、首页模拟考试、错题或收藏重练 | bank-detail/subject-list/wrong-book → ViewModel → practice-repository.previewRemotePracticeScope → remote-data-repository → api-transport | 已接入待验收 | 完整题组、实际题数、选题 ID 与内容版本复用于创建；资料变更拒收迟到响应 |
 | `POST /api/v1/practice/sessions` | `Practice_create_POST` | 创建配置及题目快照 | 小程序、用户 Web / 学生 | 题库配置确认/首页模拟练习/错题收藏练习 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | selectionKind/collectionChip 由后端确定完整范围；快照附带收藏 ID；列表 5 条可创建 7 题，PostgreSQL 验收 |
 | `GET /api/v1/practice/sessions/{id}` | `Practice_read_GET` | 读取会话 | 小程序、用户 Web / 学生 | 恢复云端练习 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `POST /api/v1/practice/sessions/{id}/cancel` | `Practice_cancel_POST` | 创建取消练习 | 小程序、用户 Web / 学生 | — | — | 无入口；离开页面保留草稿，显式取消练习入口待补 | 保持当前合同；Controller + OpenAPI |
@@ -136,6 +146,7 @@
 | `POST /api/v1/practice/sessions/{id}/writer-acquire` | `Practice_acquireWriter_POST` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `POST /api/v1/practice/sessions/{id}/writer-release` | `Practice_releaseWriter_POST` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `GET /api/v1/practice/sessions/{id}/writer-state` | `Practice_writerState_GET` | 练习快照与写入所有权 | 小程序、用户 Web / 学生 | 创建/恢复/同步与跨端接管 | practice/App → PracticeViewModel/online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `POST /api/v1/practice/trial-snapshots` | `Practice_trialSnapshot_POST` | 下载公开题库试答快照 | 小程序、用户 Web / 游客 | 题库配置或模拟考试开始试答 | practice → PracticeViewModel.loadTrial → trial-practice.prepare → http-gateway/api-transport | 已接入待验收 | v1.0 新增只读能力；配置、修订、题序与独立判题数据；四题型、存储失败及 PostgreSQL 游客验收 |
 | `GET /api/v1/question-banks` | `Content_banks_GET` | 已发布题库目录 | 小程序、用户 Web / 学生、游客 | 题库页当前科目/搜索/翻页；模拟练习选择题库 | bank-detail/subject-list → 对应 ViewModel → practice-repository → remote-data-repository.refreshBanks → api-transport | 已接入待验收 | 每页 20；includeProgress 可选，批量计数；5 分钟缓存；SQL 与分页验收 |
 | `GET /api/v1/question-banks/{id}` | `Content_bank_GET` | 获取内容版本和题量 | 小程序、用户 Web / 学生、游客 | 目标题库配置、直达练习及最近练习元数据缺失时 | bank-detail/subject-list/practice → 对应 ViewModel → practice-repository/online-practice → remote-data-repository.loadBank/api-transport | 已接入待验收 | 按 ID 读取元数据；内容版本用于创建校验；保持默认字段行为 |
 | `GET /api/v1/question-banks/{id}/chapters` | `Content_chapters_GET` | 读取章节 | 小程序、用户 Web / 学生、游客 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
@@ -145,9 +156,7 @@
 | `GET /api/v1/subjects` | `Catalog_subjects_GET` | 课程目录 | 小程序、用户 Web / 学生、游客 | 题库页进入及科目分页 | bank-detail → BankDetailViewModel → practice-repository → remote-data-repository.refreshSubjects → api-transport | 已接入待验收 | 每页 20；includeProgress 可选，批量计数；5 分钟缓存；PostgreSQL 验收 |
 | `GET /api/v1/subjects/{id}` | `Catalog_subject_GET` | 读取课程 | 小程序、用户 Web / 学生、游客 | 直接进入未加载的目标科目 | bank-detail → BankDetailViewModel → practice-repository → remote-data-repository.loadSubject → api-transport | 已接入待验收 | 按 ID 读取；includeProgress 可选；5 分钟缓存；目录第一页外直达自检及 PostgreSQL 验收 |
 
-当前合同合计 **118** 项操作。本表以方法和路径为唯一键，合同新增或修改后重新核对调用点与状态。后端 HTTP 覆盖与小程序入口覆盖分别统计。
-
-当前小程序有调用入口 **37** 项，状态为“已接入待验收”；其他端专用 **56** 项、无完整入口 **23** 项、基础设施接口 **2** 项。方法、路径与 operationId 的集合核对无缺项、无多项。
+当前合同合计 **129** 项操作。小程序有真实调用入口 **45** 项，状态为“已接入待验收”；管理端专用 **66** 项、无完整小程序入口 **17** 项、基础设施接口 **1** 项。方法、路径及 operationId 的集合逐项对齐合同。正式客户端联调另行验收。
 
 ## 小程序能力与接口缺口
 
@@ -161,7 +170,9 @@
 | 用户上传题库 | 题库页入口关闭，直接导入路由由正式应用阻止 | 独立产品阶段确定所有权与管理流程 |
 | 历史记录 | 现有最近练习入口可继续未完成练习或查看最近已完成结果 | 后台等待练习可从最近练习选择；独立历史列表和筛选入口待补 |
 
-## 验证记录
+## 2026-10-31 阶段验证记录
+
+本节保留此前阶段证据；当前三端检查以[独立验收记录](multi-client-compatibility-verification.md)为准。
 
 - 游客读取已发布目录、分页搜索、详情、缓存隔离与不请求个人统计通过；后端公开试答验证包含未发布内容拒绝、修订检查、答案分层和正式记录数量不变。
 - `tests/trial-layout.check.js`：两次共享额度、重复创建合并、超时与存储失败、四类题型、离线恢复、登录后回看、账号切换保留额度、布局保存回滚、取消手势和跨屏滚动位置计算通过。
@@ -172,3 +183,76 @@
 - `tests/bank-detail-entry.check.js`：75 项通过；`tests/result-review.check.js`：38 项通过。
 - `tests/compile.check.js`：26 个 WXSS、25 个 WXML 及 WXS 编译通过，通配符与闭合标签检查通过。
 - 上述证据来自本地自动检查；真实接口闭环与请求开销观察见[验收记录](miniapp-integration-verification.md)，微信真机及外部服务验收继续按该记录执行。
+
+## 管理端逐接口调用补充（2026-11-01）
+
+管理端专用接口 66 项，其中页面或登录链实际使用 59 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。此处“已接入待联调”只表示静态调用链、受控适配器与独立服务检查，不表示已完成真实三端联调。平台管理员可用全部管理能力；内容管理员只能读取目录并维护已分配题库、处理对应题目反馈。
+
+| 方法与路径 | operationId | 管理端入口与调用 | 状态与后续 |
+| --- | --- | --- | --- |
+| `GET /api/v1/admin/administrators` | `Admin_list_GET` | operations-pages.AdministratorsPage / ResourceSelect → 管理员读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/administrators` | `Admin_create_POST` | operations-pages.AdministratorsPage / ResourceSelect → 管理员读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/administrators/{id}` | `Admin_account_GET` | operations-pages.AdministratorsPage / ResourceSelect → 管理员读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/administrators/{id}` | `Admin_update_PUT` | operations-pages.AdministratorsPage / ResourceSelect → 管理员读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `DELETE /api/v1/admin/administrators/{id}` | `Admin_disable_DELETE` | — | 无入口；管理员编辑页用 PUT 更新停用状态；DELETE 无独立按钮 |
+| `GET /api/v1/admin/announcements` | `Operations_adminAnnouncements_GET` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/announcements` | `Operations_createAnnouncement_POST` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/announcements/{id}` | `Operations_updateAnnouncement_PUT` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `DELETE /api/v1/admin/announcements/{id}` | `Operations_deleteAnnouncement_DELETE` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/audit-logs` | `Admin_logs_GET` | operations-pages.LogsPage → listOperationLogs | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/auth/logout` | `Admin_logout_POST` | login-page / admin-layout → loginAdmin/currentAdmin/logoutAdmin | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/auth/me` | `Admin_me_GET` | login-page / admin-layout → loginAdmin/currentAdmin/logoutAdmin | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/auth/sessions` | `Admin_login_POST` | login-page / admin-layout → loginAdmin/currentAdmin/logoutAdmin | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/colleges` | `Catalog_adminColleges_GET` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/colleges` | `Catalog_createCollege_POST` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/colleges/{id}` | `Catalog_adminCollege_GET` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/colleges/{id}` | `Catalog_updateCollege_PUT` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/colleges/{id}/majors` | `Catalog_adminMajors_GET` | — | 无入口；专业选择统一使用支持筛选的 GET /admin/majors |
+| `GET /api/v1/admin/course-requests` | `Operations_adminRequests_GET` | operations-pages.FeedbackPage → listFeedback/updateFeedback | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/course-requests/{id}` | `Operations_handleRequest_PUT` | operations-pages.FeedbackPage → listFeedback/updateFeedback | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/dashboard` | `Operations_dashboard_GET` | dashboard-page → getDashboardSummary | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/directory-summary` | `Catalog_directory_GET` | colleges-page → getDirectorySummary | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/majors` | `Catalog_allMajors_GET` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/majors` | `Catalog_createMajor_POST` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/majors/{id}` | `Catalog_adminMajor_GET` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/majors/{id}` | `Catalog_updateMajor_PUT` | colleges-page / directory-editor-modal / ResourceSelect / scope-directory → 院系分页、点查及保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-banks` | `Content_adminBanks_GET` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/question-banks` | `Content_createBank_POST` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_updateChapter_PUT` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `DELETE /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_deleteChapter_DELETE` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-banks/{id}` | `Content_adminBank_GET` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/question-banks/{id}` | `Content_updateBank_PUT` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/question-banks/{id}/chapter-order` | `Content_reorder_PUT` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-banks/{id}/chapters` | `Content_adminChapters_GET` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/question-banks/{id}/chapters` | `Content_createChapter_POST` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/question-banks/{id}/images` | `File_upload_POST` | question-content-editor → QuestionImages → uploadImage | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/question-banks/{id}/import-preview` | `Content_preview_POST` | import-questions-modal → previewImport/importQuestions | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/question-banks/{id}/imports` | `Content_importQuestions_POST` | import-questions-modal → previewImport/importQuestions | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/question-banks/{id}/publication` | `Content_publish_PUT` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-banks/{id}/publication-checks` | `Content_publicationChecks_GET` | publication-modal → publicationChecks | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-banks/{id}/questions` | `Content_adminQuestions_GET` | question-banks-page / bank-workspace-page / questions-manager → 题库、章节、分页题目方法 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/question-feedback` | `Operations_adminFeedback_GET` | operations-pages.FeedbackPage → listFeedback/updateFeedback | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/question-feedback/{id}` | `Operations_handleFeedback_PUT` | operations-pages.FeedbackPage → listFeedback/updateFeedback | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/questions` | `Content_createQuestion_POST` | questions-manager / question-form-drawer / question-detail-drawer → createQuestion/updateQuestion/getQuestion | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/questions/{id}` | `Content_adminQuestion_GET` | questions-manager / question-form-drawer / question-detail-drawer → createQuestion/updateQuestion/getQuestion | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/questions/{id}` | `Content_updateQuestion_PUT` | questions-manager / question-form-drawer / question-detail-drawer → createQuestion/updateQuestion/getQuestion | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `DELETE /api/v1/admin/questions/{id}` | `Content_deactivateQuestion_DELETE` | — | 无入口；题目启停统一使用带 expectedVersion 的 PUT |
+| `GET /api/v1/admin/security-policy` | `Admin_policy_GET` | operations-pages.SecurityPage → getSecuritySettings/saveSecuritySettings | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/security-policy` | `Admin_policy_PUT` | operations-pages.SecurityPage → getSecuritySettings/saveSecuritySettings | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/statistics/activity` | `Learning_activity_GET` | activity-page → getActivity | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/statistics/organizations` | `Learning_organizations_GET` | — | 无入口；院级人数使用 directory-summary；组织学习排名无页面 |
+| `GET /api/v1/admin/statistics/rankings` | `Learning_rankings_GET` | activity-page → getRankings | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/statistics/summary` | `Learning_adminSummary_GET` | — | 无入口；运营概览用 dashboard 聚合，活跃页用 activity/rankings |
+| `GET /api/v1/admin/students/{id}/practice-history` | `Learning_studentHistory_GET` | — | 无入口；用户详情当前展示资料与汇总；历史分页入口待专门设计 |
+| `GET /api/v1/admin/students/{id}/practice-history/{sessionId}` | `Learning_studentResult_GET` | — | 无入口；用户详情当前展示资料与汇总；逐卷结果入口待专门设计 |
+| `GET /api/v1/admin/students/{id}/statistics` | `Learning_studentSummary_GET` | user-detail-drawer → getUserStatistics | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/subjects` | `Catalog_adminSubjects_GET` | question-banks-page / bank-workspace-page / course-editor-modal / ResourceSelect → 课程读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/subjects` | `Catalog_createSubject_POST` | question-banks-page / bank-workspace-page / course-editor-modal / ResourceSelect → 课程读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/subjects/{id}` | `Catalog_adminSubject_GET` | question-banks-page / bank-workspace-page / course-editor-modal / ResourceSelect → 课程读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/subjects/{id}` | `Catalog_updateSubject_PUT` | question-banks-page / bank-workspace-page / course-editor-modal / ResourceSelect → 课程读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/subjects/{id}/user-access` | `Catalog_userAccess_GET` | course-access-drawer → listSubjectAccess/grantSubjectAccess/revokeSubjectAccess | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `POST /api/v1/admin/subjects/{id}/user-access` | `Catalog_grant_POST` | course-access-drawer → listSubjectAccess/grantSubjectAccess/revokeSubjectAccess | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `DELETE /api/v1/admin/subjects/{id}/user-access/{userId}` | `Catalog_revoke_DELETE` | course-access-drawer → listSubjectAccess/grantSubjectAccess/revokeSubjectAccess | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/users` | `Admin_users_GET` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | UsersPage / colleges-page / ResourceSelect / user-detail-drawer → listUsers/getUser/setUserStatus | 已接入待联调；分页、版本与幂等检查见独立验收记录 |

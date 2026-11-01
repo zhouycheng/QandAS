@@ -74,11 +74,13 @@ class OpenApiConfiguration {
                 } else property.types=(property.types ?: property.type?.let { setOf(it) } ?: emptySet())+"null"
             }
             for(key in listOf("expectedVersion","expectedContentVersion")) schema.properties?.get(key)?.minimum=java.math.BigDecimal.ONE
-            if(clazz.simpleName=="QuestionInput") {
-                schema.properties.getValue("stem").minLength=1
+            if(clazz.simpleName in setOf("QuestionInput","ReadingChildInput")) {
                 schema.properties.getValue("stem").maxLength=10000
-                schema.oneOf=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { kind ->
+                schema.properties["assetIds"]?.maxItems=20
+                schema.properties["scoringPoints"]?.maxItems=30
+                schema.oneOf=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING").filter { it!="READING" || clazz.simpleName=="QuestionInput" }.map { kind ->
                     val branch=ObjectSchema().addProperty("type",StringSchema()._enum(listOf(kind)))
+                    if(kind!="READING") branch.addProperty("stem",StringSchema().minLength(1).maxLength(10000).pattern("\\S"))
                     when(kind) {
                         "SINGLE_CHOICE","MULTIPLE_CHOICE" -> {
                             branch.addProperty("options",ArraySchema().minItems(2).maxItems(26))
@@ -92,15 +94,26 @@ class OpenApiConfiguration {
                             branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
                             branch.addProperty("referenceAnswer",Schema<Any>().types(setOf("null")))
                         }
-                        else -> {
+                        "SHORT_ANSWER" -> {
                             branch.addProperty("referenceAnswer",StringSchema().minLength(1).maxLength(10000).pattern("\\S"));branch.required=listOf("referenceAnswer")
                             branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
                             branch.addProperty("correctValue",Schema<Any>().types(setOf("null")))
+                        }
+                        "FILL_BLANK" -> {
+                            branch.addProperty("blanks",ArraySchema().minItems(1).maxItems(20));branch.required=listOf("blanks")
+                            branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
+                            branch.addProperty("correctValue",Schema<Any>().types(setOf("null")));branch.addProperty("referenceAnswer",Schema<Any>().types(setOf("null")))
+                        }
+                        "READING" -> {
+                            branch.addProperty("passage",StringSchema().minLength(1).maxLength(20000).pattern("\\S"))
+                            branch.addProperty("subQuestions",ArraySchema().minItems(1).maxItems(50));branch.required=listOf("passage","subQuestions")
                         }
                     }
                     branch
                 }
             }
+            if(clazz.simpleName=="BlankInput") schema.properties["answers"]?.let { it.minItems=1;it.maxItems=20;it.items?.maxLength=500 }
+            if(clazz.simpleName=="ImportInput") schema.properties["questions"]?.let { it.minItems=1;it.maxItems=3000;it.description="每批最多 3000 道实际作答题，阅读题按小题计数；整个 JSON 请求最多 8 MiB" }
         }
     }
 }

@@ -31,6 +31,12 @@
     }
   },
   {
+    "operationId": "Admin_account_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/administrators/{id}",
+    "body": null
+  },
+  {
     "operationId": "Admin_update_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/administrators/{id}",
@@ -103,6 +109,12 @@
     "body": null
   },
   {
+    "operationId": "Catalog_adminSubject_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}",
+    "body": null
+  },
+  {
     "operationId": "Catalog_updateSubject_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/subjects/{id}",
@@ -110,6 +122,12 @@
       "name": "示例内容",
       "expectedVersion": "{{expectedVersion}}"
     }
+  },
+  {
+    "operationId": "Catalog_adminMajor_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors/{id}",
+    "body": null
   },
   {
     "operationId": "Catalog_updateMajor_PUT",
@@ -121,6 +139,12 @@
       "code": "{{code}}",
       "expectedVersion": "{{expectedVersion}}"
     }
+  },
+  {
+    "operationId": "Catalog_adminCollege_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/colleges/{id}",
+    "body": null
   },
   {
     "operationId": "Catalog_updateCollege_PUT",
@@ -145,6 +169,27 @@
     "body": {
       "name": "示例内容"
     }
+  },
+  {
+    "operationId": "Catalog_userAccess_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_grant_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": {
+      "userId": "{{userId}}",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_allMajors_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors",
+    "body": null
   },
   {
     "operationId": "Catalog_createMajor_POST",
@@ -196,9 +241,21 @@
     "body": null
   },
   {
+    "operationId": "Catalog_directory_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/directory-summary",
+    "body": null
+  },
+  {
     "operationId": "Catalog_adminMajors_GET",
     "method": "GET",
     "path": "/api/v1/admin/colleges/{id}/majors",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_revoke_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/subjects/{id}/user-access/{userId}",
     "body": null
   },
   {
@@ -443,6 +500,12 @@
     "body": null
   },
   {
+    "operationId": "Content_publicationChecks_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}/publication-checks",
+    "body": null
+  },
+  {
     "operationId": "Discovery_saveCourse_PUT",
     "method": "PUT",
     "path": "/api/v1/me/subjects/{id}",
@@ -530,6 +593,12 @@
     "body": {
       "purpose": "REGISTER"
     }
+  },
+  {
+    "operationId": "Identity_heartbeat_POST",
+    "method": "POST",
+    "path": "/api/v1/me/activity/heartbeat",
+    "body": null
   },
   {
     "operationId": "Identity_wechatLogin_POST",

@@ -144,11 +144,41 @@ class PlatformPostgresTest {
         "correctValue" to false.takeIf { type=="TRUE_FALSE" },"referenceAnswer" to "原参考答案".takeIf { type=="SHORT_ANSWER" })
     private fun fixture(audiences: List<Map<String,Any>> = emptyList(),maintainers: List<UUID> = emptyList()): Fixture {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "课程${UUID.randomUUID()}")))
-        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","scopeType" to if(audiences.isEmpty()) "ALL" else "TARGETED","audiences" to audiences,"maintainerIds" to maintainers)))
+        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "课程练习题库","scopeType" to if(audiences.isEmpty()) "ALL" else "TARGETED","audiences" to audiences,"maintainerIds" to maintainers)))
         val questions=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { id(call("POST","/admin/questions",question(bank,it))) }
         val current=call("GET","/admin/question-banks/$bank")
         call("PUT","/admin/question-banks/$bank/publication",mapOf("expectedVersion" to current["version"].asLong(),"status" to "PUBLISHED"))
         return Fixture(subject,bank,questions)
+    }
+    @Test fun `admin aggregates filtered pages and direct resources serve independent clients`() {
+        val f=fixture();val s=student()
+        val college=id(call("POST","/admin/colleges",mapOf("name" to "聚合学院","code" to "AGG")))
+        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "聚合专业","code" to "AGG")))
+        call("PUT","/me/profile",mapOf("expectedVersion" to 1,"nickname" to "聚合学生","collegeId" to college,"majorId" to major,"currentGrade" to 3),s.token)
+        assertEquals("聚合学院",call("GET","/admin/colleges/$college")["name"].asText())
+        assertEquals("聚合专业",call("GET","/admin/majors/$major")["name"].asText())
+        assertEquals(f.subject.toString(),call("GET","/admin/subjects/${f.subject}")["id"].asText())
+        assertEquals(platformId.toString(),call("GET","/admin/administrators/$platformId")["id"].asText())
+        val summary=call("GET","/admin/directory-summary?collegeId=$college&majorId=$major")
+        assertEquals(1,summary["studentCount"].asInt())
+        assertEquals(5,summary["grades"].size())
+        assertEquals(1,summary["grades"].first { it["grade"].asInt()==3 }["studentCount"].asInt())
+        assertEquals(1,call("GET","/admin/colleges?keyword=聚合&pageSize=1")["items"].first()["studentCount"].asInt())
+        assertEquals(major.toString(),call("GET","/admin/majors?collegeId=$college&keyword=聚合")["items"].first()["id"].asText())
+        assertEquals(1,call("GET","/admin/users?collegeId=$college&grade=3")["total"].asInt())
+        assertEquals(0,call("GET","/admin/users?collegeId=$college&grade=2")["total"].asInt())
+        val chapter=id(call("POST","/admin/question-banks/${f.bank}/chapters",mapOf("name" to "聚合章节","sortOrder" to 0)))
+        call("PUT","/admin/questions/${f.questions.first()}",question(f.bank,"SINGLE_CHOICE")+mapOf("chapterId" to chapter,"expectedVersion" to 1))
+        assertEquals(1,call("GET","/admin/question-banks/${f.bank}/chapters").first()["questionCount"].asInt())
+        assertEquals(1,call("GET","/admin/question-banks/${f.bank}/questions?type=SINGLE_CHOICE&pageSize=1")["total"].asInt())
+        assertEquals(3,call("GET","/admin/question-banks/${f.bank}/questions?unassigned=true")["total"].asInt())
+        assertTrue(call("GET","/admin/question-banks/${f.bank}/publication-checks").all { it["passed"].asBoolean() })
+        assertTrue(call("GET","/admin/dashboard")["publishedBankCount"].asLong()>0)
+        val logs=call("GET","/admin/audit-logs?keyword=CREATE_COLLEGE&result=SUCCESS&pageSize=1")
+        assertTrue(logs["total"].asLong()>0);assertEquals("SUCCESS",logs["items"].first()["outcome"].asText())
+        call("GET","/admin/audit-logs?result=UNKNOWN",status=422)
+        call("GET","/admin/directory-summary",token=s.token,status=403)
+        call("GET","/admin/administrators/$platformId",token=null,status=401)
     }
     private fun createPractice(s: Student,f: Fixture,feedback: String="AFTER_FINISH"): JsonNode {
         val bank=call("GET","/question-banks/${f.bank}",token=s.token)
@@ -159,14 +189,151 @@ class PlatformPostgresTest {
         mapOf("itemId" to item["itemId"].asText(),"answer" to answer,"confirmed" to true,"marked" to true)
     }
 
+    @Test fun `profile scope switches freely while course grants and snapshots remain independent`() {
+        val student=student()
+        val college=id(call("POST","/admin/colleges",mapOf("name" to "范围学院${UUID.randomUUID()}","code" to UUID.randomUUID().toString())))
+        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "范围专业","code" to "SCOPE")))
+        val fixture=fixture(listOf(mapOf("majorId" to major,"grade" to 2)))
+        call("GET","/question-banks/${fixture.bank}",token=null)
+        call("GET","/questions/${fixture.questions.first()}",token=student.token,status=404)
+        val initial=call("GET","/me",token=student.token)
+        assertFalse(initial["profileComplete"].asBoolean())
+        call("PUT","/me/profile",mapOf("expectedVersion" to initial["version"].asLong(),"nickname" to "范围学生","collegeId" to college,"majorId" to major,"currentGrade" to 2),student.token)
+        val profile=call("GET","/me",token=student.token)
+        assertTrue(profile["profileComplete"].asBoolean())
+        assertEquals(2,profile["currentGrade"].asInt())
+        assertEquals(4,call("GET","/question-banks/${fixture.bank}",token=student.token)["questionCount"].asInt())
+        call("PUT","/me/favorites/${fixture.questions.first()}",token=student.token)
+        val practice=createPractice(student,fixture)
+        call("PUT","/me/profile",mapOf("expectedVersion" to profile["version"].asLong(),"nickname" to "范围学生","collegeId" to college,"majorId" to major,"currentGrade" to 3),student.token)
+        call("GET","/question-banks/${fixture.bank}",token=student.token,status=404)
+        assertFalse(call("GET","/me/favorites",token=student.token)["items"].first { it["questionId"].asText()==fixture.questions.first().toString() }["available"].asBoolean())
+        call("GET","/practice/sessions/${id(practice)}",token=student.token)
+        val version=jdbc.queryForObject("SELECT version FROM subject WHERE id=?",Long::class.java,fixture.subject)!!
+        val granted=call("POST","/admin/subjects/${fixture.subject}/user-access",mapOf("userId" to student.id,"expectedVersion" to version))
+        call("GET","/question-banks/${fixture.bank}",token=student.token)
+        assertEquals(1,call("GET","/admin/subjects/${fixture.subject}/user-access")["total"].asInt())
+        call("DELETE","/admin/subjects/${fixture.subject}/user-access/${student.id}?expectedVersion=${granted["version"].asLong()}")
+        call("GET","/question-banks/${fixture.bank}",token=student.token,status=404)
+        assertEquals(3,jdbc.queryForObject("SELECT current_grade(2,2025,date '2026-09-01')",Int::class.java))
+        assertEquals(2,jdbc.queryForObject("SELECT current_grade(2,2025,date '2026-08-31')",Int::class.java))
+    }
+
+    @Test fun `activity uses foreground sessions distinct days and stable ranking orders`() {
+        val one=student();val two=student();val three=student()
+        val college=id(call("POST","/admin/colleges",mapOf("name" to "活跃学院${UUID.randomUUID()}","code" to UUID.randomUUID().toString())))
+        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "活跃专业","code" to "ACTIVITY")))
+        listOf(one,two,three).forEach { s ->
+            call("PUT","/me/profile",mapOf("expectedVersion" to 1,"nickname" to "活跃学生","collegeId" to college,"majorId" to major,"currentGrade" to 1),s.token)
+            jdbc.update("DELETE FROM user_activity WHERE user_id=?",s.id)
+        }
+        val filter="collegeId=$college&majorId=$major&grade=1"
+        call("POST","/me/activity/heartbeat",token=null,status=401)
+        call("POST","/me/activity/heartbeat",token=one.token)
+        val secondDevice=call("POST","/auth/sessions",mapOf("email" to one.email,"password" to password,"deviceId" to UUID.randomUUID(),"clientType" to "MINI_PROGRAM"),null)
+        val secondToken=secondDevice["accessToken"].asText()
+        call("POST","/me/activity/heartbeat",token=secondToken)
+        call("POST","/me/activity/heartbeat",token=two.token)
+        jdbc.update("INSERT INTO user_activity(user_id,platform,activity_date) VALUES(?,'WEB',(now() AT TIME ZONE 'Asia/Shanghai')::date-6)",two.id)
+        jdbc.update("INSERT INTO user_activity(user_id,platform,activity_date) VALUES(?,'WEB',(now() AT TIME ZONE 'Asia/Shanghai')::date-29)",three.id)
+        val metrics=call("GET","/admin/statistics/activity?period=WEEK&$filter")
+        assertEquals(2,metrics["onlineUsers"].asInt());assertEquals(2,metrics["dailyActive"].asInt())
+        assertEquals(2,metrics["weeklyActive"].asInt());assertEquals(3,metrics["monthlyActive"].asInt())
+        assertEquals(7,metrics["records"].size());assertEquals(5,metrics["records"].count { it["activeUsers"].asInt()==0 })
+        assertEquals(1,call("GET","/admin/statistics/activity?period=WEEK&$filter&platform=MINI_PROGRAM")["onlineUsers"].asInt())
+        val f=fixture();val practice=createPractice(one,f);val practiceId=id(practice)
+        jdbc.update("UPDATE practice_session SET created_at=created_at-interval '1 minute' WHERE id=?",practiceId)
+        val finish=mapOf("expectedVersion" to 1,"durationSeconds" to 30,"items" to answers(practice),"writerToken" to practice["writer"]["writerToken"].asText())
+        call("POST","/practice/sessions/$practiceId/finish",finish,one.token)
+        call("POST","/practice/sessions/$practiceId/finish",finish,one.token)
+        val active=call("GET","/admin/statistics/rankings?period=WEEK&$filter&sort=ACTIVE_DAYS&pageSize=1")
+        assertEquals(two.id.toString(),active["items"][0]["userId"].asText());assertEquals(2,active["total"].asInt())
+        val next=call("GET","/admin/statistics/rankings?period=WEEK&$filter&sort=ACTIVE_DAYS&pageSize=1&page=2")
+        assertEquals(one.id.toString(),next["items"][0]["userId"].asText());assertEquals(2,next["items"][0]["rank"].asInt())
+        listOf("ANSWERED_COUNT","DURATION").forEach { sort ->
+            val first=call("GET","/admin/statistics/rankings?period=WEEK&$filter&sort=$sort")["items"][0]
+            assertEquals(one.id.toString(),first["userId"].asText());assertEquals(4,first["answeredCount"].asInt());assertEquals(30,first["durationSeconds"].asInt())
+            assertEquals(1,first["activeDays"].asInt())
+        }
+        jdbc.update("UPDATE user_session SET foreground_seen_at=now()-interval '121 seconds' WHERE user_id=?",two.id)
+        call("GET","/me",token=two.token)
+        assertEquals(1,call("GET","/admin/statistics/activity?$filter")["onlineUsers"].asInt())
+        call("DELETE","/auth/sessions/current",token=one.token)
+        assertEquals(1,call("GET","/admin/statistics/activity?$filter")["onlineUsers"].asInt())
+        call("DELETE","/auth/sessions/current",token=secondToken)
+        assertEquals(0,call("GET","/admin/statistics/activity?$filter")["onlineUsers"].asInt())
+        call("POST","/me/activity/heartbeat",token=secondToken,status=401)
+    }
+
+    @Test fun `reading groups preserve material revisions and fill blanks grade as atomic questions`() {
+        val s=student();val f=fixture()
+        val fill=mapOf("questionBankId" to f.bank,"type" to "FILL_BLANK","stem" to "协议 {{1}}，方法 {{2}}","explanation" to "网络协议",
+            "blanks" to listOf(mapOf("answers" to listOf("HTTP","超文本传输协议")),mapOf("answers" to listOf("GET"))))
+        val fillId=id(call("POST","/admin/questions",fill))
+        listOf("{{1}} {{02}}","{{1}} {{2}} {{extra}}","{{1}} {{1}}").forEach { stem ->
+            call("POST","/admin/questions",fill+mapOf("stem" to stem),status=422)
+        }
+        val firstId=UUID.randomUUID();val secondId=UUID.randomUUID()
+        val group=mapOf("questionBankId" to f.bank,"type" to "READING","stem" to "阅读练习","passage" to "第一版材料\n保持换行",
+            "subQuestions" to listOf(mapOf("id" to firstId,"type" to "TRUE_FALSE","stem" to "第一小题","correctValue" to true,"explanation" to "判断依据"),
+                mapOf("id" to secondId,"type" to "SHORT_ANSWER","stem" to "第二小题","referenceAnswer" to "参考内容","explanation" to "作答思路","scoringPoints" to listOf("观点明确"))))
+        val groupId=id(call("POST","/admin/questions",group))
+        val bank=call("GET","/question-banks/${f.bank}",token=s.token)
+        assertEquals(7,bank["questionCount"].asInt())
+        val preview=call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 6),s.token)
+        assertEquals(7,preview["availableCount"].asInt());assertEquals(5,preview["selectedCount"].asInt())
+        val scope=mapOf("questionBankId" to f.bank,"count" to 7)
+        val session=call("POST","/practice/sessions",mapOf("scope" to scope,"expectedContentVersion" to bank["contentVersion"].asLong(),"deviceId" to UUID.randomUUID(),"feedback" to "AFTER_FINISH"),s.token)
+        assertEquals(7,session["items"].size())
+        assertEquals(listOf(firstId.toString(),secondId.toString()),session["items"].toList().takeLast(2).map { it["question"]["id"].asText() })
+        assertTrue(session["items"].all { it["question"]["blanks"].isNull && it["question"]["scoringPoints"].isNull })
+        call("PUT","/admin/questions/$groupId",group+mapOf("expectedVersion" to 1,"passage" to "第二版材料"))
+        val restored=call("GET","/practice/sessions/${id(session)}",token=s.token)
+        assertEquals("第一版材料\n保持换行",restored["items"].last()["question"]["material"]["passage"].asText())
+        val changes=session["items"].map { item ->
+            val q=item["question"];val answer=when(q["type"].asText()) {
+                "SINGLE_CHOICE" -> mapOf("optionKeys" to listOf("A"));"MULTIPLE_CHOICE" -> mapOf("optionKeys" to listOf("A","B"))
+                "TRUE_FALSE" -> mapOf("value" to (q["id"].asText()==firstId.toString()))
+                "FILL_BLANK" -> mapOf("blanks" to listOf(" http ","get"));else -> mapOf("text" to "我的回答")
+            }
+            mapOf("itemId" to item["itemId"].asText(),"answer" to answer,"confirmed" to true)
+        }
+        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changes),s.token)
+        assertEquals(7,result["answeredCount"].asInt());assertEquals(5,result["objective"]["correct"].asInt())
+        assertEquals("CORRECT",result["items"].first { it["question"]["id"].asText()==fillId.toString() }["outcome"].asText())
+        assertEquals("观点明确",result["items"].last()["question"]["scoringPoints"][0].asText())
+        call("PUT","/me/favorites/$firstId",token=s.token)
+        val selected=call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 1,"selectionKind" to "FAVORITE"),s.token)
+        assertEquals(1,selected["selectedCount"].asInt())
+        call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(firstId)),s.token,422)
+    }
+
+    @Test fun `imports count answering items with atomic retries and request byte limits`() {
+        val f=fixture();val bank=call("GET","/admin/question-banks/${f.bank}")
+        val input=mapOf("expectedContentVersion" to bank["contentVersion"].asLong(),"questions" to List(3000) { question(f.bank,"TRUE_FALSE") })
+        assertEquals(3000,call("POST","/admin/question-banks/${f.bank}/import-preview",input)["questionCount"].asInt())
+        call("POST","/admin/question-banks/${f.bank}/import-preview",input+mapOf("questions" to List(3001) { question(f.bank,"TRUE_FALSE") }),status=422)
+        val key=UUID.randomUUID()
+        val imported=call("POST","/admin/question-banks/${f.bank}/imports",input,key=key)
+        assertEquals(3000,imported["questionIds"].size());assertEquals(bank["contentVersion"].asLong()+1,imported["contentVersion"].asLong())
+        assertEquals(imported,call("POST","/admin/question-banks/${f.bank}/imports",input,key=key))
+        val broken=mapOf("expectedContentVersion" to imported["contentVersion"].asLong(),"questions" to listOf(question(f.bank,"TRUE_FALSE"),question(f.bank,"TRUE_FALSE")+mapOf("correctValue" to null)))
+        call("POST","/admin/question-banks/${f.bank}/imports",broken,status=422)
+        assertEquals(3004,call("GET","/admin/question-banks/${f.bank}")["questionCount"].asInt())
+        val jsonBody="{\"expectedContentVersion\":1,\"questions\":[]}"
+        val bytes=(jsonBody+" ".repeat(8*1024*1024-jsonBody.length)).toByteArray()
+        assertNotEquals(413,raw("POST","/admin/question-banks/${f.bank}/imports",bytes).statusCode())
+        assertEquals(413,raw("POST","/admin/question-banks/${f.bank}/imports",bytes+byteArrayOf(32)).statusCode())
+    }
+
     @Test fun `shared content recommendation choice practice grading feedback and real statistics form one HTTP loop`() {
         val s=student();val empty=call("GET","/me",token=s.token);assertTrue(empty["majorId"].isNull)
         val college=id(call("POST","/admin/colleges",mapOf("name" to "学院${UUID.randomUUID()}","code" to UUID.randomUUID().toString())))
         val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "专业","code" to "M1")))
         val f=fixture(listOf(mapOf("majorId" to major)))
         assertEquals(0,call("GET","/me/recommendations",token=s.token)["items"].count { it["subject"]["id"].asText()==f.subject.toString() })
-        call("GET","/question-banks/${f.bank}",token=s.token)
-        call("PUT","/me/profile",mapOf("expectedVersion" to empty["version"].asLong(),"nickname" to "自主注册用户","collegeId" to college,"majorId" to major,"enrollmentYear" to 2025),s.token)
+        call("GET","/question-banks/${f.bank}",token=s.token,status=404)
+        call("PUT","/me/profile",mapOf("expectedVersion" to empty["version"].asLong(),"nickname" to "自主注册用户","collegeId" to college,"majorId" to major,"currentGrade" to 2),s.token)
         assertTrue(jdbc.queryForMap("SELECT college_id FROM user_profile WHERE user_id=?",s.id)["college_id"]==null)
         assertEquals(college.toString(),call("GET","/me",token=s.token)["collegeId"].asText())
         assertTrue(call("GET","/me/recommendations",token=s.token)["items"].any { it["subject"]["id"].asText()==f.subject.toString() })
@@ -223,7 +390,7 @@ class PlatformPostgresTest {
         val token=call("POST","/admin/auth/sessions",mapOf("username" to username,"password" to password,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
         val assigned=fixture(maintainers=listOf(admin));val other=fixture()
         val bank=call("GET","/admin/question-banks/${assigned.bank}",token=token)
-        val edit=mapOf("subjectId" to assigned.subject,"name" to "编辑后的题库","expectedVersion" to bank["version"].asLong())
+        val edit=mapOf("subjectId" to assigned.subject,"name" to "编辑后的题库","description" to "已发布题库说明","expectedVersion" to bank["version"].asLong())
         call("PUT","/admin/question-banks/${assigned.bank}",edit,token)
         assertEquals(admin.toString(),call("GET","/admin/question-banks/${assigned.bank}",token=token)["maintainerIds"].first().asText())
         call("PUT","/admin/question-banks/${assigned.bank}",edit+mapOf("expectedVersion" to bank["version"].asLong()+1,"maintainerIds" to emptyList<UUID>()),token,403)

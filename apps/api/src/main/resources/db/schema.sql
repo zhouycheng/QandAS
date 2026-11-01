@@ -20,10 +20,17 @@ CREATE TABLE user_account (
 );
 CREATE TABLE user_profile (
  user_id uuid PRIMARY KEY REFERENCES user_account(id), college_id uuid REFERENCES college(id), major_id uuid REFERENCES major(id),
- enrollment_year integer CHECK(enrollment_year BETWEEN 1900 AND 2200), CHECK(major_id IS NULL OR college_id IS NULL)
+ grade integer CHECK(grade BETWEEN 1 AND 5), grade_academic_year integer CHECK(grade_academic_year BETWEEN 1900 AND 2200),
+ CHECK((grade IS NULL)=(grade_academic_year IS NULL)), CHECK(major_id IS NULL OR college_id IS NULL)
 );
 CREATE INDEX user_profile_major_idx ON user_profile(major_id);
 CREATE INDEX user_profile_college_idx ON user_profile(college_id);
+CREATE FUNCTION academic_year(day date) RETURNS integer LANGUAGE sql IMMUTABLE STRICT AS $$
+ SELECT extract(year FROM day)::integer - CASE WHEN extract(month FROM day)<9 THEN 1 ELSE 0 END
+$$;
+CREATE FUNCTION current_grade(grade integer, anchor_year integer, day date) RETURNS integer LANGUAGE sql IMMUTABLE STRICT AS $$
+ SELECT least(5,grade+greatest(0,academic_year(day)-anchor_year))
+$$;
 CREATE TABLE user_wechat (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), app_id varchar(64) NOT NULL, open_id varchar(128) NOT NULL,
  union_id varchar(128), created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(app_id,open_id), UNIQUE(user_id,app_id)
@@ -47,10 +54,11 @@ INSERT INTO admin_control(id) VALUES(1);
 CREATE TABLE user_session (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
  credential_version bigint NOT NULL, client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')), device_id uuid NOT NULL,
- issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, revoked_at timestamptz,
+ issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, foreground_seen_at timestamptz, revoked_at timestamptz,
  CHECK(expires_at>issued_at)
 );
 CREATE INDEX user_session_account_idx ON user_session(user_id,issued_at DESC);
+CREATE INDEX user_session_online_idx ON user_session(foreground_seen_at DESC,user_id) WHERE revoked_at IS NULL;
 CREATE TABLE admin_session (
  id uuid PRIMARY KEY, admin_id uuid NOT NULL REFERENCES admin_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
  credential_version bigint NOT NULL, device_id uuid NOT NULL, issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL,
@@ -92,24 +100,45 @@ CREATE TABLE bank_maintainer (
 CREATE INDEX bank_maintainer_admin_idx ON bank_maintainer(admin_id,bank_id);
 CREATE TABLE bank_audience (
  id uuid PRIMARY KEY, bank_id uuid NOT NULL REFERENCES question_bank(id), college_id uuid REFERENCES college(id), major_id uuid REFERENCES major(id),
- enrollment_year integer CHECK(enrollment_year BETWEEN 1900 AND 2200), CHECK(major_id IS NULL OR college_id IS NULL),
- CHECK(num_nonnulls(college_id,major_id,enrollment_year)>0), UNIQUE NULLS NOT DISTINCT(bank_id,college_id,major_id,enrollment_year)
+ grade integer CHECK(grade BETWEEN 1 AND 5), CHECK(major_id IS NULL OR college_id IS NULL),
+ CHECK(num_nonnulls(college_id,major_id,grade)>0), UNIQUE NULLS NOT DISTINCT(bank_id,college_id,major_id,grade)
 );
+CREATE TABLE subject_user_access (
+ subject_id uuid NOT NULL REFERENCES subject(id), user_id uuid NOT NULL REFERENCES user_account(id),
+ granted_by uuid NOT NULL REFERENCES admin_account(id), created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(subject_id,user_id)
+);
+CREATE INDEX subject_user_access_user_idx ON subject_user_access(user_id,subject_id);
 CREATE TABLE chapter (
  id uuid PRIMARY KEY, bank_id uuid NOT NULL REFERENCES question_bank(id), name varchar(120) NOT NULL, sort_order integer NOT NULL CHECK(sort_order>=0),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), UNIQUE(id,bank_id), UNIQUE(bank_id,sort_order) DEFERRABLE INITIALLY DEFERRED
 );
 CREATE TABLE question (
  id uuid PRIMARY KEY, bank_id uuid NOT NULL REFERENCES question_bank(id), chapter_id uuid, status varchar(12) NOT NULL CHECK(status IN ('ACTIVE','INACTIVE')),
+ reading_parent_id uuid, reading_order integer NOT NULL DEFAULT 0 CHECK(reading_order>=0), is_group boolean NOT NULL DEFAULT false,
  current_revision_id uuid NOT NULL, version bigint NOT NULL DEFAULT 1 CHECK(version>0), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
- FOREIGN KEY(chapter_id,bank_id) REFERENCES chapter(id,bank_id), UNIQUE(id,bank_id)
+ FOREIGN KEY(chapter_id,bank_id) REFERENCES chapter(id,bank_id), UNIQUE(id,bank_id),
+ FOREIGN KEY(reading_parent_id,bank_id) REFERENCES question(id,bank_id), CHECK(NOT is_group OR reading_parent_id IS NULL)
 );
+CREATE INDEX question_reading_idx ON question(reading_parent_id,reading_order);
 CREATE INDEX question_bank_idx ON question(bank_id,status,created_at,id);
 CREATE INDEX question_chapter_idx ON question(chapter_id);
+CREATE FUNCTION bank_visible(bank uuid, student uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT EXISTS(SELECT 1 FROM question_bank b JOIN subject s ON s.id=b.subject_id
+ WHERE b.id=bank AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'
+ AND EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group)
+ AND (student IS NULL OR b.scope_type='ALL'
+ OR EXISTS(SELECT 1 FROM subject_user_access g WHERE g.subject_id=b.subject_id AND g.user_id=student)
+ OR EXISTS(SELECT 1 FROM bank_audience a JOIN user_profile p ON p.user_id=student LEFT JOIN major m ON m.id=p.major_id
+ WHERE a.bank_id=b.id AND (a.college_id IS NULL OR a.college_id=coalesce(p.college_id,m.college_id))
+ AND (a.major_id IS NULL OR a.major_id=p.major_id)
+ AND (a.grade IS NULL OR a.grade=current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date)))))
+$$;
 CREATE TABLE question_revision (
  id uuid PRIMARY KEY, question_id uuid NOT NULL REFERENCES question(id) DEFERRABLE INITIALLY DEFERRED, revision_number integer NOT NULL CHECK(revision_number>0),
- type varchar(20) NOT NULL CHECK(type IN ('SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','SHORT_ANSWER')), stem text NOT NULL,
+ type varchar(20) NOT NULL CHECK(type IN ('SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','FILL_BLANK','SHORT_ANSWER','READING')), stem text NOT NULL,
  explanation text NOT NULL DEFAULT '', correct_value boolean, reference_answer text,
+ content_data text NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(content_data::jsonb)='object'),
  created_by uuid NOT NULL REFERENCES admin_account(id), created_at timestamptz NOT NULL DEFAULT now(),
  CHECK((type='TRUE_FALSE')=(correct_value IS NOT NULL)), CHECK((type='SHORT_ANSWER')=(reference_answer IS NOT NULL)),
  UNIQUE(question_id,id), UNIQUE(question_id,revision_number)
@@ -148,6 +177,7 @@ CREATE INDEX practice_recent_idx ON practice_session(user_id,updated_at DESC,id)
 CREATE INDEX practice_statistics_idx ON practice_session(submitted_at,user_id) WHERE status='SUBMITTED';
 CREATE TABLE practice_item (
  id uuid PRIMARY KEY, session_id uuid NOT NULL REFERENCES practice_session(id), question_id uuid NOT NULL, revision_id uuid NOT NULL,
+ material_revision_id uuid REFERENCES question_revision(id), answer_blanks text CHECK(answer_blanks IS NULL OR jsonb_typeof(answer_blanks::jsonb)='array'),
  position integer NOT NULL CHECK(position>=0), answer_text text, answer_boolean boolean, confirmed boolean NOT NULL DEFAULT false, marked boolean NOT NULL DEFAULT false,
  outcome varchar(12) CHECK(outcome IN ('CORRECT','WRONG','UNANSWERED','SELF_RATED')), self_assessment varchar(12) CHECK(self_assessment IN ('CORRECT','WRONG')),
  FOREIGN KEY(question_id,revision_id) REFERENCES question_revision(question_id,id), UNIQUE(session_id,position), UNIQUE(session_id,question_id), UNIQUE(id,revision_id)

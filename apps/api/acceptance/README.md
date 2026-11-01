@@ -1,6 +1,6 @@
 # 后端接口验收
 
-当前 `1.0.0` 合同包含 118 个操作，聚合入口为 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)，9 个模块合同引用其中的共享模型。合同从运行中的 Controller 和 DTO 导出；实际 HTTP 观察另行验证路径、参数、请求体、状态、响应媒体、全部响应头值和响应体。
+当前 `1.0.0` 合同包含 129 个操作，聚合入口为 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)，9 个模块合同引用其中的共享模型。合同从运行中的 Controller 和 DTO 导出；实际 HTTP 观察另行验证路径、参数、请求体、状态、响应媒体、全部响应头值和响应体。本轮三端独立检查与真实联调的边界见[验收记录](../../../docs/multi-client-compatibility-verification.md)。
 
 ## Maven 验收
 
