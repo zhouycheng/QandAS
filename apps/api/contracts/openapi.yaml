@@ -60860,7 +60860,11 @@
             "pattern": "^[0-9]{6}$"
           },
           "newPassword": {
-            "type": "string"
+            "type": "string",
+            "description": "8–16 个 Unicode 码点，须包含英文字母和数字",
+            "maxLength": 16,
+            "minLength": 8,
+            "pattern": "^(?=[\\s\\S]*[A-Za-z])(?=[\\s\\S]*[0-9])(?![\\s\\S]*\\x00)[\\s\\S]*$"
           }
         },
         "required": [
@@ -61765,7 +61769,7 @@
               "array",
               "null"
             ],
-            "description": "省略时保留维护者；仅平台管理员可以变更名单",
+            "description": "省略时保留维护者",
             "items": {
               "type": "string",
               "format": "uuid"
@@ -61997,8 +62001,7 @@
           "role": {
             "type": "string",
             "enum": [
-              "CONTENT_ADMIN",
-              "PLATFORM_ADMIN"
+              "SUPER_ADMIN"
             ]
           },
           "status": {
@@ -62794,7 +62797,11 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "8–16 个 Unicode 码点，须包含英文字母和数字",
+            "maxLength": 16,
+            "minLength": 8,
+            "pattern": "^(?=[\\s\\S]*[A-Za-z])(?=[\\s\\S]*[0-9])(?![\\s\\S]*\\x00)[\\s\\S]*$"
           },
           "deviceId": {
             "type": "string",
@@ -62827,7 +62834,11 @@
             "pattern": "^[0-9]{6}$"
           },
           "newPassword": {
-            "type": "string"
+            "type": "string",
+            "description": "8–16 个 Unicode 码点，须包含英文字母和数字",
+            "maxLength": 16,
+            "minLength": 8,
+            "pattern": "^(?=[\\s\\S]*[A-Za-z])(?=[\\s\\S]*[0-9])(?![\\s\\S]*\\x00)[\\s\\S]*$"
           }
         },
         "required": [
@@ -62849,7 +62860,11 @@
             "pattern": "^[0-9]{6}$"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "8–16 个 Unicode 码点，须包含英文字母和数字",
+            "maxLength": 16,
+            "minLength": 8,
+            "pattern": "^(?=[\\s\\S]*[A-Za-z])(?=[\\s\\S]*[0-9])(?![\\s\\S]*\\x00)[\\s\\S]*$"
           },
           "nickname": {
             "type": "string"
@@ -65534,7 +65549,10 @@
             "type": "string"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "SUPER_ADMIN"
+            ]
           },
           "status": {
             "type": "string"
