@@ -2,14 +2,15 @@ const remoteData = require('../repositories/remote-data-repository.js')
 const practiceRepository = require('../repositories/practice-repository.js')
 const { describeAuth, getProviderLabel } = require('../utils/auth-session.js')
 const { maskEmail } = require('../utils/auth-form.js')
+const { GRADE_LABELS } = require('../utils/profile-rules.js')
 
 const LOGIN_URL = '/page/login/index'
 const FORGOT_URL = '/page/forgot-password/index'
 
 /**
- * 账号管理（设计稿 Figma 781:2123）。
+ * 个人资料。
  *
- * 页面只负责改「资料」（头像 / 昵称 / 学院），改完点保存才落盘：
+ * 资料编辑完成后统一保存。
  * 输入过程中每敲一个字就写 storage 会在真机上卡顿，而且中途退出会留下半截数据。
  *
  * 邮箱 / 微信 / 密码三项是账号级操作，端上没有对应能力时**明确告知**，
@@ -51,7 +52,7 @@ function getInitialAccountViewData() {
     draft: {
       avatarUrl: '',
       nickname: '',
-      college: ''
+      college: '', major: '', currentGrade: null, gradeLabel: ''
     },
     // 有没有未保存的改动：没有改动时保存按钮置灰
     dirty: false,
@@ -62,7 +63,10 @@ function getInitialAccountViewData() {
     collegeLoading: false,
     collegeError: '',
     collegeHasMore: false,
-    collegePage: 1
+    collegePage: 1,
+    required: false,
+    gradeLabels: GRADE_LABELS,
+    majorOptions: [], majorPickerVisible: false, majorLoading: false, majorError: '', majorHasMore: false, majorPage: 1
   }
 }
 
@@ -74,6 +78,8 @@ class AccountViewModel {
     // 输入框刻意不受控：只在内存里攒改动，不回写 value，否则真机光标会跳到末尾
     this.pending = null
     this.editRevision = 0
+    this.required = !!normalizedOptions.required
+    this.majorOptions = []
   }
 
   refreshRemote(subjectId) {
@@ -96,6 +102,33 @@ class AccountViewModel {
     } }))
   }
 
+  loadMajors(page) {
+    const collegeId = this.pending && this.pending.collegeId
+    if (!collegeId) return Promise.reject(new Error('请先选择学院'))
+    return remoteData.loadMajors(collegeId, page || 1).then(result => {
+      if (!this.pending || collegeId !== this.pending.collegeId) return null
+      this.majorOptions = page > 1 ? this.majorOptions.concat(result.items) : result.items
+      return { data: { majorOptions: this.majorOptions, majorHasMore: result.page * result.pageSize < result.total, majorPage: page || 1 } }
+    })
+  }
+
+  selectMajor(index) {
+    const major = this.majorOptions[Number(index)]
+    if (!major) return null
+    this.editRevision += 1
+    Object.assign(this.pending, { majorId: major.id, major: major.name })
+    return { data: { 'draft.major': major.name, dirty: this.dirtyNow() } }
+  }
+
+  selectGrade(index) {
+    const grade = Number(index) + 1
+    if (!GRADE_LABELS[grade - 1]) return null
+    this.editRevision += 1
+    Object.assign(this.pending, { currentGrade: grade, gradeLabel: GRADE_LABELS[grade - 1] })
+    this.gradeEdited = true
+    return { data: { 'draft.currentGrade': grade, 'draft.gradeLabel': GRADE_LABELS[grade - 1], dirty: true } }
+  }
+
   static getInitialData() {
     return getInitialAccountViewData()
   }
@@ -105,15 +138,19 @@ class AccountViewModel {
     const draft = {
       avatarUrl: profile.avatarUrl,
       nickname: profile.nickname,
-      college: profile.college
+      college: profile.college,
+      collegeId: profile.collegeId, majorId: profile.majorId, major: profile.major,
+      currentGrade: profile.currentGrade, gradeLabel: profile.gradeLabel
     }
 
     this.pending = Object.assign({}, draft)
     this.loadedEditRevision = this.editRevision
+    this.gradeEdited = false
 
     return {
       data: {
         loggedIn: this.readAuth().view.loggedIn,
+        required: this.required,
         profile,
         draft,
         dirty: false,
@@ -142,6 +179,7 @@ class AccountViewModel {
   readProfile() {
     const state = this.readAuth()
     const view = state.view
+    const profile = remoteData.getProfile(this.storage) || state.profile || {}
 
     if (!view.loggedIn) {
       return createEmptyProfile()
@@ -150,7 +188,9 @@ class AccountViewModel {
     return {
       avatarUrl: view.avatarUrl,
       nickname: state.nickname,
-      college: view.college || '',
+      college: profile.collegeName || view.college || '',
+      collegeId: profile.collegeId || null, majorId: profile.majorId || null, major: profile.majorName || '',
+      currentGrade: profile.currentGrade || null, gradeLabel: GRADE_LABELS[profile.currentGrade - 1] || '',
       emailMasked: maskEmail(view.email),
       providerLabel: getProviderLabel(view.provider) || view.accountTag,
       // 密码状态随邮箱登录能力显示。
@@ -163,8 +203,10 @@ class AccountViewModel {
     this.editRevision += 1
     const colleges = [{ id: '', name: '未选择' }].concat(remoteData.getColleges())
     const college = colleges[Number(index)] || colleges[0]
-    this.pending = Object.assign({}, this.pending, { college: college.id ? college.name : '', collegeId: college.id || null })
-    return { data: { collegeIndex: Number(index), 'draft.college': this.pending.college, dirty: true } }
+    if (this.pending && this.pending.collegeId === college.id) return null
+    this.majorOptions = []
+    this.pending = Object.assign({}, this.pending, { college: college.id ? college.name : '', collegeId: college.id || null, majorId: null, major: '' })
+    return { data: { collegeIndex: Number(index), 'draft.college': this.pending.college, 'draft.major': '', majorOptions: [], dirty: true } }
   }
 
   /** 输入：只记改动，不回写 value（回写会让光标跳到末尾） */
@@ -179,10 +221,7 @@ class AccountViewModel {
     this.pending = Object.assign({}, this.pending || {}, { [key]: text })
 
     const current = this.readProfile()
-    const dirty =
-      (this.pending.nickname || '') !== (current.nickname || '') ||
-      (this.pending.college || '') !== (current.college || '') ||
-      (this.pending.avatarUrl || '') !== (current.avatarUrl || '')
+    const dirty = this.dirtyNow()
 
     return {
       data: {
@@ -216,11 +255,15 @@ class AccountViewModel {
     const college = typeof pending.college === 'string' ? pending.college.trim() : ''
 
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
-      const profile = remoteData.getProfile(this.storage) || {}
-      return remoteData.saveProfile(this.storage, { nickname, collegeId: pending.collegeId === undefined ? profile.collegeId : pending.collegeId, majorId: pending.collegeId === undefined || pending.collegeId === profile.collegeId ? profile.majorId : null }).then(() => {
+      if (!pending.collegeId || !pending.majorId || !pending.currentGrade) return { command: { type: 'toast', title: '请选择学院、专业和当前年级' } }
+      if (this.saving) return null
+      this.saving = true
+      const patch = { nickname, collegeId: pending.collegeId, majorId: pending.majorId }
+      if (this.gradeEdited) patch.currentGrade = pending.currentGrade
+      return remoteData.saveProfile(this.storage, patch).then(() => {
         this.repository.updateAuthProfile(this.storage, { avatarUrl: pending.avatarUrl || '' })
-        return Object.assign({}, this.load(), { command: { type: 'toast', title: '资料已保存' } })
-      })
+        return Object.assign({}, this.load(), { command: { type: this.required ? 'profile-complete' : 'toast', title: '资料已保存' } })
+      }).finally(() => { this.saving = false })
     }
     this.repository.updateAuthProfile(this.storage, {
       nickname,
@@ -243,7 +286,8 @@ class AccountViewModel {
     return (
       (pending.nickname || '') !== (current.nickname || '') ||
       (pending.college || '') !== (current.college || '') ||
-      (pending.avatarUrl || '') !== (current.avatarUrl || '')
+      (pending.avatarUrl || '') !== (current.avatarUrl || '') ||
+      pending.majorId !== current.majorId || pending.currentGrade !== current.currentGrade || this.gradeEdited
     )
   }
 

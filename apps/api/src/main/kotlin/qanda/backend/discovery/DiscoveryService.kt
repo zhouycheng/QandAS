@@ -22,15 +22,15 @@ data class FavoriteView(val questionId: UUID,val questionBankId: UUID,val stem: 
 class DiscoveryService(private val sql: DiscoveryMapper,private val catalog: CatalogService,private val identity: IdentityService,private val content: ContentService,
                        private val contentSql: ContentQueries,private val audiences: BankAudienceMapper,private val questions: QuestionMapper) {
     fun courses(actor: Actor,p: PageSpec): Page<CourseView> = Page(sql.choices(actor.id,p.offset,p.pageSize).map {
-        CourseView(catalog.subject(it.subjectId!!,false),it.preferredBankId,it.preferredBankId?.let { id -> contentSql.bank(id)!=null } ?: false,it.sortOrder,it.version,it.addedAt)
+        CourseView(catalog.subject(it.subjectId!!,false),it.preferredBankId,it.preferredBankId?.let { id -> contentSql.bank(id,actor.id)!=null } ?: false,it.sortOrder,it.version,it.addedAt)
     },sql.choiceCount(actor.id),p.page,p.pageSize)
     fun save(actor: Actor,subjectId: UUID,input: CourseInput): MutationResult {
-        catalog.subject(subjectId,true)
+        catalog.subject(subjectId,true,actor.id)
         val existing=sql.choice(actor.id,subjectId)
         if(existing!=null && input.expectedVersion==null) return MutationResult(subjectId,existing.version)
         existing?.let { requireVersion(input.expectedVersion!!,it.version) }
         if(input.sortOrder !in 0..10000) invalid("/sortOrder")
-        input.preferredBankId?.let { if(contentSql.bank(it)?.subjectId!=subjectId) invalid("/preferredBankId","BANK_SUBJECT_MISMATCH","常用题库必须是该课程已发布的题库") }
+        input.preferredBankId?.let { if(contentSql.bank(it,actor.id)?.subjectId!=subjectId) invalid("/preferredBankId","BANK_SUBJECT_MISMATCH","常用题库必须是该课程已发布的题库") }
         val row=existing ?: UserSubject().apply { userId=actor.id;this.subjectId=subjectId }
         row.preferredBankId=input.preferredBankId;row.sortOrder=input.sortOrder;if(existing!=null) row.version++
         sql.saveChoice(row);return MutationResult(subjectId,row.version)
@@ -47,8 +47,8 @@ class DiscoveryService(private val sql: DiscoveryMapper,private val catalog: Cat
         val items=sql.recommendedSubjects(actor.id,p.offset,p.pageSize).map { subject ->
             Recommendation(catalog.subjectView(subject),sql.recommendedBanks(actor.id,subject.id!!).map { bank ->
                 val reasons=if(bank.scopeType=="ALL") listOf("全校通用") else audiences.selectList(QueryWrapper<BankAudience>().eq("bank_id",bank.id)).filter {
-                    (it.majorId==null || it.majorId==user.majorId) && (it.collegeId==null || it.collegeId==user.collegeId) && (it.enrollmentYear==null || it.enrollmentYear==user.enrollmentYear)
-                }.flatMap { listOfNotNull(if(it.majorId!=null) "符合所选专业" else if(it.collegeId!=null) "符合所选学院" else null,it.enrollmentYear?.let { year -> "适用于${year}级" }) }.distinct()
+                    (it.majorId==null || it.majorId==user.majorId) && (it.collegeId==null || it.collegeId==user.collegeId) && (it.grade==null || it.grade==user.currentGrade)
+                }.flatMap { listOfNotNull(if(it.majorId!=null) "符合所选专业" else if(it.collegeId!=null) "符合所选学院" else null,it.grade?.let { "符合当前年级" }) }.distinct().ifEmpty { listOf("课程已向你开放") }
                 RecommendedBank(content.bankView(bank,false),reasons)
             })
         }

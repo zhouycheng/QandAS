@@ -12,6 +12,8 @@ import qanda.backend.platform.persistence.SystemMapper
 import qanda.backend.platform.security.Actor
 import qanda.backend.platform.security.LoginAttempts
 import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 @Service
@@ -24,8 +26,11 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     fun view(id: UUID): UserView {
         val user=users.selectById(id) ?: missing();val profile=profiles.selectById(id)
         val college=profile?.majorId?.let { majors.selectById(it)?.collegeId } ?: profile?.collegeId
+        val today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))
+        val grade=AcademicGrade.current(profile?.grade,profile?.gradeAcademicYear,today)
         return UserView(id,user.accountCode,user.nickname,user.email,bindings.selectCount(QueryWrapper<UserWechat>().eq("user_id",id))>0,
-            college,profile?.majorId,profile?.enrollmentYear,user.status,user.version,user.createdAt,college?.let { colleges.selectById(it)?.name },profile?.majorId?.let { majors.selectById(it)?.name })
+            college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { colleges.selectById(it)?.name },profile?.majorId?.let { majors.selectById(it)?.name },
+            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null)
     }
     fun register(input: RegistrationInput): MutationResult {
         val password=crypto.preparePassword(input.password);val display=nickname(input.nickname)
@@ -74,14 +79,19 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     fun updateProfile(actor: Actor,input: ProfileInput): MutationResult {
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
+        val previous=profiles.selectById(actor.id) ?: missing()
         val college=input.collegeId?.let { colleges.selectById(it) ?: invalid("collegeId") }
         val major=input.majorId?.let { majors.selectById(it) ?: invalid("majorId") }
-        if(college?.status=="INACTIVE" || major?.status=="INACTIVE") invalid("majorId")
+        val previousCollege=previous.majorId?.let { majors.selectById(it)?.collegeId } ?: previous.collegeId
+        if(college?.status=="INACTIVE" && college.id!=previousCollege || major?.status=="INACTIVE" && major.id!=previous.majorId) invalid("majorId")
         if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("majorId")
-        if(major!=null && colleges.selectById(major.collegeId)?.status!="ACTIVE") invalid("majorId")
-        if(input.enrollmentYear!=null && input.enrollmentYear !in 1900..2200) invalid("enrollmentYear")
+        if(major!=null && major.id!=previous.majorId && colleges.selectById(major.collegeId)?.status!="ACTIVE") invalid("majorId")
+        if(input.currentGrade!=null && input.currentGrade !in 1..5) invalid("currentGrade")
+        val grade=input.currentGrade ?: previous.grade
+        val year=if(input.currentGrade!=null) AcademicGrade.academicYear(LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))) else previous.gradeAcademicYear
+        if(major==null || grade==null) qanda.backend.platform.http.invalid("profile","PROFILE_INCOMPLETE","请选择学院、专业和当前年级")
         user.nickname=nickname(input.nickname);user.version++;user.updatedAt=clock.instant();users.updateById(user)
-        sql.updateProfile(actor.id,if(major==null) input.collegeId else null,input.majorId,input.enrollmentYear)
+        sql.updateProfile(actor.id,null,input.majorId,grade,year)
         return MutationResult(actor.id,user.version)
     }
     fun reset(input: ResetPasswordInput): MutationResult {

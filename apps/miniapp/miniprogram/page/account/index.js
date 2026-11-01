@@ -5,9 +5,9 @@ const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 Page(withPageLifecycle({
   data: AccountViewModel.getInitialData(),
 
-  onLoad() {
+  onLoad(options) {
     this.viewModel = new AccountViewModel({
-      storage: createWxStorageAdapter()
+      storage: createWxStorageAdapter(), required: options && options.required === '1'
     })
 
   },
@@ -88,6 +88,21 @@ Page(withPageLifecycle({
     this.handleCollegeClose()
   },
 
+  handleGradeChange(e) { this.applyViewModelResult(this.viewModel.selectGrade(e.detail.value)) },
+  handleMajorOpen() { return this.loadMajorPage(1) },
+  handleMajorMore() { if (!this.data.majorLoading) return this.loadMajorPage(this.data.majorPage + 1) },
+  loadMajorPage(page) {
+    this.setData({ majorPickerVisible: true, majorLoading: true, majorError: '' })
+    return this.viewModel.loadMajors(page).then(result => this.applyViewModelResult(result))
+      .catch(error => this.setData({ majorError: error.message }))
+      .finally(() => this.setData({ majorLoading: false }))
+  },
+  handleMajorClose() { this.setData({ majorPickerVisible: false }) },
+  handleMajorPick(e) {
+    this.applyViewModelResult(this.viewModel.selectMajor(e.currentTarget.dataset.index))
+    this.handleMajorClose()
+  },
+
   handleEmailTap() {
     this.applyViewModelResult(this.viewModel.tapEmail())
   },
@@ -117,6 +132,15 @@ Page(withPageLifecycle({
     }
 
     if (!result.command) {
+      return
+    }
+
+    if (result.command.type === 'profile-complete') {
+      const pages = getCurrentPages()
+      let index = pages.length - 2
+      while (index >= 0 && /page\/(login|register|account)\/index/.test(pages[index].route)) index -= 1
+      if (index >= 0) wx.navigateBack({ delta: pages.length - 1 - index })
+      else navigation.reLaunch({ url: '/page/subject-list/index' })
       return
     }
 

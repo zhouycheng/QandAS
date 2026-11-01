@@ -2,26 +2,31 @@ const api = require('./api-transport.js')
 const authRepository = require('./auth-repository.js')
 const { observable, runInAction } = require('mobx-miniprogram')
 const { createResourceCache, queryKey } = require('./resource-cache.js')
+const { scopeKey } = require('../utils/profile-rules.js')
 const cache = createResourceCache()
 const TTL = { catalog: 300000, profile: 300000, learning: 30000, announcements: 60000, colleges: 86400000 }
 let enabled = false
 let owner = ''
+let scope = ''
 let activeStorage = null
 function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
-function enable(value) { enabled = value !== false; owner = ''; activeStorage = null; reset() }
+function enable(value) { enabled = value !== false; owner = ''; scope = ''; activeStorage = null; reset() }
 function isEnabled() { return enabled }
 function bind(storage) {
   activeStorage = storage || activeStorage
   const auth = authRepository.getAuth(activeStorage)
   const id = auth && auth.token && auth.userId || ''
+  const nextScope = scopeKey(auth)
   if (id !== owner) {
-    owner = id; reset(); api.cancelReads()
+    owner = id; scope = nextScope; reset(); api.cancelReads()
     const saved = id && activeStorage && activeStorage.get && activeStorage.get('qandaReadCache:' + id)
     if (saved && saved.version === 1) runInAction(() => {
       state.overview = saved.overview || null; state.profile = saved.profile || null
     })
+  } else if (scope !== nextScope) {
+    scope = nextScope; reset(); api.cancelReads()
   }
   return id
 }
@@ -87,19 +92,30 @@ function loadBank(storage, id, options) {
 }
 function previewPracticeScope(storage, scope) {
   const user = bind(storage)
-  if (!user) return Promise.reject(new Error('请先登录'))
+  const context = scopeKey(authRepository.getAuth(storage))
   return api.request('POST', '/practice/scope-preview', scope).then(checked).then(data => {
     if (bind(storage) !== user) throw new Error('账号已切换，请重新发起练习')
+    if (scopeKey(authRepository.getAuth(storage)) !== context) throw new Error('资料范围已变化，请重新发起练习')
+    data.selectionKey = require('./http-gateway.js').uuid()
+    storage.set('qandaScopePreview', { context, scope, data })
     return data
   })
+}
+function getScopePreview(storage, key, bankId) {
+  const record = storage.get('qandaScopePreview')
+  if (!record || record.data.selectionKey !== key || record.scope.questionBankId !== bankId || record.context !== scopeKey(authRepository.getAuth(storage))) throw new Error('练习配置已更新，请返回题库重新选择')
+  return record.data
 }
 function loadChapters(storage, id) {
   return resource(storage, 'chapters:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id) + '/chapters', data => { state.chapters = Object.assign({}, state.chapters, { [id]: data }) })
 }
 function refreshProfile(storage, options) {
   return resource(storage, 'profile', {}, TTL.profile, '/me', profile => {
+    const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' })
+    const nextScope = scopeKey(nextAuth)
+    if (nextScope !== scope) { reset(); api.cancelReads(); scope = nextScope }
     state.profile = profile
-    authRepository.saveAuth(storage, Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' }))
+    authRepository.saveAuth(storage, nextAuth)
     persistSummary()
   }, options && options.force)
 }
@@ -165,12 +181,23 @@ function refresh(storage, kind, options) {
   return Promise.resolve()
 }
 function mapQuestion(q) {
-  const type = ({ SINGLE_CHOICE: 'single', MULTIPLE_CHOICE: 'multiple', TRUE_FALSE: 'judge', SHORT_ANSWER: 'short' })[q.type] || q.type || 'single'
+  const type = ({ SINGLE_CHOICE: 'single', MULTIPLE_CHOICE: 'multiple', TRUE_FALSE: 'judge', FILL_BLANK: 'fill', SHORT_ANSWER: 'short' })[q.type] || q.type || 'single'
   const options = type === 'judge' ? [{ key: 'true', label: '正确', text: '正确' }, { key: 'false', label: '错误', text: '错误' }] : (q.options || []).map((o) => ({ key: o.key, label: o.key, text: o.content === undefined ? o.text : o.content }))
-  return { id: q.id, bankId: q.questionBankId, chapterId: q.chapterId, revisionId: q.revisionId, type, isMultiple: type === 'multiple', isJudge: type === 'judge', typeText: ({ single: '单选题', multiple: '多选题', judge: '判断题', short: '简答题' })[type], stem: q.stem || '', options, answerKeys: q.correctAnswer || (typeof q.correctValue === 'boolean' ? [String(q.correctValue)] : []), referenceAnswer: q.referenceAnswer || '', explanation: q.explanation || '', available: q.available !== false, complete: q.view !== 'summary', subjectId: q.subjectId || '', subjectName: q.subjectName || '', bankName: q.questionBankName || '' }
+  return { id: q.id, bankId: q.questionBankId, chapterId: q.chapterId, revisionId: q.revisionId, type, isMultiple: type === 'multiple', isJudge: type === 'judge', isFillBlank: type === 'fill', isShortAnswer: type === 'short', blankCount: q.blankCount || 0, blanks: q.blanks || [], blankMatch: q.blankMatch || {}, material: q.material || null, scoringPoints: q.scoringPoints || [], assetIds: q.assetIds || [], imagePaths: q.imagePaths || [], typeText: ({ single: '单选题', multiple: '多选题', judge: '判断题', fill: '填空题', short: '简答题' })[type], stem: q.stem || '', options, answerKeys: q.correctAnswer || (typeof q.correctValue === 'boolean' ? [String(q.correctValue)] : []), referenceAnswer: q.referenceAnswer || '', explanation: q.explanation || '', available: q.available !== false, complete: q.view !== 'summary', subjectId: q.subjectId || '', subjectName: q.subjectName || '', bankName: q.questionBankName || '' }
 }
 function cacheQuestions(questions) { questions.forEach((q) => { const mapped = mapQuestion(q); if (mapped.complete || !state.questions[mapped.id]) state.questions[mapped.id] = mapped }) }
-function loadQuestion(storage, id) { return resource(storage, 'question:' + id, {}, TTL.catalog, `/questions/${encodeURIComponent(id)}`, q => cacheQuestions([q])) }
+async function loadQuestion(storage, id) {
+  const context = scopeKey(authRepository.getAuth(storage))
+  await resource(storage, 'question:' + id, {}, TTL.catalog, `/questions/${encodeURIComponent(id)}`, q => cacheQuestions([q]))
+  const question = state.questions[id]
+  if (!question) return
+  const assets = require('./question-assets.js')
+  const imagePaths = await assets.load(storage, question.assetIds)
+  const materialImages = question.material ? await assets.load(storage, question.material.assetIds) : []
+  if (scopeKey(authRepository.getAuth(storage)) !== context) return
+  question.imagePaths = imagePaths
+  if (question.material) question.material.imagePaths = materialImages
+}
 function getSubjectSummaries() {
   bind(activeStorage)
   return state.subjects.map((s, i) => {
@@ -234,9 +261,11 @@ async function clearFavorites(storage) {
 function removeWrongQuestions() { return Promise.reject(new Error('错题记录随练习结果更新，请通过复习掌握题目')) }
 function searchQuestions(storage, keyword, page) {
   const user = bind(storage)
+  const context = scopeKey(authRepository.getAuth(storage))
   return api.request('GET', '/questions', { keyword, page: page || 1, pageSize: 20, view: 'summary' }).then(checked).then((result) => {
     bind(storage)
     if (owner !== user) throw new Error('账号已切换，请重新搜索')
+    if (scopeKey(authRepository.getAuth(storage)) !== context) throw new Error('资料范围已变化，请重新搜索')
     cacheQuestions((result.items || []).map(q => Object.assign({}, q, { view: 'summary' })))
     const index = getQuestionIndex()
     return { total: result.total, page: result.page, items: (result.items || []).map((question) => {
@@ -251,17 +280,19 @@ function loadColleges(storage, page) {
   return resource(storage, 'colleges', { page: page || 1, pageSize: 100 }, TTL.colleges, '/colleges', data => { state.colleges = page > 1 ? mergeById(state.colleges, data.items) : data.items })
 }
 function loadMajors(id, page) {
-  return resource(activeStorage, 'majors:' + id, { page: page || 1, pageSize: 100 }, TTL.colleges, `/colleges/${id}/majors`, data => { state.majors = data.items }).then(data => data ? data.items : [])
+  return resource(activeStorage, 'majors:' + id, { page: page || 1, pageSize: 100 }, TTL.colleges, `/colleges/${id}/majors`, null).then(data => data || { items: [], total: 0, page: 1, pageSize: 100 })
 }
 function saveProfile(storage, patch) {
   const profile = getProfile(storage)
   if (!profile) return Promise.reject(new Error('请先刷新账号资料'))
   const user = owner
-  return mutate('PUT', '/me/profile', Object.assign({ expectedVersion: profile.version, nickname: profile.nickname, collegeId: profile.collegeId, majorId: profile.majorId, enrollmentYear: profile.enrollmentYear }, patch)).then(() => {
-    if (bind(storage) === user) { cache.invalidate('profile:'); return refreshProfile(storage) }
+  return mutate('PUT', '/me/profile', Object.assign({ expectedVersion: profile.version, nickname: profile.nickname, collegeId: profile.collegeId, majorId: profile.majorId }, patch)).then(() => {
+    if (bind(storage) !== user) throw new Error('账号已切换，请重新查看资料')
+    reset(); api.cancelReads()
+    return refreshProfile(storage, { force: true }).then(result => { scope = scopeKey(authRepository.getAuth(storage)); return result })
   })
 }
 module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, removeWrongQuestions, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
 
-Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadBank, loadChapters, previewPracticeScope })
+Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadBank, loadChapters, previewPracticeScope, getScopePreview })

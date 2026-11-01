@@ -26,7 +26,8 @@ class UserProfile {
     var userId: UUID? = null
     var collegeId: UUID? = null
     var majorId: UUID? = null
-    var enrollmentYear: Int? = null
+    var grade: Int? = null
+    var gradeAcademicYear: Int? = null
 }
 
 @TableName("user_wechat")
@@ -52,6 +53,7 @@ class UserSession {
     var issuedAt: Instant = Instant.now()
     var expiresAt: Instant = Instant.now()
     var lastSeenAt: Instant = Instant.now()
+    var foregroundSeenAt: Instant? = null
     var revokedAt: Instant? = null
 }
 

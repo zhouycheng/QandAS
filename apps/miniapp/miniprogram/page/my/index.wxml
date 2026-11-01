@@ -1,11 +1,11 @@
 <!-- 我的｜设计稿 Figma 781:1922（画板 402x874，系数 750/402 ≈ 1.8657）
-     页内大标题 + 资料头 + 账号管理 + 学习设置 + 法律协议。 -->
+     页内大标题 + 资料头 + 个人资料 + 学习设置 + 法律协议。 -->
 <view class="list-page" style="padding-top: {{homeStatusBarHeight}}px;">
   <view class="page-head" style="height: {{homeNavigationBarHeight}}px; padding-right: 210rpx;">
     <text class="page-head-title">我的</text>
   </view>
 
-  <!-- 资料头：未登录点它去登录，已登录进账号管理 -->
+  <!-- 资料头：未登录时登录，已登录时编辑资料 -->
   <view
     class="profile"
     bindtap="handleProfileTap"
@@ -32,7 +32,7 @@
     hover-start-time="0"
     hover-stay-time="80"
   >
-    <text class="pill-row-label">账号管理</text>
+    <text class="pill-row-label">个人资料</text>
     <text class="pill-row-value">个人信息与安全</text>
     <view class="chevron"></view>
   </view>

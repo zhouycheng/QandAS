@@ -25,12 +25,17 @@ function deviceId(storage) {
   return value
 }
 function failure(storage, reason) { return { ok: false, degraded: false, reason: reason || '请求失败，请稍后重试', auth: getAuth(storage) } }
+function notifyIdentity() {
+  if (typeof getApp !== 'function') return
+  const app = getApp()
+  if (app && app.syncActivityHeartbeat) app.syncActivityHeartbeat()
+}
 function settle(storage, remote, provider) {
   if (!remote || !remote.ok || !remote.userId || !remote.token) return failure(storage, remote && remote.reason || '登录接口未返回完整身份')
   const auth = provider === 'email' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { return { ok: true, degraded: false, provider, reason: '', auth: saveAuth(storage, auth) } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, degraded: false, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {
@@ -95,7 +100,7 @@ function resetPassword(storage, input) {
 function logout(storage) {
   const current = getAuth(storage)
   if (current.token) transport.request('DELETE', '/auth/sessions/current', {}, { token: current.token })
-  try { clearAuth(storage) } catch (error) { return failure(storage, '退出登录失败，请检查设备存储空间') }
+  try { clearAuth(storage); notifyIdentity() } catch (error) { return failure(storage, '退出登录失败，请检查设备存储空间') }
   return { ok: true, provider: '', auth: createEmptyAuth() }
 }
 function updateProfile(storage, profile) {

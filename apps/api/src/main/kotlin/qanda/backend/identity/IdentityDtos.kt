@@ -10,13 +10,16 @@ data class RegistrationInput(val challengeId: UUID, @field:Schema(pattern="^[0-9
 data class WechatRegistrationInput(val registrationToken: String, val nickname: String = "Q友")
 data class LoginInput(val email: String, val password: String, val deviceId: UUID, @field:Schema(allowableValues=["WEB","MINI_PROGRAM"]) val clientType: String = "WEB")
 data class WechatLoginInput(val code: String, val deviceId: UUID)
-data class TokenView(val accessToken: String, val sessionId: UUID, val expiresAt: Instant)
+data class TokenView(val accessToken: String, val sessionId: UUID, val expiresAt: Instant, val sessionMinutes: Int? = null)
 data class WechatLoginView(val session: TokenView? = null, val registrationToken: String? = null)
 data class UserView(val id: UUID, val accountCode: String, val nickname: String, val email: String?, val wechatBound: Boolean,
-                    val collegeId: UUID?, val majorId: UUID?, val enrollmentYear: Int?, val status: String, val version: Long, val registeredAt: Instant,val collegeName: String?=null,val majorName: String?=null)
-data class ProfileInput(val expectedVersion: Long, val nickname: String, val collegeId: UUID? = null, val majorId: UUID? = null, val enrollmentYear: Int? = null)
+                    val collegeId: UUID?, val majorId: UUID?, val currentGrade: Int?, val status: String, val version: Long, val registeredAt: Instant,val collegeName: String?=null,val majorName: String?=null,
+                    val academicYear: Int, val profileComplete: Boolean)
+data class ProfileInput(val expectedVersion: Long, val nickname: String, val collegeId: UUID? = null, val majorId: UUID? = null,
+                        @field:Schema(description="当前年级：1 大一，2 大二，3 大三，4 大四，5 已毕业；省略时保留年级锚点") val currentGrade: Int? = null)
 data class ResetPasswordInput(val challengeId: UUID, @field:Schema(pattern="^[0-9]{6}$") val code: String, val newPassword: String)
 data class PasswordInput(val expectedVersion: Long, val challengeId: UUID, @field:Schema(pattern="^[0-9]{6}$") val code: String, val newPassword: String)
 data class EmailInput(val expectedVersion: Long, val newChallengeId: UUID, @field:Schema(pattern="^[0-9]{6}$") val newCode: String, val oldChallengeId: UUID? = null, @field:Schema(pattern="^[0-9]{6}$") val oldCode: String? = null)
 data class WechatBindingInput(val expectedVersion: Long, val code: String)
 data class SessionView(val id: UUID, val deviceId: UUID, val clientType: String, val issuedAt: Instant, val expiresAt: Instant, val current: Boolean)
+data class HeartbeatView(val receivedAt: Instant,val onlineUntil: Instant)

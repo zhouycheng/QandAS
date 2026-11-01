@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.catalog.CatalogQueries">
+  <select id="gradeCounts" resultType="qanda.backend.catalog.GradeCount">SELECT current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) grade,count(*) student_count FROM user_profile p LEFT JOIN major m ON m.id=p.major_id WHERE coalesce(p.college_id,m.college_id) IS NOT NULL AND p.major_id IS NOT NULL AND p.grade IS NOT NULL <if test="collegeId != null">AND coalesce(p.college_id,m.college_id)=#{collegeId} </if><if test="majorId != null">AND p.major_id=#{majorId} </if> GROUP BY 1</select>
+  <select id="memberCounts" resultType="qanda.backend.catalog.MemberCount">SELECT <choose><when test="kind == 'college'">coalesce(p.college_id,m.college_id)</when><otherwise>p.major_id</otherwise></choose> id,count(*) student_count FROM user_profile p LEFT JOIN major m ON m.id=p.major_id WHERE <choose><when test="kind == 'college'">coalesce(p.college_id,m.college_id)</when><otherwise>p.major_id</otherwise></choose> IN <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach> GROUP BY 1</select>
   <select id="lockCollege" resultType="qanda.backend.catalog.College">SELECT * FROM college WHERE id=#{id} FOR UPDATE</select>
   <select id="lockMajor" resultType="qanda.backend.catalog.Major">SELECT * FROM major WHERE id=#{id} FOR UPDATE</select>
   <select id="lockSubject" resultType="qanda.backend.catalog.Subject">SELECT * FROM subject WHERE id=#{id} FOR UPDATE</select>
-  <sql id="published">s.status='ACTIVE' AND EXISTS(SELECT 1 FROM question_bank b WHERE b.subject_id=s.id AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND q.status='ACTIVE'))</sql>
-  <sql id="filter"><where><if test="keyword != null">s.name ILIKE '%'||#{keyword}||'%'</if><if test="publicOnly">AND <include refid="published"/></if></where></sql>
+  <sql id="published">s.status='ACTIVE' AND EXISTS(SELECT 1 FROM question_bank b WHERE b.subject_id=s.id AND bank_visible(b.id,#{userId}))</sql>
+  <sql id="filter"><where><if test="keyword != null">s.name ILIKE '%'||#{keyword}||'%' </if><if test="publicOnly">AND <include refid="published"/> </if></where></sql>
   <select id="subjects" resultType="qanda.backend.catalog.Subject">SELECT s.* FROM subject s <include refid="filter"/> ORDER BY s.name,s.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="subjectCount" resultType="long">SELECT count(*) FROM subject s <include refid="filter"/></select>
   <select id="publishedSubject" resultType="qanda.backend.catalog.Subject">SELECT s.* FROM subject s WHERE s.id=#{id} AND <include refid="published"/></select>
+  <select id="userAccess" resultType="qanda.backend.catalog.SubjectAccessView">SELECT g.user_id,u.nickname,u.account_code,g.created_at FROM subject_user_access g JOIN user_account u ON u.id=g.user_id WHERE g.subject_id=#{id} ORDER BY g.created_at DESC,g.user_id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="userAccessCount" resultType="long">SELECT count(*) FROM subject_user_access WHERE subject_id=#{id}</select>
+  <select id="userExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM user_account WHERE id=#{id})</select>
+  <insert id="grant">INSERT INTO subject_user_access(subject_id,user_id,granted_by) VALUES(#{id},#{userId},#{adminId}) ON CONFLICT DO NOTHING</insert>
+  <delete id="revoke">DELETE FROM subject_user_access WHERE subject_id=#{id} AND user_id=#{userId}</delete>
 </mapper>

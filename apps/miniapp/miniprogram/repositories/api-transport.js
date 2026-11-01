@@ -63,11 +63,12 @@ function request(method, path, data, options) {
   const url = `${config.baseUrl}${path.indexOf('/api/v1') === 0 ? path : `/api/v1${path}`}`
   return new Promise((resolve) => {
     const task = { resolve, path: path.split('?')[0], queuedAt: Date.now(), background: settings.priority === 'background', read: method === 'GET', generation: readGeneration, run: () => {
+      if (settings.shouldSend && !settings.shouldSend()) return Object.assign(failure('请求已取消'), { cancelled: true })
       if (task.read && task.generation !== readGeneration) return Object.assign(failure('读取已取消'), { cancelled: true })
       if (!config.baseUrl) return failure('未配置接口域名')
       const wxApi = typeof wx !== 'undefined' && wx
       if (!wxApi || typeof wxApi.request !== 'function') return failure('当前环境不支持网络请求')
-      return new Promise((done) => { task.handle = wxApi.request({ url, method, data: body, header: headers, timeout: config.timeout,
+      return new Promise((done) => { task.handle = wxApi.request({ url, method, data: body, header: headers, timeout: config.timeout, responseType: settings.responseType || 'text',
         success(response) {
           if (task.read && task.generation !== readGeneration) return done(Object.assign(failure('读取已取消'), { cancelled: true }))
           const statusCode = Number(response.statusCode) || 0
