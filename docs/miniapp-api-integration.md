@@ -193,7 +193,7 @@
 
 ## 管理端逐接口调用补充（2026-11-01）
 
-管理端专用接口 71 项，其中页面或登录链实际使用 64 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。此处“已接入待联调”只表示静态调用链、受控适配器与独立服务检查，不表示已完成真实三端联调。平台管理员可用全部管理能力；内容管理员只能读取目录并维护已分配题库、处理对应题目反馈。
+管理端专用接口 71 项，其中页面或登录链实际使用 64 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。管理员统一为超级管理员，可在设置中创建更多同权限账号，维护者分配用于工作归属。此处“已接入待联调”表示已有调用链；本轮真实客户端证据见[三端联调记录](three-client-integration.md)，按已执行的操作分别确认。
 
 | 方法与路径 | operationId | 管理端入口与调用 | 状态与后续 |
 | --- | --- | --- | --- |
@@ -268,10 +268,25 @@
 
 | 方法与路径 | operationId | 管理端入口与调用 | 状态与证据 |
 | --- | --- | --- | --- |
-| `GET /api/v1/admin/statistics/online-users` | `OnlineUsers_list_GET` | ActivityPage → OnlineUsersDrawer → getOnlineUsers → HTTP Gateway | 已接入待联调；Mock 抽屉和资料入口、独立 SQL 分页与去重通过 |
-| `GET /api/v1/admin/monitoring/sync/stream` | `Monitoring_stream_GET` | MonitoringPage → watchSyncHealth → watchSyncStream | 已接入待联调；流式解析、重连、取消、权限撤销及实际 SSE 检查 |
-| `GET /api/v1/admin/monitoring/health` | `Monitoring_health_GET` | MonitoringPage → getSystemHealth | 已接入待联调；可见时 30 秒刷新，独立 monitor JAR 通过 |
+| `GET /api/v1/admin/statistics/online-users` | `OnlineUsers_list_GET` | ActivityPage → OnlineUsersDrawer → getOnlineUsers → HTTP Gateway | 已验收（本机浏览器）；点击人数查看实际小程序账号，SQL 分页与去重另有隔离检查 |
+| `GET /api/v1/admin/monitoring/sync/stream` | `Monitoring_stream_GET` | MonitoringPage → watchSyncHealth → watchSyncStream | 已验收（本机浏览器及 HTTP）；真实 SSE 显示排队和恢复，流式解析、重连及权限撤销另有自动检查 |
+| `GET /api/v1/admin/monitoring/health` | `Monitoring_health_GET` | MonitoringPage → getSystemHealth | 已验收（本机浏览器）；独立监控服务返回模块和消费者健康 |
 | `GET /api/v1/admin/sync/dead-letters/head` | `SyncRecovery_head_GET` | MonitoringPage → 查看待处理死信 → getDeadLetterHead | 已接入待联调；RabbitMQ 队首保留及元数据权限检查 |
 | `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 确认处理 → replaySyncCommand | 已接入待联调；原键重试、重放、完成重复清理检查 |
 
 小程序异步进度收到 `202` 后保持原正文与幂等键，回执检查只清理已确认序号。共享请求预算和游客本机试答规则保持原口径。旧 `progress-ack` 作为已落库确认接口保留，当前页面使用新的命令调用链。
+
+## 2026-11-01 真实客户端补充
+
+完整环境、问题复测与证据目录见[三端实际联调](three-client-integration.md)。小程序通过真实登录表单、题库配置和答题页面完成六类内容、7 道作答小题，正式结果为 7/7；管理员通过设置创建账号并使用独立浏览器会话登录。当前会话 `401` 会清理登录展示状态，旧令牌的迟到响应不影响新登录，草稿继续保留。
+
+| 接口组 | 本轮确认范围 |
+| --- | --- |
+| `/auth/sessions`、`/me`、`/subjects`、`/question-banks` | 小程序真实登录、首页与题库加载；失效后登录引导及重新登录 |
+| `/practice/scope-preview`、`/practice/sessions`、进度命令与回执、`finish`、`result` | 实际答题与正式结果；独立 HTTP 检查排队、幂等、交卷屏障、恢复与简答自评 |
+| `/admin/auth/sessions`、`/admin/auth/me`、`/admin/administrators` 的 GET/POST | 管理端真实登录、管理员列表、创建及新账号独立登录 |
+| `/announcements`、`/admin/announcements` | 已发布样例读取及管理端列表；编辑、撤下界面待逐项复测 |
+| `/me/question-feedback`、`/admin/question-feedback` | HTTP 验证学生提交、管理员处理和处理结果回传；客户端表单待复测 |
+| `/me/activity/heartbeat`、活跃度、排行、在线明细及监控 | 真实小程序心跳与管理端展示；HTTP 覆盖三种排行榜排序和暂停消费者后的 SSE 排队变化 |
+
+自动验收覆盖 136 个接口的 953 次 HTTP 观察；界面验收以本节具体操作为准。微信真机与其他页面交互继续保留待验收状态。
