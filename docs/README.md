@@ -15,4 +15,5 @@
 - [用户交流群](community-group.md)
 - [首页公告动效](home-announcement-motion.md)
 - [验收规范](verification.md)
+- [性能检查](performance.md)
 - [Git 工作流](git-workflow.md)
