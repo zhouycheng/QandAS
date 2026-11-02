@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Avatar, Breadcrumb, Button, Drawer, Message, Select, Space } from '@arco-design/web-react'
+import { Avatar, Breadcrumb, Button, Drawer, Message, Space } from '@arco-design/web-react'
 import { IconMenuFold, IconMenuUnfold, IconPoweroff, IconUser } from '@arco-design/web-react/icon'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { scenarioLabels, type PlaygroundScenario } from '../../playground/scenarios'
-import { useMockAdminStore } from '../../playground/store/mock-admin-store'
 import { getAdminSession, isAuthenticated, logout, touchAdminSession } from '../lib/auth'
 import { useUiStore } from '../stores/ui-store'
 import { useAdminGateway } from '../gateways/gateway-context'
@@ -46,8 +44,6 @@ export function AdminLayout() {
   const gateway = useAdminGateway()
   const { collapsed, setCollapsed } = useUiStore()
   const [mobile, setMobile] = useState(window.innerWidth <= 760)
-  const scenario = useMockAdminStore((s) => s.scenario)
-  const setScenario = useMockAdminStore((s) => s.setScenario)
   const timeoutMinutes = getAdminSession()?.timeoutMinutes ?? 30
   const session = getAdminSession()
   useEffect(() => {
@@ -100,11 +96,6 @@ export function AdminLayout() {
       window.removeEventListener('storage', storage)
     }
   }, [navigate, timeoutMinutes])
-  const changeScenario = (next: PlaygroundScenario) => {
-    setScenario(next)
-    void queryClient.resetQueries()
-    Message.success(`已切换到“${scenarioLabels[next]}”场景，演示数据已重置`)
-  }
   const navigation = (
     <>
       <Link className="brand" to="/dashboard">
@@ -188,25 +179,7 @@ export function AdminLayout() {
         <main className="admin-content">
           <Outlet />
         </main>
-        <footer className="environment-bar">
-          <span>{gateway.mode === 'mock' ? '本地演示环境' : '后端服务'}</span>
-          {gateway.mode === 'mock' && <div className="scenario-picker">
-            <span>Playground</span>
-            <Select
-              aria-label="Playground 场景"
-              size="small"
-              value={scenario}
-              onChange={changeScenario}
-              style={{ width: 130 }}
-            >
-              {Object.entries(scenarioLabels).map(([value, label]) => (
-                <Select.Option key={value} value={value}>
-                  {label}
-                </Select.Option>
-              ))}
-            </Select>
-          </div>}
-        </footer>
+        <footer className="environment-bar">QandA V1.0.0</footer>
       </div>
     </div>
   )

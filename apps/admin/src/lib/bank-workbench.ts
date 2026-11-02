@@ -1,7 +1,5 @@
-import type { BankAudience, College, Major, Question, QuestionBank, Subject } from '../types/admin'
+import type { BankAudience, College, Major, QuestionBank, Subject } from '../types/admin'
 import { gradeLabel } from '../types/admin'
-import { validateQuestion } from './content-rules'
-import { countQuestions, missingExplanations } from './question-content'
 import { matchesAudience } from './recommendations'
 
 export interface AudienceDirectory {
@@ -58,21 +56,6 @@ export function scopeLabels(bank: Pick<QuestionBank, 'scopeType' | 'audiences'>,
     const college = directory.colleges.find((c) => c.id === (audience.collegeId ?? major?.collegeId))
     return [college?.name || (audience.collegeId ? '所选学院' : ''), major?.name || (audience.majorId ? '所选专业' : ''), audience.grade ? gradeLabel(audience.grade) : undefined].filter(Boolean).join(' · ') || '展示范围待配置'
   })
-}
-
-export function publicationChecks(bank: QuestionBank, subject: Subject | undefined, questions: Question[], directory: AudienceDirectory) {
-  const active = questions.filter((q) => q.status === 'ACTIVE')
-  const invalid = active.filter((q) => {
-    try { validateQuestion(q); return false } catch { return true }
-  })
-  const scopeError = getScopeError(bank.scopeType, bank.audiences, directory)
-  return [
-    { label: '所属课程已启用', passed: subject?.status === 'ACTIVE', detail: subject?.status === 'ACTIVE' ? subject.name : '请先在课程目录中启用所属课程' },
-    { label: '题库说明已填写', passed: Boolean(bank.description.trim()), detail: bank.description.trim() ? '学生可以了解题库用途与内容' : '请在基本信息中补充题库说明' },
-    { label: '至少有一道启用题目', passed: countQuestions(active) > 0, detail: `当前有 ${countQuestions(active)} 道启用题目（阅读理解按小题计数）` },
-    { label: '启用题目内容与解析完整', passed: invalid.length === 0 && missingExplanations(active) === 0, detail: `${invalid.length} 条题目记录格式待检查，${missingExplanations(active)} 道题目或阅读小题缺少解析` },
-    { label: '展示范围已配置', passed: !scopeError, detail: scopeError ?? scopeLabels(bank, directory).join('；') },
-  ]
 }
 
 export function bankVisibility(bank: QuestionBank, profile: Pick<BankAudience, 'collegeId' | 'majorId' | 'grade'>, subjects: Subject[]) {

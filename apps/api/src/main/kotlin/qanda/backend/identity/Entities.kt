@@ -49,7 +49,6 @@ class UserSession {
     var userId: UUID? = null
     var tokenDigest: ByteArray = byteArrayOf()
     var credentialVersion: Long = 1
-    var clientType: String = "WEB"
     var deviceId: UUID? = null
     var issuedAt: Instant = Instant.now()
     var expiresAt: Instant = Instant.now()

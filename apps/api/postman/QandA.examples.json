@@ -1,0 +1,982 @@
+[
+  {
+    "operationId": "Admin_userStatus_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/users/{id}/status",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "status": "ACTIVE"
+    }
+  },
+  {
+    "operationId": "Admin_policy_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/security-policy",
+    "body": null
+  },
+  {
+    "operationId": "Admin_policy_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/security-policy",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "lockEnabled": true,
+      "maxAttempts": 5,
+      "lockMinutes": 30,
+      "sessionMinutes": 30,
+      "minPasswordLength": 12,
+      "requireLetter": true,
+      "requireNumber": true,
+      "requireMixedCase": false
+    }
+  },
+  {
+    "operationId": "Admin_account_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/administrators/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Admin_update_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/administrators/{id}",
+    "body": {
+      "username": "{{username}}",
+      "name": "示例内容",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Admin_login_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/auth/sessions",
+    "body": {
+      "username": "{{username}}",
+      "password": "{{password}}",
+      "deviceId": "{{deviceId}}"
+    }
+  },
+  {
+    "operationId": "Admin_logout_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/auth/logout",
+    "body": null
+  },
+  {
+    "operationId": "Admin_list_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/administrators",
+    "body": null
+  },
+  {
+    "operationId": "Admin_create_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/administrators",
+    "body": {
+      "username": "{{username}}",
+      "name": "示例内容",
+      "password": "{{password}}"
+    }
+  },
+  {
+    "operationId": "Admin_users_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/users",
+    "body": null
+  },
+  {
+    "operationId": "Admin_user_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/users/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Admin_me_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/auth/me",
+    "body": null
+  },
+  {
+    "operationId": "Admin_logs_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/audit-logs",
+    "body": null
+  },
+  {
+    "operationId": "Operations_updateAnnouncement_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/announcements/{id}",
+    "body": {
+      "title": "示例内容",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Operations_deleteAnnouncement_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/announcements/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Operations_adminAnnouncements_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/announcements",
+    "body": null
+  },
+  {
+    "operationId": "Operations_createAnnouncement_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/announcements",
+    "body": {
+      "title": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_announcements_GET",
+    "method": "GET",
+    "path": "/api/v1/announcements",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_adminSubject_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_updateSubject_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/subjects/{id}",
+    "body": {
+      "name": "示例内容",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_adminMajor_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_updateMajor_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/majors/{id}",
+    "body": {
+      "collegeId": "{{collegeId}}",
+      "name": "示例内容",
+      "code": "{{code}}",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_adminCollege_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/colleges/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_updateCollege_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/colleges/{id}",
+    "body": {
+      "name": "示例内容",
+      "code": "{{code}}",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_adminSubjects_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_createSubject_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/subjects",
+    "body": {
+      "name": "示例内容"
+    }
+  },
+  {
+    "operationId": "Catalog_userAccess_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_grant_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": {
+      "userId": "{{userId}}",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_allMajors_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_createMajor_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/majors",
+    "body": {
+      "collegeId": "{{collegeId}}",
+      "name": "示例内容",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "Catalog_adminColleges_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/colleges",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_createCollege_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/colleges",
+    "body": {
+      "name": "示例内容",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "Catalog_subjects_GET",
+    "method": "GET",
+    "path": "/api/v1/subjects",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_subject_GET",
+    "method": "GET",
+    "path": "/api/v1/subjects/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_colleges_GET",
+    "method": "GET",
+    "path": "/api/v1/colleges",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_majors_GET",
+    "method": "GET",
+    "path": "/api/v1/colleges/{id}/majors",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_directory_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/directory-summary",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_revoke_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/subjects/{id}/user-access/{userId}",
+    "body": null
+  },
+  {
+    "operationId": "Content_adminQuestion_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/questions/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_updateQuestion_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/questions/{id}",
+    "body": {
+      "questionBankId": "{{questionBankId}}",
+      "type": "SINGLE_CHOICE",
+      "stem": "示例题干",
+      "options": [
+        {
+          "key": "A",
+          "content": "选项甲"
+        },
+        {
+          "key": "B",
+          "content": "选项乙"
+        }
+      ],
+      "correctAnswer": [
+        "A"
+      ],
+      "explanation": "示例解析",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Content_deactivateQuestion_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/questions/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_adminBank_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_updateBank_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-banks/{id}",
+    "body": {
+      "subjectId": "{{subjectId}}",
+      "name": "示例内容",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Content_publish_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-banks/{id}/publication",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "status": "DRAFT"
+    }
+  },
+  {
+    "operationId": "Content_reorder_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-banks/{id}/chapter-order",
+    "body": {
+      "expectedContentVersion": "{{expectedContentVersion}}",
+      "ids": []
+    }
+  },
+  {
+    "operationId": "Content_updateChapter_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-banks/{bankId}/chapters/{id}",
+    "body": {
+      "name": "示例内容",
+      "sortOrder": 0,
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Content_deleteChapter_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/question-banks/{bankId}/chapters/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_createQuestion_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/questions",
+    "body": {
+      "questionBankId": "{{questionBankId}}",
+      "type": "SINGLE_CHOICE",
+      "stem": "示例题干",
+      "options": [
+        {
+          "key": "A",
+          "content": "选项甲"
+        },
+        {
+          "key": "B",
+          "content": "选项乙"
+        }
+      ],
+      "correctAnswer": [
+        "A"
+      ],
+      "explanation": "示例解析"
+    }
+  },
+  {
+    "operationId": "Content_adminBanks_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks",
+    "body": null
+  },
+  {
+    "operationId": "Content_createBank_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks",
+    "body": {
+      "subjectId": "{{subjectId}}",
+      "name": "示例内容"
+    }
+  },
+  {
+    "operationId": "Content_importQuestions_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{id}/imports",
+    "body": {
+      "expectedContentVersion": "{{expectedContentVersion}}",
+      "questions": [
+        {
+          "questionBankId": "{{questionBankId}}",
+          "type": "SINGLE_CHOICE",
+          "stem": "示例题干",
+          "options": [
+            {
+              "key": "A",
+              "content": "选项甲"
+            },
+            {
+              "key": "B",
+              "content": "选项乙"
+            }
+          ],
+          "correctAnswer": [
+            "A"
+          ],
+          "explanation": "示例解析"
+        }
+      ]
+    }
+  },
+  {
+    "operationId": "Content_preview_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{id}/import-preview",
+    "body": {
+      "expectedContentVersion": "{{expectedContentVersion}}",
+      "questions": [
+        {
+          "questionBankId": "{{questionBankId}}",
+          "type": "SINGLE_CHOICE",
+          "stem": "示例题干",
+          "options": [
+            {
+              "key": "A",
+              "content": "选项甲"
+            },
+            {
+              "key": "B",
+              "content": "选项乙"
+            }
+          ],
+          "correctAnswer": [
+            "A"
+          ],
+          "explanation": "示例解析"
+        }
+      ]
+    }
+  },
+  {
+    "operationId": "Content_adminChapters_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}/chapters",
+    "body": null
+  },
+  {
+    "operationId": "Content_createChapter_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{id}/chapters",
+    "body": {
+      "name": "示例内容",
+      "sortOrder": 0
+    }
+  },
+  {
+    "operationId": "Content_search_GET",
+    "method": "GET",
+    "path": "/api/v1/questions",
+    "body": null
+  },
+  {
+    "operationId": "Content_question_GET",
+    "method": "GET",
+    "path": "/api/v1/questions/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_banks_GET",
+    "method": "GET",
+    "path": "/api/v1/question-banks",
+    "body": null
+  },
+  {
+    "operationId": "Content_bank_GET",
+    "method": "GET",
+    "path": "/api/v1/question-banks/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Content_chapters_GET",
+    "method": "GET",
+    "path": "/api/v1/question-banks/{id}/chapters",
+    "body": null
+  },
+  {
+    "operationId": "Content_adminQuestions_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}/questions",
+    "body": null
+  },
+  {
+    "operationId": "Content_publicationChecks_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}/publication-checks",
+    "body": null
+  },
+  {
+    "operationId": "Discovery_favorite_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/favorites/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Discovery_unfavorite_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/me/favorites/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Discovery_recommendations_GET",
+    "method": "GET",
+    "path": "/api/v1/me/recommendations",
+    "body": null
+  },
+  {
+    "operationId": "Discovery_favorites_GET",
+    "method": "GET",
+    "path": "/api/v1/me/favorites",
+    "body": null
+  },
+  {
+    "operationId": "Identity_bindWechat_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/wechat-binding",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "Identity_updateProfile_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/profile",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "nickname": "示例内容"
+    }
+  },
+  {
+    "operationId": "Identity_changePassword_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/password",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "challengeId": "{{challengeId}}",
+      "code": "{{code}}",
+      "newPassword": "{{newPassword}}"
+    }
+  },
+  {
+    "operationId": "Identity_changeEmail_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/email-binding",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "newChallengeId": "{{newChallengeId}}",
+      "newCode": "{{newCode}}"
+    }
+  },
+  {
+    "operationId": "Identity_requestOwnEmailChallenge_POST",
+    "method": "POST",
+    "path": "/api/v1/me/email-challenges",
+    "body": {
+      "purpose": "REGISTER"
+    }
+  },
+  {
+    "operationId": "Identity_verifyOwnEmailChallenge_POST",
+    "method": "POST",
+    "path": "/api/v1/me/email-challenges/{id}/verification",
+    "body": {
+      "purpose": "CHANGE_PASSWORD",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "Identity_heartbeat_POST",
+    "method": "POST",
+    "path": "/api/v1/me/activity/heartbeat",
+    "body": null
+  },
+  {
+    "operationId": "Identity_wechatLogin_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/wechat-sessions",
+    "body": {
+      "code": "{{code}}",
+      "deviceId": "{{deviceId}}"
+    }
+  },
+  {
+    "operationId": "Identity_registerWechat_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/wechat-registrations",
+    "body": {
+      "registrationToken": "{{registrationToken}}"
+    }
+  },
+  {
+    "operationId": "Identity_login_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/sessions",
+    "body": {
+      "email": "{{email}}",
+      "password": "{{password}}",
+      "deviceId": "{{deviceId}}"
+    }
+  },
+  {
+    "operationId": "Identity_resetPassword_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/password-resets",
+    "body": {
+      "challengeId": "{{challengeId}}",
+      "code": "{{code}}",
+      "newPassword": "{{newPassword}}"
+    }
+  },
+  {
+    "operationId": "Identity_registerEmail_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/email-registrations",
+    "body": {
+      "challengeId": "{{challengeId}}",
+      "code": "{{code}}",
+      "password": "{{password}}"
+    }
+  },
+  {
+    "operationId": "Identity_requestPublicEmailChallenge_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/email-challenges",
+    "body": {
+      "purpose": "REGISTER"
+    }
+  },
+  {
+    "operationId": "Identity_me_GET",
+    "method": "GET",
+    "path": "/api/v1/me",
+    "body": null
+  },
+  {
+    "operationId": "Identity_logout_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/auth/sessions/current",
+    "body": null
+  },
+  {
+    "operationId": "Learning_wrong_GET",
+    "method": "GET",
+    "path": "/api/v1/me/wrong-questions",
+    "body": null
+  },
+  {
+    "operationId": "Learning_summary_GET",
+    "method": "GET",
+    "path": "/api/v1/me/statistics",
+    "body": null
+  },
+  {
+    "operationId": "Learning_days_GET",
+    "method": "GET",
+    "path": "/api/v1/me/statistics/days",
+    "body": null
+  },
+  {
+    "operationId": "Learning_recent_GET",
+    "method": "GET",
+    "path": "/api/v1/me/recent-learning",
+    "body": null
+  },
+  {
+    "operationId": "Learning_collectionSummary_GET",
+    "method": "GET",
+    "path": "/api/v1/me/question-collections/summary",
+    "body": null
+  },
+  {
+    "operationId": "Learning_overview_GET",
+    "method": "GET",
+    "path": "/api/v1/me/learning-overview",
+    "body": null
+  },
+  {
+    "operationId": "Learning_studentSummary_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/students/{id}/statistics",
+    "body": null
+  },
+  {
+    "operationId": "Learning_rankings_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/statistics/rankings",
+    "body": null
+  },
+  {
+    "operationId": "OnlineUsers_list_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/statistics/online-users",
+    "body": null
+  },
+  {
+    "operationId": "Learning_activity_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/statistics/activity",
+    "body": null
+  },
+  {
+    "operationId": "Monitoring_stream_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/monitoring/sync/stream",
+    "body": null
+  },
+  {
+    "operationId": "Monitoring_health_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/monitoring/health",
+    "body": null
+  },
+  {
+    "operationId": "Operations_handleFeedback_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-feedback/{id}",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "status": "OPEN",
+      "response": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_handleRequest_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/course-requests/{id}",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "status": "OPEN",
+      "response": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_feedback_GET",
+    "method": "GET",
+    "path": "/api/v1/me/question-feedback",
+    "body": null
+  },
+  {
+    "operationId": "Operations_submitFeedback_POST",
+    "method": "POST",
+    "path": "/api/v1/me/question-feedback",
+    "body": {
+      "questionId": "{{questionId}}",
+      "revisionId": "{{revisionId}}",
+      "category": "ANSWER",
+      "body": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_requests_GET",
+    "method": "GET",
+    "path": "/api/v1/me/course-requests",
+    "body": null
+  },
+  {
+    "operationId": "Operations_requestCourse_POST",
+    "method": "POST",
+    "path": "/api/v1/me/course-requests",
+    "body": {
+      "courseName": "示例内容",
+      "body": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_adminFeedback_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-feedback",
+    "body": null
+  },
+  {
+    "operationId": "Operations_dashboard_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/dashboard",
+    "body": null
+  },
+  {
+    "operationId": "Operations_adminRequests_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/course-requests",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_adminGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_save_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/community/group",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "image": "示例内容",
+      "expiresAt": "2026-10-28T00:00:00.000Z"
+    }
+  },
+  {
+    "operationId": "File_upload_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{id}/images",
+    "body": null
+  },
+  {
+    "operationId": "Health_health_GET",
+    "method": "GET",
+    "path": "/api/v1/health",
+    "body": null
+  },
+  {
+    "operationId": "File_read_GET",
+    "method": "GET",
+    "path": "/api/v1/files/{id}",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_publicGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_image_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group/image",
+    "body": null
+  },
+  {
+    "operationId": "Practice_assess_PUT",
+    "method": "PUT",
+    "path": "/api/v1/practice/sessions/{id}/items/{itemId}/self-assessment",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "assessment": "CORRECT"
+    }
+  },
+  {
+    "operationId": "Practice_trialSnapshot_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/trial-snapshots",
+    "body": {
+      "scope": {
+        "questionBankId": "{{questionBankId}}",
+        "count": 1,
+        "order": "SEQUENTIAL",
+        "selectionKind": "NORMAL"
+      },
+      "expectedContentVersion": "{{expectedContentVersion}}"
+    }
+  },
+  {
+    "operationId": "Practice_create_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/sessions",
+    "body": {
+      "scope": {
+        "questionBankId": "{{questionBankId}}",
+        "count": 1,
+        "order": "SEQUENTIAL",
+        "selectionKind": "NORMAL"
+      },
+      "expectedContentVersion": "{{expectedContentVersion}}",
+      "deviceId": "{{deviceId}}"
+    }
+  },
+  {
+    "operationId": "Practice_finish_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/sessions/{id}/finish",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "durationSeconds": 0,
+      "writerToken": "{{writerToken}}"
+    }
+  },
+  {
+    "operationId": "Practice_cancel_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/sessions/{id}/cancel",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "writerToken": "{{writerToken}}"
+    }
+  },
+  {
+    "operationId": "Practice_preview_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/scope-preview",
+    "body": {
+      "questionBankId": "{{questionBankId}}",
+      "count": 1,
+      "order": "SEQUENTIAL",
+      "selectionKind": "NORMAL"
+    }
+  },
+  {
+    "operationId": "Practice_read_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Practice_snapshot_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}/snapshot",
+    "body": null
+  },
+  {
+    "operationId": "Practice_result_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}/result",
+    "body": null
+  },
+  {
+    "operationId": "ProgressCommand_submit_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/sessions/{id}/progress-commands",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "currentIndex": 0,
+      "durationSeconds": 0,
+      "writerToken": "{{writerToken}}",
+      "clientSequence": "{{clientSequence}}"
+    }
+  },
+  {
+    "operationId": "SyncRecovery_replay_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/sync/dead-letters/{commandId}/replay",
+    "body": null
+  },
+  {
+    "operationId": "ProgressCommand_read_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}/progress-commands/{commandId}",
+    "body": null
+  },
+  {
+    "operationId": "SyncRecovery_head_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/sync/dead-letters/head",
+    "body": null
+  }
+]

@@ -150,6 +150,34 @@ async function main() {
     page.handleDragCancel()
     assert.equal(page.drag, null)
   } finally { global.setInterval = originalInterval; global.clearInterval = originalClear }
+  const quota = storage.get(trials.KEY)
+  const withoutCount = memory()
+  const completed = { ...quota }
+  delete completed.usedCount
+  withoutCount.set(trials.KEY, completed)
+  withoutCount.full = true
+  assert.throws(() => trials.remaining(withoutCount), /存储已满/)
+  assert.deepEqual(withoutCount.get(trials.KEY), completed, '计数写入失败时完整保留试答记录')
+  withoutCount.full = false
+  assert.equal(trials.remaining(withoutCount), 2, '缺少累计次数时从零开始计数')
+  assert.deepEqual(withoutCount.get(trials.KEY), { ...completed, usedCount: 0 }, '立即保存初始计数并保留题目、答案和进度')
+  const savedRequests = requests.length
+  assert.deepEqual(await trials.prepare(withoutCount, { sessionId: quota.sessions[1].id }), quota.sessions[1])
+  assert.equal(requests.length, savedRequests, '恢复已有快照不请求题目')
+  assert.equal(trials.remaining(withoutCount), 2, '恢复已有试答不扣次')
+  await trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' })
+  assert.equal(trials.remaining(withoutCount), 1, '只统计初始化后新建的试答')
+  await trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' })
+  assert.equal(trials.remaining(withoutCount), 0)
+  assert.deepEqual(trials.list(withoutCount).slice(0, quota.sessions.length), quota.sessions, '新建试答保留已有快照')
+  await assert.rejects(trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' }), /两次试答/)
+  withoutCount.set(trials.KEY, { ...quota, usedCount: null })
+  assert.throws(() => trials.remaining(withoutCount), /无法读取/, '损坏的累计次数不能被缺省值覆盖')
+  withoutCount.set(trials.KEY, { version: 1, sessions: [] })
+  assert.equal(trials.remaining(withoutCount), 2, '空记录缺少累计次数时可使用完整额度')
+  assert.equal(withoutCount.get(trials.KEY).usedCount, 0)
+  storage.set(trials.KEY, { ...quota, sessions: [] })
+  assert.equal(trials.remaining(storage), 0, '清理草稿保留已使用试答次数')
   console.log('trial-layout checks passed: quota, persistence failure, duplicate starts, four question types, offline restore, disclosure, account isolation, layout rollback')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

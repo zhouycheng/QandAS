@@ -2,7 +2,7 @@
  * PracticeSession 的状态定义与序列化。
  *
  * 全部为纯函数，不依赖 wx 与 storage，便于在 Node 里直接跑断言。
- * 字段对齐 PRD 第 9 节「PracticeSession 核心状态」。
+ * 草稿保存题目引用、作答和当前配置。
  */
 
 const STORAGE_KEY = 'qandaSession'
@@ -14,7 +14,7 @@ const SESSION_STATUS = {
   SUBMITTED: 'SUBMITTED'
 }
 
-/** 同步状态：MVP 阶段只在 LOCAL_ONLY / SYNC_PENDING / SYNCED 之间流转 */
+/** 练习同步状态。 */
 const SYNC_STATUS = {
   LOCAL_ONLY: 'LOCAL_ONLY',
   SYNC_PENDING: 'SYNC_PENDING',
@@ -128,8 +128,7 @@ function serializeSession(rawSession) {
 /**
  * 反序列化，并对脏数据做兜底。
  *
- * 真实 wx.getStorageSync 在键不存在时返回空字符串 ''，而内存 mock 返回 null，
- * 两种都要能吃下；历史版本缺字段（例如没有 questionStates）也必须能读出来。
+ * 校验缺失或损坏的存储值，并补全缺省状态。
  */
 function normalizeSession(rawSession) {
   if (!rawSession || typeof rawSession !== 'object') {
@@ -222,7 +221,6 @@ function normalizeSession(rawSession) {
       const answer = rawAnswers[index]
       return answer && answer.confirmed !== false ? (answer.unscored ? QUESTION_STATE.UNSCORED : (answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG)) : QUESTION_STATE.UNANSWERED
     }),
-    // 历史版本没有这个字段：缺省成空数组即可，不需要迁移脚本
     markedIds: Array.isArray(rawSession.markedIds)
       ? rawSession.markedIds.filter((id) => typeof id === 'string' && questionIds.indexOf(id) >= 0)
       : [],

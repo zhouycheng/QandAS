@@ -37,7 +37,7 @@ npm --prefix apps/admin run validate:bank -- \
   docs/question-bank-import/examples/image-and-table.json
 ```
 
-命令结果、真实页面导入与小程序作答记录统一保存到 [三端联调记录](../../three-client-integration.md)。本报告验证的是上述实际读取的代表性材料；PDF、Word、PPT 和音视频输入由 SKILL 按对应工具读取，需保留各自执行证据。
+校验命令与页面回归按[验收规范](../../verification.md)执行。本报告覆盖上述代表性材料；PDF、Word、PPT 和音视频输入由 Skill 按对应工具读取，并保留各自执行证据。
 
 ## Markdown 与代码示例补充
 

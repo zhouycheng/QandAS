@@ -1,7 +1,7 @@
 {
   "name": "@qanda/admin",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "npm --prefix ../../packages/content-format run build && vite --force",

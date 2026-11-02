@@ -4,7 +4,7 @@
   <select id="chapterCounts" resultType="qanda.backend.content.ChapterCount">
     <if test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/> </if>
     SELECT q.chapter_id id,count(q.id) count,
-      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count</otherwise></choose>
+      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count,0 wrong_book_count</otherwise></choose>
     FROM question q <if test="userId != null">LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1 </if>
     WHERE q.bank_id=#{bankId} AND NOT q.is_group AND q.chapter_id IS NOT NULL<if test="activeOnly"> AND q.status='ACTIVE'</if> GROUP BY q.chapter_id
   </select>
@@ -13,7 +13,7 @@
   <select id="bankListFacts" resultType="qanda.backend.content.BankListFacts">
     <if test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/> </if>
     SELECT b.id bank_id,s.name subject_name,count(q.id) question_count,count(q.id) FILTER(WHERE q.status='ACTIVE') active_question_count,
-      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count</otherwise></choose>
+      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count,0 wrong_book_count</otherwise></choose>
     FROM question_bank b JOIN subject s ON s.id=b.subject_id LEFT JOIN question q ON q.bank_id=b.id AND NOT q.is_group
     <if test="userId != null">LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1 AND q.status='ACTIVE' </if>
     WHERE b.id IN <include refid="ids"/> GROUP BY b.id,s.name
@@ -35,6 +35,8 @@
   <sql id="searchScope">FROM question q JOIN question_revision r ON r.id=q.current_revision_id JOIN question_bank b ON b.id=q.bank_id LEFT JOIN question parent ON parent.id=q.reading_parent_id LEFT JOIN question_revision material ON material.id=parent.current_revision_id WHERE q.status='ACTIVE' AND NOT q.is_group AND bank_visible(b.id,#{userId}) AND (position(lower(#{keyword}) in lower(r.stem))>0 OR position(lower(#{keyword}) in lower(material.content_data::jsonb->>'passage'))>0 OR EXISTS(SELECT 1 FROM question_option o WHERE o.revision_id=r.id AND position(lower(#{keyword}) in lower(o.content))>0))</sql>
   <select id="search" resultType="qanda.backend.content.Question">SELECT q.* <include refid="searchScope"/> ORDER BY CASE WHEN position(lower(#{keyword}) in lower(r.stem))>0 THEN 0 ELSE 1 END,q.created_at,q.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="searchCount" resultType="long">SELECT count(*) <include refid="searchScope"/></select>
+  <select id="batchOptions" resultType="qanda.backend.content.QuestionOption">SELECT * FROM question_option WHERE revision_id IN <include refid="ids"/> ORDER BY revision_id,sort_order</select>
+  <select id="batchAttachments" resultType="qanda.backend.content.QuestionAttachmentRow">SELECT revision_id,file_id FROM question_attachment WHERE revision_id IN <include refid="ids"/> ORDER BY revision_id,file_id</select>
   <select id="options" resultType="qanda.backend.content.QuestionOption">SELECT * FROM question_option WHERE revision_id=#{revisionId} ORDER BY sort_order</select>
   <insert id="insertOption">INSERT INTO question_option(revision_id,option_key,content,is_correct,sort_order) VALUES(#{option.revisionId},#{option.optionKey},#{option.content},#{option.isCorrect},#{option.sortOrder})</insert>
   <select id="attachments" resultType="java.util.UUID">SELECT file_id FROM question_attachment WHERE revision_id=#{revisionId} ORDER BY file_id</select>
@@ -47,5 +49,6 @@
   <select id="chapterQuestions" resultType="long">SELECT count(*) FROM question WHERE chapter_id=#{id}</select>
   <select id="publicationIssues" resultType="long">SELECT count(*) FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE q.bank_id=#{bankId} AND q.status='ACTIVE' AND NOT q.is_group AND btrim(r.explanation)=''</select>
   <select id="readingChildren" resultType="qanda.backend.content.Question">SELECT * FROM question WHERE reading_parent_id=#{id} ORDER BY reading_order,id</select>
+  <select id="readingChildrenFor" resultType="qanda.backend.content.Question">SELECT * FROM question WHERE reading_parent_id IN <include refid="ids"/> ORDER BY reading_parent_id,reading_order,id</select>
   <update id="readingOrder">UPDATE question SET reading_order=#{order} WHERE id=#{id}</update>
 </mapper>

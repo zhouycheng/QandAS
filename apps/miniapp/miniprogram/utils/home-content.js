@@ -97,7 +97,7 @@ function getGreetingAdvice(summary) {
   const answered = Math.max(Number(stats.answered) || 0, 0)
 
   if (pendingWrong > 0) {
-    return `先把这 ${pendingWrong} 道错题消化掉，比刷新题更划算。`
+    return `还有 ${pendingWrong} 道错题待复习，从熟悉的一题开始。`
   }
 
   if (answered > 0) {
@@ -123,11 +123,11 @@ function buildHomeTip(summary) {
     return {
       key: 'wrong-pending',
       tag: '待复习',
-      text: `错题本里还有 ${pendingWrong} 道题没攻克。`,
+      text: `错题本里还有 ${pendingWrong} 道题待复习。`,
       detail:
-        `错题本收录的是你答错或跳过的题目，一共 ${pendingWrong} 道待复习。\n\n` +
-        '同一道题连续答对 2 次，就会被判定为已攻克，移入「已攻克」列表，不再占用待复习名额。' +
-        (masteredWrong > 0 ? `目前你已经攻克了 ${masteredWrong} 道。` : ''),
+        `你有 ${pendingWrong} 道错题待复习。开启自动收集后，正式练习中答错的客观题会加入错题本。\n\n` +
+        '复习答对后，该题会移出待复习列表。主观题可在交卷后自评为“掌握”或“待复习”。' +
+        (masteredWrong > 0 ? `已有 ${masteredWrong} 道错题复习后答对。` : ''),
       actionText: '去复习',
       action: TIP_ACTIONS.WRONG_BOOK
     }
@@ -149,10 +149,10 @@ function buildHomeTip(summary) {
         : '所有题目都做过了，可以随机抽题巩固一遍。',
       detail: remaining > 0
         ? `你已经完成 ${answered} 题，题库还剩 ${remaining} 题没有做过。\n\n` +
-          '建议按科目逐个清空，避免在几个科目之间反复切换，记忆效果会更好。'
+          '选择一个科目，继续未完成的部分，或回顾之前的错题。'
         : `题库里的 ${total} 道题你都做过了。\n\n` +
-          '这个阶段比起刷新题，更推荐用「随机练习」打散顺序重做一遍，' +
-          '或者去错题本检查还有没有没攻克的题。',
+          '可以用随机练习打散题目顺序，再检查一次掌握情况；' +
+          '也可以去错题本复习尚未掌握的题目。',
       actionText: '去刷题',
       action: TIP_ACTIONS.BANK
     }
@@ -160,10 +160,10 @@ function buildHomeTip(summary) {
 
   return {
     key: 'fresh-start',
-    tag: '新手上路',
-    text: `${total} 道题已经就绪，先做 10 道熟悉一下。`,
+    tag: '开始学习',
+    text: total ? `${total} 道题可供练习，选择一个科目开始。` : '题库正在整理，稍后再来看看。',
     detail:
-      `当前题库共有 ${total} 道题，覆盖多个科目。\n\n` +
+      `当前可练习 ${total} 道题，可在题库中按科目查看。\n\n` +
       '每个科目都提供背题、顺序、随机三种练习方式：背题模式直接显示答案，适合第一遍过知识点；' +
       '顺序与随机模式按答题偏好显示判定和解析。登录后同步正式学习记录，游客可在本机试答两次。',
     actionText: '去刷题',

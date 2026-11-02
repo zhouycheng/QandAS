@@ -18,8 +18,7 @@
 
 ## 实现与证据
 
-- 管理端：`pages/colleges`、`ResourceSelect`、Mock/HTTP Gateway。
+- 管理端：`pages/colleges`、`ResourceSelect`、HTTP Gateway。
 - 小程序：`page/account`、`AccountViewModel`、`profile-rules.js` 和目录仓储。
 - 后端：`AcademicGrade`、Catalog/Identity 服务及 `bank_visible`。
 - 目录页使用 `GET /admin/directory-summary`，学生分页支持学院、专业、当前年级筛选。
-- 单元与隔离 PostgreSQL 检查覆盖九月边界、毕业、自由切换、院级人数、课程授权和停用保留。完整状态见[独立验收](multi-client-compatibility-verification.md)。

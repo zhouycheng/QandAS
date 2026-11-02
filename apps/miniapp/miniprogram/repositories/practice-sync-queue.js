@@ -3,7 +3,7 @@ const PREFIX = 'qandaSync:v1:'
 const copy = (value) => JSON.parse(JSON.stringify(value))
 function createSyncQueue(options) {
   const { storage, userId, send } = options
-  if (!userId || !storage || typeof send !== 'function') throw new Error('同步队列需要用户、存储和发送方法')
+  if (!userId || !storage || typeof send !== 'function') throw new Error('暂时无法保存答题进度，请重新打开练习')
   const now = options.now || Date.now
   const random = options.random || Math.random
   const setTimer = options.setTimer || setTimeout
@@ -17,7 +17,7 @@ function createSyncQueue(options) {
   function get(id) {
     const value = storage.get(key(id))
     if (!value) return null
-    if (value.formatVersion !== 1 || value.userId !== userId || value.sessionId !== id) throw new Error('草稿格式不兼容，请保留本地记录后更新客户端')
+    if (value.formatVersion !== 1 || value.userId !== userId || value.sessionId !== id) throw new Error('答题记录暂时无法读取，请保留本机数据并联系支持')
     return copy(value)
   }
   function persist(id, value) {

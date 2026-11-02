@@ -6,7 +6,7 @@
   <view class="switch-row switch-row-tall">
     <view class="row-main">
       <text class="row-label">允许邮箱提醒</text>
-      <text class="row-desc">本机偏好 · 邮件提醒待开放</text>
+      <text class="row-desc">邮件提醒暂未开放，设置仅保存在本机</text>
     </view>
     <switch
       class="switch"
@@ -85,7 +85,7 @@
       >{{item.statusText}}</view>
     </view>
 
-    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，可先保存考试日期与提醒偏好</text>
+    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，添加考试日期后可设置提醒</text>
 
     <view
       class="add-btn"
@@ -114,7 +114,7 @@
           <text class="checkbox-label">{{item.label}}</text>
         </view>
       </view>
-      <text class="checkbox-hint">设置保存在本机，邮件发送功能待开放</text>
+      <text class="checkbox-hint">设置仅保存在本机，目前不会发送提醒邮件</text>
     </view>
   </view>
 </view>

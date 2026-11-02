@@ -75,10 +75,6 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         if(old==null) rows.insert(row) else rows.updateById(row)
         return MutationResult(row.id!!,row.version)
     }
-    fun disable(id: UUID,expectedVersion: Long): MutationResult {
-        val old=rows.selectById(id) ?: missing()
-        return save(id,AdminInput(old.username,old.name,old.role,"DISABLED",expectedVersion=expectedVersion))
-    }
     fun bootstrap(username: String,name: String,password: String): UUID {
         if(sql.lockControl()!=null || sql.activeAdminCount()>0) conflict("BOOTSTRAP_COMPLETED","首个管理员已创建")
         val result=save(null,AdminInput(username,name,password=password));sql.completeBootstrap();return result.id

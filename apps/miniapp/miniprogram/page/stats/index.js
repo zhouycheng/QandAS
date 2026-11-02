@@ -69,7 +69,7 @@ Page(withPageLifecycle({
 
   handleLoginTap() { navigation.navigateTo({ url: '/page/login/index' }) },
 
-  // 下拉刷新：重新汇总一遍本地数据
+  // 下拉刷新重新读取学习统计。
   onPullDownRefresh() {
     if (!this.viewModel) {
       wx.stopPullDownRefresh()

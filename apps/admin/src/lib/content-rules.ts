@@ -37,7 +37,7 @@ function validateContent(input: QuestionContent, allowReading = true): QuestionC
   }
   if (input.type === 'FILL_BLANK') {
     if (!Array.isArray(input.blanks) || !input.blanks.length || input.blanks.length > 20) throw new Error('填空题需要 1 至 20 个空位。')
-    if (input.blankMatch && (typeof input.blankMatch.ignoreCase !== 'boolean' || typeof input.blankMatch.trimWhitespace !== 'boolean')) throw new Error('填空答案匹配设置无效。')
+    if (input.blankMatch && (typeof input.blankMatch.ignoreCase !== 'boolean' || typeof input.blankMatch.trimWhitespace !== 'boolean')) throw new Error('填空答案判定设置无效。')
     const blankMatch = input.blankMatch ?? { ignoreCase: true, trimWhitespace: true }
     const blanks = input.blanks.map((blank, index) => {
       if (!Array.isArray(blank?.answers) || !blank.answers.length || blank.answers.length > 20) throw new Error(`第 ${index + 1} 空需要 1 至 20 个可接受答案。`)

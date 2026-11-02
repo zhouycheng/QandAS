@@ -54,14 +54,6 @@
             }
           },
           {
-            "name": "platform",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "grade",
             "in": "query",
             "required": false,
@@ -544,14 +536,6 @@
             }
           },
           {
-            "name": "platform",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "keyword",
             "in": "query",
             "required": false,
@@ -1012,14 +996,6 @@
             "schema": {
               "type": "string",
               "format": "date"
-            }
-          },
-          {
-            "name": "platform",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
             }
           },
           {

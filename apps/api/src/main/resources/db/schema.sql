@@ -61,7 +61,7 @@ CREATE TABLE admin_control (id integer PRIMARY KEY CHECK(id=1), bootstrap_comple
 INSERT INTO admin_control(id) VALUES(1);
 CREATE TABLE user_session (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
- credential_version bigint NOT NULL, client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')), device_id uuid NOT NULL,
+ credential_version bigint NOT NULL, device_id uuid NOT NULL,
  issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, revoked_at timestamptz,
  CHECK(expires_at>issued_at), UNIQUE(id,user_id)
 );
@@ -166,19 +166,13 @@ CREATE TABLE file_asset (
 );
 CREATE INDEX file_asset_bank_idx ON file_asset(bank_id);
 CREATE TABLE question_attachment (revision_id uuid NOT NULL REFERENCES question_revision(id), file_id uuid NOT NULL REFERENCES file_asset(id), PRIMARY KEY(revision_id,file_id));
-CREATE TABLE user_subject (
- user_id uuid NOT NULL REFERENCES user_account(id), subject_id uuid NOT NULL REFERENCES subject(id), preferred_bank_id uuid,
- sort_order integer NOT NULL DEFAULT 0 CHECK(sort_order>=0), added_at timestamptz NOT NULL DEFAULT now(), version bigint NOT NULL DEFAULT 1 CHECK(version>0),
- PRIMARY KEY(user_id,subject_id), FOREIGN KEY(preferred_bank_id,subject_id) REFERENCES question_bank(id,subject_id)
-);
 CREATE TABLE user_favorite (user_id uuid NOT NULL REFERENCES user_account(id), question_id uuid NOT NULL REFERENCES question(id), created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,question_id));
 CREATE TABLE practice_session (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), bank_id uuid NOT NULL REFERENCES question_bank(id),
  selection_kind varchar(12) NOT NULL CHECK(selection_kind IN ('NORMAL','WRONG','FAVORITE')), question_order varchar(12) NOT NULL CHECK(question_order IN ('SEQUENTIAL','RANDOM')),
- client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')),
  feedback varchar(16) NOT NULL CHECK(feedback IN ('IMMEDIATE','AFTER_FINISH')), status varchar(16) NOT NULL CHECK(status IN ('IN_PROGRESS','SUBMITTED','CANCELLED')),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), current_index integer NOT NULL DEFAULT 0 CHECK(current_index>=0), duration_seconds integer NOT NULL DEFAULT 0 CHECK(duration_seconds>=0),
- configuration_snapshot text NOT NULL,
+ configuration_snapshot text NOT NULL, auto_add_wrong_book boolean NOT NULL DEFAULT true,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), submitted_at timestamptz, UNIQUE(id,user_id), CHECK((status='SUBMITTED')=(submitted_at IS NOT NULL))
 );
 CREATE INDEX practice_active_bank_idx ON practice_session(user_id,bank_id) WHERE status='IN_PROGRESS';
@@ -186,7 +180,7 @@ CREATE INDEX practice_history_idx ON practice_session(user_id,submitted_at DESC,
 CREATE INDEX practice_recent_idx ON practice_session(user_id,updated_at DESC,id);
 CREATE INDEX practice_statistics_idx ON practice_session(submitted_at,user_id) WHERE status='SUBMITTED';
 CREATE TABLE practice_sync_state (
- session_id uuid PRIMARY KEY REFERENCES practice_session(id), writer_device_id uuid, writer_token uuid, pending_writer_device_id uuid,
+ session_id uuid PRIMARY KEY REFERENCES practice_session(id), writer_device_id uuid, writer_token uuid,
  acknowledged_sequence bigint NOT NULL DEFAULT 0 CHECK(acknowledged_sequence>=0),
  CHECK((writer_device_id IS NULL)=(writer_token IS NULL))
 );
@@ -230,11 +224,10 @@ CREATE TABLE announcement (
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), created_by uuid NOT NULL REFERENCES admin_account(id), updated_at timestamptz NOT NULL DEFAULT now(),
  CHECK(status<>'SCHEDULED' OR publish_at IS NOT NULL)
 );
-CREATE TABLE announcement_platform (announcement_id uuid NOT NULL REFERENCES announcement(id), platform varchar(16) NOT NULL CHECK(platform IN ('WEB','MINI_PROGRAM')), PRIMARY KEY(announcement_id,platform));
 CREATE TABLE announcement_recipient (announcement_id uuid NOT NULL REFERENCES announcement(id), user_id uuid NOT NULL REFERENCES user_account(id), PRIMARY KEY(announcement_id,user_id));
 CREATE TABLE user_activity (
- user_id uuid NOT NULL REFERENCES user_account(id), platform varchar(16) NOT NULL CHECK(platform IN ('WEB','MINI_PROGRAM')), activity_date date NOT NULL,
- first_seen_at timestamptz NOT NULL DEFAULT now(), last_seen_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,platform,activity_date)
+ user_id uuid NOT NULL REFERENCES user_account(id), activity_date date NOT NULL,
+ first_seen_at timestamptz NOT NULL DEFAULT now(), last_seen_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,activity_date)
 );
 CREATE TABLE mail_delivery (
  id uuid PRIMARY KEY, challenge_id uuid NOT NULL UNIQUE REFERENCES email_challenge(id), template_code varchar(40) NOT NULL, template_version integer NOT NULL,
@@ -255,7 +248,7 @@ CREATE TABLE audit_log (
 );
 CREATE TABLE sync_command (
  id uuid PRIMARY KEY, session_id uuid NOT NULL, user_id uuid NOT NULL, actor_session_id uuid NOT NULL,
- client_type varchar(16) NOT NULL CHECK(client_type IN ('WEB','MINI_PROGRAM')), writer_token uuid NOT NULL,
+ writer_token uuid NOT NULL,
  client_sequence bigint NOT NULL CHECK(client_sequence>0), payload_digest bytea NOT NULL, digest_key_version integer NOT NULL,
  request_id uuid NOT NULL, state varchar(20) NOT NULL CHECK(state IN ('ACCEPTING','QUEUED','RETRYING','COMMITTED','REJECTED','DEAD_LETTER')),
  attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0), error_code varchar(64), error_message varchar(200), error_status integer,
@@ -268,7 +261,7 @@ CREATE UNIQUE INDEX sync_command_one_pending_idx ON sync_command(session_id) WHE
 CREATE UNIQUE INDEX sync_command_sequence_idx ON sync_command(session_id,writer_token,client_sequence) WHERE state<>'REJECTED';
 CREATE INDEX sync_command_committed_idx ON sync_command(completed_at) WHERE state='COMMITTED';
 CREATE TABLE domain_event_outbox (
- id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), platform varchar(16) NOT NULL CHECK(platform IN ('WEB','MINI_PROGRAM')),
+ id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id),
  occurred_at timestamptz NOT NULL, processed_at timestamptz
 );
 CREATE INDEX domain_event_pending_idx ON domain_event_outbox(occurred_at,id) WHERE processed_at IS NULL;
@@ -280,14 +273,14 @@ CREATE VIEW monitoring_student AS
  FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
  LEFT JOIN college c ON c.id=coalesce(p.college_id,m.college_id);
 CREATE VIEW monitoring_learning AS
- SELECT s.id session_id,s.user_id,s.client_type,s.submitted_at,r.answered_count,r.correct_count,r.duration_seconds
+ SELECT s.id session_id,s.user_id,s.submitted_at,r.answered_count,r.correct_count,r.duration_seconds
  FROM practice_session s JOIN practice_result r ON r.session_id=s.id WHERE s.status='SUBMITTED';
 CREATE VIEW monitoring_session AS
- SELECT id,user_id,client_type,expires_at,revoked_at,credential_version FROM user_session;
+ SELECT id,user_id,expires_at,revoked_at,credential_version FROM user_session;
 CREATE FUNCTION monitoring_online_at(sample_time timestamptz)
- RETURNS TABLE(session_id uuid,user_id uuid,client_type varchar,foreground_seen_at timestamptz)
+ RETURNS TABLE(session_id uuid,user_id uuid,foreground_seen_at timestamptz)
  LANGUAGE sql STABLE AS $$
- SELECT s.id,s.user_id,s.client_type,p.foreground_seen_at
+ SELECT s.id,s.user_id,p.foreground_seen_at
  FROM user_session s JOIN session_presence p ON p.session_id=s.id JOIN user_account u ON u.id=s.user_id
  WHERE s.revoked_at IS NULL AND s.expires_at>sample_time AND u.status='ACTIVE' AND s.credential_version=u.credential_version
  AND p.foreground_seen_at>sample_time-interval '120 seconds' AND p.foreground_seen_at<=sample_time
@@ -301,9 +294,6 @@ CREATE INDEX bank_audience_major_idx ON bank_audience(major_id);
 CREATE INDEX question_revision_creator_idx ON question_revision(created_by);
 CREATE INDEX file_asset_uploader_idx ON file_asset(uploaded_by);
 CREATE INDEX question_attachment_file_idx ON question_attachment(file_id);
-CREATE INDEX user_subject_subject_idx ON user_subject(subject_id);
-CREATE INDEX user_subject_bank_idx ON user_subject(preferred_bank_id,subject_id);
-CREATE INDEX user_subject_order_idx ON user_subject(user_id,sort_order,added_at DESC,subject_id);
 CREATE INDEX user_favorite_question_idx ON user_favorite(question_id);
 CREATE INDEX user_favorite_order_idx ON user_favorite(user_id,created_at DESC,question_id);
 CREATE INDEX practice_session_bank_idx ON practice_session(bank_id);
@@ -317,7 +307,7 @@ CREATE INDEX course_request_queue_idx ON course_request(status,created_at DESC,i
 CREATE INDEX announcement_creator_idx ON announcement(created_by);
 CREATE INDEX announcement_display_idx ON announcement(pinned DESC,updated_at DESC,id);
 CREATE INDEX announcement_recipient_user_idx ON announcement_recipient(user_id,announcement_id);
-CREATE INDEX user_activity_date_idx ON user_activity(activity_date,platform,user_id);
+CREATE INDEX user_activity_date_idx ON user_activity(activity_date,user_id);
 CREATE INDEX command_receipt_user_idx ON command_receipt(actor_user_id);
 CREATE INDEX command_receipt_admin_idx ON command_receipt(actor_admin_id);
 CREATE INDEX audit_log_user_idx ON audit_log(actor_user_id);

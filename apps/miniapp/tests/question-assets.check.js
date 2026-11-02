@@ -39,7 +39,7 @@ async function run() {
     identity = buildEmailAuth({ userId: 'b', token: 'b', email: 'b@example.test' })
     await assert.rejects(pending, /账号已切换/)
     assert.equal(assets.validPng(new Uint8Array([137,80,78,71]).buffer), false)
-    await assert.rejects(assets.load(storage, ['../escape']), /标识无效/)
+    await assert.rejects(assets.load(storage, ['../escape']), /暂时无法读取题目图片/)
     console.log('question images: bounded downloads, deduplication, offline cache, atomic storage and identity isolation passed')
   } finally { http.request = original; delete global.wx }
 }

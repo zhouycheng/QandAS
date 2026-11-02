@@ -27,7 +27,7 @@ class Sessions(private val sql: IdentityMapper, private val users: UserAccountMa
                 val user=users.selectById(session.userId) ?: unauthenticated()
                 if(session.revokedAt!=null || !session.expiresAt.isAfter(now) || user.status!="ACTIVE" || session.credentialVersion!=user.credentialVersion) unauthenticated()
                 sql.touchUserSession(session.id!!,now)
-                Actor(user.id!!,session.id!!,"USER",session.clientType)
+                Actor(user.id!!,session.id!!,"USER","MINI_PROGRAM")
             }
             token.matches(Regex("a_[A-Za-z0-9_-]{43}")) -> {
                 val session=sql.adminSession(crypto.tokenDigest(token)) ?: unauthenticated()

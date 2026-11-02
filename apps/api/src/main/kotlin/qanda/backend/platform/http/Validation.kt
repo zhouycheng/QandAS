@@ -4,7 +4,7 @@ import org.springframework.http.HttpStatus
 import java.text.Normalizer
 import java.util.UUID
 
-fun invalid(pointer: String = "", code: String = "VALIDATION_FAILED", message: String = "字段不符合要求"): Nothing =
+fun invalid(pointer: String = "", code: String = "VALIDATION_FAILED", message: String = "填写内容不符合要求"): Nothing =
     throw ApiException(HttpStatus.UNPROCESSABLE_ENTITY, code, message, listOf(FieldError(pointer, code, message)))
 fun missing(): Nothing = throw ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "资源不存在或不可访问")
 fun forbidden(): Nothing = throw ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "无权执行此操作")

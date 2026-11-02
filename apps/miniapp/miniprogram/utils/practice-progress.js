@@ -1,97 +1,3 @@
-/**
- * 做题进度：纯计算模块，不依赖微信 API，便于在 Node 中直接测试。
- *
- * 存储结构（qandaProgress）：
- * {
- *   "chinese-ch001": {
- *     total: 29,
- *     answers: { "chinese-ch001-q001": 1, "chinese-ch001-q002": 0 },
- *     updatedAt: 1758000000000
- *   },
- *   "subject-chinese": { ... }   // 整科抽题 / 模拟测试
- * }
- *
- * answers 的取值：1 = 答对，0 = 答错，2 = 主观作答，3 = 旧记录评分口径未知。未作答的题不写入，因此"已做"= 键数量。
- */
-
-const PROGRESS_STORAGE_KEY = 'qandaProgress'
-
-function createEmptyProgress() {
-  return {}
-}
-
-function normalizeProgress(rawProgress) {
-  if (!rawProgress || typeof rawProgress !== 'object') {
-    return createEmptyProgress()
-  }
-
-  return Object.keys(rawProgress).reduce((result, scopeKey) => {
-    const entry = rawProgress[scopeKey]
-
-    if (!entry || typeof entry !== 'object') {
-      return result
-    }
-
-    const rawAnswers = entry.answers && typeof entry.answers === 'object' ? entry.answers : {}
-    const answers = {}
-
-    Object.keys(rawAnswers).forEach((questionId) => {
-      const value = rawAnswers[questionId]
-
-      if (value === 1 || value === true) {
-        answers[questionId] = entry.scoringVersion === 1 ? 1 : 3
-      } else if (value === 0 || value === false) {
-        answers[questionId] = entry.scoringVersion === 1 ? 0 : 3
-      } else if (value === 2 || value === 3) {
-        answers[questionId] = value
-      }
-    })
-
-    result[scopeKey] = {
-      scoringVersion: 1,
-      total: Number(entry.total) || 0,
-      answers,
-      updatedAt: Number(entry.updatedAt) || 0
-    }
-
-    return result
-  }, {})
-}
-
-function mergeScopeRecords(progress, scopeKey, records, total, timestamp) {
-  if (!scopeKey) {
-    return progress
-  }
-
-  const current = progress[scopeKey] || { total: 0, answers: {}, updatedAt: 0 }
-  const answers = Object.assign({}, current.answers)
-  let hasNewAnswer = false
-
-  ;(records || []).forEach((record) => {
-    if (!record || !record.id || !record.answered) {
-      return
-    }
-
-    answers[record.id] = record.objective === false ? 2 : (record.correct ? 1 : 0)
-    hasNewAnswer = true
-  })
-
-  if (!hasNewAnswer) {
-    return progress
-  }
-
-  const nextProgress = Object.assign({}, progress)
-
-  nextProgress[scopeKey] = {
-    scoringVersion: 1,
-    total: Number(total) || current.total || 0,
-    answers,
-    updatedAt: Number(timestamp) || Date.now()
-  }
-
-  return nextProgress
-}
-
 function mergeAnswerMaps(maps) {
   const merged = {}
 
@@ -116,7 +22,7 @@ function summarizeAnswers(answers, total) {
   const wrong = questionIds.filter(id => answers[id] === 0).length
   const objectiveAnswered = correct + wrong
   // 正确率按"已做题目"计算，未做的不拉低正确率
-  const accuracy = objectiveAnswered && !questionIds.some(id => answers[id] === 3) ? Math.round((correct / objectiveAnswered) * 100) : null
+  const accuracy = objectiveAnswered ? Math.round((correct / objectiveAnswered) * 100) : null
   // 进度按"已做 / 总题量"计算，反映掌握范围
   const progressPercent = totalCount ? Math.min(Math.round((answered / totalCount) * 100), 100) : 0
 
@@ -204,26 +110,8 @@ function summarizeOverallProgress(progress, subjects) {
  * @param {Array} questions 本次练习的题目
  * @param {Array} answers 与 questions 同序的作答数组
  */
-function buildAnswerRecords(questions, answers) {
-  return (questions || []).map((question, index) => {
-    const answer = (answers || [])[index]
-
-    return {
-      id: question ? question.id : '',
-      answered: !!answer && answer.confirmed !== false,
-      objective: !question.isShortAnswer,
-      correct: !!(!question.isShortAnswer && answer && answer.confirmed !== false && answer.isCorrect)
-    }
-  })
-}
-
 module.exports = {
-  PROGRESS_STORAGE_KEY,
-  buildAnswerRecords,
-  createEmptyProgress,
   mergeAnswerMaps,
-  mergeScopeRecords,
-  normalizeProgress,
   summarizeAnswers,
   summarizeBankProgress,
   summarizeOverallProgress,

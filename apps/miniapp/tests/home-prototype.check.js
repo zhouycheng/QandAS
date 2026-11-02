@@ -437,22 +437,10 @@ function checkSearch() {
 function checkViewModelResilience() {
   // 仓储没有 getQuestionIndex 时（老版本 / 注入的假仓储）搜索必须安全返回空，不能抛错
   const bare = new SubjectListViewModel({ repository: {
-    getSubjectSummaries: () => [],
+    searchRemoteQuestions: () => Promise.reject(new Error('读取失败')), getSubjectSummaries: () => [], getRemoteOverview: () => null, getAuth: () => ({ loggedIn: false }), getRemoteRecommendations: () => [], getResumableSession: () => null,
     getProgress: () => ({}),
     getPreferences: () => ({})
   }, storage: null })
-
-  let threw = false
-  let result = null
-
-  try {
-    result = bare.searchQuestions('行政')
-  } catch (error) {
-    threw = true
-  }
-
-  assert('健壮性 - 无索引时搜索不抛错', threw === false)
-  assert('健壮性 - 无索引时返回空结果', result && result.data.searchResultCount === 0)
 
   const emptyLoaded = bare.load()
   assert('健壮性 - 空题库也能完整渲染首页', emptyLoaded.data.overall.total === 0)

@@ -1,0 +1,379 @@
+.donut strong {
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+.donut span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.activity-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+}
+.activity-grid .donut {
+  width: 185px;
+}
+.activity-grid .donut-block {
+  gap: 18px;
+  padding: 0;
+}
+.bar-chart {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  gap: 12px;
+  min-height: 200px;
+  padding: 28px 0 0;
+}
+.bar-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: #8395b5;
+  font-size: 11px;
+}
+.bar-values {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 145px;
+}
+.bar {
+  position: relative;
+  min-height: 1px;
+  width: min(48px, 65%);
+  border-radius: 5px 5px 0 0;
+  background: #087bff;
+}
+.bar.secondary {
+  background: #95c3ff;
+}
+.bar span {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+}
+.public-course-card .arco-card-body {
+  padding: 10px 15px;
+}
+.permission-hint {
+  margin: 18px 0 24px;
+}
+.permission-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.15fr;
+  gap: 16px;
+}
+.permission-columns .arco-card-body {
+  padding: 8px 14px 18px;
+  min-height: 240px;
+}
+.permission-columns .arco-card-header {
+  padding: 20px 20px 12px;
+}
+.permission-columns .arco-card-header-title {
+  font-size: 16px;
+  white-space: normal;
+}
+.permission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 10px 10px;
+  min-height: 58px;
+  border-radius: 6px;
+}
+.permission-row.selected {
+  background: var(--primary-soft);
+}
+.permission-row > button:not(.arco-btn) {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: #284767;
+  text-align: left;
+  cursor: pointer;
+}
+.permission-row.selected > button:not(.arco-btn) {
+  color: var(--primary);
+}
+.permission-row small {
+  display: block;
+  font-size: 10px;
+}
+.subject-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  max-height: 350px;
+  overflow-y: auto;
+  padding: 8px 4px;
+}
+.subject-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+.subject-pick strong {
+  font-weight: 500;
+}
+.structure-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.table-tip {
+  color: #8194b4;
+  font-size: 12px;
+  margin: 0 0 15px;
+}
+.column-pin {
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.access-dot {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #bac9dd;
+  border-radius: 3px;
+}
+.access-dot.visible {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.modal-toolbar {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0;
+}
+.modal-toolbar .arco-input-search {
+  width: min(320px, 65%);
+}
+.modal-toolbar > span {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 22px;
+}
+.form-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 13px;
+  padding-top: 1px;
+  color: #52617a;
+}
+.announcement-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.table-title-link {
+  text-align: left;
+  white-space: normal;
+}
+.announcement-form-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 24px;
+}
+.announcement-form-grid .arco-form-label-item {
+  margin-bottom: 12px;
+}
+.announcement-form-grid .arco-form-item {
+  margin-bottom: 28px;
+}
+.field-help {
+  display: block;
+  color: #8c9bb4;
+  font-size: 12px;
+  line-height: 1.8;
+  padding-left: 5px;
+  margin-bottom: 12px;
+}
+.body-editor {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f7faff;
+  border-bottom: 1px solid var(--line);
+}
+.editor-toolbar .muted {
+  margin-left: auto;
+  font-size: 11px;
+}
+.body-editor textarea {
+  width: 100%;
+  min-height: 340px;
+  resize: vertical;
+  padding: 18px;
+  outline: none;
+  border: 0;
+  line-height: 1.9;
+  color: var(--ink);
+  background: #fff;
+}
+.announcement-body {
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.announcement-body p {
+  margin: 0.7em 0;
+}
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.form-actions .muted {
+  margin-right: 10px;
+}
+.security-form > .arco-alert {
+  margin-bottom: 20px;
+}
+.security-form > .arco-card {
+  margin-bottom: 20px;
+}
+.security-form .arco-card-body {
+  padding-top: 4px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 78px;
+  padding: 14px 0;
+}
+.setting-row + .setting-row {
+  border-top: 1px solid #f0f4fa;
+}
+.setting-row > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+}
+.setting-row strong {
+  color: #28405f;
+  font-size: 14px;
+  font-weight: 500;
+}
+.setting-row span:not(.arco-switch-dot):not(.arco-switch-text) {
+  font-size: 13px;
+}
+.setting-row > div:first-child > span {
+  color: #8a99b0;
+}
+.empty-note {
+  padding: 40px 15px;
+  color: var(--muted);
+  text-align: center;
+}
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 190px;
+  margin: 20px 0 24px;
+  border: 1px dashed #cbdcf2;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+.upload-zone.dragging {
+  border-color: var(--primary);
+  background: #eaf3ff;
+}
+.upload-zone > .arco-icon {
+  font-size: 34px;
+  color: var(--primary);
+}
+.upload-zone p {
+  margin: 3px 10px;
+  text-align: center;
+  color: #42638b;
+}
+.upload-zone small {
+  padding: 0 10px;
+  text-align: center;
+  font-size: 11px;
+}
+.import-example {
+  margin-top: 15px;
+  color: #72829b;
+  font-size: 12px;
+}
+.import-example summary {
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.option-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.option-key {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 6px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 600;
+}
+.detail-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.detail-option-correct {
+  border-color: #7be188;
+  background: #f0fff2;
+}

@@ -81,7 +81,7 @@ export function LoginPage() {
               onClick={() =>
                 Modal.info({
                   title: '找回密码',
-                  content: gateway.mode === 'mock' ? '请联系管理员重置密码。当前演示账号：admin / mock。' : '请联系管理员重置密码。',
+                  content: '请联系管理员重置密码。',
                 })
               }
             >
@@ -92,7 +92,6 @@ export function LoginPage() {
             登录管理端
           </Button>
         </Form>
-        {!import.meta.env.VITE_API_BASE_URL && <p className="login-hint">本地演示账号：admin / mock</p>}
       </section>
     </main>
   )

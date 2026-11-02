@@ -53,7 +53,7 @@ function mergeById(previous, items) {
   return Array.from(byId.values())
 }
 function refreshOverview(storage, options) {
-  return resource(storage, 'overview', {}, TTL.learning, '/me/learning-overview', data => { state.overview = data; persistSummary() }, options && options.force)
+  return resource(storage, 'overview', { deviceId: authRepository.deviceId(storage) }, TTL.learning, '/me/learning-overview', data => { state.overview = data; persistSummary() }, options && options.force)
 }
 function refreshSubjects(storage, options) {
   bind(storage)
@@ -160,7 +160,7 @@ function refreshRecommendations(storage, options) {
   }, settings.force)
 }
 function refreshRecent(storage, options) {
-  const query = { page: options && options.page || 1, pageSize: 20 }
+  const query = { page: options && options.page || 1, pageSize: 20, deviceId: authRepository.deviceId(storage) }
   return resource(storage, 'recent', query, TTL.learning, '/me/recent-learning', data => { state.recent = query.page === 1 ? data.items : mergeById(state.recent, data.items) }, options && options.force)
 }
 function refreshStatistics(storage, options) {
@@ -263,7 +263,7 @@ function getProgress(storage) {
   state.banks.forEach(bank => { if (bank.progress) result[bank.id] = Object.assign({ total: questionCount(bank), answers: {}, updatedAt: 0 }, bank.progress) })
   return result
 }
-function getRecent(storage) { bind(storage); return state.recent.length ? state.recent : state.overview && state.overview.recentSession ? [state.overview.recentSession] : [] }
+function getRecent(storage) { bind(storage); return (state.recent.length ? state.recent : state.overview && state.overview.recentSession ? [state.overview.recentSession] : []).filter(item => item.status !== 'IN_PROGRESS' || item.deviceId === storage.get('qandaDeviceId')) }
 function getHistory(storage) { bind(storage); return state.history }
 function getScopeMeta(id) { const b = state.banks.find((b) => b.id === id); const s = getSubjectDetail(b ? b.subjectId : id); if (!s) return null; return { scopeKey: id, subjectId: s.id, bankId: b ? b.id : '', title: b ? b.name : s.name, description: s.name, url: `/page/practice/index?subjectId=${s.id}&bankId=${b ? b.id : (s.banks[0] || {}).id || ''}` } }
 function setQuestionFavorite(storage, id, value) {

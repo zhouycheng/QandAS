@@ -14,8 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconArrowDown, IconArrowUp, IconClose, IconMinus, IconPlus, IconUpload } from '@arco-design/web-react/icon'
 import { useAdminGateway } from '../../gateways/gateway-context'
-import { importBody } from '../../gateways/question-wire'
-import type { ImportQuestionsInput } from '../../types/operations'
+import { matchImportChapters, prepareImportIntent, type ImportIntent } from '../../lib/import-intent'
 import { refreshWorkbench } from './workbench-data'
 import { mapImportFile, parseImportFile, type ParsedQuestionFile, type PortableQuestion, type QuestionBankFile } from '../../lib/question-bank-file'
 import { QuestionImages } from '../../components/question-images'
@@ -52,7 +51,7 @@ export function ImportQuestionsModal({
   const chapters = useQuery({ queryKey: ['chapters', bank.id], queryFn: () => gateway.listChapters(bank.id) })
   const [chapterId, setChapterId] = useState(defaultChapterId)
   const input = useRef<HTMLInputElement>(null)
-  const intent = useRef<{ body: string; input: ImportQuestionsInput; previewed: boolean }>()
+  const intent = useRef<ImportIntent>()
   const generation = useRef(0)
   const [files, setFiles] = useState<ImportFile[]>([])
   const [previewId, setPreviewId] = useState<string>()
@@ -85,10 +84,7 @@ export function ImportQuestionsModal({
         if (token !== generation.current) return
         setFiles((current) => current.map((f) => (f.id === id ? { ...f, progress: 40 } : f)))
         const parsed = parseImportFile(await file.text(), bank.id)
-        const chapterMap = Object.fromEntries((parsed.document?.chapters ?? []).flatMap(local => {
-          const matches = chapters.data?.filter(chapter => chapter.name === local.name) ?? []
-          return matches.length === 1 ? [[local.id, matches[0].id]] : []
-        }))
+        const chapterMap = matchImportChapters(parsed, chapters.data ?? [])
         if (token === generation.current)
           setFiles((current) => current.map((f) => (f.id === id ? { ...f, ...parsed, chapterMap, progress: 100 } : f)))
       } catch (e) {
@@ -105,10 +101,7 @@ export function ImportQuestionsModal({
   }
   const save = useMutation({
     mutationFn: async () => {
-      const request: ImportQuestionsInput = { questionBankId: bank.id, questions: files.flatMap(f => mapImportFile(f, f.chapterMap, f.assetMap, chapterId)), expectedContentVersion: bank.contentVersion, idempotencyKey: '' }
-      const body = JSON.stringify(importBody(request))
-      if (new TextEncoder().encode(body).length > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB，请移除部分文件。')
-      if (!intent.current || intent.current.body !== body) intent.current = { body, input: { ...request, idempotencyKey: crypto.randomUUID() }, previewed: false }
+      intent.current = prepareImportIntent(files, bank.id, bank.contentVersion, chapterId, intent.current)
       const current = intent.current
       if (!current.previewed) { await gateway.previewImport(current.input); current.previewed = true }
       return gateway.importQuestions(current.input)
@@ -160,7 +153,7 @@ export function ImportQuestionsModal({
         closable={!save.isPending}
       >
         <p>导入到：{bank.name}</p>
-        {save.error && <Alert className="bw-form-error" type="error" content={save.error.message} action={<Button onClick={() => { void client.invalidateQueries({ queryKey: ['bank-detail', bank.id] }); void chapters.refetch() }}>刷新题库版本</Button>} />}
+        {save.error && <Alert className="bw-form-error" type="error" content={save.error.message} action={<Button onClick={() => { void client.invalidateQueries({ queryKey: ['bank-detail', bank.id] }); void chapters.refetch() }}>刷新题库信息</Button>} />}
         <Space wrap style={{ marginBottom: 16 }}><a href={templateUrl} download="qanda-template.json">下载空白模板</a><a href={exampleUrl} download="qanda-six-types.json">下载六类题型示例</a><a href={codeUrl} download="qanda-code-content.json">下载代码题示例</a><a href={schemaUrl} download="qanda-schema.json">下载 JSON Schema</a></Space>
         {chapters.isError && (
           <Alert
@@ -220,7 +213,7 @@ export function ImportQuestionsModal({
               e.target.value = ''
             }}
           />
-          <small className="muted">每批最多 3000 道实际作答题、8 MiB 请求体，可合并最多 20 个 JSON 文件；阅读理解按小题计数</small>
+          <small className="muted">每次最多导入 3000 道题、20 个 JSON 文件，文件合计不超过 8 MiB；阅读理解按小题计数</small>
         </div>
         <h3>文件识别进度</h3>
         <Table
@@ -288,7 +281,7 @@ export function ImportQuestionsModal({
           ]}
         />
         {files.filter(file => file.document).map(file => <section key={file.id} className="import-example">
-          <h3>{file.name} · 章节与图片映射</h3>
+          <h3>{file.name} · 选择章节与图片</h3>
           <p className="muted">文件题库：{file.document!.bank.name}。本次内容写入上方选择的目标题库。</p>
           {!chapterId && file.document!.chapters.map(chapter => <div className="input-label" key={chapter.id}>
             <span>{chapter.name}（{chapter.id}）</span><Space style={{ width: '100%' }}>
@@ -310,7 +303,7 @@ export function ImportQuestionsModal({
           content={
             total > 3000
               ? '题目总量超过 3000，请移除部分文件。'
-              : '全部文件识别成功后可确认导入；通过上下箭头调整文件顺序。整批校验通过后写入；失败保留文件和原幂等键以便重试。'
+              : '文件识别完成后可预览并确认导入。上下箭头可调整顺序；导入失败时文件会保留，可直接重试。'
           }
         />
       </Modal>
@@ -350,7 +343,7 @@ function ImportProvenance({ question, document }: { question: PortableQuestion; 
   const provenance = question.provenance
   return <section><h4>{question.id} · {provenance.origin === 'extracted' ? '原题提取' : '依据材料编题'}</h4>
     <ul>{provenance.sourceRefs.map((ref, index) => <li key={index}>{document.sources.find(source => source.id === ref.sourceId)?.name} · {ref.location}</li>)}</ul>
-    <p>AI 参与字段：{provenance.ai.fields.join('、') || '无'}</p><p>{provenance.ai.note}</p>
+    <p>AI 辅助整理的内容：{provenance.ai.fields.join('、') || '无'}</p><p>{provenance.ai.note}</p>
     {!!question.assetIds && <p>原文件图片引用：{(question.assetIds as string[]).join('、')}</p>}
     {question.subQuestions?.map(sub => <ImportProvenance key={sub.id} question={sub} document={document} />)}
   </section>

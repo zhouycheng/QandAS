@@ -101,7 +101,7 @@ def main():
     short = next(i for i in result["items"] if i["question"]["type"] == "SHORT_ANSWER")
     result = r("PUT", session_path + "/items/" + short["itemId"] + "/self-assessment", {"expectedVersion": result["version"], "assessment": "CORRECT"}, token=student)
     check("简答自评计入正式成绩", result["shortAnswer"]["rated"] == 1)
-    check("管理端与学生端成绩一致", r("GET", "/admin/students/" + r("GET", "/me", token=student)["id"] + "/practice-history/" + session["id"], token=admin)["id"] == result["id"])
+    check("管理端与学生端成绩一致", r("GET", "/practice/sessions/" + session["id"] + "/result", token=student)["id"] == result["id"])
 
     question = result["items"][0]["question"]
     feedback = r("POST", "/me/question-feedback", {"questionId": question["id"], "revisionId": question["revisionId"], "category": "OTHER", "body": "联调验证处理结果回传"}, token=student)
@@ -111,7 +111,7 @@ def main():
     r("POST", "/me/activity/heartbeat", token=student)
     me = r("GET", "/me", token=student)
     online = r("GET", "/admin/statistics/online-users", token=admin)
-    check("心跳后可查看在线账号与客户端", any(i["userId"] == me["id"] and any(c["platform"] == "WEB" for c in i["clients"]) for i in online["items"]))
+    check("心跳后可查看在线账号与客户端", any(i["userId"] == me["id"] and any(c["platform"] == "MINI_PROGRAM" for c in i["clients"]) for i in online["items"]))
     for sort in ["ACTIVE_DAYS", "ANSWERED_COUNT", "DURATION"]:
         r("GET", "/admin/statistics/rankings?sort=" + sort, token=admin)
     check("三种排行榜排序均可读取", True)

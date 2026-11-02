@@ -1,18 +1,22 @@
 const http = require('./http-gateway.js')
-const { OnlinePractice } = require('./online-practice.js')
+const projection = require('../models/practice-snapshot.js')
 const KEY = 'qandaTrialPractice'
 const LIMIT = 2
 let creating = null
 
 function read(storage) {
   const value = storage.get(KEY)
-  if (!value) return { version: 1, sessions: [] }
+  if (!value) return { version: 1, usedCount: 0, sessions: [] }
   if (value.version !== 1 || !Array.isArray(value.sessions)) throw new Error('试答记录无法读取，请联系支持')
-  return JSON.parse(JSON.stringify(value))
+  const usedCount = value.usedCount === undefined ? 0 : value.usedCount
+  if (!Number.isInteger(usedCount) || usedCount < 0 || usedCount > LIMIT) throw new Error('试答记录无法读取，请联系支持')
+  const record = JSON.parse(JSON.stringify({ ...value, usedCount }))
+  if (value.usedCount === undefined) storage.set(KEY, record)
+  return record
 }
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }
-function remaining(storage) { return Math.max(0, LIMIT - list(storage).length) }
+function remaining(storage) { return Math.max(0, LIMIT - read(storage).usedCount) }
 function quotaError() { const error = new Error('本机的两次试答已使用，登录后可继续练习'); error.code = 'TRIAL_LIMIT'; return error }
 function resumable(storage) { return list(storage).slice().reverse().find(item => item.status !== 'SUBMITTED') || null }
 async function required(method, path, body) {
@@ -49,15 +53,15 @@ async function create(storage, options) {
   snapshot.currentIndex = 0
   snapshot.durationSeconds = 0
   const record = read(storage)
-  if (record.sessions.length >= LIMIT) throw quotaError()
+  if (record.usedCount >= LIMIT) throw quotaError()
   record.sessions.push(snapshot)
+  record.usedCount++
   // 快照与已用次数在同一次写入中保存；失败时不进入答题。
   storage.set(KEY, record)
   return snapshot
 }
-const projection = OnlinePractice.prototype
 function quiz(snapshot) { return projection.quiz(snapshot) }
-function restored(snapshot) { return projection.restored.call({ quiz }, snapshot) }
+function restored(snapshot) { return projection.restored(snapshot) }
 function save(storage, session) {
   const record = read(storage)
   const snapshot = record.sessions.find(item => item.id === session.meta.sessionId)

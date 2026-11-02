@@ -1,3 +1,4 @@
+const { viewPatch } = require('../../models/view-patch.js')
 const { swipeDirection } = require('../../utils/question-swipe.js')
 const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
@@ -23,29 +24,15 @@ Page(withPageLifecycle({
     })
     this.routeOptions = options || {}
     this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')
-    this.startSyncWatch()
   },
 
   onShow() {
     this.pageVisible = true
     this.observeSaveStatus()
-    if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = this.viewModel.waitingId || (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
-    // 回到前台：交接中的练习先确认写入权。
-    if (this.viewModel && this.viewModel.online && this.viewModel.session) {
-      const online = this.viewModel.online
-      const id = this.viewModel.session.meta.sessionId
-      try {
-        const snapshot = online.get(id)
-        if ((snapshot && snapshot.releaseCommand) || online.releasing[`${online.userId}:${id}`]) {
-          this.viewModel.editingLocked = true
-          this.setData({ editingLocked: true })
-        }
-      } catch (error) { /* 账号状态由 checkWriter 处理 */ }
-    }
+    if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     if (this.viewModel) {
       this.applyViewModelResult(this.viewModel.resumeStudy())
-      this.startSyncWatch()
-      this.viewModel.checkWriter().then(result => this.applyViewModelResult(result)).catch(error => this.showSaveError(error))
+        this.viewModel.checkWriter().then(result => this.applyViewModelResult(result)).catch(error => this.showSaveError(error))
     }
   },
 
@@ -56,7 +43,6 @@ Page(withPageLifecycle({
     if (this.stopSaveStatus) this.stopSaveStatus()
     this.stopSaveStatus = null
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = ''
-    if (this.syncWatch) clearTimeout(this.syncWatch)
     if (!this.viewModel) {
       return
     }
@@ -79,12 +65,10 @@ Page(withPageLifecycle({
       this.saveAndFlush()
       const online = this.viewModel.online
       const session = this.viewModel.session
-      if (online && session && !session.state.isCompleted) online.release(session.meta.sessionId).catch(error => this.showSaveError(error))
     }
 
     this.stopTestTimer()
     this.clearAutoAdvance()
-    if (this.syncWatch) clearTimeout(this.syncWatch)
   },
 
   saveAndFlush() {
@@ -102,37 +86,6 @@ Page(withPageLifecycle({
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
   },
-
-  startSyncWatch() {
-    if (this.syncWatch) clearTimeout(this.syncWatch)
-    this.syncWatch = setTimeout(async () => {
-      if (!this.viewModel) return
-      try {
-        const result = await this.viewModel.checkWriter()
-        this.applyViewModelResult(result)
-        if (this.data.waitingForSync) {
-          const wait = this.viewModel.online && this.viewModel.online.getWaiting(this.viewModel.waitingId)
-          this.setData({ waitingSeconds: Math.max(0, Math.floor((Date.now() - (wait && wait.startedAt || Date.now())) / 1000)) })
-        }
-      } catch (error) { this.showSaveError(error) }
-      if (this.pageVisible !== false) this.startSyncWatch()
-    }, 15000 + Math.floor(Math.random() * 3000))
-  },
-
-  startNewPractice() {
-    this.stopTestTimer()
-    this.clearAutoAdvance()
-    const app = getApp()
-    const route = this.viewModel && this.viewModel.routeOptions || this.routeOptions || {}
-    if (route.bankId) {
-      try { createWxStorageAdapter().set('qandaPendingPractice', route) }
-      catch (error) { this.showSaveError(error); return }
-    }
-    if (app && app.setPendingSubjectId && route.subjectId) app.setPendingSubjectId(route.subjectId)
-    navigation.switchTab({ url: '/page/bank-detail/index' })
-  },
-
-  waitInBackground() { this.returnBankDetail() },
 
   inputAnswerText(e) { this.applyViewModelResult(this.viewModel.setAnswerText(e.detail.value)) },
   inputBlank(e) { this.applyViewModelResult(this.viewModel.setBlank(Number(e.detail.index === undefined ? e.currentTarget.dataset.index : e.detail.index), e.detail.value)) },
@@ -403,7 +356,7 @@ Page(withPageLifecycle({
     }
 
     if (result.data) {
-      if (this.pageVisible !== false && this.viewModel && this.viewModel.online) this.viewModel.online.activeId = this.viewModel.waitingId || (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
+      if (this.pageVisible !== false && this.viewModel && this.viewModel.online) this.viewModel.online.activeId = (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
       const patch = Object.assign({}, result.data)
 
       // 原生输入在聚焦时保有光标；计时和同步更新不回写当前输入值。
@@ -422,7 +375,7 @@ Page(withPageLifecycle({
       }
 
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
-      this.setData(patch, runEffects)
+      this.setData(viewPatch(this.data, patch), runEffects)
       return
     }
 

@@ -1,6 +1,5 @@
 # 后端接口验收
 
-当前 `1.0.0` 合同包含 141 个操作，聚合入口为 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)，12 个模块合同引用其中的共享模型。合同从运行中的 Controller 和 DTO 导出；实际 HTTP 观察另行验证路径、参数、请求体、状态、响应媒体、全部响应头值和响应体。用户交流群的 4 个接口及公告置顶通过定向集成验证；其余接口的全量记录见[三端联调记录](../../../docs/three-client-integration.md)。
 
 ## Maven 验收
 
@@ -13,7 +12,6 @@ node apps/api/scripts/backend.mjs verify
 
 `test` 执行单元及模块依赖检查；`verify` 还执行 Testcontainers PostgreSQL、RabbitMQ、Prometheus、Mailpit 的 HTTP/SSE 验收，并通过打包后的 JAR 检查数据库初始化、交互式首管创建及独立监控进程。测试数据库均为临时隔离容器，测试结束后删除。
 
-验收覆盖注册和资料、身份隔离、内容权限、发布导入、不可变修订、推荐与课程收藏、两种练习反馈、并发保存和交卷、离线快照、跨设备写入交接、简答自评、错题掌握、反馈处理、公告、上海日期边界和安全策略。命令行验收使用真实 PTY 输入随机首管凭据，并检查重复初始化、重复首管创建、运行模式与数据库名称保护。
 
 ### 学生密码专项
 
@@ -68,6 +66,4 @@ QA_PY=apps/api/.backend-runtime/verification/quality/tools/python/bin/python
 
 可用 `QANDA_QUALITY_EVIDENCE_DIR` 指定另一批运行证据。`export --source` 可指定该次运行的 OpenAPI JSON。合同校验包含格式、类型、必填、重复值、未知字段及数值边界的反例自检。
 
-导入生成的 [Postman 集合](../postman/QandA-MVP.postman_collection.json)和[本地环境](../postman/QandA-Local.postman_environment.json)。账号、密码、邮箱、验证码和令牌变量为空，由运行者填写；资源 ID、并发字段和当前令牌由响应脚本提取。每个写意图生成幂等键，需要模拟同一意图重试时设置 `commandKey` 为之前的 `lastCommandKey`。请求样例见 [`QandA-MVP.examples.json`](../postman/QandA-MVP.examples.json)。
-
-自动化验收使用本地 SMTP 捕获和明确的测试微信身份。浏览器管理端与微信开发者工具的实际操作见[三端联调记录](../../../docs/three-client-integration.md)：真实腾讯云 SES 收件、官方微信绑定及重新登录、修改密码和更换邮箱已通过页面核对。头像与昵称通过 `PUT /me/profile` 保存，微信绑定只写入登录身份关联；头像校验真实图片格式、像素及字节上限。真机和容量压测仍单独验收。
+导入生成的 [Postman 集合](../postman/QandA.postman_collection.json)和[本地环境](../postman/QandA-Local.postman_environment.json)。账号、密码、邮箱、验证码和令牌变量为空，由运行者填写；资源 ID、并发字段和当前令牌由响应脚本提取。每个写意图生成幂等键，需要模拟同一意图重试时设置 `commandKey` 为之前的 `lastCommandKey`。请求样例见 [`QandA.examples.json`](../postman/QandA.examples.json)。

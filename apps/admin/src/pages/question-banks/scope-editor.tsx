@@ -52,7 +52,7 @@ export function ScopeEditor({ scopeType, groups, onTypeChange, onChange, disable
   </div>
 }
 
-export function ScopePreview({ bank, directory, subjects }: { bank: QuestionBank; directory: AudienceDirectory; subjects: Subject[] }) {
+export function ScopePreview({ bank, subjects }: { bank: QuestionBank; directory: AudienceDirectory; subjects: Subject[] }) {
   const [profile, setProfile] = useState<ScopeGroup>({ id: 'preview', grades: [] })
   const result = bankVisibility(bank, { collegeId: profile.collegeId, majorId: profile.majorId, grade: profile.grades[0] }, subjects)
   const selected = bank.scopeType === 'ALL' || Boolean(profile.collegeId || profile.majorId || profile.grades.length)

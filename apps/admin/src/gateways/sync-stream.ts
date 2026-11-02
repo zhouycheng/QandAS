@@ -16,7 +16,7 @@ export function watchSyncStream(fetcher: typeof fetch, url: string, token: () =>
     try {
       const response = await fetcher(url, { headers: { Accept: 'text/event-stream', Authorization: `Bearer ${identity}`, 'X-Request-Id': crypto.randomUUID() }, signal: controller.signal })
       if (!response.ok) throw new ApiError('监控连接失败', '', response.status, '', Number(response.headers.get('Retry-After')) || undefined)
-      if (!response.headers.get('Content-Type')?.includes('text/event-stream') || !response.body) throw new Error('监控流格式无效')
+      if (!response.headers.get('Content-Type')?.includes('text/event-stream') || !response.body) throw new Error('监控数据暂时无法读取，正在重连')
       reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = '', event = '', data: string[] = []
@@ -26,17 +26,17 @@ export function watchSyncStream(fetcher: typeof fetch, url: string, token: () =>
         if (identity !== token()) { stop(); return }
         if (chunk.done) throw new Error('监控连接已断开')
         keepAlive(); buffer += decoder.decode(chunk.value, { stream: true })
-        if (buffer.length + data.join('\n').length > 65536) throw new Error('监控事件过大')
+        if (buffer.length + data.join('\n').length > 65536) throw new Error('监控数据暂时无法读取，正在重连')
         let end: number
         while ((end = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, end).replace(/\r$/, ''); buffer = buffer.slice(end + 1)
           if (!line) {
-            if (event === 'auth-expired') throw new ApiError('监控权限已失效', 'AUTH_EXPIRED', 401, '')
+            if (event === 'auth-expired') throw new ApiError('登录状态已失效，请重新登录', 'AUTH_EXPIRED', 401, '')
             if (event === 'sync-health' && data.length) {
               const value = JSON.parse(data.join('\n')) as SyncSnapshot
               if (!value.metrics || Object.keys(value.metrics).length !== 10 || !Object.values(value.metrics).every(n => n === null || typeof n === 'number' && Number.isFinite(n) && n >= 0)
                 || !['HEALTHY', 'SAMPLING', 'RESET', 'STALE', 'UNAVAILABLE'].includes(value.status) || value.windowSeconds !== 60 || !Number.isFinite(Date.parse(value.checkedAt))
-                || value.sampledAt !== null && !Number.isFinite(Date.parse(value.sampledAt))) throw new Error('监控快照格式无效')
+                || value.sampledAt !== null && !Number.isFinite(Date.parse(value.sampledAt))) throw new Error('监控数据暂时无法读取，正在重连')
               failures = 0; onStatus('LIVE'); onSnapshot(value)
             }
             event = ''; data = []

@@ -1,6 +1,5 @@
-const { AuthFormViewModel } = require('./auth-form-viewmodel.js')
-const { validateReset } = require('../utils/auth-form.js')
-
+const { AuthFormViewModel } = require('./auth-form-viewmodel.js');
+const { validateReset } = require('../utils/auth-form.js');
 /**
  * 找回密码视图模型（设计稿 772:1076）。
  *
@@ -10,28 +9,25 @@ const { validateReset } = require('../utils/auth-form.js')
  *    所以跳回登录页而不是直接进站。
  */
 class ForgotPasswordViewModel extends AuthFormViewModel {
-  _validate() {
-    return validateReset(this.fields)
-  }
-
-  _submit() {
-    return this.repository.resetPassword(this.storage, {
-      email: this.fields.email,
-      code: this.fields.code,
-      password: this.fields.password
-    })
-  }
-
-  buildSuccessCommand(result) {
-    return {
-      type: 'navigate',
-      url: '/page/login/index',
-      mode: 'redirect',
-      title: result && result.degraded ? '密码未实际修改（后端未接入）' : '密码已重置，请使用新密码登录'
+    _validate() {
+        return validateReset(this.fields);
     }
-  }
+    _submit() {
+        return this.repository.resetPassword(this.storage, {
+            email: this.fields.email,
+            code: this.fields.code,
+            password: this.fields.password
+        });
+    }
+    buildSuccessCommand() {
+        return {
+            type: 'navigate',
+            url: '/page/login/index',
+            mode: 'redirect',
+            title: '密码已重置，请使用新密码登录'
+        };
+    }
 }
-
 module.exports = {
-  ForgotPasswordViewModel
-}
+    ForgotPasswordViewModel
+};

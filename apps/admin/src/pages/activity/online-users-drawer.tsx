@@ -17,9 +17,9 @@ export function OnlineUsersDrawer({ filters, visible, onClose }: { filters: Onli
     <Table<OnlineUser> rowKey="userId" loading={online.isFetching} data={online.data?.items ?? []} scroll={{ x: 1080 }} pagination={{ current: page, pageSize: 20, total: online.data?.total ?? 0, onChange: setPage, showTotal: true }} columns={[
       { title: '昵称', width: 120, render: (_, row) => <Button type="text" onClick={() => setUserId(row.userId)}>{row.nickname}</Button> },
       { title: '账号', dataIndex: 'accountCode', width: 110 }, { title: '学院', dataIndex: 'collegeName', width: 130 }, { title: '专业', dataIndex: 'majorName', width: 130 },
-      { title: '年级', width: 80, render: (_, row) => gradeLabel(row.currentGrade) }, { title: '在线会话', dataIndex: 'onlineSessionCount', width: 90 },
-      { title: '客户端', width: 230, render: (_, row) => row.clients.map(client => <Tag key={client.platform} title={'最后心跳：' + new Date(client.lastHeartbeatAt).toLocaleTimeString('zh-CN')}>{client.platform === 'WEB' ? '用户 Web' : '小程序'} · {client.sessionCount}</Tag>) },
-      { title: '最后心跳', width: 170, render: (_, row) => new Date(row.lastHeartbeatAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) },
+      { title: '年级', width: 80, render: (_, row) => gradeLabel(row.currentGrade) }, { title: '登录设备数', dataIndex: 'onlineSessionCount', width: 90 },
+      { title: '客户端', width: 230, render: (_, row) => row.clients.map(client => <Tag key={client.platform} title={'最近活跃：' + new Date(client.lastHeartbeatAt).toLocaleTimeString('zh-CN')}>小程序 · {client.sessionCount}</Tag>) },
+      { title: '最近活跃', width: 170, render: (_, row) => new Date(row.lastHeartbeatAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) },
     ]} />
     {userId && <UserDetailDrawer id={userId} onClose={() => setUserId(undefined)} />}
   </Drawer>

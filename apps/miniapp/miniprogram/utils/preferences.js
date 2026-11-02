@@ -1,9 +1,7 @@
 /**
  * 用户学习偏好：纯计算模块，不依赖微信 API，便于在 Node 中直接测试。
  *
- * 存储结构（qandaPreferences）：平铺的键值对，便于增量合并与向后兼容。
- * 新增字段时只要在 DEFAULT_PREFERENCES 里补默认值，
- * normalizePreferences 会把老数据补齐，不需要写迁移脚本。
+ * qandaPreferences 使用平铺字段，normalizePreferences 校验并补全缺省值。
  */
 
 const PREFERENCE_STORAGE_KEY = 'qandaPreferences'
@@ -47,22 +45,22 @@ const PREFERENCE_SWITCHES = [
   {
     key: 'autoAddWrongBook',
     label: '答错自动加入错题本',
-    description: '关闭后错题需手动收藏，错题本不再自动收集'
+    description: '关闭后不再收录新错题，已有错题仍随复习结果更新'
   },
   {
     key: 'autoNextWhenCorrect',
     label: '答对后自动进入下一题',
-    description: '即时反馈中客观题确认答对后约 0.8 秒自动翻页'
+    description: '练习模式确认答对后，约 0.8 秒进入下一题'
   },
   {
     key: 'showSelfAssessment',
-    label: '交卷后显示自评',
-    description: '主观题可选标记掌握或待复习，不选择时保持未自评'
+    label: '交卷后显示主观题自评',
+    description: '主观题可标记“掌握”或“待复习”，也可暂不自评'
   },
   {
     key: 'showOverviewEntry',
     label: '显示答题卡入口',
-    description: '答题页顶部显示题号胶囊，可随时跳题'
+    description: '在答题页顶部显示题号，点击可打开答题卡'
   },
   {
     key: 'vibrateOnAnswer',
@@ -113,7 +111,7 @@ function normalizePreferences(rawPreferences) {
     }
 
     if (key === 'moduleOrder') {
-      next[key] = normalizeOrder(value, raw.answerLayout)
+      next[key] = normalizeOrder(value)
       return
     }
 

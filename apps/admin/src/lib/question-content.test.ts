@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getScenarioData } from '../../playground/scenarios'
-import type { CreateQuestionInput, Question, QuestionContent } from '../types/admin'
-import { publicationChecks } from './bank-workbench'
+import type { CreateQuestionInput, QuestionContent } from '../types/admin'
 import { parseQuestionFile, validateQuestion } from './content-rules'
 import { answerSummary, contentFingerprint, countQuestions, missingExplanations, questionSearchText } from './question-content'
 import { questionImportExamples as examples } from './question-import-examples'
@@ -85,17 +83,6 @@ describe('题组统计、搜索与发布检查', () => {
     expect(answerSummary(examples.READING)).toContain('2 道小题')
     expect(answerSummary(examples.FILL_BLANK)).toContain('H₂O / H2O')
     expect(answerSummary(examples.SHORT_ANSWER)).toContain('不计分')
-  })
-
-  it('材料说明可选，每道启用小题需要独立解析', () => {
-    const data = getScenarioData('normal')
-    const bank = data.questionBanks[0]
-    const reading = { ...input(examples.READING), id: 'reading', createdAt: '', updatedAt: '', explanation: '' } as Question
-    const checks = (question: Question) => publicationChecks(bank, data.subjects[0], [question], data)
-    expect(checks(reading).every((check) => check.passed)).toBe(true)
-    const invalid = { ...reading, subQuestions: reading.subQuestions!.map((sub, index) => index ? { ...sub, explanation: '' } : sub) }
-    expect(checks(invalid).find((check) => check.label === '启用题目内容与解析完整')?.passed).toBe(false)
-    expect(missingExplanations([invalid])).toBe(1)
   })
 
   it('答案、匹配规则、评分要点、材料及小题顺序变化都能识别为内容修改', () => {

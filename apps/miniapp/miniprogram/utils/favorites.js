@@ -24,8 +24,7 @@ function normalizeFavorites(rawFavorites) {
     return createEmptyFavorites()
   }
 
-  // 兼容早期格式：直接存数组
-  const rawIds = Array.isArray(rawFavorites) ? rawFavorites : rawFavorites.ids
+  const rawIds = rawFavorites.ids
   const ids = []
 
   if (Array.isArray(rawIds)) {

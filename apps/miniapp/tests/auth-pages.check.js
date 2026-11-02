@@ -226,7 +226,7 @@ async function checkFlow() {
   assert('认证 - 未配域名时显示错误',
     sent.command.type === 'toast', JSON.stringify(sent.command))
   assert('认证 - 验证码失败原因可见',
-    sent.command.title.indexOf('未配置') >= 0, sent.command.title)
+    sent.command.title === '服务暂不可用，请稍后重试', sent.command.title)
 
   const badEmailSend = await new RegisterViewModel({ storage: createMemoryStorage() }).sendCode('register')
 
@@ -278,7 +278,7 @@ async function checkFlow() {
   assert('认证 - 断网重置停留原页',
     reset.command.type === 'toast', JSON.stringify(reset.command))
   assert('降级 - 重置不产生登录态', authRepository.getAuth(resetStorage).loggedIn === false)
-  assert('认证 - 重置失败原因可见', reset.command.title.indexOf('未配置') >= 0, reset.command.title)
+  assert('认证 - 重置失败原因可见', reset.command.title === '服务暂不可用，请稍后重试', reset.command.title)
 
   // 5) 后端可用时走真实返回
   authGateway.setAuthGateway({
@@ -297,7 +297,6 @@ async function checkFlow() {
 
   assert('链路 - 后端可用时用后端 id', authRepository.getAuth(realStorage).userId === 'u-77',
     authRepository.getAuth(realStorage).userId)
-  assert('链路 - 后端可用时不给降级说明', real.data.degradedNote === '', real.data.degradedNote)
 
   // 6) 提交中重复点击不该发两次
   const guardVm = new LoginViewModel({ storage: createMemoryStorage() })
@@ -344,7 +343,7 @@ async function checkRegressions() {
   // 2) 没接上后端（unavailable）仍然降级 —— 上一条修复不能把联调前的路堵死
   authGateway.setAuthGateway({
     name: 'offline',
-    loginByEmail: () => ({ ok: false, unavailable: true, reason: '未配置接口域名' })
+    loginByEmail: () => ({ ok: false, unavailable: true, reason: '服务暂不可用，请稍后重试' })
   })
 
   const offlineStorage = createMemoryStorage()
@@ -368,7 +367,6 @@ async function checkRegressions() {
 
   const online = await offlineVm.submit()
 
-  assert('修复 - 真登录成功后降级说明被清掉', online.data.degradedNote === '', online.data.degradedNote)
 
   // 4) 验证码被后端拒绝时不给倒计时，否则按钮白锁 60 秒
   authGateway.setAuthGateway({

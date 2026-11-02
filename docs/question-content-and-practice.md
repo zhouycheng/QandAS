@@ -1,6 +1,6 @@
 # 题型、答题交互与 Markdown 实现
 
-管理端、API 和小程序使用同一内容属性、客观计分口径和答案显示规则。后端与 API 继续使用 v1.0；便携题库文件继续使用 [导入协议 v1.0](question-bank-import.md)。学生 Web 后续接入共享节点合同。
+管理端、API 和小程序使用同一内容属性、客观计分口径和答案显示规则。后端与 API 继续使用 v1.0；便携题库文件继续使用 [导入协议 v1.0](question-bank-import.md)。
 
 ## 内容与修订
 
@@ -22,7 +22,6 @@
 
 学习偏好提供“交卷后显示自评”开关，默认显示可选自评入口。关闭时隐藏选择按钮；未选择保持“未自评”，既不算掌握也不算未掌握，历史自评保持原值。
 
-客观错题只收集 `WRONG`，未答单列。主观自评“待复习”进入错题库的“主观待复习”分类，同时保留本次复盘筛选与收藏能力。该分类按最后一次明确自评更新，自评“掌握”后移出；后续未自评保持原记录。客观错题数与正确率独立计算。正式结果使用服务端客观计数、得分、正确率；同步成功后替换本地结果投影。目录进度按当前有效题目统计，历史总作答量保留已停用题目的记录。旧本地聚合无法恢复客观分母时显示 `—`，题量和用时继续保留。
 
 ## 反馈、草稿与导航
 
@@ -32,7 +31,6 @@
 | 统一反馈 | 保存草稿，交卷前可修改，交卷后统一判题和显示参考内容 | 设置在本模式不生效 | 开启 |
 | 背题 | 所有题型直接显示答案与解析 | 手动导航 | 开启 |
 
-反馈方式、会话模式、限时分别保存到配置快照；恢复和接管以快照为准。背题默认展开解析，不生成分数或错题。
 
 每次勾选、文字与填空编辑都保存当前题草稿。即时客观确认后锁定，主观和统一反馈继续可编辑。前后题、答题卡和主动返回先保存；本机写入失败时停留并提示重试。答题卡区分未答、草稿、已答，交卷前不使用对错色。
 
@@ -44,7 +42,7 @@
 
 共享解析器使用 `markdown-it`：`html: false`、`breaks: true`、`linkify: false`、`typographer: false`。支持段落、换行、标题、强调、删除线、列表、引用、分隔线、行内和围栏代码、简单表格。公式使用 Unicode 或图片附件。
 
-Prism 将代码转换成文本和标记节点，支持 C、C++、Java、Python、JavaScript、TypeScript、SQL、JSON、HTML、CSS、Bash；未知语言回退等宽原文。代码块显示语言、复制入口和横向滚动。HTML 保持文字；HTTPS 链接在 Web 安全打开，在小程序复制。Markdown 图片语法保留说明文字，编辑预览和导入校验提示使用附件。
+Prism 将代码转换成文本和标记节点，支持 C、C++、Java、Python、JavaScript、TypeScript、SQL、JSON、HTML、CSS、Bash；未知语言回退等宽原文。代码块显示语言、复制入口和横向滚动。HTML 保持文字；HTTPS 链接在管理端安全打开，在小程序复制。Markdown 图片语法保留说明文字，编辑预览和导入校验提示使用附件。
 
 管理端支持源码编辑、完整内容预览，以及学生作答、即时反馈、交卷复盘三个预览状态。参考要点各自编辑多行 Markdown。布局编辑器和静态预览复用实际内容转换及样式，包含代码输出和程序理解样例；内容就绪后重新测量布局。
 
@@ -60,9 +58,6 @@ Prism 将代码转换成文本和标记节点，支持 C、C++、Java、Python�
 | 管理端内容、导入、预览、网关 | `pnpm --dir apps/admin test`、`pnpm --dir apps/admin build` |
 | 导入示例与图片映射 | `npm --prefix apps/admin run validate:bank -- docs/question-bank-import/examples/six-types.json docs/question-bank-import/examples/code-content.json docs/question-bank-import/examples/image-and-table.json` |
 | 小程序完整回归与官方 WXML/WXSS 编译 | `npm --prefix apps/miniapp test` |
-| 布局静态预览 | 在 `apps/miniapp` 执行 `node scripts/preview-practice.cjs` |
 | API 单元及独立 PostgreSQL/消息队列验收 | 在 `apps/api` 执行 `./mvnw verify`，用 `QANDA_QUALITY_EVIDENCE_DIR` 将证据写入独立目录 |
 
 共用样例覆盖候选答案、大小写、Unicode 首尾空白、内部空格、混合计分、全主观、全未答和舍入。小程序回归覆盖确认矩阵、草稿恢复、存储失败、重复提交和自动前进取消；API 验收覆盖修订锁定、整卷草稿提交、参考内容时机、自评统计、背题和游客快照。
-
-本轮构建及 API 验收使用独立环境，微信 npm 打包在临时输出目录验证。联调接入时按既有流程重建小程序 npm，并安排真机验证横滚、系统返回、键盘、选字及输入光标；各端具备新内容消费能力后再发布 Markdown 内容。

@@ -93,14 +93,12 @@ def main():
                 concrete = sample(schema, owner)
                 if route == "/api/v1/practice/sessions":
                     concrete["deviceId"] = str(uuid.UUID(int=1))
-                if route.startswith("/api/v1/practice/sessions/{id}/") and entry["method"] in ("PUT", "POST") and not route.endswith(("writer-acquire", "self-assessment")):
+                if route.startswith("/api/v1/practice/sessions/{id}/") and entry["method"] in ("PUT", "POST") and not route.endswith("self-assessment"):
                     concrete["writerToken"] = str(uuid.UUID(int=1))
-                    if route.endswith(("progress", "progress-ack", "progress-commands")):
+                    if route.endswith("progress-commands"):
                         concrete["clientSequence"] = 1
                 assert not contracts.errors(concrete, schema, owner), operation_id
                 body_sample = template(concrete)
-                if route.endswith("writer-release"):
-                    body_sample["clientSequence"] = "{{acknowledgedSequence}}"
                 raw = json.dumps(body_sample, ensure_ascii=False, indent=2)
                 for field in ("expectedVersion", "expectedContentVersion", "clientSequence", "acknowledgedSequence"):
                     raw = raw.replace('"{{' + field + '}}"', '{{' + field + '}}')
@@ -127,7 +125,7 @@ def main():
     destination.mkdir(parents=True, exist_ok=True)
     collection = {"info": {"name": "QandA 1.0.0", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"}, "item": [{"name": name, "item": items} for name, items in sorted(folders.items())]}
     environment = {"name": "QandA Local", "values": [{"key": key, "value": value, "enabled": True, "type": "secret" if key in ("password", "newPassword", "adminToken", "userToken", "registrationToken", "writerToken") else "default"} for key, value in variables.items()], "_postman_variable_scope": "environment"}
-    for name, value in [("QandA-MVP.postman_collection.json", collection), ("QandA-Local.postman_environment.json", environment), ("QandA-MVP.examples.json", examples)]:
+    for name, value in [("QandA.postman_collection.json", collection), ("QandA-Local.postman_environment.json", environment), ("QandA.examples.json", examples)]:
         (destination / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps({"operations": len(examples), "folders": len(folders)}, ensure_ascii=False))
 

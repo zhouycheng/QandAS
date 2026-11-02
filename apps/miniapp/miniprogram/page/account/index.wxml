@@ -116,7 +116,7 @@
       </view>
     </view>
 
-    <text class="section-note">邮箱用于登录、找回密码与接收提醒。</text>
+    <text class="section-note">邮箱用于登录、找回密码和验证账号安全操作。</text>
 </view>
 <view class="bottom-bar">
   <view

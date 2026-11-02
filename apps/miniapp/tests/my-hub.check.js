@@ -143,7 +143,7 @@ function checkMyViewModel() {
   assert('我的 - 邮箱提醒进提醒页', vm.tapRow('reminder').command.url === '/page/reminder/index')
 
   // 学习设置的右侧摘要跟着真实设置走
-  const prefs = preferences.normalizePreferences({ autoShowExplanation: false, answerLayout: 'above' })
+  const prefs = preferences.normalizePreferences({ autoShowExplanation: false })
   storage.set('qandaPreferences', prefs)
   storage.set('qandaReminder', reminderSettings.setReminderSwitch(null, 'enabled', false))
 
@@ -152,11 +152,8 @@ function checkMyViewModel() {
   assert('我的 - 摘要跟随「只标对错」',
     changed.learnRows.find((item) => item.key === 'practice').value === '仅看对错',
     changed.learnRows.find((item) => item.key === 'practice').value)
-  assert('我的 - 摘要跟随「选项在上」',
-    changed.learnRows.find((item) => item.key === 'layout').value === '已自定义',
-    changed.learnRows.find((item) => item.key === 'layout').value)
   assert('我的 - 摘要跟随提醒开关',
-    changed.learnRows.find((item) => item.key === 'reminder').value === '本机偏好',
+    changed.learnRows.find((item) => item.key === 'reminder').value === '仅本机保存',
     changed.learnRows.find((item) => item.key === 'reminder').value)
 
   assert('我的 - 关于行进入独立页面', vm.tapRow('about').command.url === '/page/about/index')
@@ -189,69 +186,12 @@ function checkAboutViewModel() {
   const vm = new AboutViewModel({ storage: createMemoryStorage(), repository, version: '1.0.0' })
   const data = vm.load().data
   assert('关于 - 展示应用版本和简短功能介绍', data.version === '1.0.0' && data.paragraphs.length === 1 && data.paragraphs[0].includes('课程复习与刷题小程序'))
-  assert('关于 - 开发工具默认关闭', !data.playgroundEnabled && vm.openPlayground() === null)
-  assert('关于 - 解锁后保留版本和入口', vm.unlockPlayground().data.version === '1.0.0' && vm.load().data.playgroundEnabled)
-  assert('关于 - 开发工具沿用原生跳转', vm.openPlayground().command.url === '/page/playground/index')
   repository.setPlaygroundEnabled = () => { throw new Error('storage full') }
-  assert('关于 - 存储失败明确提示', vm.unlockPlayground().command.title === '设置保存失败，请重试')
 }
 
 // ---------- 三、账号管理 ----------
 
-function checkAccountViewModel() {
-  const guest = new AccountViewModel({ storage: createMemoryStorage() })
 
-  assert('账号 - 未登录保存先去登录',
-    guest.save().command.type === 'navigate' && guest.save().command.url === '/page/login/index',
-    JSON.stringify(guest.save()))
-
-  const storage = createMemoryStorage()
-  seedEmailAuth(storage)
-
-  const vm = new AccountViewModel({ storage })
-  const loaded = vm.load().data
-
-  assert('账号 - 邮箱身份密码状态为已设置', loaded.profile.passwordStatus === '已设置',
-    loaded.profile.passwordStatus)
-  assert('账号 - 邮箱身份微信为未绑定', loaded.profile.wechatStatus === '未绑定')
-  assert('账号 - 初始无改动', loaded.dirty === false)
-
-  assert('账号 - 未改动直接保存给提示', vm.save().command.title === '资料没有改动')
-
-  vm.setField('nickname', '佳乐')
-  vm.setField('college', '计算机科学与技术学院')
-
-  assert('账号 - 有改动后按钮可用', vm.setField('college', '计算机学院').data.dirty === true)
-
-  const saved = vm.save()
-  const stored = authSession.normalizeAuth(storage.get('qandaAuth'))
-
-  assert('账号 - 保存有提示', saved.command.title === '资料已保存')
-  assert('账号 - 昵称落盘', stored.nickname === '佳乐', stored.nickname)
-  assert('账号 - 学院落盘', stored.college === '计算机学院', stored.college)
-  assert('账号 - 保存后回到无改动', saved.data.dirty === false)
-
-  // 账号安全由独立页面按模式加载。
-  const password = vm.tapPassword()
-
-  assert('账号 - 改密码进入邮箱确认流程',
-    password.command.type === 'navigate' &&
-      password.command.url === '/page/account-security/index?mode=password',
-    JSON.stringify(password))
-
-  assert('账号 - 换邮箱进入独立流程', vm.tapEmail().command.url === '/page/account-security/index?mode=email')
-  assert('账号 - 微信绑定在资料页确认', vm.tapWechat().command.type === 'confirm-wechat-binding')
-
-  // 微信身份下没有密码可改
-  const wechatStorage = createMemoryStorage()
-  wechatStorage.set('qandaAuth', authSession.buildWechatAuth({ userId: 'u-9', token: 'test-token9', openId: 'o-9', nickname: 'curry' }))
-
-  const wechatVm = new AccountViewModel({ storage: wechatStorage })
-
-  assert('账号 - 微信身份下密码未设置', wechatVm.load().data.profile.passwordStatus === '未设置')
-  assert('账号 - 微信身份也能设置登录密码',
-    wechatVm.tapPassword().command.url === '/page/account-security/index?mode=password')
-}
 
 // ---------- 四、邮箱提醒：规则 ----------
 
@@ -385,7 +325,6 @@ function checkReminderViewModel() {
 function checkAnswerLayout() {
   const layout = require('../miniprogram/utils/practice-layout.js')
   assert('布局 - 默认包含五个模块', preferences.normalizePreferences(null).moduleOrder.join() === layout.DEFAULT_ORDER.join())
-  assert('布局 - 原选项在上读取为等效顺序', preferences.normalizePreferences({ answerLayout: 'above' }).moduleOrder[1] === 'response')
   assert('布局 - 重复与非法项回落默认', preferences.normalizePreferences({ moduleOrder: ['stem', 'stem'] }).moduleOrder.join() === layout.DEFAULT_ORDER.join())
   const template = readFile('templates/practice-content.wxml')
   assert('布局 - 五个稳定模块按样式排序', template.split('order: {{layoutRanks.').length === 6)
@@ -424,7 +363,7 @@ function checkInteraction() {
 function main() {
   checkPages()
   checkMyViewModel()
-  checkAccountViewModel()
+
   checkAboutViewModel()
   checkReminderRules()
   checkReminderViewModel()

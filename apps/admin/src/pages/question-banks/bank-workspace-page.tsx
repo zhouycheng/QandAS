@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Dropdown, Input, Menu, Message, Modal, Space, Spin, Tabs, Tag } from '@arco-design/web-react'
-import { IconArrowLeft, IconBook, IconMore, IconPlus, IconUpload } from '@arco-design/web-react/icon'
+import { IconArrowLeft, IconBook, IconMore, IconPlus } from '@arco-design/web-react/icon'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../../components/error-state'

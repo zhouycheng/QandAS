@@ -42,20 +42,20 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         return MutationResult(user.id!!,user.version)
     }
     fun login(input: LoginInput): TokenView {
-        val address=email(input.email);if(input.clientType !in setOf("WEB","MINI_PROGRAM")) invalid("clientType")
+        val address=email(input.email)
         val scope="student:${address.key}";if(attempts.blocked(scope)) unauthenticated("尝试次数过多，请稍后再试")
         val user=sql.userByEmail(address.key)
         if(!crypto.verifyStudentPassword(input.password,user?.passwordHash) || user?.status!="ACTIVE") {
             attempts.failure(scope,5,30,true);unauthenticated("邮箱或密码不正确，请检查后重试")
         }
         attempts.clear(scope)
-        return issueSession(user!!,input.deviceId,input.clientType)
+        return issueSession(user!!,input.deviceId)
     }
     fun wechatLogin(input: WechatLoginInput): WechatLoginView {
         val identity=wechat.exchange(input.code);val binding=sql.wechat(identity.appId,identity.openId)
         if(binding!=null) {
             val user=users.selectById(binding.userId) ?: unauthenticated();if(user.status!="ACTIVE") unauthenticated()
-            return WechatLoginView(session=issueSession(user,input.deviceId,"MINI_PROGRAM"))
+            return WechatLoginView(session=issueSession(user,input.deviceId))
         }
         val token=crypto.randomToken();tickets.insert(WechatTicket().apply { id=UUID.randomUUID();tokenDigest=crypto.tokenDigest(token)
             appId=identity.appId;openId=identity.openId;unionId=identity.unionId;expiresAt=clock.instant().plusSeconds(600) })
@@ -71,11 +71,11 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         return MutationResult(user.id!!,1)
     }
     private fun newUser(display: String)=UserAccount().apply { id=UUID.randomUUID();accountCode=crypto.accountCode();nickname=display;createdAt=clock.instant();updatedAt=createdAt }
-    private fun issueSession(user: UserAccount,device: UUID,client: String): TokenView {
+    private fun issueSession(user: UserAccount,device: UUID): TokenView {
         sql.lockUser(user.id!!)?.let { if(it.status!="ACTIVE" || it.credentialVersion!=user.credentialVersion) unauthenticated() }
         val token="u_"+crypto.randomToken();val row=UserSession().apply { id=UUID.randomUUID();userId=user.id;tokenDigest=crypto.tokenDigest(token)
-            credentialVersion=user.credentialVersion;deviceId=device;clientType=client;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=issuedAt.plusSeconds(30*86400L) }
-        sessionRows.insert(row);activity.record(user.id!!,client)
+            credentialVersion=user.credentialVersion;deviceId=device;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=issuedAt.plusSeconds(30*86400L) }
+        sessionRows.insert(row);activity.record(user.id!!)
         return TokenView(token,row.id!!,row.expiresAt)
     }
     fun updateProfile(actor: Actor,input: ProfileInput): MutationResult {
@@ -133,12 +133,10 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         } catch(_: org.springframework.dao.DuplicateKeyException) { conflict("WECHAT_ALREADY_BOUND","此微信已被绑定，请刷新账号状态") }
         user.version++;users.updateById(user);return MutationResult(actor.id,user.version)
     }
-    fun sessions(actor: Actor): List<SessionView> = sessionRows.selectList(QueryWrapper<UserSession>().eq("user_id",actor.id).isNull("revoked_at").gt("expires_at",clock.instant()).orderByDesc("issued_at"))
-        .map { SessionView(it.id!!,it.deviceId!!,it.clientType,it.issuedAt,it.expiresAt,it.id==actor.sessionId) }
     fun heartbeat(actor: Actor): HeartbeatView {
         val now=clock.instant()
         if(sql.touchForeground(actor.sessionId,actor.id,now)!=1) unauthenticated()
-        activity.record(actor.id,actor.clientType)
+        activity.record(actor.id)
         return HeartbeatView(now,now.plusSeconds(120))
     }
     fun revoke(actor: Actor,id: UUID): MutationResult {

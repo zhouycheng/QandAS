@@ -1,7 +1,7 @@
 import type { CreateQuestionInput, PageQuery, Versioned } from './admin'
 
 export type UserStatus = 'ACTIVE' | 'PENDING' | 'DISABLED'
-export type LoginPlatform = 'MINI_PROGRAM' | 'WEB'
+export type LoginPlatform = 'MINI_PROGRAM'
 
 export interface ManagedUser extends Versioned {
   id: string
@@ -20,7 +20,6 @@ export interface ManagedUser extends Versioned {
   answeredCount?: number
   activeDays?: number
   preferredHours?: string
-  platforms?: LoginPlatform[]
   lastActiveAt?: string
 }
 export interface UserQuery extends PageQuery {
@@ -62,7 +61,6 @@ export interface Announcement extends Versioned {
   body: string
   audience: 'ALL' | 'SELECTED'
   userIds: string[]
-  platforms: LoginPlatform[]
   status: AnnouncementStatus
   publishAt?: string
   pinned?: boolean
@@ -142,7 +140,6 @@ export interface ForegroundSession { userId: string; platform: LoginPlatform; se
 export interface ActivityQuery extends PageQuery {
   period?: 'DAY' | 'WEEK' | 'MONTH' | 'ALL'
   periodDate?: string
-  platform?: LoginPlatform
   collegeId?: string
   majorId?: string
   grade?: number

@@ -94,7 +94,7 @@ export function QuestionContentEditor({ value, onChange, disabled, lockType, pre
         </Form.Item>
       </div>)}
       <Button long type="dashed" icon={<IconPlus />} disabled={disabled || (q.blanks?.length ?? 0) >= 20} onClick={() => change({ blanks: [...q.blanks ?? [], { answers: [] }], stem: `${q.stem} {{${(q.blanks?.length ?? 0) + 1}}}` })}>添加空位</Button>
-      <Form.Item label="答案匹配设置" className="section-gap"><Space wrap>
+      <Form.Item label="答案判定设置" className="section-gap"><Space wrap>
         <Checkbox disabled={disabled} checked={q.blankMatch?.ignoreCase ?? true} onChange={(ignoreCase) => change({ blankMatch: { trimWhitespace: q.blankMatch?.trimWhitespace ?? true, ignoreCase } })}>忽略英文字母大小写</Checkbox>
         <Checkbox disabled={disabled} checked={q.blankMatch?.trimWhitespace ?? true} onChange={(trimWhitespace) => change({ blankMatch: { ignoreCase: q.blankMatch?.ignoreCase ?? true, trimWhitespace } })}>忽略首尾空格</Checkbox>
       </Space></Form.Item>

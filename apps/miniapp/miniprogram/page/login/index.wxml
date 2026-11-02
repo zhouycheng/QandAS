@@ -80,7 +80,6 @@
     hover-stay-time="80"
   >微信登录</view>
 
-  <text class="degrade-note" wx:if="{{degradedNote}}">{{degradedNote}}</text>
 
   <text
     class="entry-link"

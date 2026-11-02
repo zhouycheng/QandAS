@@ -78,7 +78,6 @@
     hover-stay-time="80"
   >重置密码</view>
 
-  <text class="degrade-note" wx:if="{{degradedNote}}">{{degradedNote}}</text>
 
   <view class="back-row">
     <text

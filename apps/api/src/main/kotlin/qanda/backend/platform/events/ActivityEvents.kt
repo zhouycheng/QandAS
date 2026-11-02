@@ -8,7 +8,7 @@ import java.util.UUID
 
 @Service
 class ActivityEvents(private val jdbc: JdbcTemplate,private val clock: Clock) {
-    fun record(userId: UUID,platform: String) {
-        jdbc.update("INSERT INTO domain_event_outbox(id,user_id,platform,occurred_at) VALUES(?,?,?,?)",UUID.randomUUID(),userId,platform,Timestamp.from(clock.instant()))
+    fun record(userId: UUID) {
+        jdbc.update("INSERT INTO domain_event_outbox(id,user_id,occurred_at) VALUES(?,?,?)",UUID.randomUUID(),userId,Timestamp.from(clock.instant()))
     }
 }

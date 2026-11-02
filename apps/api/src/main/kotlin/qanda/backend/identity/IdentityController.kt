@@ -52,10 +52,5 @@ class IdentityController(private val service: IdentityService,private val sessio
     fun bindWechat(@RequestBody input: WechatBindingInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
         val actor=sessions.student();return commands.run(actor,key,"BIND_WECHAT",input,MutationResult::class.java,request.requestId()) { service.bindWechat(actor,input) }
     }
-    @GetMapping("/me/sessions") fun listSessions(): List<SessionView> = service.sessions(sessions.student())
-    @DeleteMapping("/me/sessions/{id}")
-    fun revokeSession(@PathVariable id: UUID,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
-        val actor=sessions.student();return commands.run(actor,key,"REVOKE_SESSION:$id",id,MutationResult::class.java,request.requestId()) { service.revoke(actor,id) }
-    }
     @DeleteMapping("/auth/sessions/current") fun logout(): MutationResult { val actor=sessions.student();return service.revoke(actor,actor.sessionId) }
 }

@@ -67,11 +67,11 @@ function checkSessionRules() {
   assert('身份 - 旧本地身份保持未登录', !devAuth.loggedIn)
 
   const wechat = authSession.buildWechatAuth(
-    { uid: 'user-9', openid: 'open-9', accessToken: 'tk', nickName: '佳乐' },
+    { userId: 'user-9', openId: 'open-9', token: 'tk', nickname: '佳乐' },
     1758000000000
   )
 
-  assert('身份 - 后端字段别名兜底（uid/openid/accessToken）',
+  assert('身份 - 使用统一用户标识和令牌',
     wechat.userId === 'user-9' && wechat.openId === 'open-9' && wechat.token === 'tk',
     JSON.stringify(wechat))
   assert('身份 - 真登录 provider 是 wechat', wechat.provider === 'wechat')
@@ -185,7 +185,7 @@ async function checkLoginViewModel() {
   //    unavailable 与「后端明确拒绝」是两件事：只有前者能降级
   authGateway.setAuthGateway({
     name: 'none',
-    loginByEmail: () => ({ ok: false, unavailable: true, reason: '未配置接口域名' })
+    loginByEmail: () => ({ ok: false, unavailable: true, reason: '服务暂不可用，请稍后重试' })
   })
 
   const degraded = await vm.submit()
@@ -193,7 +193,7 @@ async function checkLoginViewModel() {
 
   assert('登录页 - 断网保持未登录', degradedAuth.loggedIn === false)
   assert('登录页 - 断网不生成身份', degradedAuth.provider === '', degradedAuth.provider)
-  assert('登录页 - 断网展示失败原因', degraded.command.title === '未配置接口域名', degraded.command.title)
+  assert('登录页 - 断网展示失败原因', degraded.command.title === '服务暂不可用，请稍后重试', degraded.command.title)
   assert('登录页 - 失败停留当前页面', degraded.command.type === 'toast', JSON.stringify(degraded.command))
   assert('登录页 - 失败没有用户编号', degradedAuth.userId === '', degradedAuth.userId)
   assert('登录页 - 密码不写进身份', JSON.stringify(degradedAuth).indexOf('abc12345ABCD') < 0)
@@ -215,7 +215,6 @@ async function checkLoginViewModel() {
   const logged = await okVm.submit()
 
   assert('登录页 - 真登录提示登录成功', logged.command.title === '登录成功', logged.command.title)
-  assert('登录页 - 真登录不带降级说明', logged.data.degradedNote === '', logged.data.degradedNote)
   assert('登录页 - 真登录用后端给的 id',
     authRepository.getAuth(okStorage).userId === 'u-9', authRepository.getAuth(okStorage).userId)
 

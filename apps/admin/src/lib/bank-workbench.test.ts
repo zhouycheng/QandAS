@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getScenarioData } from '../../playground/scenarios'
-import { audienceGroups, bankVisibility, getScopeError, groupsToAudiences, publicationChecks } from './bank-workbench'
+import { contentFixture } from '../test-fixtures/content'
+import { audienceGroups, bankVisibility, getScopeError, groupsToAudiences } from './bank-workbench'
 
 describe('题库展示范围与发布预检', () => {
-  const data = getScenarioData('normal')
+  const data = contentFixture()
   const directory = { colleges: data.colleges, majors: data.majors }
   const bank = { ...data.questionBanks[0], activeQuestionCount: 2 }
 
@@ -51,11 +51,4 @@ describe('题库展示范围与发布预检', () => {
     expect(bankVisibility(bank, user, data.subjects.map((s) => ({ ...s, status: 'INACTIVE' }))).visible).toBe(false)
   })
 
-  it('发布预检能指出缺说明、题目、解析和范围，不被草稿状态误阻止', () => {
-    const questions = data.questions.filter((q) => q.questionBankId === bank.id)
-    expect(publicationChecks(bank, data.subjects[0], questions, directory).every((c) => c.passed)).toBe(true)
-    const invalid = { ...bank, description: '', scopeType: 'TARGETED' as const, audiences: [] }
-    expect(publicationChecks(invalid, data.subjects[0], [], directory).filter((c) => !c.passed).map((c) => c.label)).toEqual(['题库说明已填写', '至少有一道启用题目', '展示范围已配置'])
-    expect(publicationChecks(bank, data.subjects[0], questions.map((q) => ({ ...q, explanation: '' })), directory).find((c) => c.label === '启用题目内容与解析完整')?.passed).toBe(false)
-  })
 })

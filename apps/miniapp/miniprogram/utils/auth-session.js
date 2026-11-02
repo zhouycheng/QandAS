@@ -168,30 +168,28 @@ function buildEmailAuth(payload, now) {
     provider: AUTH_PROVIDER.EMAIL,
     userId: readText(data.userId || '', USER_ID_MAX_LENGTH),
     email,
-    token: readText(data.token || data.accessToken || '', TOKEN_MAX_LENGTH),
+    token: readText(data.token || '', TOKEN_MAX_LENGTH),
     nickname: readText(data.nickname || '', NICKNAME_MAX_LENGTH),
-    college: readText(data.college || data.school || '', COLLEGE_MAX_LENGTH),
+    college: readText(data.college || '', COLLEGE_MAX_LENGTH),
     avatarUrl: readText(data.avatarUrl || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
 }
 
 /**
- * 后端返回的身份。
- * 字段命名各家不一（openId / openid、userId / uid / id），
- * 这里全部兜一遍：后端少返回一个字段不该让端上登录失败。
+ * HTTP Gateway 返回的微信登录身份。
  */
 function buildWechatAuth(payload, now) {
   const data = payload || {}
 
   return normalizeAuth({
     provider: AUTH_PROVIDER.WECHAT,
-    userId: readText(data.userId || data.uid || data.id || data.openId || data.openid, USER_ID_MAX_LENGTH),
-    openId: readText(data.openId || data.openid || data.unionId || '', USER_ID_MAX_LENGTH),
-    token: readText(data.token || data.accessToken || '', TOKEN_MAX_LENGTH),
-    nickname: readText(data.nickname || data.nickName || '', NICKNAME_MAX_LENGTH),
-    college: readText(data.college || data.school || '', COLLEGE_MAX_LENGTH),
-    avatarUrl: readText(data.avatarUrl || data.avatar || '', AVATAR_MAX_LENGTH),
+    userId: readText(data.userId || '', USER_ID_MAX_LENGTH),
+    openId: readText(data.openId || '', USER_ID_MAX_LENGTH),
+    token: readText(data.token || '', TOKEN_MAX_LENGTH),
+    nickname: readText(data.nickname || '', NICKNAME_MAX_LENGTH),
+    college: readText(data.college || '', COLLEGE_MAX_LENGTH),
+    avatarUrl: readText(data.avatarUrl || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
 }

@@ -156,7 +156,7 @@ export function mapImportFile(file: ParsedQuestionFile, chapters: Record<string,
   })
   return file.questions.map(q => {
     const chapterId = chapterOverride ?? (q.chapterId ? chapters[q.chapterId] : undefined)
-    if (q.chapterId && !chapterId && !preview) fail(`chapters.${q.chapterId}`, '请先映射到目标题库章节')
+    if (q.chapterId && !chapterId && !preview) fail(`chapters.${q.chapterId}`, '请先为文件中的章节选择对应的题库章节')
     return { ...q, chapterId, assetIds: mapAssets(q.assetIds), subQuestions: q.subQuestions?.map(sub => ({ ...sub, assetIds: mapAssets(sub.assetIds) })) }
   })
 }

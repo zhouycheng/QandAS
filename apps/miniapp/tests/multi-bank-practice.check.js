@@ -59,6 +59,6 @@ async function main() {
   assert.deepEqual(trialBody.expectedContentVersions, { a: 1, b: 3 })
   assert.deepEqual(trialBody.scope.questionBankIds, ['a', 'b'])
   assert.equal(trial.remaining(guest), 1, '联合题库仍是一场试答')
-  console.log('多题库练习自检通过：范围预览、创建、版本、跨设备恢复、重练与游客试答')
+  console.log('多题库练习自检通过：范围预览、创建、版本、恢复、重练与游客试答')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

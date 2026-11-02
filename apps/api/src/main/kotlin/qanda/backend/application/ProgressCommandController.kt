@@ -16,6 +16,4 @@ class ProgressCommandController(private val service: ProgressCommands,private va
     fun submit(@PathVariable id: UUID,@RequestHeader("Idempotency-Key") key: UUID,@RequestBody input: ProgressInput,r: HttpServletRequest): ProgressCommandView = service.submit(sessions.student(),id,key,input,r.requestId())
     @GetMapping("/progress-commands/{commandId}")
     fun read(@PathVariable id: UUID,@PathVariable commandId: UUID): ProgressCommandView = service.read(sessions.student(),id,commandId)
-    @PutMapping("/progress-ack")
-    fun progressAck(@PathVariable id: UUID,@RequestBody input: ProgressInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): ProgressAck = service.awaitLegacy(sessions.student(),id,key,input,r.requestId())
 }

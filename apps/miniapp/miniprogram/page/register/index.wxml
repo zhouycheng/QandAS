@@ -91,7 +91,6 @@
     hover-stay-time="80"
   >注册</view>
 
-  <text class="degrade-note" wx:if="{{degradedNote}}">{{degradedNote}}</text>
 
   <view class="back-row">
     <text class="back-tip">已有账号？</text>

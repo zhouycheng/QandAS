@@ -5,7 +5,7 @@ import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus
 import type { CommunityGroup } from '../types/operations'
 
 export interface AdminContentGateway {
-  readonly mode: 'mock' | 'http'
+  readonly mode: 'http'
   loginAdmin(username: string, password: string): Promise<AdminLogin>
   currentAdmin(): Promise<AdminAccount>
   logoutAdmin(): Promise<void>
@@ -23,7 +23,6 @@ export interface AdminContentGateway {
   getUserStatistics(id: string): Promise<{ answeredCount: number; correctCount: number; durationSeconds: number }>
   listAdminAccounts(query?: PageQuery): Promise<Page<AdminAccount>>
   saveAdminAccount(id: string | undefined, input: AdminAccountInput): Promise<AdminAccount>
-  disableAdminAccount(id: string, expectedVersion: number): Promise<void>
   listAnnouncements(query?: PageQuery): Promise<Page<Announcement>>
   saveAnnouncement(id: string | undefined, input: AnnouncementInput): Promise<Announcement>
   deleteAnnouncement(id: string, expectedVersion: number): Promise<void>
