@@ -47,6 +47,7 @@ jobs:
           python3 -m pip install -r apps/api/acceptance/requirements-qa.txt
           node apps/api/scripts/backend.mjs init
           node apps/api/scripts/backend.mjs verify
+          sudo python3 deploy/tests/db_admin_integration.py
       - name: Create verified artifact manifest
         if: github.event_name == 'workflow_dispatch'
         run: |

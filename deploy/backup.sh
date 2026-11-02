@@ -16,8 +16,11 @@ qanda_asset_dir=$(docker volume inspect -f '{{.Mountpoint}}' qanda-production-as
 tar -C "$qanda_asset_dir" -cf "$qanda_backup_dir/assets.tar" .
 cp /srv/qanda/production.env "$qanda_backup_dir/production.env"
 cp /srv/qanda/compose.*.yml "$qanda_backup_dir/"
+for qanda_node_file in /srv/qanda/node.json /srv/qanda/node.env; do
+  if test -f "$qanda_node_file"; then cp "$qanda_node_file" "$qanda_backup_dir/"; fi
+done
 if test -d /var/lib/qanda-deploy; then cp -R /var/lib/qanda-deploy "$qanda_backup_dir/deployment-state"; fi
-qanda_backup_file="/var/backups/qanda/$(date -u +%Y%m%dT%H%M%SZ).tar.enc"
+qanda_backup_file="/var/backups/qanda/$(date -u +%Y%m%dT%H%M%S%NZ).tar.enc"
 tar -C "$qanda_backup_dir" -cf - . | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
   -pass file:/etc/qanda/backup.key -out "${qanda_backup_file}.partial"
 mv "${qanda_backup_file}.partial" "$qanda_backup_file"

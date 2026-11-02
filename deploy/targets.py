@@ -29,11 +29,14 @@ def configure(path):
     frontend, backend = targets['frontend'], targets['backend']
     split = frontend['server'] != backend['server']
     if split:
-        result = subprocess.run(['tailscale', 'ssh', backend['admin_user'] + '@' + backend['server'], 'tailscale ip -4'],
-                                check=True, capture_output=True, text=True)
-        address = str(ipaddress.ip_address(result.stdout.strip()))
-        if ipaddress.ip_address(address) not in ipaddress.ip_network('100.64.0.0/10'):
-            raise ValueError('Backend binding must be a Tailscale IPv4 address')
+        addresses = {}
+        for kind, node in targets.items():
+            result = subprocess.run(['tailscale', 'ssh', node['admin_user'] + '@' + node['server'], 'tailscale ip -4'],
+                                    check=True, capture_output=True, text=True)
+            address = str(ipaddress.ip_address(result.stdout.strip()))
+            if ipaddress.ip_address(address) not in ipaddress.ip_network('100.64.0.0/10'):
+                raise ValueError('Node binding must be a Tailscale IPv4 address')
+            addresses[kind] = address
     commands = '''import sys,json,os
 from pathlib import Path
 data=json.load(sys.stdin)
@@ -47,8 +50,10 @@ for name,content in [('node.json',json.dumps({'role':data['role']})),('node.env'
             continue
         values = []
         if split:
+            address = addresses['backend']
             values = [f'TAILNET_BIND_ADDRESS={address}', f'PRODUCTION_API_UPSTREAM=http://{address}:18084',
-                      f'PRODUCTION_MONITOR_UPSTREAM=http://{address}:18085']
+                      f'PRODUCTION_MONITOR_UPSTREAM=http://{address}:18085',
+                      'PRODUCTION_TRUSTED_PROXIES=' + re.escape(addresses['frontend'])]
         payload = {'role': kind if split else 'combined', 'env': '\n'.join(values) + '\n'}
         subprocess.run(['tailscale', 'ssh', node['admin_user'] + '@' + node['server'],
                         'sudo -n python3 -c ' + shlex.quote(commands)],

@@ -39,7 +39,7 @@ def check(backend, web):
             start('rabbit', 'rabbitmq:4.2.5-management', '-e', 'RABBITMQ_DEFAULT_USER=qanda', '-e', 'RABBITMQ_DEFAULT_PASS=isolated-queue-password', '-e', 'RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=+S 2:2')
             for _ in range(90):
                 try:
-                    docker('exec', prefix + '-db', 'pg_isready', '-U', 'qanda_backend')
+                    docker('exec', prefix + '-db', 'pg_isready', '-h', '127.0.0.1', '-U', 'qanda_backend', '-d', 'qanda_backend')
                     docker('exec', prefix + '-rabbit', 'rabbitmq-diagnostics', '-q', 'ping')
                     break
                 except subprocess.CalledProcessError:

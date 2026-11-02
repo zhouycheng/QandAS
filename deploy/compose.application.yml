@@ -12,7 +12,7 @@ x-backend: &backend
     BACKEND_DOCS_ENABLED: "false"
     BACKEND_REVISION: ${REVISION:?required}
     SERVER_FORWARD_HEADERS_STRATEGY: native
-    SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: 172\.29\.71\.10
+    SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: ${PRODUCTION_TRUSTED_PROXIES:-172\.29\.71\.10}
     BACKEND_DB_POOL_SIZE: 4
   volumes: [assets:/var/lib/qanda/assets]
   stop_grace_period: 120s

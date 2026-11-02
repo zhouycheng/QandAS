@@ -27,11 +27,10 @@ case "$qanda_operation" in
     flock -n 8
     # Import and release share a lock; writes stay stopped if the import or verification fails.
     qanda_state=/var/lib/qanda-deploy/current.json
-    test -s "$qanda_state"
-    export BACKEND_IMAGE WEB_IMAGE REVISION
-    BACKEND_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["backend"])')
-    WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["web"])')
-    REVISION=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["revision"])')
+    if test "$qanda_operation" = restore; then
+      qanda_table_count=$("${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -At -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+      test "$qanda_table_count" = 0 || { echo 'Full restore requires an empty database; use incremental SQL for an existing database.' >&2; exit 1; }
+    fi
     qanda_app=(docker compose -p qanda-application --env-file /srv/qanda/production.env)
     if test -f /srv/qanda/node.env; then qanda_app+=(--env-file /srv/qanda/node.env); fi
     qanda_app+=(-f /srv/qanda/compose.application.yml)
@@ -45,14 +44,30 @@ case "$qanda_operation" in
       fi
     fi
     /usr/local/sbin/qanda-backup
-    "${qanda_app[@]}" stop "${qanda_services[@]}"
+    if test -s "$qanda_state"; then
+      export BACKEND_IMAGE WEB_IMAGE REVISION
+      BACKEND_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["backend"])')
+      WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["web"])')
+      REVISION=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["revision"])')
+      "${qanda_app[@]}" stop "${qanda_services[@]}"
+    fi
     if test "$qanda_operation" = sql; then
-      "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 --single-transaction < "$2"
+      "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 --single-transaction --file=- < "$2"
     else
+      "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='qanda_monitor') THEN CREATE ROLE qanda_monitor NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='qanda_activity_writer') THEN CREATE ROLE qanda_activity_writer NOLOGIN; END IF;
+END $$;
+SQL
       "${qanda_db[@]}" pg_restore -U qanda_backend -d qanda_backend --exit-on-error --single-transaction < "$2"
     fi
     "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 -c 'ANALYZE;'
-    "${qanda_app[@]}" up -d --no-build --pull never --wait --wait-timeout 240 "${qanda_services[@]}"
+    if test -s "$qanda_state"; then
+      "${qanda_app[@]}" up -d --no-build --pull never --wait --wait-timeout 240 "${qanda_services[@]}"
+    else
+      echo 'Import completed; verify data before the first application deployment.'
+    fi
     ;;
   *) echo 'Usage: sudo qanda-db {psql|export FILE.dump|sql FILE.sql|restore FILE.dump}' >&2; exit 1 ;;
 esac

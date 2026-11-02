@@ -26,7 +26,7 @@ def check(backup):
                '-e', 'POSTGRES_PASSWORD=isolated-restore-password', 'postgres:17.6-alpine')
         for _ in range(60):
             try:
-                docker('exec', name, 'pg_isready', '-U', 'qanda_backend')
+                docker('exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'qanda_backend', '-d', 'qanda_backend')
                 break
             except subprocess.CalledProcessError:
                 time.sleep(1)
