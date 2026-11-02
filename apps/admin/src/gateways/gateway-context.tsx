@@ -13,7 +13,7 @@ export function GatewayProvider({
 export function useAdminGateway() {
   const gateway = useContext(GatewayContext)
   if (!gateway) {
-    throw new Error('AdminContentGateway 尚未注入')
+    throw new Error('页面暂时无法加载，请重新打开')
   }
   return gateway
 }

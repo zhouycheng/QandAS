@@ -56,7 +56,7 @@ export function QuestionsManager({ bank, chapters, chapterId, onImport }: {
         if (key === 'status') changeStatus.mutate(question)
       }}><Menu.Item key="status" disabled={changeStatus.isPending}>{question.status === 'ACTIVE' ? '停用题目' : '启用题目'}</Menu.Item></Menu>}><Button type="text" size="small" aria-label={`更多题目操作 ${question.stem}`}>更多</Button></Dropdown></Space> },
     ]} noDataElement={<div className="bw-table-empty"><Empty description={query.data?.total ? '没有符合条件的题目' : '还没有题目，可以手动录入或批量导入'} />{query.data?.total ? <Button onClick={() => { setKeyword(''); setType('ALL'); setStatus('ALL') }}>清空筛选</Button> : <Button onClick={() => openEditor(null)}>新建第一道题目</Button>}</div>} />
-    <div className="bw-panel-foot">题目更新会递增内容版本，已有反馈中的原题快照继续保留。</div>
+    <div className="bw-panel-foot">修改题目后，新练习使用更新后的内容；已有练习和反馈保留原题。</div>
     {editing !== undefined && <QuestionFormDrawer visible editing={editing} chapters={chapters} questionBanks={[bank]} lockBank defaultQuestionBankId={bank.id}
       defaultChapterId={chapterId === 'unassigned' ? undefined : chapterId} saving={save.isPending} error={save.error?.message} onCancel={() => setEditing(undefined)} onSave={(input) => { if (!save.isPending) save.mutate(input) }} />}
     <QuestionDetailDrawer questionId={detailId} questionBanks={[bank]} onClose={() => setDetailId(undefined)} />
