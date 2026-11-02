@@ -186,7 +186,7 @@
       </view>
       <view class="notice-item" wx:for="{{announcements}}" wx:key="id">
         <text class="notice-title">{{item.title}}</text>
-        <text class="notice-body">{{item.body || item.summary}}</text>
+        <rich-content class="notice-body" text="{{(item.body || item.summary) || ''}}" format="MARKDOWN" />
       </view>
       <text class="notice-empty" wx:if="{{announcementLoading}}">正在读取公告…</text>
       <text class="notice-empty" wx:elif="{{announcementError}}" bindtap="handleAnnouncementTap">{{announcementError}} · 点击重试</text>

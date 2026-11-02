@@ -16,7 +16,7 @@ data class CourseInput(val preferredBankId: UUID?=null,val sortOrder: Int=0,val 
 data class CourseView(val subject: SubjectView,val preferredBankId: UUID?,val preferredBankAvailable: Boolean,val sortOrder: Int,val version: Long,val addedAt: Instant)
 data class RecommendedBank(val bank: BankView,val reasons: List<String>)
 data class Recommendation(val subject: SubjectView,val banks: List<RecommendedBank>)
-data class FavoriteView(val questionId: UUID,val questionBankId: UUID,val stem: String,val type: String,val available: Boolean,val createdAt: Instant,val subjectId: UUID?=null,val subjectName: String?=null,val questionBankName: String?=null,val practiced: Boolean?=null)
+data class FavoriteView(val questionId: UUID,val questionBankId: UUID,val stem: String,val type: String,val available: Boolean,val createdAt: Instant,val subjectId: UUID?=null,val subjectName: String?=null,val questionBankName: String?=null,val practiced: Boolean?=null,val contentFormat: String="PLAIN_TEXT",val presentation: String="STANDARD")
 
 @Service
 @Transactional

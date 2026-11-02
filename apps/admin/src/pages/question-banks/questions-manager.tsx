@@ -32,7 +32,10 @@ export function QuestionsManager({ bank, chapters, chapterId, onImport }: {
     onSuccess: () => { setEditing(undefined); refreshWorkbench(client); Message.success('题目已保存') },
   })
   const changeStatus = useMutation({
-    mutationFn: (question: Question) => gateway.updateQuestion(question.id, { ...question, expectedVersion: question.version, status: question.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }),
+    mutationFn: async (question: Question) => {
+      if (question.status === 'ACTIVE') await gateway.deactivateQuestion(question.id, question.version)
+      else await gateway.updateQuestion(question.id, { ...question, expectedVersion: question.version, status: 'ACTIVE' })
+    },
     onSuccess: () => { refreshWorkbench(client); Message.success('题目状态已更新') },
     onError: (error) => Message.error(error.message),
   })

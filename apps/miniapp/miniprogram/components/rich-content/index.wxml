@@ -1,0 +1,27 @@
+<template name="inlineParts">
+      <block wx:for="{{parts}}" wx:for-item="part" wx:key="index">
+        <input wx:if="{{part.blankIndex !== undefined}}" class="rich-blank" value="{{part.value}}" disabled="{{disabled}}" maxlength="500" data-index="{{part.blankIndex}}" data-no-swipe="true" aria-label="填写空白处" bindinput="inputBlank" bindfocus="focusBlank" bindblur="blurBlank" bindkeyboardheightchange="keyboardHeight" />
+        <rich-text wx:else class="rich-inline" nodes="{{part.nodes}}" />
+      </block>
+</template>
+<view class="rich-content" bindlongpress="selectText">
+  <block wx:for="{{blocks}}" wx:key="index">
+    <view wx:if="{{item.tag === 'pre'}}" class="rich-code" catchtouchstart="noop">
+      <view class="code-bar"><text>{{item.language}}</text><button class="code-copy" size="mini" data-index="{{index}}" catchtap="copyCode" hover-class="copy-hover" hover-start-time="0" hover-stay-time="80">复制</button></view>
+      <scroll-view scroll-x class="code-scroll"><rich-text nodes="{{item.nodes}}" user-select /></scroll-view>
+    </view>
+    <scroll-view wx:elif="{{item.tag === 'table'}}" scroll-x class="table-scroll" catchtouchstart="noop">
+      <view wx:if="{{item.rows}}" class="rich-fill-table">
+        <view wx:for="{{item.rows}}" wx:for-item="row" wx:key="index" class="rich-fill-row">
+          <view wx:for="{{row.cells}}" wx:for-item="cell" wx:key="index" class="rich-fill-cell {{cell.header ? 'rich-fill-heading' : ''}}"><template is="inlineParts" data="{{parts: cell.parts, disabled}}" /></view>
+        </view>
+      </view>
+      <rich-text wx:else nodes="{{item.nodes}}" user-select />
+    </scroll-view>
+    <view wx:elif="{{item.parts}}" class="rich-fill-line">
+      <template is="inlineParts" data="{{parts: item.parts, disabled}}" />
+    </view>
+    <rich-text wx:else nodes="{{item.nodes}}" user-select />
+  </block>
+  <view wx:for="{{links}}" wx:key="*this" class="rich-link" data-index="{{index}}" catchtap="copyLink" catchtouchstart="noop" hover-class="copy-hover" hover-start-time="0" hover-stay-time="80">复制链接：{{item}}</view>
+</view>

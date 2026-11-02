@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "test": "node scripts/check.cjs",
-    "build": "node scripts/build-npm.cjs"
+    "build": "node scripts/build-npm.cjs",
+    "prebuild": "npm --prefix ../../packages/content-format run build"
   },
   "dependencies": {
+    "@qanda/content-format": "file:../../packages/content-format",
     "mobx-miniprogram": "6.12.3",
     "mobx-miniprogram-bindings": "7.0.1"
   },

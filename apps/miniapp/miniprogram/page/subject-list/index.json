@@ -9,6 +9,7 @@
   "enablePullDownRefresh": true,
   "usingComponents": {
     "bottom-sheet": "/components/bottom-sheet/index",
-    "route-loading": "/components/route-loading/index"
+    "route-loading": "/components/route-loading/index",
+    "rich-content": "/components/rich-content/index"
   }
 }

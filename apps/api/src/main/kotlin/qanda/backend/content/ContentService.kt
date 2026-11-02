@@ -67,7 +67,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     fun chapters(actor: Actor?,bankId: UUID): List<ChapterView> {
         access.bank(actor,bankId)
-        val counts=sql.chapterCounts(bankId).associateBy { it.id }
+        val counts=sql.chapterCounts(bankId,actor?.kind!="ADMIN").associateBy { it.id }
         return chapters.selectList(QueryWrapper<Chapter>().eq("bank_id",bankId).orderByAsc("sort_order")).map { ChapterView(it.id!!,bankId,it.name,it.sortOrder,it.version,counts[it.id]?.count ?: 0) }
     }
     fun saveChapter(actor: Actor,bankId: UUID,id: UUID?,input: ChapterInput): MutationResult {
@@ -110,6 +110,10 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         PublicationCheck("展示范围已配置",row.scopeType=="ALL" || audiences.selectCount(QueryWrapper<BankAudience>().eq("bank_id",row.id))>0,"根据学生保存的资料匹配")
     )
     fun validate(input: QuestionInput) {
+        if(input.contentFormat !in setOf("PLAIN_TEXT","MARKDOWN")) invalid("/contentFormat")
+        if(input.presentation !in setOf("STANDARD","CONCEPT","CODE_ANALYSIS")) invalid("/presentation")
+        if(input.presentation in setOf("CONCEPT","CODE_ANALYSIS") && input.type !in setOf("FILL_BLANK","SHORT_ANSWER")) invalid("/presentation")
+        if(input.codeLanguage!=null) invalid("/codeLanguage")
         activeStatus(input.status);if(input.type!="READING" && input.stem.isBlank()) invalid("/stem");safeText(input.stem,10000);safeText(input.explanation,10000)
         if(input.chapterId!=null && chapters.selectById(input.chapterId)?.bankId!=input.questionBankId) invalid("/chapterId","CHAPTER_BANK_MISMATCH","章节不属于题库")
         if(input.assetIds.size>20 || input.assetIds.distinct().size!=input.assetIds.size) invalid("/assetIds")
@@ -130,7 +134,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
                     if(blank.answers.size !in 1..20 || blank.answers.any { it.isBlank() }) invalid("/blanks/answers")
                     blank.answers.forEach { safeText(it,500) }
                 }
-                val markers=Regex("\\{\\{([^{}]*)}}").findAll(input.stem).map { it.groupValues[1] }.toList()
+                val markers=Regex("(?<!\\\\)\\{\\{([^{}]*)}}").findAll(input.stem).map { it.groupValues[1] }.toList()
                 if(markers.size!=input.blanks.size || markers.toSet()!=(1..input.blanks.size).map { it.toString() }.toSet()) invalid("/stem","BLANK_MARKERS_INVALID","请按空位顺序使用 {{1}}、{{2}} 等标记，每个空位出现一次")
             }
             "READING" -> {
@@ -150,12 +154,12 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         val revision=revisions.selectById(revisionId) ?: missing();if(revision.questionId!=question.id) missing();val options=sql.options(revisionId)
         val extra=json.readValue(revision.contentData,QuestionContentData::class.java)
         val material=materialRevisionId?.let { id -> val parent=revisions.selectById(id) ?: missing()
-            ReadingMaterialView(parent.questionId!!,id,json.readValue(parent.contentData,QuestionContentData::class.java).passage.orEmpty(),sql.attachments(id)) }
+            ReadingMaterialView(parent.questionId!!,id,json.readValue(parent.contentData,QuestionContentData::class.java).passage.orEmpty(),sql.attachments(id),json.readValue(parent.contentData,QuestionContentData::class.java).contentFormat) }
         return QuestionView(question.id!!,question.bankId!!,question.chapterId,question.status,question.version,revision.id!!,revision.revisionNumber,revision.type,revision.stem,
             options.map { OptionInput(it.optionKey,it.content) },if(answers) options.filter { it.isCorrect }.map { it.optionKey } else null,
             revision.correctValue.takeIf { answers },revision.referenceAnswer.takeIf { answers },revision.explanation.takeIf { answers },sql.attachments(revisionId),
             blankCount=extra.blanks.size,blanks=extra.blanks.takeIf { answers },blankMatch=extra.blankMatch.takeIf { answers && revision.type=="FILL_BLANK" },scoringPoints=extra.scoringPoints.takeIf { answers },
-            passage=extra.passage,subQuestions=extra.children.map { questionView(questions.selectById(it.id) ?: missing(),it.revisionId,answers,revisionId) },material=material)
+            passage=extra.passage,subQuestions=extra.children.map { questionView(questions.selectById(it.id) ?: missing(),it.revisionId,answers,revisionId) },material=material,contentFormat=extra.contentFormat,presentation=extra.presentation,codeLanguage=extra.codeLanguage)
     }
     fun question(actor: Actor?,id: UUID): QuestionView {
         val row=questions.selectById(id) ?: missing();access.bank(actor,row.bankId!!);if(actor?.kind!="ADMIN" && row.status!="ACTIVE") missing()
@@ -179,7 +183,8 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         if(rows.isEmpty()) return emptyList()
         val summaries=sql.questionSummaries(rows.map { it.id!! }).associateBy { it.id }
         return rows.map { row -> val q=summaries.getValue(row.id)
-            QuestionView(q.id!!,q.bankId!!,q.chapterId,q.status,q.version,q.revisionId!!,q.revision,q.type,q.stem,emptyList(),null,null,null,null,emptyList(),q.subjectId,q.subjectName,q.bankName)
+            val metadata=json.readValue(q.contentData,QuestionContentData::class.java)
+            QuestionView(q.id!!,q.bankId!!,q.chapterId,q.status,q.version,q.revisionId!!,q.revision,q.type,q.stem,emptyList(),null,null,null,null,emptyList(),q.subjectId,q.subjectName,q.bankName,contentFormat=metadata.contentFormat,presentation=metadata.presentation,codeLanguage=metadata.codeLanguage)
         }
     }
     fun saveQuestion(actor: Actor,id: UUID?,input: QuestionInput): MutationResult {
@@ -207,7 +212,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
             ReadingChildRef(saved.id,questions.selectById(saved.id).currentRevisionId!!)
         }
         if(input.type=="READING") sql.readingChildren(row.id!!).filter { old -> children.none { it.id==old.id } }.forEach { old -> sql.updateQuestion(old.id!!,old.chapterId,"INACTIVE",old.currentRevisionId!!) }
-        revision.contentData=json.writeValueAsString(QuestionContentData(input.blanks,input.blankMatch,input.scoringPoints,input.passage,children))
+        revision.contentData=json.writeValueAsString(QuestionContentData(input.blanks,input.blankMatch,input.scoringPoints,input.passage,children,input.contentFormat,input.presentation,input.codeLanguage))
         val changed=previous==null || previous.type!=revision.type || previous.stem!=revision.stem || previous.explanation!=revision.explanation || previous.correctValue!=revision.correctValue || previous.referenceAnswer!=revision.referenceAnswer || previous.contentData!=revision.contentData ||
             sql.options(previous.id!!).map { Triple(it.optionKey,it.content,it.isCorrect) }!=input.options.map { Triple(it.key,it.content,it.key in input.correctAnswer) } || sql.attachments(previous.id!!).toSet()!=input.assetIds.toSet()
         if(changed) {

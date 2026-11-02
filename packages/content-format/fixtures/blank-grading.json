@@ -1,0 +1,73 @@
+[
+  {
+    "name": "候选答案与大小写",
+    "answers": [
+      "API",
+      "接口"
+    ],
+    "value": " api ",
+    "ignoreCase": true,
+    "trimWhitespace": true,
+    "correct": true
+  },
+  {
+    "name": "代码区分大小写",
+    "answers": [
+      "API"
+    ],
+    "value": "api",
+    "ignoreCase": false,
+    "trimWhitespace": true,
+    "correct": false
+  },
+  {
+    "name": "首尾空白保留",
+    "answers": [
+      " API "
+    ],
+    "value": "API",
+    "ignoreCase": false,
+    "trimWhitespace": false,
+    "correct": false
+  },
+  {
+    "name": "内部空格",
+    "answers": [
+      "a + b"
+    ],
+    "value": "a+b",
+    "ignoreCase": true,
+    "trimWhitespace": true,
+    "correct": false
+  },
+  {
+    "name": "Unicode首尾空白",
+    "answers": [
+      "API"
+    ],
+    "value": "﻿API ",
+    "ignoreCase": false,
+    "trimWhitespace": true,
+    "correct": true
+  },
+  {
+    "name": "全角不同",
+    "answers": [
+      "A"
+    ],
+    "value": "Ａ",
+    "ignoreCase": true,
+    "trimWhitespace": true,
+    "correct": false
+  },
+  {
+    "name": "部分填写",
+    "answers": [
+      "value"
+    ],
+    "value": "",
+    "ignoreCase": true,
+    "trimWhitespace": true,
+    "correct": false
+  }
+]

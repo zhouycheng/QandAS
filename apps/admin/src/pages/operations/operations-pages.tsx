@@ -90,7 +90,7 @@ function AnnouncementEditor({ record, onClose, onSaved }: { record?: Announcemen
   return <Drawer visible title={record ? '编辑公告' : '新建公告'} width={680} maskClosable={false} onCancel={() => { if (!save.isPending) onClose() }} footer={<Button type="primary" loading={save.isPending} onClick={() => form.submit()}>保存公告</Button>}>
     {save.error && <Alert type="error" content={save.error.message} />}<Form form={form} layout="vertical" disabled={save.isPending} initialValues={record ?? { title: '', summary: '', body: '', audience: 'ALL', userIds: [], platforms: ['MINI_PROGRAM', 'WEB'], status: 'DRAFT' }} onSubmit={values => save.mutate(values)}>
       <Form.Item field="title" label="标题" rules={[{ required: true }]}><Input maxLength={80} /></Form.Item><Form.Item field="summary" label="摘要"><Input.TextArea maxLength={500} /></Form.Item>
-      <Form.Item field="body" label="正文"><Input.TextArea maxLength={20000} autoSize={{ minRows: 8 }} /></Form.Item>
+      <Form.Item field="body" label="Markdown 正文" extra="支持代码块、表格和换行。发布前可在公告列表完整预览。"><Input.TextArea maxLength={40000} autoSize={{ minRows: 8 }} /></Form.Item>
       <Form.Item field="platforms" label="展示端"><Checkbox.Group options={[{ label: '小程序', value: 'MINI_PROGRAM' }, { label: '用户 Web', value: 'WEB' }]} /></Form.Item>
       <Form.Item label="发布范围"><Radio.Group value={audience} onChange={setAudience}><Radio value="ALL">全部学生</Radio><Radio value="SELECTED">指定学生</Radio></Radio.Group></Form.Item>
       {audience === 'SELECTED' && <Form.Item field="userIds" label="指定学生"><ResourceSelect kind="user" multiple placeholder="搜索并选择学生" /></Form.Item>}

@@ -1,11 +1,12 @@
+import { contentMetadata, blankMarkers } from '@qanda/content-format'
 import type { AtomicQuestionContent, CreateQuestionInput, QuestionContent, QuestionType, ReadingSubQuestion } from '../types/admin'
 import { countQuestions } from './question-content'
 
 function textValue(value: unknown) { return typeof value === 'string' ? value.trim() : '' }
 function boundedText(value: unknown, label: string, max: number, required = true) {
-  const text = textValue(value)
+  const text = typeof value === 'string' ? value : ''
   if (text.includes('\u0000')) throw new Error(`${label}包含无效字符。`)
-  if ((required && !text) || text.length > max) throw new Error(`${label}${required ? '必填，且' : ''}不能超过 ${max} 字。`)
+  if ((required && !text.trim()) || text.length > max) throw new Error(`${label}${required ? '必填，且' : ''}不能超过 ${max} 字。`)
   return text
 }
 function record(value: unknown): Record<string, unknown> {
@@ -14,10 +15,11 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function validateContent(input: QuestionContent, allowReading = true): QuestionContent {
+  const metadata = contentMetadata(input)
   const stem = boundedText(input.stem, input.type === 'READING' ? '题组标题' : '题干', 10000, input.type !== 'READING')
   const explanation = boundedText(input.explanation, '解析', 10000, false)
   if (input.assetIds && (!Array.isArray(input.assetIds) || input.assetIds.length > 20 || new Set(input.assetIds).size !== input.assetIds.length || input.assetIds.some(id => typeof id !== 'string' || !id.trim()))) throw new Error('图片附件最多 20 张，标识不能为空或重复。')
-  const base = { type: input.type, stem, explanation, options: [], correctAnswer: [], assetIds: input.assetIds ?? [] }
+  const base = { ...metadata, type: input.type, stem, explanation, options: [], correctAnswer: [], assetIds: input.assetIds ?? [] }
   if (input.type === 'READING') {
     if (!allowReading) throw new Error('阅读小题不能嵌套阅读题组。')
     const passage = boundedText(input.passage, '阅读材料', 20000)
@@ -42,11 +44,11 @@ function validateContent(input: QuestionContent, allowReading = true): QuestionC
       const answers = [...new Set(blank.answers.map((answer) => {
         const trimmed = boundedText(answer, `第 ${index + 1} 空的答案`, 500)
         if (answer.length > 500) throw new Error('每个填空答案不能超过 500 字。')
-        return blankMatch.trimWhitespace ? trimmed : answer
+        return blankMatch.trimWhitespace ? trimmed.trim() : answer
       }))]
       return { answers }
     })
-    const tokens = [...stem.matchAll(/\{\{([^{}]*)\}\}/g)].map((match) => match[1])
+    const tokens = blankMarkers(stem)
     const markers = tokens.map(Number)
     if (markers.length !== blanks.length || new Set(markers).size !== blanks.length || markers.some((n, i) => !Number.isInteger(n) || n < 1 || n > blanks.length || String(n) !== tokens[i]))
       throw new Error('空位标记与答案不一致，请在题干中按 {{1}}、{{2}} 的格式各标记一次。')
@@ -102,6 +104,7 @@ function parseContent(row: unknown, allowReading = true): QuestionContent {
     })
   }
   return validateContent({
+    ...contentMetadata({ type, contentFormat: q.contentFormat as string, presentation: q.presentation as string, codeLanguage: q.codeLanguage as string }),
     type, stem: typeof q.stem === 'string' ? q.stem : '', options,
     correctAnswer: Array.isArray(answers) && answers.every((a) => typeof a === 'string') ? answers : [],
     explanation: typeof q.explanation === 'string' ? q.explanation : '',

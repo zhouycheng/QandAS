@@ -28,6 +28,11 @@ function getInitialQuestionDetailData() {
     subjectName: '',
     bankName: '',
     typeText: '',
+    contentFormat: 'PLAIN_TEXT',
+    presentation: 'STANDARD',
+    codeLanguage: 'text',
+    isShortAnswer: false,
+    canReveal: false,
     stem: '',
     material: null,
     assetIds: [],
@@ -109,11 +114,12 @@ class QuestionDetailViewModel {
     const question = entry.question
     this.feedbackQuestion = { id: question.id, revisionId: question.revisionId }
     const answer = onlineContext ? onlineContext.answer : this.findSessionAnswer(sessionId, questionId)
-    const reveal = !remote || !!(onlineContext && onlineContext.reveal)
+    const local = !remote && sessionId && this.repository.getSession ? this.repository.getSession(this.storage) : null
+    const reveal = onlineContext ? onlineContext.reveal : !remote && (!local || local.sessionId !== sessionId || local.status === 'SUBMITTED' || local.mode === 'view' || (((local.config || {}).feedback || (local.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE')) === 'IMMEDIATE' && !question.isShortAnswer && answer && answer.confirmed !== false))
     const favoriteIds = typeof this.repository.getFavoriteIds === 'function'
       ? this.repository.getFavoriteIds(this.repository.getFavorites(this.storage))
       : []
-    const selectedKeys = answer ? answer.selectedKeys : []
+    const selectedKeys = answer ? answer.selectedKeys || [] : []
 
     return {
       data: {
@@ -123,6 +129,12 @@ class QuestionDetailViewModel {
         subjectName: entry.subjectName || '',
         bankName: entry.bankName || '',
         typeText: question.typeText || '',
+        contentFormat: question.contentFormat || 'PLAIN_TEXT',
+        presentation: question.presentation || 'STANDARD',
+        codeLanguage: question.codeLanguage || 'text',
+        isShortAnswer: !!question.isShortAnswer,
+        blankInputs: question.isFillBlank ? (question.blanks || []).map((_, i) => ({ value: answer && (answer.blanks || [])[i] || '' })) : null,
+        canReveal: reveal,
         stem: question.stem || '',
         material: question.material || null,
         assetIds: question.assetIds || [],
@@ -159,7 +171,7 @@ class QuestionDetailViewModel {
     if (!item) return null
     const local = snapshot.localState || {}
     const answer = (local.answers || []).find((answer) => answer && answer.questionId === questionId) || (item.answer ? { selectedKeys: item.answer.optionKeys || (typeof item.answer.value === 'boolean' ? [String(item.answer.value)] : []), text: item.answer.text || '', blanks: item.answer.blanks || [], confirmed: item.confirmed, isCorrect: item.outcome === 'CORRECT' } : null)
-    const reveal = snapshot.status === 'SUBMITTED' || local.status === 'SUBMITTED' || (snapshot.route && snapshot.route.mode === 'view') || (snapshot.feedback === 'IMMEDIATE' && answer && answer.confirmed)
+    const reveal = snapshot.status === 'SUBMITTED' || local.status === 'SUBMITTED' || ((snapshot.configuration || snapshot.route || {}).mode === 'view') || (snapshot.feedback === 'IMMEDIATE' && item.question.type !== 'SHORT_ANSWER' && answer && answer.confirmed)
     return { question: online.mapQuestion(item, (snapshot.offlineGrading || []).find((grading) => grading.itemId === item.itemId)), answer, reveal }
   }
 

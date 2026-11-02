@@ -84,7 +84,7 @@ describe('题组统计、搜索与发布检查', () => {
     expect(questionSearchText(examples.READING)).toContain('良好学习习惯')
     expect(answerSummary(examples.READING)).toContain('2 道小题')
     expect(answerSummary(examples.FILL_BLANK)).toContain('H₂O / H2O')
-    expect(answerSummary(examples.SHORT_ANSWER)).toContain('学生自评')
+    expect(answerSummary(examples.SHORT_ANSWER)).toContain('不计分')
   })
 
   it('材料说明可选，每道启用小题需要独立解析', () => {

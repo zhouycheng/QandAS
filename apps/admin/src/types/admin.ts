@@ -77,6 +77,9 @@ export interface QuestionOption {
 }
 
 export interface AtomicQuestionContent {
+  contentFormat?: 'PLAIN_TEXT' | 'MARKDOWN'
+  presentation?: 'STANDARD' | 'CONCEPT' | 'CODE_ANALYSIS' | 'CODE_WRITING'
+  codeLanguage?: string | null
   stem: string
   type: AtomicQuestionType
   options: QuestionOption[]

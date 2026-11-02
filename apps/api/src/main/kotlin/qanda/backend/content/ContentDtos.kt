@@ -20,22 +20,22 @@ data class OptionInput(val key: String,val content: String)
 data class BlankInput(val answers: List<String>)
 data class BlankMatch(val ignoreCase: Boolean=true,val trimWhitespace: Boolean=true)
 data class ReadingChildRef(val id: UUID,val revisionId: UUID)
-data class QuestionContentData(val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList(),val passage: String?=null,val children: List<ReadingChildRef> = emptyList())
-data class ReadingMaterialView(val id: UUID,val revisionId: UUID,val passage: String,val assetIds: List<UUID>)
+data class QuestionContentData(val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList(),val passage: String?=null,val children: List<ReadingChildRef> = emptyList(),@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS","CODE_WRITING"]) val presentation: String="STANDARD",val codeLanguage: String?=null)
+data class ReadingMaterialView(val id: UUID,val revisionId: UUID,val passage: String,val assetIds: List<UUID>,@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT")
 data class QuestionInput(val questionBankId: UUID,@field:Schema(allowableValues=["SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING"]) val type: String,val stem: String,val chapterId: UUID?=null,val options: List<OptionInput> = emptyList(),
                          val correctAnswer: List<String> = emptyList(),val correctValue: Boolean?=null,val referenceAnswer: String?=null,val explanation: String="",
                          val assetIds: List<UUID> = emptyList(),@field:Schema(allowableValues=["ACTIVE","INACTIVE"]) val status: String="ACTIVE",val expectedVersion: Long?=null,
-                         val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList(),val passage: String?=null,val subQuestions: List<ReadingChildInput> = emptyList())
+                         val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList(),val passage: String?=null,val subQuestions: List<ReadingChildInput> = emptyList(),@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS"]) val presentation: String="STANDARD",val codeLanguage: String?=null)
 data class ReadingChildInput(val id: UUID?=null,val type: String,val stem: String,val options: List<OptionInput> = emptyList(),val correctAnswer: List<String> = emptyList(),val correctValue: Boolean?=null,
-    val referenceAnswer: String?=null,val explanation: String="",val assetIds: List<UUID> = emptyList(),val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList()) {
+    val referenceAnswer: String?=null,val explanation: String="",val assetIds: List<UUID> = emptyList(),val blanks: List<BlankInput> = emptyList(),val blankMatch: BlankMatch=BlankMatch(),val scoringPoints: List<String> = emptyList(),@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS"]) val presentation: String="STANDARD",val codeLanguage: String?=null) {
     fun question(parent: QuestionInput)=QuestionInput(parent.questionBankId,type,stem,parent.chapterId,options,correctAnswer,correctValue,referenceAnswer,explanation,assetIds,parent.status,
-        blanks=blanks,blankMatch=blankMatch,scoringPoints=scoringPoints)
+        blanks=blanks,blankMatch=blankMatch,scoringPoints=scoringPoints,contentFormat=contentFormat,presentation=presentation,codeLanguage=codeLanguage)
 }
 data class QuestionView(val id: UUID,val questionBankId: UUID,val chapterId: UUID?,val status: String,val version: Long,val revisionId: UUID,val revision: Int,
                         @field:Schema(allowableValues=["SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING"]) val type: String,val stem: String,val options: List<OptionInput>,val correctAnswer: List<String>?,val correctValue: Boolean?,val referenceAnswer: String?,
                         val explanation: String?,val assetIds: List<UUID>,val subjectId: UUID?=null,val subjectName: String?=null,val questionBankName: String?=null,
                         val blankCount: Int=0,val blanks: List<BlankInput>?=null,val blankMatch: BlankMatch?=null,val scoringPoints: List<String>?=null,
-                        val passage: String?=null,val subQuestions: List<QuestionView> = emptyList(),val material: ReadingMaterialView?=null)
+                        val passage: String?=null,val subQuestions: List<QuestionView> = emptyList(),val material: ReadingMaterialView?=null,@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS","CODE_WRITING"]) val presentation: String="STANDARD",val codeLanguage: String?=null)
 data class ImportInput(val expectedContentVersion: Long,@field:Size(min=1,max=3000) val questions: List<QuestionInput>)
 data class ImportView(val questionIds: List<UUID>,val contentVersion: Long)
 data class PreviewIssue(val index: Int,val code: String,val message: String)

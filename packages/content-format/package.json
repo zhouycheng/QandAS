@@ -1,0 +1,20 @@
+{
+  "name": "@qanda/content-format",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/content-format.js",
+  "types": "content-format.d.ts",
+  "scripts": {
+    "test": "npm run build && node content-format.test.js",
+    "build": "esbuild content-format.js --bundle --platform=browser --format=cjs --target=es2017 --inject:./prism-runtime.js --outfile=dist/content-format.js"
+  },
+  "devDependencies": {
+    "markdown-it": "14.3.3",
+    "prismjs": "1.30.0",
+    "esbuild": "0.28.2"
+  },
+  "files": [
+    "dist",
+    "content-format.d.ts"
+  ]
+}
