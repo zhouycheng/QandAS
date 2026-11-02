@@ -170,11 +170,15 @@ module.exports.getResumableSession = function (storage) {
 }
 module.exports.getRemoteHistory = remoteData.getHistory
 module.exports.getRemoteAnnouncements = remoteData.getAnnouncements
+module.exports.getRemoteRecommendations = remoteData.getRecommendations
+module.exports.getRemoteRecommendationPage = remoteData.getRecommendationPage
+module.exports.loadRemoteRecommendations = remoteData.refreshRecommendations
 module.exports.loadRemoteQuestion = remoteData.loadQuestion
 
 module.exports.searchRemoteQuestions = remoteData.searchQuestions
 
 module.exports.getRemoteOverview = remoteData.getOverview
+module.exports.refreshRemoteOverview = remoteData.refreshOverview
 module.exports.getRemoteCollection = remoteData.getCollection
 module.exports.getRemoteCollectionSummary = remoteData.getCollectionSummary
 module.exports.getRemoteCatalogPage = remoteData.getCatalogPage

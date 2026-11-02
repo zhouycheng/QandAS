@@ -389,15 +389,15 @@
   color: var(--text-main);
 }
 
-.home-foot {
-  margin-top: 40rpx;
-  text-align: center;
-}
-
-.home-foot-text {
-  font-size: 22rpx;
-  color: var(--text-muted);
-}
+.recommendation-head { display: flex; align-items: center; justify-content: space-between; margin-top: 28rpx; }
+.recommendation-more { padding: 12rpx 0 12rpx 20rpx; color: #466bff; font-size: 24rpx; }
+.recommendation-list { margin-top: 22rpx; overflow: hidden; border-radius: 24rpx; background: #f7f9fc; }
+.recommendation-card { display: flex; align-items: center; justify-content: space-between; min-height: 116rpx; padding: 24rpx; border-bottom: 2rpx solid #e9edf4; box-sizing: border-box; }
+.recommendation-card:last-child { border-bottom: 0; }
+.recommendation-content { flex: 1; min-width: 0; }
+.recommendation-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-main); font-size: 28rpx; font-weight: 600; line-height: 40rpx; }
+.recommendation-count { display: block; margin-top: 8rpx; color: var(--text-muted); font-size: 23rpx; }
+.recommendation-arrow { margin-left: 24rpx; color: var(--text-muted); font-size: 36rpx; }
 
 /* ==================== 搜索结果面板 ==================== */
 

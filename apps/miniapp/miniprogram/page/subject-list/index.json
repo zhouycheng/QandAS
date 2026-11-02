@@ -7,9 +7,11 @@
   "backgroundColorTop": "#4A7BFB",
   "backgroundTextStyle": "light",
   "enablePullDownRefresh": true,
+  "onReachBottomDistance": 150,
   "usingComponents": {
     "bottom-sheet": "/components/bottom-sheet/index",
     "route-loading": "/components/route-loading/index",
-    "rich-content": "/components/rich-content/index"
+    "rich-content": "/components/rich-content/index",
+    "community-group": "/components/community-group/index"
   }
 }

@@ -74,6 +74,7 @@ Page(withPageLifecycle({
   },
 
   refresh(options) {
+    this.setData({ recommendationsMoreError: '' })
     this.applyViewModelResult({ data: this.viewModel.projectRemote() })
     return this.applyViewModelResult(this.viewModel.refreshRemote(options))
   },
@@ -108,6 +109,19 @@ Page(withPageLifecycle({
     }
 
     this.applyViewModelResult(this.viewModel.openEntry(key))
+  },
+
+  handleRecommendedSubjectTap(event) { this.applyViewModelResult(this.viewModel.openRecommendedSubject(event.currentTarget.dataset.id)) },
+  handleAllSubjectsTap() { this.applyViewModelResult(this.viewModel.openBank()) },
+
+  onReachBottom() { return this.handleRecommendationsMore() },
+
+  handleRecommendationsMore() {
+    if (this.data.recommendationsLoadingMore || !this.data.recommendationsHasMore) return
+    this.setData({ recommendationsLoadingMore: true, recommendationsMoreError: '' })
+    return this.viewModel.loadMoreRecommendations().then(result => this.applyViewModelResult(result))
+      .catch(error => this.setData({ recommendationsMoreError: error.message }))
+      .finally(() => this.setData({ recommendationsLoadingMore: false }))
   },
 
   // ---------- 搜索 ----------
@@ -282,9 +296,12 @@ Page(withPageLifecycle({
     }
 
     if (command.type === 'switchTab') {
+      const app = getApp()
+      if (command.subjectId && app && app.setPendingSubjectId) app.setPendingSubjectId(command.subjectId)
       navigation.switchTab({
         url: command.url,
         fail: () => {
+          if (command.subjectId && app && app.setPendingSubjectId) app.setPendingSubjectId('')
           wx.showToast({
             title: '页面暂不可用',
             icon: 'none'

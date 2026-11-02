@@ -49,8 +49,13 @@ function resolveMockDuration(count) {
 
 function getInitialSubjectListViewData() {
   return {
-    // 科目列表已归位到「题库」tab，首页只保留全局汇总，不再下发 subjects
     overall: null,
+    recommendations: [],
+    recommendationsLoading: false,
+    recommendationsError: '',
+    recommendationsLoadingMore: false,
+    recommendationsMoreError: '',
+    recommendationsHasMore: false,
     lastPractice: null,
     home: {
       greeting: '',
@@ -105,11 +110,14 @@ class SubjectListViewModel {
   projectRemote() {
     const data = this.load().data
     const result = {}
-    ;['overall', 'home', 'exam', 'entries', 'announcements', 'hasAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key] })
+    ;['overall', 'home', 'exam', 'entries', 'announcements', 'hasAnnouncements', 'lastPractice', 'searchTotalText', 'recommendations', 'recommendationsHasMore'].forEach(key => { result[key] = data[key] })
     if (this.repository.getRemoteResourceState) {
       const overview = this.repository.getRemoteResourceState('overview')
       result.overviewLoading = overview.status === 'loading' && !overview.data
       result.overviewError = overview.error
+      const recommendations = this.repository.getRemoteResourceState('recommendations', { page: 1, pageSize: 3 })
+      result.recommendationsLoading = recommendations.status === 'loading' && !recommendations.data
+      result.recommendationsError = recommendations.error
     }
     return result
   }
@@ -165,12 +173,37 @@ class SubjectListViewModel {
         }),
         exam: buildExamCountdown({ examName: preferences.examName, examDate: preferences.examDate }),
         entries: this.buildEntries(lastPractice),
+        recommendations: this.buildRecommendations(),
+        recommendationsHasMore: this.hasMoreRecommendations(),
         announcements,
         hasAnnouncements: this.repository.getRemoteAnnouncementTotal ? this.repository.getRemoteAnnouncementTotal(this.storage) > 0 : announcements.length > 0,
         searchTotalText: overallStats.total > 0 ? `在全部 ${overallStats.total} 道题里查题干与选项` : '输入关键词搜索已发布的题目',
         lastPractice
       })
     }
+  }
+
+  buildRecommendations() {
+    const online = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()
+    const subjects = online ? this.repository.getRemoteRecommendations ? this.repository.getRemoteRecommendations(this.storage) : [] : this.repository.getSubjectSummaries()
+    return subjects.filter(subject => subject.questionCount == null || Number(subject.questionCount) > 0).map(subject => ({ id: subject.id, name: subject.name, countText: subject.questionCount == null ? '查看题库' : `${subject.questionCount} 道题` }))
+  }
+
+  hasMoreRecommendations() {
+    if (!this.repository.getRemoteRecommendationPage) return false
+    const page = this.repository.getRemoteRecommendationPage(this.storage)
+    return page.page > 0 && page.page * 3 < page.total
+  }
+
+  loadMoreRecommendations() {
+    if (!this.hasMoreRecommendations()) return Promise.resolve(null)
+    const page = this.repository.getRemoteRecommendationPage(this.storage)
+    return this.repository.loadRemoteRecommendations(this.storage, { page: page.page + 1 }).then(() => ({ data: this.projectRemote() }))
+  }
+
+  openRecommendedSubject(id) {
+    if (!this.buildRecommendations().some(subject => subject.id === id)) return { command: { type: 'toast', title: '该科目已更新，请刷新后重试' } }
+    return { command: { type: 'switchTab', url: '/page/bank-detail/index', subjectId: id } }
   }
 
   /** 读偏好失败时退回默认值：首页是 tabBar 主页面，不能因为一个字段崩掉 */

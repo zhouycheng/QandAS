@@ -9,7 +9,7 @@ let enabled = false
 let owner = ''
 let scope = ''
 let activeStorage = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; scope = ''; activeStorage = null; reset() }
@@ -145,6 +145,20 @@ function refreshAnnouncements(storage, options) {
     state.announcements = query.page === 1 && query.pageSize > 1 ? data.items : mergeById(state.announcements, data.items).slice(0, data.total)
   }, options && options.force)
 }
+function refreshRecommendations(storage, options) {
+  const user = bind(storage)
+  const settings = options || {}
+  const query = { page: settings.page || 1, pageSize: 3 }
+  const cached = getResourceState('recommendations', query)
+  if (query.page === 1 && !settings.force && state.recommendationPage > 1 && Date.now() - cached.at < TTL.catalog) return Promise.resolve(cached.data)
+  if (settings.force && query.page === 1) cache.invalidate('recommendations:')
+  return resource(storage, 'recommendations', query, TTL.catalog, user ? '/me/recommendations' : '/subjects', data => {
+    const items = data.items.map(item => item.subject ? Object.assign({}, item.subject, { questionCount: item.banks.reduce((total, entry) => total + entry.bank.activeQuestionCount, 0) }) : item)
+    state.recommendations = query.page === 1 ? items : mergeById(state.recommendations, items)
+    state.recommendationPage = query.page
+    state.recommendationTotal = data.total
+  }, settings.force)
+}
 function refreshRecent(storage, options) {
   const query = { page: options && options.page || 1, pageSize: 20 }
   return resource(storage, 'recent', query, TTL.learning, '/me/recent-learning', data => { state.recent = query.page === 1 ? data.items : mergeById(state.recent, data.items) }, options && options.force)
@@ -182,6 +196,8 @@ function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery
 function getSubjectPage(page) { return cache.read(queryKey('subjects', { page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined })) }
 function getResourceState(name, query) { return cache.read(queryKey(name, query || {})) }
 function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements : [] }
+function getRecommendations(storage) { bind(storage); return state.recommendations }
+function getRecommendationPage(storage) { bind(storage); return { page: state.recommendationPage, total: state.recommendationTotal } }
 function getAnnouncementTotal(storage) { bind(storage); return state.announcementTotal }
 function getBankMeta(id) { return state.banks.find(b => b.id === id) || null }
 function invalidateLearning() { ['overview:', 'statistics:', 'days:', 'recent:', 'subjects:', 'banks:', 'chapters:', 'collection'].forEach(cache.invalidate) }
@@ -190,8 +206,8 @@ function refresh(storage, kind, options) {
   const user = bind(storage)
   const settings = options || {}
   if (kind === 'catalog') return refreshCatalog(storage, settings)
+  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 })), refreshRecommendations(storage, settings)])
   if (!user) return Promise.resolve()
-  if (kind === 'home') return Promise.all([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 }))])
   if (kind === 'profile') return refreshProfile(storage, settings)
   if (kind === 'stats') return refreshStatistics(storage, settings)
   if (kind === 'collection') return refreshCollection(storage, settings)
@@ -313,6 +329,8 @@ function saveProfile(storage, patch) {
 }
 module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, removeWrongQuestions, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
-
+module.exports.getRecommendations = getRecommendations
+Object.assign(module.exports, { getRecommendationPage, refreshRecommendations })
 module.exports.getChapters = getChapters
+
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadBank, loadChapters, previewPracticeScope, getScopePreview })

@@ -16,6 +16,7 @@ api.request = async (method, path, body) => {
     '/me/favorites': [{ questionId: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '收藏题' }],
     '/me/wrong-questions': [{ questionId: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '错题', rightCount: 1, wrongCount: 2, lastPracticedAt: '2026-10-28T01:00:00Z' }],
     '/announcements': announcements,
+    '/me/recommendations': [{ subject: { id: 's1', name: '课程一', questionCount: null }, banks: [{ bank: { activeQuestionCount: 3 } }] }],
     '/colleges': [{ id: 'c1', name: '学院一' }]
   }
   if (lists[path]) return { ok: true, data: { total: lists[path].length, page: body.page, pageSize: body.pageSize, items: lists[path] } }
@@ -51,7 +52,12 @@ async function main() {
   const homeVm = new SubjectListViewModel({ repository, storage })
   assert.strictEqual(homeVm.load().data.hasAnnouncements, false, '公告加载前保持静止')
   await Promise.all([homeVm.refreshRemote(), homeVm.refreshRemote()])
-  assert.deepStrictEqual(calls.map(c => c[1]).sort(), ['/announcements', '/me/learning-overview'], '首页仅请求两个轻量资源，并发刷新合并')
+  assert.deepStrictEqual(calls.map(c => c[1]).sort(), ['/announcements', '/me/learning-overview', '/me/recommendations'], '首页读取摘要、公告与三科推荐，并发刷新合并')
+  assert.strictEqual(calls.find(c => c[1] === '/me/recommendations')[2].pageSize, 3)
+  assert.strictEqual(homeVm.load().data.recommendations[0].id, 's1')
+  assert.strictEqual(homeVm.load().data.recommendations[0].countText, '3 道题')
+  assert.strictEqual(homeVm.openRecommendedSubject('s1').command.subjectId, 's1')
+  assert.strictEqual(homeVm.openRecommendedSubject('unknown').command.type, 'toast')
   assert.strictEqual(calls.find(c => c[1] === '/announcements')[2].pageSize, 1)
   assert.strictEqual(homeVm.load().data.hasAnnouncements, true, '有可见公告时持续摇动')
   assert.strictEqual(homeVm.load().data.announcements[0].body, '公告正文')
@@ -140,6 +146,7 @@ async function main() {
   auth.saveAuth(storage, { provider: 'email', userId: 'u2', token: 'other' })
   assert.deepStrictEqual(remote.getFavorites(storage).ids, [], '账号切换立即清理内存快照')
   assert.strictEqual(remote.getSubjectSummaries().length, 0)
+  assert.deepStrictEqual(remote.getRecommendations(storage), [], '账号切换清理推荐科目')
   let resolveProfile
   api.request = (method, path) => path === '/me' ? new Promise((resolve) => { resolveProfile = resolve }) : Promise.resolve({ ok: true, data: {} })
   const pendingProfile = remote.refreshProfile(storage)
