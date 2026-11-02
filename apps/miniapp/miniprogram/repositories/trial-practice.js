@@ -7,8 +7,10 @@ let creating = null
 function read(storage) {
   const value = storage.get(KEY)
   if (!value) return { version: 1, usedCount: 0, sessions: [] }
-  if (value.version !== 1 || !Number.isInteger(value.usedCount) || value.usedCount < value.sessions?.length || value.usedCount > LIMIT || !Array.isArray(value.sessions)) throw new Error('试答记录无法读取，请联系支持')
-  return JSON.parse(JSON.stringify(value))
+  if (value.version !== 1 || !Array.isArray(value.sessions)) throw new Error('试答记录无法读取，请联系支持')
+  const usedCount = value.usedCount === undefined ? value.sessions.length : value.usedCount
+  if (!Number.isInteger(usedCount) || usedCount < value.sessions.length || usedCount > LIMIT) throw new Error('试答记录无法读取，请联系支持')
+  return JSON.parse(JSON.stringify({ ...value, usedCount }))
 }
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }

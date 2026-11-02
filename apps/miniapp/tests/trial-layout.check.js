@@ -44,6 +44,11 @@ async function main() {
   const before = count
   const [a, b] = await Promise.all([trials.prepare(storage, { bankId: 'bank', mode: 'order' }), trials.prepare(storage, { bankId: 'bank', mode: 'order' })])
   assert.equal(a.id, b.id); assert.equal(count, before + 1, '连续点击只创建一次')
+  const existing = storage.get(trials.KEY)
+  delete existing.usedCount
+  storage.set(trials.KEY, existing)
+  assert.equal(trials.remaining(storage), 1, '已有快照缺少累计次数时保留剩余额度')
+  assert.deepEqual(trials.resumable(storage), a, '读取额度保留完整试答快照')
   const vm = new PracticeViewModel({ storage })
   const initial = await vm.load({ sessionId: a.id })
   assert.equal(initial.data.shouldRevealAnswer, false)
@@ -59,6 +64,7 @@ async function main() {
   assert.deepEqual(resumed.session.state.selectedKeys, ['A'])
   assert.equal(resumed.session.getViewData().shouldRevealAnswer, false, '多选确认前隐藏答案')
   resumed.selectOption(1); resumed.goNext()
+  assert.equal(storage.get(trials.KEY).usedCount, 1, '恢复后保存答案时同时保存累计次数')
   assert.equal(resumed.session.getViewData().shouldRevealAnswer, true)
   resumed.goNext(); resumed.selectOption(0); resumed.goNext()
   resumed.setAnswerText('我的简答'); resumed.goNext()
@@ -151,6 +157,15 @@ async function main() {
     assert.equal(page.drag, null)
   } finally { global.setInterval = originalInterval; global.clearInterval = originalClear }
   const quota = storage.get(trials.KEY)
+  const withoutCount = memory()
+  const completed = { ...quota }
+  delete completed.usedCount
+  withoutCount.set(trials.KEY, completed)
+  assert.equal(trials.remaining(withoutCount), 0, '两次试答快照缺少累计次数时仍已用完额度')
+  withoutCount.set(trials.KEY, { ...quota, usedCount: null })
+  assert.throws(() => trials.remaining(withoutCount), /无法读取/, '损坏的累计次数不能被缺省值覆盖')
+  withoutCount.set(trials.KEY, { version: 1, sessions: [] })
+  assert.equal(trials.remaining(withoutCount), 2, '空记录缺少累计次数时可使用完整额度')
   storage.set(trials.KEY, { ...quota, sessions: [] })
   assert.equal(trials.remaining(storage), 0, '清理草稿保留已使用试答次数')
   console.log('trial-layout checks passed: quota, persistence failure, duplicate starts, four question types, offline restore, disclosure, account isolation, layout rollback')
