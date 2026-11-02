@@ -40,13 +40,14 @@ async function main() {
     if (question.isShortAnswer) {
       vm.setAnswerText('自主练习验收作答')
       vm.goNext()
-      vm.assessShortAnswer('CORRECT')
     } else {
       question.answerKeys.forEach(key => vm.selectOption(question.options.findIndex(option => option.key === key)))
       if (question.isMultiple) vm.goNext()
     }
   }
   await vm.forceSubmit()
+  const subjective = vm.session.state.questions.find(question => question.isShortAnswer)
+  await vm.assessResult(subjective.id, 'CORRECT')
   const completed = runtime.get(vm.session.meta.sessionId)
   assert.equal(completed.status, 'SUBMITTED')
   assert.equal(completed.result.objective.wrong, 0)
@@ -56,7 +57,7 @@ async function main() {
   await Promise.all([remote.refresh(storage, 'home'), remote.refresh(storage, 'recent')])
   const recent = remote.getRecent(storage)
   assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'))
-  assert.ok(requests.some(item => item.path.endsWith('/progress-ack')))
+  assert.ok(requests.some(item => item.path.endsWith('/progress-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
   runtime.queue.stop()
   console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.result.objective.correct, selfRated: completed.result.shortAnswer.rated }))

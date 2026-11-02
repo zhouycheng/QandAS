@@ -1,5 +1,5 @@
 <!-- 首页（原型 552:1410）
-     结构：蓝色头部（品牌 + 搜索 + 公告圆钮）→ 白色圆角内容区（倒计时卡 + 四宫格）
+     结构：蓝色头部（品牌 + 搜索 + 公告入口）→ 白色圆角内容区（倒计时卡 + 四宫格）
      头部与内容区之间靠负 margin 咬合，内容区圆角把蓝底"切"出一道弧，不需要额外装饰图。 -->
 <view class="page home-page stagger">
   <view class="hero" style="padding-top: {{homeStatusBarHeight}}px;">
@@ -29,7 +29,7 @@
         <view class="search-icon"></view>
       </view>
 
-      <!-- 有可见公告时，喇叭持续摇动。 -->
+      <!-- 有可见公告时，喇叭循环轻抬招呼，标签保持固定。 -->
       <view
         class="hero-notice-btn"
         aria-role="button"
@@ -122,12 +122,26 @@
       </view>
     </view>
 
-    <!-- 底部说明：原型留白处放一条状态提示，空着会显得页面没写完 -->
-    <view class="home-foot" wx:if="{{overall}}">
-      <text class="home-foot-text">已做 {{overall.answered}} / {{overall.total}} 题 · 正确率 {{overall.accuracyText}}</text>
-    </view>
     <view class="load-note" wx:if="{{overviewLoading}}">正在读取学习摘要…</view>
     <view class="load-note" wx:if="{{overviewError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{overviewError}} · 点击重试</view>
+    <community-group />
+
+    <view class="section-head recommendation-head">
+      <text class="section-title">推荐科目</text>
+      <view class="recommendation-more" bindtap="handleAllSubjectsTap" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">全部科目 ›</view>
+    </view>
+    <view class="recommendation-list" wx:if="{{recommendations.length}}">
+      <view class="recommendation-card" wx:for="{{recommendations}}" wx:key="id" data-id="{{item.id}}" bindtap="handleRecommendedSubjectTap" aria-role="button" aria-label="打开{{item.name}}题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+        <view class="recommendation-content"><text class="recommendation-name">{{item.name}}</text><text class="recommendation-count">{{item.countText}}</text></view>
+        <text class="recommendation-arrow">›</text>
+      </view>
+    </view>
+    <view class="load-note" wx:if="{{recommendationsLoading}}">正在读取推荐科目…</view>
+    <view class="load-note" wx:elif="{{recommendationsError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recommendationsError}} · 点击重试</view>
+    <view class="load-note" wx:elif="{{!recommendations.length}}" bindtap="handleAllSubjectsTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">暂无推荐科目，去题库看看</view>
+    <view class="load-note" wx:if="{{recommendationsLoadingMore}}">正在加载更多科目…</view>
+    <view class="load-note" wx:elif="{{recommendationsMoreError}}" bindtap="handleRecommendationsMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recommendationsMoreError}} · 点击重试</view>
+    <view class="load-note" wx:elif="{{recommendations.length && !recommendationsHasMore && !recommendationsLoading && !recommendationsError}}">已显示全部推荐科目</view>
   </view>
 
   <!-- 搜索结果按页读取，遮罩覆盖导航栏。 -->
@@ -185,8 +199,9 @@
         <image class="notice-badge-icon" src="/assets/home/announcement-megaphone.png" mode="aspectFit"></image>
       </view>
       <view class="notice-item" wx:for="{{announcements}}" wx:key="id">
-        <text class="notice-title">{{item.title}}</text>
-        <text class="notice-body">{{item.body || item.summary}}</text>
+        <text class="notice-title">{{item.pinned ? '置顶 · ' : ''}}{{item.title}}</text>
+        <rich-content class="notice-body" text="{{(item.body || item.summary) || ''}}" format="MARKDOWN" />
+        <community-group wx:if="{{announcementSheetVisible && item.showCommunityGroup}}" inline="{{true}}" />
       </view>
       <text class="notice-empty" wx:if="{{announcementLoading}}">正在读取公告…</text>
       <text class="notice-empty" wx:elif="{{announcementError}}" bindtap="handleAnnouncementTap">{{announcementError}} · 点击重试</text>

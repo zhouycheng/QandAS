@@ -124,7 +124,7 @@ function checkPreferences() {
   const view = preferenceUtils.buildPreferenceView({ fontSize: 'large' })
   const fontChoice = view.choices.find((item) => item.key === 'fontSize')
 
-  assert('偏好 - 设置视图含 5 个开关', view.switches.length === 5, `实际 ${view.switches.length}`)
+  assert('偏好 - 设置视图含 6 个开关', view.switches.length === 6, `实际 ${view.switches.length}`)
   assert('偏好 - 设置视图只包含字号选择',
     view.choices.length === 1, `实际 ${view.choices.length}`)
   assert('偏好 - 字号选中态唯一',
@@ -141,10 +141,10 @@ function checkDailyLog() {
 
   let log = null
 
-  log = dailyLogUtils.addDailyResult(log, { answered: 20, correct: 16, seconds: 600 }, TODAY)
-  log = dailyLogUtils.addDailyResult(log, { answered: 10, correct: 5, seconds: 300 }, TODAY)
-  log = dailyLogUtils.addDailyResult(log, { answered: 8, correct: 8, seconds: 200 }, TODAY - 3 * DAY_MS)
-  log = dailyLogUtils.addDailyResult(log, { answered: 12, correct: 6, seconds: 400 }, TODAY - DAY_MS)
+  log = dailyLogUtils.addDailyResult(log, { answered: 20, objectiveAnswered: 20, correct: 16, seconds: 600 }, TODAY)
+  log = dailyLogUtils.addDailyResult(log, { answered: 10, objectiveAnswered: 10, correct: 5, seconds: 300 }, TODAY)
+  log = dailyLogUtils.addDailyResult(log, { answered: 8, objectiveAnswered: 8, correct: 8, seconds: 200 }, TODAY - 3 * DAY_MS)
+  log = dailyLogUtils.addDailyResult(log, { answered: 12, objectiveAnswered: 12, correct: 6, seconds: 400 }, TODAY - DAY_MS)
 
   const todayKey = dailyLogUtils.formatDateKey(TODAY)
 
@@ -230,7 +230,7 @@ function checkSettingsViewModel() {
   const vm = new SettingsViewModel({ storage })
   const initial = vm.load()
 
-  assert('设置 - 初始开关非空', initial.data.switches.length === 5)
+  assert('设置 - 初始开关非空', initial.data.switches.length === 6)
   assert('设置 - 目录统计由其他页面负责', initial.data.catalog === undefined)
   // 改版后账户分组迁到「我的 → 账号管理」（设计稿 781:2123），设置页不该再有第二份账号状态
   assert('设置 - 账户分组已迁出',
@@ -290,6 +290,7 @@ function seedPractice(storage, options) {
     vm.goNext()
   })
 
+  vm.forceSubmit()
   return vm
 }
 
@@ -302,8 +303,8 @@ function checkStatsViewModel() {
   assert('复盘 - 三个区间齐全',
     fresh.rangeOptions.map((item) => item.value).join(',') === '7d,30d,all',
     fresh.rangeOptions.map((item) => item.value).join(','))
-  assert('复盘 - 全新用户三个数字都是 0',
-    fresh.metrics.answered === '0' && fresh.metrics.accuracy === '0' && fresh.metrics.duration === '0',
+  assert('复盘 - 全新用户题量用时为 0，正确率为空',
+    fresh.metrics.answered === '0' && fresh.metrics.accuracy === '—' && fresh.metrics.duration === '0',
     JSON.stringify(fresh.metrics))
   assert('复盘 - 全新用户趋势不出图', fresh.trend.hasData === false && fresh.trend.dataUri === '')
   // 热力图即使没有记录也要画：一屏灰格子本身就是「还没开始」的信息
@@ -450,6 +451,8 @@ function checkPreferenceEffects() {
     vm3.selectOption(wrongIndex)
     vm3.goNext()
   })
+
+  vm3.forceSubmit()
 
   assert('偏好 - 关闭后错题本为空',
     Object.keys(noWrongBook.get('qandaWrongBook') || {}).length === 0,

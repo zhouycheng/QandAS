@@ -1,0 +1,115 @@
+{
+  "format": "qanda-question-bank",
+  "version": "1.0",
+  "bank": {
+    "name": "代码基础",
+    "description": "程序输出与代码理解"
+  },
+  "sources": [
+    {
+      "id": "demo",
+      "name": "示例代码",
+      "kind": "text"
+    }
+  ],
+  "chapters": [],
+  "assets": [],
+  "questions": [
+    {
+      "id": "js-output-1",
+      "type": "FILL_BLANK",
+      "presentation": "CODE_ANALYSIS",
+      "contentFormat": "MARKDOWN",
+      "stem": "阅读程序，输出为 {{1}}。\n\n```javascript\nconsole.log(\"hello\");\n```",
+      "blanks": [
+        {
+          "answers": [
+            "hello"
+          ]
+        }
+      ],
+      "blankMatch": {
+        "ignoreCase": false,
+        "trimWhitespace": true
+      },
+      "explanation": "### 结论\n输出为 `hello`。\n\n### 核心知识点\n字符串字面量用引号界定内容。\n\n### 解题过程\n`console.log` 输出字符串内容，界定字符串的引号不属于输出。\n\n### 记忆方法\n区分代码中的引号与实际字符串内容。\n\n### 易错题型\n把引号也填入答案，或改变字符串大小写。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "demo",
+            "location": "本题示例程序与要求"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "blanks",
+            "explanation"
+          ],
+          "note": "依据示例程序与要求编写题目和教学解析。"
+        }
+      }
+    },
+    {
+      "id": "js-concept-1",
+      "type": "SHORT_ANSWER",
+      "presentation": "CODE_ANALYSIS",
+      "contentFormat": "MARKDOWN",
+      "stem": "说明下列程序如何避免把字符串当作数组修改。\n\n```javascript\nconst text = \"abc\";\nconst reversed = [...text].reverse().join(\"\");\n```",
+      "referenceAnswer": "参考思路：将字符串展开为新数组，在数组上反转后再拼接成字符串。原字符串仍为 `abc`。",
+      "scoringPoints": [
+        "识别字符串与新数组的区别。",
+        "说明 `reverse()` 与 `join(\"\")` 的作用。"
+      ],
+      "explanation": "### 结论\n可从数据转换和原值保持两个角度解释。\n\n### 核心知识点\n字符串不可变，数组可以重新排列。\n\n### 解题过程\n展开得到字符数组，反转数组，再拼接。\n\n### 记忆方法\n沿着每一步的数据类型检查程序。\n\n### 易错题型\n把 `reverse()` 误认为可以直接调用于字符串。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "demo",
+            "location": "本题示例程序与要求"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "referenceAnswer",
+            "scoringPoints",
+            "explanation"
+          ],
+          "note": "依据示例程序与要求编写题目和教学解析。"
+        }
+      }
+    },
+    {
+      "id": "js-function-output-1",
+      "type": "FILL_BLANK",
+      "presentation": "CODE_ANALYSIS",
+      "contentFormat": "MARKDOWN",
+      "stem": "阅读下列程序，运行后输出为 {{1}}。\n\n```javascript\nfunction add(a, b) {\n  return a + b;\n}\nconsole.log(add(1, 2));\n```",
+      "blanks": [
+        { "answers": ["3"] }
+      ],
+      "blankMatch": { "ignoreCase": false, "trimWhitespace": true },
+      "explanation": "### 结论\n输出为 `3`。\n\n### 核心知识点\n函数调用、参数传递与返回值。\n\n### 解题过程\n`add(1, 2)` 将 `1`、`2` 分别传给 `a`、`b`，`return a + b` 返回 `3`，随后由 `console.log` 输出。\n\n### 记忆方法\n依次跟踪实参、形参、返回值和最终输出。\n\n### 易错题型\n把函数名或表达式 `1 + 2` 当作运行结果；参数为字符串时，加号的行为还需重新分析。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "demo",
+            "location": "本题示例程序与要求"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "blanks",
+            "explanation"
+          ],
+          "note": "依据示例程序与要求编写题目和教学解析。"
+        }
+      }
+    }
+  ]
+}

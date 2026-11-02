@@ -10,6 +10,7 @@ class UserAccount {
     var id: UUID? = null
     var accountCode: String = ""
     var nickname: String = ""
+    var avatar: String? = null
     var email: String? = null
     var emailKey: String? = null
     var passwordHash: String? = null
@@ -26,7 +27,8 @@ class UserProfile {
     var userId: UUID? = null
     var collegeId: UUID? = null
     var majorId: UUID? = null
-    var enrollmentYear: Int? = null
+    var grade: Int? = null
+    var gradeAcademicYear: Int? = null
 }
 
 @TableName("user_wechat")

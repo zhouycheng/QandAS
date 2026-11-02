@@ -1,16 +1,28 @@
 const { AuthFormViewModel } = require('./auth-form-viewmodel.js')
-const { validateLogin } = require('../utils/auth-form.js')
+const { validateLogin, isValidEmail } = require('../utils/auth-form.js')
+const { successCommand } = require('../utils/profile-rules.js')
 
 /**
  * 登录页视图模型（设计稿 763:567）。
  *
  * 一条主路径 + 一条备选：
- *   邮箱 + 密码  → repository.loginWithEmail（后端未接入时降级为本地身份）
- *   微信登录     → repository.login（wx.login 拿 code，同样可降级）
+ *   邮箱 + 密码  → repository.loginWithEmail
+ *   微信登录     → repository.login（wx.login 获取登录凭证）
  *
  * 页面只负责把输入传进来、把 command 执行掉，判断都在这里。
  */
 class LoginViewModel extends AuthFormViewModel {
+  constructor(options) {
+    super(options)
+    const settings = options || {}
+    if (isValidEmail(settings.email)) this.fields.email = settings.email.trim()
+    this.loginNotice = settings.returnReason === 'email-updated' ? '邮箱已更换，请使用新邮箱和原密码重新登录。'
+      : settings.returnReason === 'email-bound' ? '邮箱已绑定，请重新登录，学习记录保留。'
+      : settings.returnReason === 'password-updated' ? '密码已更改，请使用新密码重新登录。' : ''
+  }
+
+  buildData() { return Object.assign(super.buildData(), { loginNotice: this.loginNotice || '' }) }
+
   _validate() {
     return validateLogin(this.fields)
   }
@@ -23,10 +35,7 @@ class LoginViewModel extends AuthFormViewModel {
   }
 
   buildSuccessCommand(result) {
-    return {
-      type: 'back',
-      title: result && result.degraded ? '已用本地身份登录' : '登录成功'
-    }
+    return successCommand(result && result.auth, '登录成功')
   }
 
   /**

@@ -57,8 +57,8 @@ class PracticeViewModel {
     this.online.activeId = snapshot.id
     const quiz = this.online.quiz(snapshot)
     const restored = this.online.restored(snapshot)
-    this.session = new PracticeSession({ quiz, restored, mode: snapshot.feedback === 'AFTER_FINISH' ? 'test' : (this.routeOptions.mode || 'practice'),
-      config: snapshot.route, durationMinutes: Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage),
+    this.session = new PracticeSession({ quiz, restored, mode: snapshot.configuration && snapshot.configuration.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : (this.routeOptions.mode || 'practice')), feedback: snapshot.feedback,
+      config: snapshot.route, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage),
       favoriteQuestionIds: snapshot.favoriteQuestionIds || [] })
     this.session.reset()
     this.session.restore(restored)
@@ -75,7 +75,7 @@ class PracticeViewModel {
         })
       }
     }
-    return { data: Object.assign(this.session.getViewData(), { waitingForSync: false, editingLocked: false, loadError: '' }), startTimer: this.session.state.isTestMode }
+    return { data: Object.assign(this.session.getViewData(), { waitingForSync: false, editingLocked: false, loadError: '' }), startTimer: this.session.state.isTimed }
   }
 
   async checkWriter() {
@@ -95,17 +95,31 @@ class PracticeViewModel {
       return null
     }
     if (writer.pendingDeviceId) {
+      if (!this.editingLocked) {
+        this.session.pauseStudy()
+        this.persistSession(true)
+      }
       this.editingLocked = true
-      this.persistSession(true)
       if (await this.online.release(id)) return { data: { editingLocked: true }, command: { type: 'returnBankDetail' } }
       return { data: { editingLocked: true, submitError: '正在同步并交接练习，请保持联网' } }
     }
-    if (writer.state === 'RELEASED') return this.loadOnline(Object.assign({}, this.routeOptions, { sessionId: id }))
+    if (writer.state === 'RELEASED' && !this.editingLocked) return this.loadOnline(Object.assign({}, this.routeOptions, { sessionId: id }))
     if (!writer.writerToken) {
       this.editingLocked = true
-      return { data: { editingLocked: true, submitError: '此练习已在其他设备继续' } }
+      return { data: { editingLocked: true }, command: { type: 'returnBankDetail' } }
     }
     return null
+  }
+
+  observeSaveStatus(listener) {
+    return this.online && this.session ? this.online.observeStatus(this.session.meta.sessionId, listener) : () => {}
+  }
+  async retrySync() {
+    if (!this.online || !this.session) return null
+    try { this.online.save(this.session) }
+    catch (error) { return { data: this.online.saveStatus(this.session.meta.sessionId), command: { type: 'toast', title: error.message } } }
+    const result = await this.online.queue.resume(this.session.meta.sessionId)
+    return { data: this.online.saveStatus(this.session.meta.sessionId), command: !result.ok && !result.pending ? { type: 'toast', title: result.reason } : null }
   }
 
   /**
@@ -149,6 +163,8 @@ class PracticeViewModel {
       quiz: usableQuiz,
       mode,
       durationMinutes,
+      feedback: effectiveOptions.feedback,
+      isTimed: !isViewMode && (mode === 'test' || !!effectiveOptions.duration),
       storageKey,
       bestScore,
       restored: saved,
@@ -186,13 +202,13 @@ class PracticeViewModel {
     }
     this.routeOptions = snapshot.route
     const restored = trials.restored(snapshot)
-    this.session = new PracticeSession({ quiz: trials.quiz(snapshot), restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', durationMinutes: Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) })
+    this.session = new PracticeSession({ quiz: trials.quiz(snapshot), restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', feedback: snapshot.feedback, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) })
     this.session.reset()
     this.session.restore(restored)
     if (restored.status === SESSION_STATUS.SUBMITTED) this.session.finish()
     this.session.updateSyncStatus(SYNC_STATUS.LOCAL_ONLY)
     this.session.state.trialNotice = `游客试答 · 记录保存在本机 · 剩余 ${trials.remaining(this.storage)} 次`
-    return { data: Object.assign(this.session.getViewData(), { loadError: '' }), startTimer: this.session.state.isTestMode && !this.session.state.isCompleted }
+    return { data: Object.assign(this.session.getViewData(), { loadError: '' }), startTimer: this.session.state.isTimed && !this.session.state.isCompleted }
   }
 
   /** 读取可恢复的会话。取不到或已提交一律返回 null，走新建路径 */
@@ -225,9 +241,11 @@ class PracticeViewModel {
 
     return {
       mode: normalized.mode || '',
+      feedback: normalized.feedback,
       scope: normalized.scope || '',
       subjectId: normalized.subjectId || '',
       bankId: normalized.bankId || '',
+      bankIds: normalized.bankIds || '',
       count: normalized.count || '',
       seed: normalized.seed || '',
       duration: normalized.durationMinutes || '',
@@ -237,7 +255,7 @@ class PracticeViewModel {
   }
 
   buildSessionConfig(options, mode, durationMinutes) {
-    const routeKeys = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'ids', 'title']
+    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'bankIds', 'count', 'seed', 'ids', 'title']
     const config = {}
     const normalizedOptions = options || {}
 
@@ -252,7 +270,7 @@ class PracticeViewModel {
     config.mode = mode
 
     if (durationMinutes) {
-      config.durationMinutes = durationMinutes
+      config.durationMinutes = normalizedOptions.duration || mode === 'test' ? durationMinutes : 0
     }
 
     return config
@@ -308,7 +326,7 @@ class PracticeViewModel {
       return null
     }
 
-    if (this.online || this.trial) return this.load(Object.assign({}, this.routeOptions, { sessionId: '', resume: '' }))
+    if (this.online || this.trial) return this.load(Object.assign({}, this.routeOptions, { sessionId: '', resume: '', selectionKey: '', seed: Date.now() }))
     const result = this.session.reset()
 
     // 「再练一次」是一轮新练习，立即覆盖掉上一份会话
@@ -368,6 +386,12 @@ class PracticeViewModel {
     }
   }
 
+  openFeedback() {
+    if (!this.session) return null
+    const state = this.session.state
+    return require('../utils/feedback-entry.js').feedbackEntry(this.storage, 'question', state.questions[state.currentIndex])
+  }
+
   createRedoWrongCommand(questionIds) {
     const ids = (questionIds || []).filter(Boolean)
 
@@ -375,7 +399,7 @@ class PracticeViewModel {
       return null
     }
 
-    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}&mode=practice&ids=${encodeURIComponent(ids.join(','))}` } }
+    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&mode=practice&ids=${encodeURIComponent(ids.join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } }
 
     this.repository.saveCustomQuiz(this.storage, ids, '错题重练')
 
@@ -401,7 +425,7 @@ class PracticeViewModel {
       return null
     }
 
-    return this.withPersistence(this.session.autoSubmit())
+    return this.submitSavedAnswers(() => this.session.autoSubmit())
   }
 
   selectOption(selectedIndex) {
@@ -416,26 +440,34 @@ class PracticeViewModel {
   setAnswerText(text) {
     if (!this.session || this.editingLocked) return null
     const result = this.session.setAnswerText(text)
-    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { submitOk: false, submitError: error.message }) }
+    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { autoAdvance: false, submitOk: false, submitError: error.message, command: { type: 'toast', title: error.message || '本机保存失败' } }) }
+    return result
+  }
+
+  setBlank(index, value) {
+    if (!this.session || this.editingLocked) return null
+    const result = this.session.setBlank(index, value)
+    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { autoAdvance: false, submitOk: false, submitError: error.message, command: { type: 'toast', title: error.message || '本机保存失败' } }) }
     return result
   }
 
   assessShortAnswer(value) {
     if (!this.session || this.editingLocked) return null
     const result = this.session.assessShortAnswer(value)
-    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { submitOk: false, submitError: error.message }) }
+    try { this.persistSession(true) } catch (error) { return Object.assign({}, result, { autoAdvance: false, submitOk: false, submitError: error.message, command: { type: 'toast', title: error.message || '本机保存失败' } }) }
     return result
   }
 
   async assessResult(questionId, value) {
-    if (this.trial && this.session && this.session.state.isCompleted) {
+    if ((this.trial || !this.online) && this.session && this.session.state.isCompleted) {
       if (!['CORRECT', 'WRONG'].includes(value)) return null
       const index = this.session.state.questions.findIndex(question => question.id === questionId && question.isShortAnswer)
       const answer = this.session.state.answers[index]
       if (!answer) return null
       answer.selfAssessment = value
-      answer.isCorrect = value === 'CORRECT'
+      answer.isCorrect = false
       this.session.finish()
+      if (!this.trial) this.repository.saveSelfAssessment(this.storage, questionId, value)
       this.persistSession(true)
       return { data: this.session.getViewData() }
     }
@@ -489,13 +521,31 @@ class PracticeViewModel {
     return this.withPersistence(this.session.toggleMarkQuestion())
   }
 
+  navigateQuestion(action) {
+    const previous = this.session.state.currentIndex
+    try {
+      this.persistSession(true)
+      const result = action()
+      if (result && result.data && result.data.isCompleted) return this.withPersistence(result)
+      this.persistSession(true)
+      return this.withSideEffects(result)
+    } catch (error) {
+      const result = this.session.showQuestionAtIndex(previous)
+      return Object.assign({}, result, { command: { type: 'toast', title: error.message || '本机保存失败，请重试' } })
+    }
+  }
+
   goNext() {
     if (this.editingLocked) return null
     if (!this.session) {
       return null
     }
 
-    return this.withPersistence(this.session.goNext())
+    if (this.online && this.session.state.isViewMode && this.session.state.isLastQuestion) {
+      return this.online.completeView(this.session).then(() => this.session.goNext())
+        .catch(error => ({ command: { type: 'toast', title: error.message || '保存失败，请重试' } }))
+    }
+    return this.navigateQuestion(() => this.session.goNext())
   }
 
   goPrev() {
@@ -504,7 +554,7 @@ class PracticeViewModel {
       return null
     }
 
-    return this.withPersistence(this.session.goPrev())
+    return this.navigateQuestion(() => this.session.goPrev())
   }
 
   submit() {
@@ -522,7 +572,7 @@ class PracticeViewModel {
       return null
     }
 
-    return this.withPersistence(this.session.forceSubmit())
+    return this.submitSavedAnswers(() => this.session.forceSubmit())
   }
 
   closeSubmitModal() {
@@ -555,7 +605,7 @@ class PracticeViewModel {
       return null
     }
 
-    return this.withPersistence(this.session.jumpToQuestion(index))
+    return this.navigateQuestion(() => this.session.jumpToQuestion(index))
   }
 
   getQuizFromOptions(options, mode) {
@@ -627,7 +677,7 @@ class PracticeViewModel {
   }
 
   getSharePathFromOptions(options, quiz) {
-    const routeKeys = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'duration']
+    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'bankIds', 'count', 'seed', 'duration']
     const query = routeKeys.reduce((items, key) => {
       if (options && options[key]) {
         items.push(`${key}=${encodeURIComponent(decodeOptionValue(options[key]))}`)
@@ -646,8 +696,7 @@ class PracticeViewModel {
   /**
    * 会话落盘。背题模式不产生会话；游标未变则跳过写入。
    *
-   * 游标取「当前位置 + 已答数 + 业务状态 + 同步状态」四项：
-   * 多选题反复勾选时 selectedKeys 在变但答案没提交，游标不动，因此不会每次点都写 storage。
+   * 游标包含完整草稿；多选勾选、文字和填空变化都进入持久态。
    */
   persistSession(force) {
     if (!this.session || typeof this.repository.saveSession !== 'function') {
@@ -656,6 +705,12 @@ class PracticeViewModel {
 
     if (this.trial) { trials.save(this.storage, this.session); return }
     if (this.session.state.isViewMode) {
+      if (this.online) {
+        const id = this.session.meta.sessionId
+        const snapshot = this.online.get(id)
+        snapshot.localState = this.session.getPersistedState()
+        this.online.put(id, snapshot)
+      }
       return
     }
 
@@ -668,7 +723,7 @@ class PracticeViewModel {
     const state = this.session.getPersistedState()
     const cursor = [
       state.currentIndex,
-      state.answers.filter(Boolean).length,
+      JSON.stringify(state.answers),
       state.status,
       state.syncStatus
     ].join(':')
@@ -677,13 +732,13 @@ class PracticeViewModel {
       return
     }
 
-    this.persistCursor = cursor
     this.repository.saveSession(this.storage, state)
+    this.persistCursor = cursor
   }
 
   /** 页面退出（onHide / onUnload）时强制落盘，防止最后一步操作丢 */
   saveSessionNow() {
-    this.persistSession(true)
+    if (!this.editingLocked) this.persistSession(true)
     if (this.online && this.session) {
       this.online.activeId = ''
       if (this.session.state.isCompleted) return Promise.resolve()
@@ -705,6 +760,13 @@ class PracticeViewModel {
     const state = this.session.state
     const resultFilter = state.resultFilter
     const items = new Map(official.items.map(item => [item.question.id, item]))
+    state.isCompleted = true
+    state.sessionStatus = SESSION_STATUS.SUBMITTED
+    if (typeof official.durationSeconds === 'number') this.session.frozenElapsedText = require('../models/practice-session.js').formatTimer(official.durationSeconds)
+    state.questions = state.questions.map(question => {
+      const item = items.get(question.id)
+      return item ? Object.assign({}, question, require('../repositories/online-practice.js').mapQuestion(item)) : question
+    })
     state.answers = state.questions.map((question, index) => {
       const item = items.get(question.id)
       if (!item) return state.answers[index] || null
@@ -713,15 +775,20 @@ class PracticeViewModel {
         questionId: question.id,
         selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]),
         text: item.answer.text || '',
+        blanks: item.answer.blanks || [],
         confirmed: item.confirmed,
         selfAssessment: item.selfAssessment || null,
-        isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome === 'CORRECT'
+        unscored: item.question.type === 'SHORT_ANSWER',
+        isCorrect: item.question.type === 'SHORT_ANSWER' ? false : item.outcome === 'CORRECT'
       }
     })
     state.unansweredCount = this.session.getUnansweredIndexes(state.answers).length
     this.session.finish()
+    this.session.state.objectiveCount = official.objective.count
     this.session.state.correctCount = official.objective.correct
-    this.session.state.score = official.objective.count ? Math.round(official.objective.accuracy * 100) : 0
+    this.session.state.score = typeof official.objective.score === 'number' ? official.objective.score : official.objective.count ? Math.round(official.objective.correct / official.objective.count * 100) : null
+    this.session.state.scoreText = this.session.state.score === null ? '已完成' : `${this.session.state.score} 分`
+    this.session.state.objectiveAccuracyText = official.objective.answered ? `${Math.round(official.objective.correct / official.objective.answered * 1000) / 10}%` : '—'
     this.session.setResultFilter(resultFilter)
   }
 
@@ -768,14 +835,11 @@ class PracticeViewModel {
     return this.withSideEffects(merged)
   }
 
-  /**
-   * 重试提交。
-   * 先把场景切回 normal 再提交——MVP 没有真实网络，
-   * 「重试成功」只能这样模拟，等价于网络恢复后重发一次。
-   */
+  /** 用户主动重试时重新查询原进度命令，再确认正式交卷。 */
   retrySubmit() {
     if (this.trial && this.session) return this.resolveSubmitOutcome({ data: this.session.getViewData() })
-    if (this.online && this.session) return this.resolveSubmitOutcome({ data: this.session.getViewData() })
+    if (this.online && this.session) return this.online.queue.resume(this.session.meta.sessionId)
+      .then(() => this.resolveSubmitOutcome({ data: this.session.getViewData() }))
     if (!this.session || typeof this.repository.retrySubmit !== 'function') {
       return null
     }
@@ -811,15 +875,28 @@ class PracticeViewModel {
     })
   }
 
+  submitSavedAnswers(action) {
+    const previous = Object.assign({}, this.session.state)
+    try {
+      this.persistSession(true)
+      return this.withPersistence(action())
+    } catch (error) {
+      this.session.state = previous
+      this.session.submit()
+      return { data: this.session.getViewData(), stopTimer: true, command: { type: 'toast', title: error.message || '本机保存失败，请重试交卷' } }
+    }
+  }
+
   withPersistence(result) {
     if (this.editingLocked) return { data: { editingLocked: true } }
     // 交卷这一步会走网关，返回 Promise；其余步骤仍是同步结果
     if (result && result.data && result.data.isCompleted) {
+      this.persistSession(true)
       return this.resolveSubmitOutcome(result)
     }
 
     try { this.persistSession() } catch (error) {
-      return Object.assign({}, result, { submitOk: false, submitError: error.message })
+      return Object.assign({}, result, { autoAdvance: false, submitOk: false, submitError: error.message, command: { type: 'toast', title: error.message || '本机保存失败' } })
     }
     return this.withSideEffects(result)
   }

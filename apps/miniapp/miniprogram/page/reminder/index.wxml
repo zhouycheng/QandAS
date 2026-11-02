@@ -1,5 +1,7 @@
 <!-- 邮箱提醒｜设计稿 Figma 781:2043（画板 402x874，系数 750/402 ≈ 1.8657）
      总开关 + 定时复习 + 考试提醒 + 提前提醒，设置即时落盘。 -->
+<view class="secondary-page">
+<page-header title="邮箱提醒" />
 <view class="list-page page-with-bottom-bar">
   <view class="switch-row switch-row-tall">
     <view class="row-main">
@@ -83,7 +85,7 @@
       >{{item.statusText}}</view>
     </view>
 
-    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，添加后会在考试前提醒你</text>
+    <text class="exam-empty" wx:if="{{examCount === 0}}">还没有考试，可先保存考试日期与提醒偏好</text>
 
     <view
       class="add-btn"
@@ -112,7 +114,7 @@
           <text class="checkbox-label">{{item.label}}</text>
         </view>
       </view>
-      <text class="checkbox-hint">已结束的考试不再发送提醒</text>
+      <text class="checkbox-hint">设置保存在本机，邮件发送功能待开放</text>
     </view>
   </view>
 </view>
@@ -164,3 +166,4 @@
     >添加</view>
   </view>
 </bottom-sheet>
+</view>

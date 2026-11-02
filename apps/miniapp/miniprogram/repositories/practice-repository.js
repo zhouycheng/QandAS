@@ -63,6 +63,7 @@ module.exports = {
   getMasteredIds: wrongBookRepository.getMasteredIds,
   summarizeWrongBook: wrongBookRepository.summarizeWrongBook,
   saveWrongResults: wrongBookRepository.saveResults,
+  saveSelfAssessment: wrongBookRepository.saveSelfAssessment,
   removeWrongQuestions: wrongBookRepository.removeQuestions,
   clearWrongBook: wrongBookRepository.clearWrongBook,
   // 自定义练习（错题重练 / 收藏练习）
@@ -159,15 +160,29 @@ module.exports.getResumableSession = function (storage) {
   if (!remoteData.isEnabled()) return sessionRepository.getResumableSession(storage)
   const auth = authRepository.getAuth(storage)
   const snapshot = !auth.loggedIn ? require('./trial-practice.js').resumable(storage) : storage.get(`qandaOnline:${auth.userId}:${storage.get(`qandaOnlineLast:${auth.userId}`) || ''}`)
-  return snapshot && snapshot.status !== 'SUBMITTED' ? Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: snapshot.route }) : null
+  if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: snapshot.route })
+  if (!auth.loggedIn) return null
+  const overview = remoteData.getOverview(storage)
+  const recentItems = overview && Object.prototype.hasOwnProperty.call(overview, 'recentSession')
+    ? overview.recentSession ? [overview.recentSession] : []
+    : remoteData.getRecent(storage)
+  const recent = recentItems.find(item => {
+    const local = storage.get(`qandaOnline:${auth.userId}:${item.id}`)
+    return item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
+  })
+  return recent ? { sessionId: recent.id, config: { bankId: recent.questionBankId, title: recent.title } } : null
 }
 module.exports.getRemoteHistory = remoteData.getHistory
 module.exports.getRemoteAnnouncements = remoteData.getAnnouncements
+module.exports.getRemoteRecommendations = remoteData.getRecommendations
+module.exports.getRemoteRecommendationPage = remoteData.getRecommendationPage
+module.exports.loadRemoteRecommendations = remoteData.refreshRecommendations
 module.exports.loadRemoteQuestion = remoteData.loadQuestion
 
 module.exports.searchRemoteQuestions = remoteData.searchQuestions
 
 module.exports.getRemoteOverview = remoteData.getOverview
+module.exports.refreshRemoteOverview = remoteData.refreshOverview
 module.exports.getRemoteCollection = remoteData.getCollection
 module.exports.getRemoteCollectionSummary = remoteData.getCollectionSummary
 module.exports.getRemoteCatalogPage = remoteData.getCatalogPage
@@ -178,4 +193,5 @@ module.exports.loadRemoteSubjects = remoteData.refreshSubjects
 module.exports.loadRemoteBanks = remoteData.refreshBanks
 module.exports.loadRemoteBank = remoteData.loadBank
 module.exports.loadRemoteChapters = remoteData.loadChapters
+module.exports.getRemoteChapters = remoteData.getChapters
 module.exports.previewRemotePracticeScope = remoteData.previewPracticeScope

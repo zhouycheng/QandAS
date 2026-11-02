@@ -31,6 +31,12 @@
     }
   },
   {
+    "operationId": "Admin_account_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/administrators/{id}",
+    "body": null
+  },
+  {
     "operationId": "Admin_update_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/administrators/{id}",
@@ -103,6 +109,47 @@
     "body": null
   },
   {
+    "operationId": "Operations_updateAnnouncement_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/announcements/{id}",
+    "body": {
+      "title": "示例内容",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Operations_deleteAnnouncement_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/announcements/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Operations_adminAnnouncements_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/announcements",
+    "body": null
+  },
+  {
+    "operationId": "Operations_createAnnouncement_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/announcements",
+    "body": {
+      "title": "示例内容"
+    }
+  },
+  {
+    "operationId": "Operations_announcements_GET",
+    "method": "GET",
+    "path": "/api/v1/announcements",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_adminSubject_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}",
+    "body": null
+  },
+  {
     "operationId": "Catalog_updateSubject_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/subjects/{id}",
@@ -110,6 +157,12 @@
       "name": "示例内容",
       "expectedVersion": "{{expectedVersion}}"
     }
+  },
+  {
+    "operationId": "Catalog_adminMajor_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors/{id}",
+    "body": null
   },
   {
     "operationId": "Catalog_updateMajor_PUT",
@@ -121,6 +174,12 @@
       "code": "{{code}}",
       "expectedVersion": "{{expectedVersion}}"
     }
+  },
+  {
+    "operationId": "Catalog_adminCollege_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/colleges/{id}",
+    "body": null
   },
   {
     "operationId": "Catalog_updateCollege_PUT",
@@ -145,6 +204,27 @@
     "body": {
       "name": "示例内容"
     }
+  },
+  {
+    "operationId": "Catalog_userAccess_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_grant_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/subjects/{id}/user-access",
+    "body": {
+      "userId": "{{userId}}",
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "Catalog_allMajors_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/majors",
+    "body": null
   },
   {
     "operationId": "Catalog_createMajor_POST",
@@ -196,9 +276,21 @@
     "body": null
   },
   {
+    "operationId": "Catalog_directory_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/directory-summary",
+    "body": null
+  },
+  {
     "operationId": "Catalog_adminMajors_GET",
     "method": "GET",
     "path": "/api/v1/admin/colleges/{id}/majors",
+    "body": null
+  },
+  {
+    "operationId": "Catalog_revoke_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/subjects/{id}/user-access/{userId}",
     "body": null
   },
   {
@@ -443,6 +535,12 @@
     "body": null
   },
   {
+    "operationId": "Content_publicationChecks_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{id}/publication-checks",
+    "body": null
+  },
+  {
     "operationId": "Discovery_saveCourse_PUT",
     "method": "PUT",
     "path": "/api/v1/me/subjects/{id}",
@@ -530,6 +628,21 @@
     "body": {
       "purpose": "REGISTER"
     }
+  },
+  {
+    "operationId": "Identity_verifyOwnEmailChallenge_POST",
+    "method": "POST",
+    "path": "/api/v1/me/email-challenges/{id}/verification",
+    "body": {
+      "purpose": "CHANGE_PASSWORD",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "Identity_heartbeat_POST",
+    "method": "POST",
+    "path": "/api/v1/me/activity/heartbeat",
+    "body": null
   },
   {
     "operationId": "Identity_wechatLogin_POST",
@@ -695,21 +808,39 @@
     "body": null
   },
   {
-    "operationId": "Learning_rankings_GET",
-    "method": "GET",
-    "path": "/api/v1/admin/statistics/rankings",
-    "body": null
-  },
-  {
     "operationId": "Learning_organizations_GET",
     "method": "GET",
     "path": "/api/v1/admin/statistics/organizations",
     "body": null
   },
   {
+    "operationId": "Learning_rankings_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/statistics/rankings",
+    "body": null
+  },
+  {
+    "operationId": "OnlineUsers_list_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/statistics/online-users",
+    "body": null
+  },
+  {
     "operationId": "Learning_activity_GET",
     "method": "GET",
     "path": "/api/v1/admin/statistics/activity",
+    "body": null
+  },
+  {
+    "operationId": "Monitoring_stream_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/monitoring/sync/stream",
+    "body": null
+  },
+  {
+    "operationId": "Monitoring_health_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/monitoring/health",
     "body": null
   },
   {
@@ -731,21 +862,6 @@
       "status": "OPEN",
       "response": "示例内容"
     }
-  },
-  {
-    "operationId": "Operations_updateAnnouncement_PUT",
-    "method": "PUT",
-    "path": "/api/v1/admin/announcements/{id}",
-    "body": {
-      "title": "示例内容",
-      "expectedVersion": "{{expectedVersion}}"
-    }
-  },
-  {
-    "operationId": "Operations_deleteAnnouncement_DELETE",
-    "method": "DELETE",
-    "path": "/api/v1/admin/announcements/{id}",
-    "body": null
   },
   {
     "operationId": "Operations_feedback_GET",
@@ -778,26 +894,6 @@
       "courseName": "示例内容",
       "body": "示例内容"
     }
-  },
-  {
-    "operationId": "Operations_adminAnnouncements_GET",
-    "method": "GET",
-    "path": "/api/v1/admin/announcements",
-    "body": null
-  },
-  {
-    "operationId": "Operations_createAnnouncement_POST",
-    "method": "POST",
-    "path": "/api/v1/admin/announcements",
-    "body": {
-      "title": "示例内容"
-    }
-  },
-  {
-    "operationId": "Operations_announcements_GET",
-    "method": "GET",
-    "path": "/api/v1/announcements",
-    "body": null
   },
   {
     "operationId": "Operations_adminFeedback_GET",
@@ -836,16 +932,32 @@
     "body": null
   },
   {
-    "operationId": "Practice_progressAck_PUT",
+    "operationId": "CommunityGroup_adminGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_save_PUT",
     "method": "PUT",
-    "path": "/api/v1/practice/sessions/{id}/progress-ack",
+    "path": "/api/v1/admin/community/group",
     "body": {
       "expectedVersion": "{{expectedVersion}}",
-      "currentIndex": 0,
-      "durationSeconds": 0,
-      "writerToken": "{{writerToken}}",
-      "clientSequence": "{{clientSequence}}"
+      "image": "示例内容",
+      "expiresAt": "2026-10-28T00:00:00.000Z"
     }
+  },
+  {
+    "operationId": "CommunityGroup_publicGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_image_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group/image",
+    "body": null
   },
   {
     "operationId": "Practice_assess_PUT",
@@ -956,6 +1068,48 @@
     "operationId": "Practice_result_GET",
     "method": "GET",
     "path": "/api/v1/practice/sessions/{id}/result",
+    "body": null
+  },
+  {
+    "operationId": "Practice_progressAck_PUT",
+    "method": "PUT",
+    "path": "/api/v1/practice/sessions/{id}/progress-ack",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "currentIndex": 0,
+      "durationSeconds": 0,
+      "writerToken": "{{writerToken}}",
+      "clientSequence": "{{clientSequence}}"
+    }
+  },
+  {
+    "operationId": "ProgressCommand_submit_POST",
+    "method": "POST",
+    "path": "/api/v1/practice/sessions/{id}/progress-commands",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "currentIndex": 0,
+      "durationSeconds": 0,
+      "writerToken": "{{writerToken}}",
+      "clientSequence": "{{clientSequence}}"
+    }
+  },
+  {
+    "operationId": "SyncRecovery_replay_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/sync/dead-letters/{commandId}/replay",
+    "body": null
+  },
+  {
+    "operationId": "ProgressCommand_read_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}/progress-commands/{commandId}",
+    "body": null
+  },
+  {
+    "operationId": "SyncRecovery_head_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/sync/dead-letters/head",
     "body": null
   }
 ]

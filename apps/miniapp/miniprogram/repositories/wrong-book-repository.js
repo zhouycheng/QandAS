@@ -4,6 +4,7 @@ const {
   getMasteredIds,
   getPendingIds,
   mergeResults,
+  mergeSelfAssessment,
   normalizeWrongBook,
   removeIds,
   summarizeWrongBook
@@ -71,6 +72,12 @@ function removeQuestions(storage, questionIds) {
   return saveWrongBook(storage, removeIds(getWrongBook(storage), questionIds, Date.now()))
 }
 
+function saveSelfAssessment(storage, id, assessment) {
+  const next = mergeSelfAssessment(getWrongBook(storage), id, assessment, Date.now())
+  getStorageAdapter(storage).set(WRONG_BOOK_STORAGE_KEY, next)
+  return next
+}
+
 function clearWrongBook(storage) {
   const adapter = getStorageAdapter(storage)
 
@@ -90,6 +97,7 @@ module.exports = {
   getWrongBook,
   removeQuestions,
   saveResults,
+  saveSelfAssessment,
   saveWrongBook,
   summarizeWrongBook
 }

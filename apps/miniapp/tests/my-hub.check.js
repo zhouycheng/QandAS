@@ -19,6 +19,7 @@ const reminderSettings = require(path.join(MINIPROGRAM, 'utils/reminder-settings
 const preferences = require(path.join(MINIPROGRAM, 'utils/preferences.js'))
 const authSession = require(path.join(MINIPROGRAM, 'utils/auth-session.js'))
 const { MyViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/my-viewmodel.js'))
+const { AboutViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/about-viewmodel.js'))
 const { AccountViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/account-viewmodel.js'))
 const { ReminderViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/reminder-viewmodel.js'))
 
@@ -61,18 +62,20 @@ function createMemoryStorage() {
 }
 
 function seedEmailAuth(storage, extra) {
-  storage.set('qandaAuth', authSession.buildEmailAuth(Object.assign({
+  const auth = authSession.buildEmailAuth(Object.assign({
     email: 'jiale@qq.com',
     userId: 'u-jiale',
     token: 'test-token',
     nickname: '铁柱'
-  }, extra || {})))
+  }, extra || {}))
+  auth.profile = { passwordSet: true, wechatBound: false }
+  storage.set('qandaAuth', auth)
 }
 
 // ---------- 一、页面注册与尺寸来源 ----------
 
 function checkPages() {
-  const pages = ['page/my/index', 'page/account/index', 'page/reminder/index']
+  const pages = ['page/my/index', 'page/account/index', 'page/reminder/index', 'page/about/index']
 
   pages.forEach((page) => {
     assert(`页面 - ${page} 已注册`, appConfig.pages.indexOf(page) >= 0)
@@ -115,7 +118,7 @@ function checkMyViewModel() {
   assert('我的 - 未登录资料头引导登录', guest.auth.displayName === '点击登录', guest.auth.displayName)
   assert('我的 - 未登录副行给账号状态', guest.auth.subText === '未登录', guest.auth.subText)
   assert('我的 - 学习设置依次显示偏好、布局、提醒与关于',
-    guest.learnRows.map((item) => item.key).join(',') === 'practice,layout,reminder,about',
+    guest.learnRows.map((item) => item.key).join(',') === 'practice,layout,reminder,feedback,about',
     JSON.stringify(guest.learnRows.map((item) => item.key)))
   assert('我的 - 法律协议两条', guest.links.length === 2)
 
@@ -153,12 +156,10 @@ function checkMyViewModel() {
     changed.learnRows.find((item) => item.key === 'layout').value === '已自定义',
     changed.learnRows.find((item) => item.key === 'layout').value)
   assert('我的 - 摘要跟随提醒开关',
-    changed.learnRows.find((item) => item.key === 'reminder').value === '已关闭',
+    changed.learnRows.find((item) => item.key === 'reminder').value === '本机偏好',
     changed.learnRows.find((item) => item.key === 'reminder').value)
 
-  // 弹层
-  assert('我的 - 关于行打开关于弹层', vm.tapRow('about').data.sheet === 'about')
-  assert('我的 - 关于弹层有题库规模', vm.openSheet('about').data.about.questionCount > 0)
+  assert('我的 - 关于行进入独立页面', vm.tapRow('about').command.url === '/page/about/index')
   assert('我的 - 协议弹层有正文', vm.openSheet('agreement').data.sheetBody.length > 10)
   assert('我的 - 隐私弹层有正文', vm.openSheet('privacy').data.sheetBody.length > 10)
   const refreshed = vm.projectRemote()
@@ -175,6 +176,24 @@ function checkMyViewModel() {
   assert('我的 - 退出登录回传未登录视图', logout.data.auth.loggedIn === false)
   assert('我的 - 退出登录有提示', logout.command.title === '已退出登录')
   assert('我的 - 重复退出给提示而非静默', vm.logout().command.title.indexOf('没有登录') >= 0)
+}
+
+function checkAboutViewModel() {
+  let enabled = false
+  const repository = {
+    getCatalogStats: () => ({ subjectCount: 2, bankCount: 3, questionCount: 10 }),
+    isPlaygroundEnabled: () => enabled,
+    setPlaygroundEnabled: (storage, value) => { enabled = value },
+    refreshRemote: () => { throw new Error('关于页不应发起网络请求') }
+  }
+  const vm = new AboutViewModel({ storage: createMemoryStorage(), repository, version: '1.0.0' })
+  const data = vm.load().data
+  assert('关于 - 展示应用版本和简短功能介绍', data.version === '1.0.0' && data.paragraphs.length === 1 && data.paragraphs[0].includes('课程复习与刷题小程序'))
+  assert('关于 - 开发工具默认关闭', !data.playgroundEnabled && vm.openPlayground() === null)
+  assert('关于 - 解锁后保留版本和入口', vm.unlockPlayground().data.version === '1.0.0' && vm.load().data.playgroundEnabled)
+  assert('关于 - 开发工具沿用原生跳转', vm.openPlayground().command.url === '/page/playground/index')
+  repository.setPlaygroundEnabled = () => { throw new Error('storage full') }
+  assert('关于 - 存储失败明确提示', vm.unlockPlayground().command.title === '设置保存失败，请重试')
 }
 
 // ---------- 三、账号管理 ----------
@@ -212,17 +231,16 @@ function checkAccountViewModel() {
   assert('账号 - 学院落盘', stored.college === '计算机学院', stored.college)
   assert('账号 - 保存后回到无改动', saved.data.dirty === false)
 
-  // 改密码 → 找回密码页，带上邮箱省得再敲一遍
+  // 账号安全由独立页面按模式加载。
   const password = vm.tapPassword()
 
-  assert('账号 - 改密码走找回密码页',
+  assert('账号 - 改密码进入邮箱确认流程',
     password.command.type === 'navigate' &&
-      password.command.url.indexOf('/page/forgot-password/index') === 0,
+      password.command.url === '/page/account-security/index?mode=password',
     JSON.stringify(password))
 
-  // 账号绑定入口提供当前可用状态。
-  assert('账号 - 换邮箱给说明', vm.tapEmail().command.title.indexOf('邮箱更换入口暂未开放') >= 0)
-  assert('账号 - 微信绑定给说明', vm.tapWechat().command.title.indexOf('微信') >= 0)
+  assert('账号 - 换邮箱进入独立流程', vm.tapEmail().command.url === '/page/account-security/index?mode=email')
+  assert('账号 - 微信绑定在资料页确认', vm.tapWechat().command.type === 'confirm-wechat-binding')
 
   // 微信身份下没有密码可改
   const wechatStorage = createMemoryStorage()
@@ -231,8 +249,8 @@ function checkAccountViewModel() {
   const wechatVm = new AccountViewModel({ storage: wechatStorage })
 
   assert('账号 - 微信身份下密码未设置', wechatVm.load().data.profile.passwordStatus === '未设置')
-  assert('账号 - 微信身份改密码给说明而非跳转',
-    !wechatVm.tapPassword().command.url, JSON.stringify(wechatVm.tapPassword()))
+  assert('账号 - 微信身份也能设置登录密码',
+    wechatVm.tapPassword().command.url === '/page/account-security/index?mode=password')
 }
 
 // ---------- 四、邮箱提醒：规则 ----------
@@ -407,6 +425,7 @@ function main() {
   checkPages()
   checkMyViewModel()
   checkAccountViewModel()
+  checkAboutViewModel()
   checkReminderRules()
   checkReminderViewModel()
   checkAnswerLayout()

@@ -1,12 +1,18 @@
-<!-- 账号管理｜设计稿 Figma 781:2123（画板 402x874，系数 750/402 ≈ 1.8657）
-     个人信息（头像 / 昵称 / 学院）+ 账号信息（邮箱 / 微信 / 密码）+ 保存资料。 -->
+<view class="secondary-page">
+<page-header title="个人资料" />
+<view class="profile-select-mask" wx:if="{{collegePickerVisible || majorPickerVisible || gradePickerVisible}}" catchtap="handlePickersClose"></view>
 <view class="list-page page-with-bottom-bar">
-  <view class="section">
-    <text class="group-title">个人信息</text>
-
-    <!-- 头像：微信现行唯一可用的头像是 open-type="chooseAvatar"，不能再用 getUserProfile -->
-    <view class="avatar-row">
-      <view class="profile-avatar avatar-sm">
+    <button
+      class="profile-avatar avatar-button"
+      size="mini"
+      open-type="chooseAvatar"
+      bindchooseavatar="handleChooseAvatar"
+      disabled="{{avatarPreparing || saving}}"
+      aria-label="更换头像"
+      hover-class="avatar-hover"
+      hover-start-time="0"
+      hover-stay-time="80"
+    >
         <image
           class="profile-avatar-img"
           src="{{draft.avatarUrl}}"
@@ -14,23 +20,11 @@
           wx:if="{{draft.avatarUrl}}"
         ></image>
         <view class="avatar-icon" wx:else></view>
-      </view>
-      <text class="avatar-label">头像</text>
-      <button
-        class="link-btn"
-        open-type="chooseAvatar"
-        bindchooseavatar="handleChooseAvatar"
-        hover-class="link-btn-hover"
-        hover-start-time="0"
-        hover-stay-time="80"
-      >
-        <text class="info-action">更换头像</text>
-        <view class="chevron"></view>
-      </button>
-    </view>
+    </button>
 
     <view class="field">
       <text class="field-label">昵称</text>
+      <view class="nickname-field">
       <input
         class="field-input"
         type="nickname"
@@ -41,19 +35,42 @@
         data-key="nickname"
         bindinput="handleFieldInput"
         bindblur="handleFieldBlur"
+        bindnicknamereview="handleNicknameReview"
+        focus="{{nicknameFocus}}"
       />
+      <button wx:if="{{profile.wechatBound}}" class="nickname-wechat-button" bindtap="handleUseWechatNickname" hover-class="text-hover" hover-start-time="0" hover-stay-time="80">使用微信昵称</button>
+      </view>
     </view>
 
-    <!-- 学院：设计稿「我的」页要显示这一行，所以得有个能填的地方 -->
-    <view class="field">
-      <text class="field-label">学院 / 单位</text>
-      <view class="field-input" bindtap="handleCollegeOpen" hover-class="card-hover" hover-start-time="0" hover-stay-time="80">{{draft.college || '未选择'}}</view>
+    <view class="field profile-selector {{collegePickerVisible ? 'is-open' : ''}}">
+      <text class="field-label">学院</text>
+      <view class="profile-select" role="button" aria-label="选择学院" bindtap="handleCollegeToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.college ? '' : 'is-placeholder'}}">{{draft.college || '请选择学院'}}</text><view class="profile-select-arrow"></view></view>
+      <scroll-view class="profile-options" wx:if="{{collegePickerVisible}}" scroll-y>
+        <view class="profile-option {{item.name === draft.college ? 'is-selected' : ''}}" wx:for="{{collegeOptions}}" wx:key="id" data-index="{{index}}" bindtap="handleCollegePick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item.name}}</view>
+        <view class="profile-option-note" wx:if="{{collegeLoading}}">正在读取学院…</view>
+        <view class="profile-option" wx:if="{{collegeError}}" bindtap="handleCollegeOpen" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{collegeError}} · 点击重试</view>
+        <view class="profile-option" wx:if="{{collegeHasMore && !collegeLoading}}" bindtap="handleCollegeMore" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">加载更多学院</view>
+      </scroll-view>
     </view>
-  </view>
-
-  <view class="group">
-    <text class="group-title">账号信息</text>
-
+    <view class="field profile-selector {{majorPickerVisible ? 'is-open' : ''}}">
+      <text class="field-label">专业</text>
+      <view class="profile-select" role="button" aria-label="选择专业" bindtap="handleMajorToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.major ? '' : 'is-placeholder'}}">{{draft.major || '请选择专业'}}</text><view class="profile-select-arrow"></view></view>
+      <scroll-view class="profile-options" wx:if="{{majorPickerVisible}}" scroll-y>
+        <view class="profile-option {{item.name === draft.major ? 'is-selected' : ''}}" wx:for="{{majorOptions}}" wx:key="id" data-index="{{index}}" bindtap="handleMajorPick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item.name}}</view>
+        <view class="profile-option-note" wx:if="{{majorLoading}}">正在读取专业…</view>
+        <view class="profile-option-note" wx:if="{{!majorLoading && !majorError && !majorOptions.length}}">该学院暂无可选专业</view>
+        <view class="profile-option" wx:if="{{majorError}}" bindtap="handleMajorOpen" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{majorError}} · 点击重试</view>
+        <view class="profile-option" wx:if="{{majorHasMore && !majorLoading}}" bindtap="handleMajorMore" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">加载更多专业</view>
+      </scroll-view>
+    </view>
+    <view class="field profile-selector {{gradePickerVisible ? 'is-open' : ''}}">
+      <text class="field-label">当前年级</text>
+      <view class="profile-select" role="button" aria-label="选择年级" bindtap="handleGradeToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.gradeLabel ? '' : 'is-placeholder'}}">{{draft.gradeLabel || '请选择年级'}}</text><view class="profile-select-arrow"></view></view>
+      <scroll-view class="profile-options" wx:if="{{gradePickerVisible}}" scroll-y>
+        <view class="profile-option {{item === draft.gradeLabel ? 'is-selected' : ''}}" wx:for="{{gradeLabels}}" wx:key="*this" data-index="{{index}}" bindtap="handleGradePick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item}}</view>
+      </scroll-view>
+    </view>
+    <text class="section-note">每年 9 月自动升一级，大四后为已毕业。你可以随时调整。</text>
     <view
       class="info-item"
       bindtap="handleEmailTap"
@@ -64,7 +81,7 @@
       <text class="info-label">绑定邮箱</text>
       <view class="info-line">
         <text class="info-value">{{profile.emailMasked || '未绑定'}}</text>
-        <text class="info-action">更换</text>
+        <text class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
         <view class="chevron"></view>
       </view>
     </view>
@@ -78,9 +95,9 @@
     >
       <text class="info-label">微信绑定</text>
       <view class="info-line">
-        <text class="info-value">{{profile.wechatStatus}}</text>
-        <text class="info-action">{{profile.wechatStatus === '已绑定' ? '管理' : '绑定'}}</text>
-        <view class="chevron"></view>
+        <text class="info-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
+        <text wx:if="{{profile.wechatAction}}" class="info-action">{{profile.wechatAction}}</text>
+        <view wx:if="{{!profile.wechatBound}}" class="chevron"></view>
       </view>
     </view>
 
@@ -100,21 +117,14 @@
     </view>
 
     <text class="section-note">邮箱用于登录、找回密码与接收提醒。</text>
-  </view>
 </view>
-<bottom-sheet visible="{{collegePickerVisible}}" title="选择院校" bind:close="handleCollegeClose">
-  <view class="load-note" wx:for="{{collegeOptions}}" wx:key="id" data-index="{{index}}" bindtap="handleCollegePick" hover-class="card-hover" hover-start-time="0" hover-stay-time="80">{{item.name}}</view>
-  <view class="load-note" wx:if="{{collegeLoading}}">正在读取院校…</view>
-  <view class="load-note" wx:if="{{collegeError}}" bindtap="handleCollegeOpen" hover-class="card-hover" hover-start-time="0" hover-stay-time="80">{{collegeError}} · 点击重试</view>
-  <view class="load-note" wx:if="{{collegeHasMore && !collegeLoading}}" bindtap="handleCollegeMore" hover-class="card-hover" hover-start-time="0" hover-stay-time="80">加载更多院校</view>
-</bottom-sheet>
-
 <view class="bottom-bar">
   <view
-    class="bottom-btn {{dirty ? '' : 'bottom-btn-disabled'}}"
+    class="bottom-btn {{dirty && !avatarPreparing ? '' : 'bottom-btn-disabled'}}"
     bindtap="handleSaveTap"
     hover-class="bottom-btn-hover"
     hover-start-time="0"
     hover-stay-time="80"
   >保存资料</view>
+</view>
 </view>

@@ -1,4 +1,6 @@
 import type { AdminContentGateway } from '../../src/gateways/admin-content-gateway'
+import type { OnlineQuery, SyncSnapshot, StreamStatus } from '../../src/types/monitoring'
+import { monitoringHealth, monitoringSnapshot } from '../scenarios/monitoring'
 import type {
   BankPublicationStatus,
   Chapter,
@@ -6,8 +8,6 @@ import type {
   CollegeQuery,
   CreateCollegeInput,
   CreateMajorInput,
-  CreateGradesInput,
-  Grade,
   CreateQuestionBankInput,
   CreateQuestionInput,
   CreateSubjectInput,
@@ -17,7 +17,6 @@ import type {
   SubjectQuery,
   UpdateCollegeInput,
   UpdateMajorInput,
-  UpdateGradeInput,
   UpdateQuestionBankInput,
   UpdateQuestionInput,
   UpdateSubjectInput,
@@ -35,26 +34,66 @@ import type {
   UserQuery,
 } from '../../src/types/operations'
 import { hashPassword, validateQuestion } from '../../src/lib/content-rules'
-import { getAdminSession } from '../../src/lib/auth'
+import { getAdminSession, isAuthenticated, logout } from '../../src/lib/auth'
 import { localDate } from '../../src/lib/format'
-import { referencesGrade } from '../../src/lib/directory'
-import { getScopeError } from '../../src/lib/bank-workbench'
-import { contentFingerprint, countQuestions, missingExplanations, questionItems, questionSearchText } from '../../src/lib/question-content'
+import { getScopeError, publicationChecks } from '../../src/lib/bank-workbench'
+import { contentFingerprint, countQuestions, missingExplanations, questionSearchText } from '../../src/lib/question-content'
 
-const DEFAULT_DELAY = 300
+import type { Page, PageQuery, QuestionBank, Question, Versioned } from '../../src/types/admin'
+import { ApiError } from '../../src/gateways/api-error'
+import { importBody } from '../../src/gateways/question-wire'
+
+const DEFAULT_DELAY = 30
+function paged<T>(items: T[], query: PageQuery = {}): Page<T> {
+  const { page = 1, pageSize = 20 } = query
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new ApiError('分页参数无效。')
+  return structuredClone({ items: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, pageSize })
+}
+function version(current: Versioned | undefined, expected: number | undefined) {
+  if (!current) throw new ApiError('记录不存在。', 'NOT_FOUND', 404)
+  if (current.version !== expected) throw new ApiError('内容已更新，请刷新后重试。', 'VERSION_CONFLICT', 409)
+}
+function bumpBank(id: string) {
+  const state = getMockAdminState()
+  state.setQuestionBanks(state.questionBanks.map(b => b.id === id ? { ...b, contentVersion: b.contentVersion + 1, version: b.version + 1 } : b))
+}
+function dateOffset(date: string, days: number) { return new Date(Date.parse(date + 'T00:00:00+08:00') + days * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' }) }
+function today() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' }) }
 
 function createId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
-async function simulateRequest(operation: 'read' | 'write' = 'read') {
+function validMockSession() {
+  const session = getAdminSession()
+  if (!session || !isAuthenticated()) return false
+  try {
+    const saved = JSON.parse(window.localStorage.getItem('qanda-mock-session:' + session.accessToken) ?? 'null')
+    const account = getMockAdminState().adminAccounts.find(a => a.id === session.id)
+    return Boolean(account && account.status === 'ACTIVE' && saved?.id === account.id && saved.credentialVersion === (account.credentialVersion ?? 1) && Date.parse(saved.expiresAt) > Date.now())
+  } catch { return false }
+}
+
+function requireMockSession() {
+  if (validMockSession()) return
+  window.localStorage.removeItem('qanda-mock-session:' + getAdminSession()?.accessToken)
+  logout()
+  window.dispatchEvent?.(new Event('storage'))
+  throw new ApiError('请重新登录。', 'UNAUTHENTICATED', 401)
+}
+
+async function simulateRequest(operation: 'read' | 'write' = 'read', anonymous = false) {
+  const token = getAdminSession()?.accessToken
+  if (!anonymous) requireMockSession()
   const { scenario, scenarioRevision } = getMockAdminState()
   const delay = scenario === 'slow' ? 3000 : DEFAULT_DELAY
   await new Promise((resolve) => window.setTimeout(resolve, delay))
+  if (!anonymous && token !== getAdminSession()?.accessToken) throw new ApiError('账号已切换，请重试。', 'IDENTITY_CHANGED', 499)
+  if (!anonymous) requireMockSession()
   if (getMockAdminState().scenario !== scenario || getMockAdminState().scenarioRevision !== scenarioRevision)
-    throw new Error('演示场景已切换，请重试。')
+    throw new ApiError('演示场景已切换，请重试。')
   if (scenario === 'error' || (scenario === 'write-error' && operation === 'write')) {
-    throw new Error('Playground 已模拟服务异常，请切换场景后重试。')
+    throw new ApiError('Playground 已模拟服务异常，请切换场景后重试。', 'TEMPORARILY_UNAVAILABLE', 503)
   }
 }
 
@@ -62,14 +101,14 @@ function normalize(value?: string) {
   return value?.trim().toLocaleLowerCase() ?? ''
 }
 
-export function recordOperation(module: string, content: string, result: 'SUCCESS' | 'FAILURE' = 'SUCCESS') {
+export function recordOperation(module: string, content: string, result: 'SUCCESS' | 'FAILURE' = 'SUCCESS', actor = getAdminSession()?.username ?? 'admin') {
   const state = getMockAdminState()
   state.setOperations({
     operationLogs: [
       {
         id: createId('log'),
         createdAt: new Date().toISOString(),
-        actor: getAdminSession()?.username ?? 'admin',
+        actor,
         module,
         content,
         result,
@@ -81,12 +120,53 @@ export function recordOperation(module: string, content: string, result: 'SUCCES
 }
 
 function publicAccount(account: import('../../src/types/operations').StoredAdminAccount) {
-  const { passwordHash: _passwordHash, ...publicFields } = account
+  const { passwordHash: _passwordHash, credentialVersion: _credentialVersion, ...publicFields } = account
   return publicFields
 }
 
 export class MockAdminContentGateway implements AdminContentGateway {
+  private communityGroup: import('../../src/types/operations').CommunityGroup = { version: 1, expiresAt: null, available: false }
+  private communityImage = ''
+  private syncDeadLetter = { commandId: '10000000-0000-4000-8000-000000000001', sessionId: '10000000-0000-4000-8000-000000000002', failure: { code: 'SYNC_PROCESSING_FAILED', message: '数据库暂不可用，已保留原命令', status: 503 }, reason: null }
+  private syncReplayed = false
+  readonly mode = 'mock' as const
+  async getCommunityGroup() { await simulateRequest(); return { ...this.communityGroup, available: !!this.communityGroup.expiresAt && Date.parse(this.communityGroup.expiresAt) > Date.now() } }
+  async saveCommunityGroup(input: { expectedVersion: number; image: string; expiresAt: string }) {
+    await simulateRequest('write')
+    if (input.expectedVersion !== this.communityGroup.version) throw new ApiError('内容已更新，请刷新后重试。', 'VERSION_CONFLICT', 409)
+    if (!/^data:image\/(png|jpeg);base64,/.test(input.image) || !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= Date.now()) throw new ApiError('请选择图片并填写有效期。', 'VALIDATION_FAILED', 422)
+    this.communityImage = input.image
+    this.communityGroup = { version: input.expectedVersion + 1, expiresAt: input.expiresAt, available: true }
+    return this.communityGroup
+  }
+  communityGroupImage(_version: number) { return this.communityImage }
+  async getSubject(id: string) { await simulateRequest(); const subject = getMockAdminState().subjects.find(s => s.id === id); if (!subject) throw new ApiError('课程不存在。', 'NOT_FOUND', 404); return structuredClone(subject) }
+  private imports = new Map<string, { body: string; count: number }>()
+  private images = new Map<string, Blob>()
+  private bank(id: string) {
+    const bank = getMockAdminState().questionBanks.find(b => b.id === id)
+    if (!bank) throw new ApiError('题库不存在。', 'NOT_FOUND', 404)
+    return bank
+  }
+  async currentAdmin() {
+    await simulateRequest()
+    const account = getMockAdminState().adminAccounts.find(a => a.id === getAdminSession()?.id && a.status === 'ACTIVE')
+    if (!account) throw new ApiError('请重新登录。')
+    return publicAccount(account)
+  }
+  async logoutAdmin() { await simulateRequest('write'); window.localStorage.removeItem('qanda-mock-session:' + getAdminSession()?.accessToken); window.localStorage.removeItem('qanda-admin-auth') }
+  async getQuestionBank(id: string) { await simulateRequest(); return structuredClone(this.bankFacts(this.bank(id))) }
+  private bankFacts(bank: QuestionBank) {
+    const questions = getMockAdminState().questions.filter(q => q.questionBankId === bank.id)
+    return { ...bank, questionCount: countQuestions(questions), activeQuestionCount: countQuestions(questions.filter(q => q.status === 'ACTIVE')) }
+  }
+  async publicationChecks(id: string) {
+    await simulateRequest()
+    const bank = this.bank(id), state = getMockAdminState()
+    return publicationChecks(bank, state.subjects.find(s => s.id === bank.subjectId), state.questions.filter(q => q.questionBankId === id), state)
+  }
   private validateQuestionPlacement(input: CreateQuestionInput) {
+    this.bank(input.questionBankId)
     if (
       getMockAdminState().questionBanks.some(
         (b) => b.id === input.questionBankId && b.publicationStatus === 'PUBLISHED',
@@ -94,74 +174,72 @@ export class MockAdminContentGateway implements AdminContentGateway {
       input.status === 'ACTIVE' &&
       missingExplanations([input]) > 0
     )
-      throw new Error('已发布题库中的启用题目必须有解析。可先下架题库整理。')
+      throw new ApiError('已发布题库中的启用题目必须有解析。可先下架题库整理。')
     if (
       input.chapterId &&
       !getMockAdminState().chapters.some(
         (c) => c.id === input.chapterId && c.questionBankId === input.questionBankId,
       )
     )
-      throw new Error('章节不存在或不属于当前题库。')
+      throw new ApiError('章节不存在或不属于当前题库。')
   }
 
   private validateBank(input: BankInput, requireScope = false) {
     const state = getMockAdminState()
+    if (!['ACTIVE', 'INACTIVE'].includes(input.status)) throw new ApiError('内容状态无效。')
     if (!input.name.trim() || input.name.trim().length > 80 || (input.description?.length ?? 0) > 2000)
-      throw new Error('题库名称必填且最多 80 字，说明最多 2000 字。')
-    if ((input.textbook?.length ?? 0) > 120 || (input.owner?.length ?? 0) > 60)
-      throw new Error('教材说明最多 120 字，负责人最多 60 字。')
+      throw new ApiError('题库名称必填且最多 80 字，说明最多 2000 字。')
+    if ((input.textbook?.length ?? 0) > 120) throw new ApiError('教材说明最多 120 字。')
+    if ((input.maintainerIds ?? []).some(id => !state.adminAccounts.some(a => a.id === id && a.status === 'ACTIVE'))) throw new ApiError('请选择启用的管理员作为维护者。')
     const scopeType = input.scopeType ?? 'ALL'
-    if (!['ALL', 'TARGETED'].includes(scopeType)) throw new Error('适用范围类型无效。')
+    if (!['ALL', 'TARGETED'].includes(scopeType)) throw new ApiError('适用范围类型无效。')
     const audiences = scopeType === 'ALL' ? [] : structuredClone(input.audiences ?? [])
     const scopeError = getScopeError(scopeType, audiences, state, requireScope)
-    if (scopeError) throw new Error(scopeError)
+    if (scopeError) throw new ApiError(scopeError)
     return {
       name: input.name.trim(),
       description: input.description?.trim() ?? '',
       textbook: input.textbook?.trim() ?? '',
-      owner: input.owner?.trim() ?? '',
+      maintainerIds: [...new Set(input.maintainerIds ?? [])],
       scopeType,
       audiences,
     }
   }
 
-  async setUserStatus(id: string, status: UserStatus) {
+  async setUserStatus(id: string, status: UserStatus, expectedVersion: number) {
     await simulateRequest('write')
     const state = getMockAdminState()
     const user = state.users.find((u) => u.id === id)
-    if (!user) throw new Error('用户不存在。')
-    if (!['ACTIVE', 'DISABLED'].includes(status)) throw new Error('账号状态无效。')
-    const updated = { ...user, status }
+    if (!user) throw new ApiError('用户不存在。', 'NOT_FOUND', 404)
+    if (!['ACTIVE', 'DISABLED'].includes(status)) throw new ApiError('账号状态无效。')
+    version(user, expectedVersion)
+    const updated = { ...user, status, version: user.version + 1 }
     state.setOperations({ users: state.users.map((u) => (u.id === id ? updated : u)) })
     recordOperation('用户管理', `${status === 'ACTIVE' ? '恢复' : '停用'}账号：${user.account}`)
-    return updated
   }
 
-  async listUserCourses(userId?: string) {
+  async listFeedback(query: PageQuery & { kind: StudentFeedback['kind']; status?: string }) {
     await simulateRequest()
-    return structuredClone(getMockAdminState().userCourses.filter((c) => !userId || c.userId === userId))
+    return paged(getMockAdminState().feedback.filter(f => f.kind === query.kind && (!query.status || f.status === query.status)).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)), query)
   }
 
-  async listFeedback() {
-    await simulateRequest()
-    return structuredClone(getMockAdminState().feedback).sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    )
-  }
-
-  async updateFeedback(id: string, input: Pick<StudentFeedback, 'status' | 'response'>) {
+  async updateFeedback(feedback: StudentFeedback, input: Pick<StudentFeedback, 'status' | 'response'>) {
     await simulateRequest('write')
     const state = getMockAdminState()
+    if (feedback.kind === 'QUESTION' && feedback.questionBankId) this.bank(feedback.questionBankId)
+    const id = feedback.id
     const current = state.feedback.find((f) => f.id === id)
-    if (!current) throw new Error('反馈不存在。')
+    version(current, feedback.version)
+    if (!current) throw new ApiError('反馈不存在。', 'NOT_FOUND', 404)
     if (!['OPEN', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED'].includes(input.status))
-      throw new Error('反馈状态无效。')
+      throw new ApiError('反馈状态无效。')
     if (typeof input.response !== 'string' || input.response.length > 2000)
-      throw new Error('处理说明最多 2000 字。')
+      throw new ApiError('处理说明最多 2000 字。')
     if (['RESOLVED', 'DISMISSED'].includes(input.status) && !input.response.trim())
-      throw new Error('结束处理前请填写给学生的回复。')
+      throw new ApiError('结束处理前请填写给学生的回复。')
     const updated = {
       ...current,
+      version: current.version + 1,
       status: input.status,
       response: input.response.trim(),
       updatedAt: new Date().toISOString(),
@@ -171,34 +249,35 @@ export class MockAdminContentGateway implements AdminContentGateway {
       '学生反馈',
       `处理${current.kind === 'QUESTION' ? '题目纠错' : '缺课需求'}：${current.title}`,
     )
-    return updated
   }
 
-  async listChapters(questionBankId?: string) {
+  async listChapters(questionBankId: string) {
     await simulateRequest()
     return structuredClone(
       getMockAdminState().chapters.filter((c) => !questionBankId || c.questionBankId === questionBankId),
-    ).sort((a, b) => a.sortOrder - b.sortOrder)
+    ).map(c => ({ ...c, questionCount: countQuestions(getMockAdminState().questions.filter(q => q.chapterId === c.id)) })).sort((a, b) => a.sortOrder - b.sortOrder)
   }
 
-  async saveChapter(id: string | undefined, input: Omit<Chapter, 'id'>) {
+  async saveChapter(id: string | undefined, input: Pick<Chapter, 'questionBankId' | 'name' | 'sortOrder'> & { expectedVersion?: number }) {
     await simulateRequest('write')
     const state = getMockAdminState()
     const current = state.chapters.find((c) => c.id === id)
-    if (id && !current) throw new Error('章节不存在。')
-    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new Error('题库不存在。')
+    if (id) version(current, input.expectedVersion)
+    this.bank(input.questionBankId)
+    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new ApiError('题库不存在。', 'NOT_FOUND', 404)
     if (current && current.questionBankId !== input.questionBankId)
-      throw new Error('章节不能迁移至其他题库。')
-    if (!input.name.trim() || input.name.length > 60) throw new Error('章节名称必填且最多 60 字。')
+      throw new ApiError('章节不能迁移至其他题库。')
+    if (!input.name.trim() || input.name.length > 60) throw new ApiError('章节名称必填且最多 60 字。')
     if (
       state.chapters.some(
         (c) => c.id !== id && c.questionBankId === input.questionBankId && c.name === input.name.trim(),
       )
     )
-      throw new Error('题库内已有同名章节。')
+      throw new ApiError('题库内已有同名章节。')
     const chapter = {
       ...input,
       name: input.name.trim(),
+      version: (current?.version ?? 0) + 1,
       id: id ?? createId('chapter'),
       sortOrder:
         current?.sortOrder ?? state.chapters.filter((c) => c.questionBankId === input.questionBankId).length,
@@ -208,61 +287,69 @@ export class MockAdminContentGateway implements AdminContentGateway {
         ? state.chapters.map((c) => (c.id === id ? chapter : c))
         : [...state.chapters, chapter],
     })
+    bumpBank(input.questionBankId)
     recordOperation('章节管理', `保存章节：${chapter.name}`)
     return chapter
   }
 
-  async reorderChapters(questionBankId: string, ids: string[]) {
+  async reorderChapters(questionBankId: string, ids: string[], expectedContentVersion: number) {
     await simulateRequest('write')
     const state = getMockAdminState()
+    if (this.bank(questionBankId).contentVersion !== expectedContentVersion) throw new ApiError('题库内容已更新，请刷新。', 'VERSION_CONFLICT', 409)
     const chapters = state.chapters.filter((c) => c.questionBankId === questionBankId)
     if (
       ids.length !== chapters.length ||
       new Set(ids).size !== ids.length ||
       chapters.some((c) => !ids.includes(c.id))
     )
-      throw new Error('章节顺序无效，请刷新重试。')
+      throw new ApiError('章节顺序无效，请刷新重试。')
     state.setOperations({
       chapters: state.chapters.map((c) =>
-        c.questionBankId === questionBankId ? { ...c, sortOrder: ids.indexOf(c.id) } : c,
+        c.questionBankId === questionBankId ? { ...c, sortOrder: ids.indexOf(c.id), version: c.version + 1 } : c,
       ),
     })
+    bumpBank(questionBankId)
     recordOperation('章节管理', '调整章节顺序')
   }
 
-  async deleteChapter(id: string) {
+  async deleteChapter(chapter: Chapter) {
+    const id = chapter.id
     await simulateRequest('write')
     const state = getMockAdminState()
-    if (!state.chapters.some((c) => c.id === id)) throw new Error('章节不存在。')
+    version(state.chapters.find(c => c.id === id), chapter.version)
+    this.bank(chapter.questionBankId)
     if (state.questions.some((q) => q.chapterId === id))
-      throw new Error('章节仍有题目，请先移动题目或设为未分章。')
+      throw new ApiError('章节仍有题目，请先移动题目或设为未分章。')
     state.setOperations({ chapters: state.chapters.filter((c) => c.id !== id) })
+    bumpBank(chapter.questionBankId)
     recordOperation('章节管理', '删除空章节')
   }
 
-  async setBankPublication(id: string, status: BankPublicationStatus) {
+  async setBankPublication(id: string, status: BankPublicationStatus, expectedVersion: number) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    const current = state.questionBanks.find((b) => b.id === id)
-    if (!current) throw new Error('题库不存在。')
-    if (!['DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'].includes(status)) throw new Error('发布状态无效。')
+    const current = this.bank(id)
+    version(current, expectedVersion)
+    if (!current) throw new ApiError('题库不存在。', 'NOT_FOUND', 404)
+    if (!['DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'].includes(status)) throw new ApiError('发布状态无效。')
     if (status === 'PUBLISHED') {
       if (!state.subjects.some((s) => s.id === current.subjectId && s.status === 'ACTIVE'))
-        throw new Error('请先启用所属课程。')
+        throw new ApiError('请先启用所属课程。')
       this.validateBank(current, true)
       const questions = state.questions.filter((q) => q.questionBankId === id && q.status === 'ACTIVE')
-      if (!questions.length) throw new Error('题库至少需要一道启用的题目才能发布。')
+      if (!questions.length) throw new ApiError('题库至少需要一道启用的题目才能发布。')
       for (const q of questions) {
         validateQuestion(q)
         this.validateQuestionPlacement(q)
       }
-      if (missingExplanations(questions)) throw new Error('发布前请补全所有启用题目及阅读小题的解析。')
-      if (!current.description.trim()) throw new Error('发布前请填写题库说明，帮助学生选择。')
+      if (missingExplanations(questions)) throw new ApiError('发布前请补全所有启用题目及阅读小题的解析。')
+      if (!current.description.trim()) throw new ApiError('发布前请填写题库说明，帮助学生选择。')
     }
     const updated = {
       ...current,
+      version: current.version + 1,
+      contentVersion: current.contentVersion + 1,
       publicationStatus: status,
-      status: status === 'PUBLISHED' ? ('ACTIVE' as const) : ('INACTIVE' as const),
       updatedAt: new Date().toISOString(),
     }
     state.setQuestionBanks(state.questionBanks.map((b) => (b.id === id ? updated : b)))
@@ -272,52 +359,58 @@ export class MockAdminContentGateway implements AdminContentGateway {
 
   async listUsers(query?: UserQuery) {
     await simulateRequest()
-    return getMockAdminState().users.filter(
+    const state = getMockAdminState()
+    return paged(state.users.filter(
       (u) =>
         normalize(`${u.name} ${u.account} ${u.email}`).includes(normalize(query?.keyword)) &&
         (!query?.collegeId || u.collegeId === query.collegeId) &&
         (!query?.majorId || u.majorId === query.majorId) &&
-        (!query?.status || u.status === query.status),
-    )
+        (!query?.status || u.status === query.status) && (!query?.grade || u.grade === query.grade),
+    ).map(user => ({ ...user, collegeName: state.colleges.find(c => c.id === user.collegeId)?.name, majorName: state.majors.find(m => m.id === user.majorId)?.name })), query)
   }
 
-  async listAdminAccounts() {
+  async listAdminAccounts(query?: PageQuery) {
     await simulateRequest()
-    return getMockAdminState().adminAccounts.map(publicAccount)
+    return paged(getMockAdminState().adminAccounts.map(publicAccount), query)
   }
 
   async saveAdminAccount(id: string | undefined, input: AdminAccountInput) {
     await simulateRequest('write')
     const security = getMockAdminState().security
-    if (!input.name.trim() || input.name.length > 40 || !/^[A-Za-z0-9_-]{3,30}$/.test(input.username))
-      throw new Error('姓名必填，登录账号须为 3 至 30 位字母、数字、短横线或下划线。')
-    if (!['ACTIVE', 'INACTIVE'].includes(input.status)) throw new Error('管理员状态无效。')
-    if (!id && !input.password) throw new Error('请设置初始密码。')
+    const name = input.name.trim().normalize('NFC'), username = input.username.trim().toLowerCase(), status = input.status ?? 'ACTIVE'
+    if (!name || [...name].length > 40 || /[\u0000-\u001f\u007f]/.test(name) || !/^[a-z0-9_.-]{3,64}$/.test(username))
+      throw new ApiError('姓名必填且不超过 40 字，登录账号须为 3 至 64 位字母、数字、点、短横线或下划线。')
+    if (!['ACTIVE', 'DISABLED'].includes(status)) throw new ApiError('管理员状态无效。')
+    if (input.role !== undefined && input.role !== 'SUPER_ADMIN') throw new ApiError('管理员角色无效。')
+    if (!id && !input.password) throw new ApiError('请设置初始密码。')
     if (
-      input.password &&
-      (input.password.length < security.minPasswordLength ||
-        (security.requireLetter && !/[A-Za-z]/.test(input.password)) ||
-        (security.requireNumber && !/\d/.test(input.password)) ||
-        (security.requireMixedCase && (!/[A-Z]/.test(input.password) || !/[a-z]/.test(input.password))))
+      input.password !== undefined &&
+      ([...input.password].length < security.minPasswordLength || [...input.password].length > 128 ||
+        /[\u0000\uD800-\uDFFF]/u.test(input.password) ||
+        (security.requireLetter && !/\p{L}/u.test(input.password)) ||
+        (security.requireNumber && !/\p{Nd}/u.test(input.password)) ||
+        (security.requireMixedCase && (!/\p{Uppercase}/u.test(input.password) || !/\p{Lowercase}/u.test(input.password))))
     )
-      throw new Error(`密码至少 ${security.minPasswordLength} 位，并满足已配置的字母、数字及大小写要求。`)
-    const passwordHash = input.password ? await hashPassword(input.password) : undefined
+      throw new ApiError(`密码至少 ${security.minPasswordLength} 位、最多 128 位，并满足已配置的字母、数字及大小写要求。`)
+    const passwordHash = input.password !== undefined ? await hashPassword(input.password) : undefined
     const state = getMockAdminState()
     const current = state.adminAccounts.find((a) => a.id === id)
-    if (id && !current) throw new Error('管理员不存在。')
+    if (id) version(current, input.expectedVersion)
     if (state.adminAccounts.some((a) => a.id !== id && normalize(a.username) === normalize(input.username)))
-      throw new Error('登录账号已存在。')
-    if (id === getAdminSession()?.id && input.status === 'INACTIVE') throw new Error('不能停用当前登录账号。')
-    if (input.status === 'INACTIVE' && !state.adminAccounts.some((a) => a.id !== id && a.status === 'ACTIVE'))
-      throw new Error('至少保留一个启用的管理员。')
+      throw new ApiError('登录账号已存在。')
+    if (status === 'DISABLED' && current?.status === 'ACTIVE' && !state.adminAccounts.some((a) => a.id !== id && a.status === 'ACTIVE'))
+      throw new ApiError('至少保留一个启用的管理员。')
     const account = {
       id: current?.id ?? createId('admin'),
-      name: input.name.trim(),
-      username: input.username,
-      status: input.status,
+      version: (current?.version ?? 0) + 1,
+      role: 'SUPER_ADMIN' as const,
+      name,
+      username,
+      status,
       createdAt: current?.createdAt ?? new Date().toISOString(),
       lastLoginAt: current?.lastLoginAt,
       passwordHash: passwordHash ?? current!.passwordHash,
+      credentialVersion: (current?.credentialVersion ?? 1) + (current && (input.password !== undefined || status === 'DISABLED') ? 1 : 0),
     }
     state.setOperations({
       adminAccounts: current
@@ -328,20 +421,14 @@ export class MockAdminContentGateway implements AdminContentGateway {
     return publicAccount(account)
   }
 
-  async deleteAdminAccount(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (id === getAdminSession()?.id) throw new Error('不能删除当前登录账号。')
-    if (!state.adminAccounts.some((a) => a.id === id)) throw new Error('管理员不存在。')
-    if (!state.adminAccounts.some((a) => a.id !== id && a.status === 'ACTIVE'))
-      throw new Error('至少保留一个启用的管理员。')
-    const name = state.adminAccounts.find((a) => a.id === id)!.username
-    state.setOperations({ adminAccounts: state.adminAccounts.filter((a) => a.id !== id) })
-    recordOperation('管理员账号', `删除账号：${name}`)
+  async disableAdminAccount(id: string, expectedVersion: number) {
+    const current = getMockAdminState().adminAccounts.find(a => a.id === id)
+    version(current, expectedVersion)
+    await this.saveAdminAccount(id, { ...current!, status: 'DISABLED', expectedVersion })
   }
 
   async loginAdmin(username: string, password: string) {
-    await simulateRequest()
+    await simulateRequest('read', true)
     const state = getMockAdminState()
     const attemptKey = `qanda-login-attempt:${normalize(username)}`
     let attempt = { count: 0, until: 0 }
@@ -352,7 +439,7 @@ export class MockAdminContentGateway implements AdminContentGateway {
       /* A damaged local demo counter starts over. */
     }
     if (state.security.lockEnabled && attempt.until > Date.now())
-      throw new Error('登录失败次数过多，请在锁定时间结束后重试。')
+      throw new ApiError('登录失败次数过多，请在锁定时间结束后重试。')
     const passwordHash = await hashPassword(password)
     const account = getMockAdminState().adminAccounts.find(
       (a) =>
@@ -372,57 +459,60 @@ export class MockAdminContentGateway implements AdminContentGateway {
               : 0,
         }),
       )
-      recordOperation('安全设置', `账号登录失败：${username.slice(0, 30)}`, 'FAILURE')
-      throw new Error('账号或密码错误，或账号已停用。')
+      recordOperation('安全设置', `账号登录失败：${username.slice(0, 30)}`, 'FAILURE', username.slice(0, 30))
+      throw new ApiError('账号或密码错误，或账号已停用。')
     }
     window.localStorage.removeItem(attemptKey)
     const updated = { ...account, lastLoginAt: new Date().toISOString() }
     state.setOperations({
       adminAccounts: getMockAdminState().adminAccounts.map((a) => (a.id === account.id ? updated : a)),
     })
-    recordOperation('管理员账号', `登录成功：${account.username}`)
-    return publicAccount(updated)
+    recordOperation('管理员账号', `登录成功：${account.username}`, 'SUCCESS', account.username)
+    const accessToken = 'mock-' + crypto.randomUUID(), expiresAt = new Date(Date.now() + 86400000).toISOString()
+    window.localStorage.setItem('qanda-mock-session:' + accessToken, JSON.stringify({ id: account.id, credentialVersion: account.credentialVersion ?? 1, expiresAt }))
+    return { account: publicAccount(updated), accessToken, expiresAt, sessionMinutes: state.security.sessionMinutes }
   }
 
-  async listAnnouncements() {
+  async listAnnouncements(query?: PageQuery) {
     await simulateRequest()
     // shortcut: Scheduled publishing is evaluated on reads; use a backend scheduler during HTTP integration.
-    return getMockAdminState().announcements.map((a) =>
+    return paged(getMockAdminState().announcements.map((a) =>
       a.status === 'SCHEDULED' && a.publishAt && new Date(a.publishAt).getTime() <= Date.now()
         ? { ...a, status: 'PUBLISHED' as const }
         : a,
-    )
+    ).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt.localeCompare(a.updatedAt)), query)
   }
 
   async saveAnnouncement(id: string | undefined, input: AnnouncementInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    if (id && !state.announcements.some((a) => a.id === id)) throw new Error('公告不存在。')
-    if (!input.title.trim() || input.title.length > 80) throw new Error('公告标题必填，且最多 80 字。')
+    if (id) version(state.announcements.find(a => a.id === id), input.expectedVersion)
+    if (!input.title.trim() || input.title.length > 80) throw new ApiError('公告标题必填，且最多 80 字。')
     if (
       !['DRAFT', 'PUBLISHED', 'SCHEDULED'].includes(input.status) ||
       !['ALL', 'SELECTED'].includes(input.audience)
     )
-      throw new Error('公告状态或发布范围无效。')
+      throw new ApiError('公告状态或发布范围无效。')
     if (input.status !== 'DRAFT' && (!input.summary.trim() || !input.body.trim() || !input.platforms.length))
-      throw new Error('请填写摘要、正文并选择展示端。')
-    if (input.platforms.some((p) => p !== 'MINIAPP' && p !== 'WEB')) throw new Error('展示端无效。')
+      throw new ApiError('请填写摘要、正文并选择展示端。')
+    if (input.platforms.some((p) => p !== 'MINI_PROGRAM' && p !== 'WEB')) throw new ApiError('展示端无效。')
     if (
       input.audience === 'SELECTED' &&
       ((input.status !== 'DRAFT' && !input.userIds.length) ||
         input.userIds.some((id) => !state.users.some((u) => u.id === id)))
     )
-      throw new Error('请选择有效的指定用户。')
+      throw new ApiError('请选择有效的指定用户。')
     if (
       input.status === 'SCHEDULED' &&
       (!input.publishAt ||
         !Number.isFinite(Date.parse(input.publishAt)) ||
         Date.parse(input.publishAt) <= Date.now())
     )
-      throw new Error('定时发布时间必须晚于当前时间。')
+      throw new ApiError('定时发布时间必须晚于当前时间。')
     const announcement = {
       ...input,
       id: id ?? createId('announcement'),
+      version: (state.announcements.find(a => a.id === id)?.version ?? 0) + 1,
       title: input.title.trim(),
       userIds: input.audience === 'ALL' ? [] : [...new Set(input.userIds)],
       publishAt:
@@ -445,11 +535,12 @@ export class MockAdminContentGateway implements AdminContentGateway {
     return announcement
   }
 
-  async deleteAnnouncement(id: string) {
+  async deleteAnnouncement(id: string, expectedVersion: number) {
     await simulateRequest('write')
     const state = getMockAdminState()
     const announcement = state.announcements.find((a) => a.id === id)
-    if (!announcement) throw new Error('公告不存在。')
+    version(announcement, expectedVersion)
+    if (!announcement) throw new ApiError('公告不存在。', 'NOT_FOUND', 404)
     state.setOperations({ announcements: state.announcements.filter((a) => a.id !== id) })
     recordOperation('公告', `删除公告：${announcement.title}`)
   }
@@ -461,9 +552,7 @@ export class MockAdminContentGateway implements AdminContentGateway {
 
   async saveSecuritySettings(input: SecuritySettings) {
     await simulateRequest('write')
-    // shortcut: Device verification and first-login changes need a real identity service; enable them at integration.
-    if (input.newDeviceVerification || input.changeInitialPassword)
-      throw new Error('新设备验证和首次改密需接入真实身份服务，演示环境暂不可启用。')
+    version(getMockAdminState().security, input.version)
     if (
       ![input.maxAttempts, input.lockMinutes, input.sessionMinutes, input.minPasswordLength].every(
         Number.isInteger,
@@ -474,11 +563,11 @@ export class MockAdminContentGateway implements AdminContentGateway {
       input.lockMinutes > 1440 ||
       input.sessionMinutes < 5 ||
       input.sessionMinutes > 1440 ||
-      input.minPasswordLength < 8 ||
+      input.minPasswordLength < 12 ||
       input.minPasswordLength > 64
     )
-      throw new Error('安全设置数值超出允许范围。')
-    const security = { ...input, updatedAt: new Date().toISOString() }
+      throw new ApiError('安全设置数值超出允许范围。')
+    const security = { ...input, version: input.version + 1, updatedAt: new Date().toISOString() }
     getMockAdminState().setOperations({ security })
     recordOperation('安全设置', '保存管理员登录与密码规则')
     return security
@@ -486,62 +575,91 @@ export class MockAdminContentGateway implements AdminContentGateway {
 
   async listOperationLogs(query?: LogQuery) {
     await simulateRequest()
-    return getMockAdminState().operationLogs.filter(
+    return paged(getMockAdminState().operationLogs.filter(
       (l) =>
         normalize(`${l.actor} ${l.content}`).includes(normalize(query?.keyword)) &&
         (!query?.module || l.module === query.module) &&
         (!query?.result || l.result === query.result) &&
         (!query?.start || localDate(new Date(l.createdAt)) >= query.start) &&
         (!query?.end || localDate(new Date(l.createdAt)) <= query.end),
-    )
+    ), query)
   }
 
+  private activityRows(query: ActivityQuery) {
+    const state = getMockAdminState()
+    const users = state.users.filter(u => (!query.collegeId || u.collegeId === query.collegeId) && (!query.majorId || u.majorId === query.majorId) && (!query.grade || u.grade === query.grade))
+    const allowed = new Set(users.map(u => u.id))
+    const records = state.activityRecords.filter(r => !query.platform || r.platform === query.platform).map(r => ({ ...r, userIds: r.userIds.filter(id => allowed.has(id)), learning: r.learning.filter(l => allowed.has(l.userId)) }))
+    return { users, records }
+  }
+  private onlineRows(query: OnlineQuery) {
+    const { users } = this.activityRows(query), state = getMockAdminState(), now = Date.now()
+    const sessions = (state.foregroundSessions || []).filter(s => !s.revoked && Date.parse(s.expiresAt) > now && Date.parse(s.seenAt) > now - 120000 && Date.parse(s.seenAt) <= now && (!query.platform || s.platform === query.platform))
+    return users.filter(u => u.status === 'ACTIVE' && normalize(u.account + ' ' + u.name).includes(normalize(query.keyword))).flatMap(u => {
+      const active = sessions.filter(s => s.userId === u.id)
+      if (!active.length) return []
+      return [{ userId: u.id, nickname: u.name, accountCode: u.account, collegeName: state.colleges.find(c => c.id === u.collegeId)?.name, majorName: state.majors.find(m => m.id === u.majorId)?.name, currentGrade: u.grade,
+        onlineSessionCount: active.length, lastHeartbeatAt: active.map(s => s.seenAt).sort().at(-1)!,
+        clients: [...new Set(active.map(s => s.platform))].map(platform => ({ platform, sessionCount: active.filter(s => s.platform === platform).length, lastHeartbeatAt: active.filter(s => s.platform === platform).map(s => s.seenAt).sort().at(-1)! })) }]
+    }).sort((a, b) => b.lastHeartbeatAt.localeCompare(a.lastHeartbeatAt) || a.userId.localeCompare(b.userId))
+  }
+  async getOnlineUsers(query: OnlineQuery) { await simulateRequest(); return { ...paged(this.onlineRows(query), query), sampledAt: new Date().toISOString() } }
+  async getSystemHealth() { await simulateRequest(); return monitoringHealth(this.syncReplayed ? 0 : 1) }
+  async getDeadLetterHead() { await simulateRequest(); return { item: this.syncReplayed ? null : structuredClone(this.syncDeadLetter) } }
+  async replaySyncCommand(commandId: string) {
+    await simulateRequest('write')
+    if (commandId !== this.syncDeadLetter.commandId) throw new ApiError('死信队首已变更，请重新查看', 'DEAD_LETTER_CHANGED', 409)
+    if (!this.syncReplayed) recordOperation('数据同步', '重新入队 ' + commandId)
+    this.syncReplayed = true
+    return { id: commandId, version: 1 }
+  }
+  watchSyncHealth(onSnapshot: (data: SyncSnapshot) => void, onStatus: (status: StreamStatus) => void) {
+    let stopped = false, timer: ReturnType<typeof setTimeout>
+    const tick = async () => {
+      try { await simulateRequest(); if (!stopped) { onStatus('LIVE'); onSnapshot(monitoringSnapshot(this.syncReplayed ? 0 : 1)) } }
+      catch (error) { if (!stopped) { if (error instanceof ApiError && [401, 403].includes(error.status)) { stopped = true; onStatus('AUTH_EXPIRED') } else onStatus('RECONNECTING') } }
+      finally { if (!stopped) timer = setTimeout(() => { void tick() }, 5000) }
+    }
+    onStatus('CONNECTING'); void tick()
+    return () => { stopped = true; clearTimeout(timer) }
+  }
   async getActivity(query: ActivityQuery) {
     await simulateRequest()
-    const state = getMockAdminState()
-    const records = state.activityRecords.filter(
-      (r) =>
-        r.date >= query.start && r.date <= query.end && (!query.platform || r.platform === query.platform),
-    )
-    const all = state.activityRecords.filter(
-      (r) => r.date <= query.end && (!query.platform || r.platform === query.platform),
-    )
-    const last = (days: number) => {
-      const d = new Date(`${query.end}T12:00:00`)
-      d.setDate(d.getDate() - days + 1)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    }
-    const ids = (since: string, until = query.end) =>
-      new Set(all.filter((r) => r.date >= since && r.date <= until).flatMap((r) => r.userIds))
-    const recent = ids(last(7))
-    const previous = ids(last(14), last(8))
-    const counts = new Map<string, Set<string>>()
-    for (const r of records)
-      for (const id of r.userIds) {
-        if (!counts.has(id)) counts.set(id, new Set())
-        counts.get(id)!.add(r.date)
-      }
-    return {
-      dailyActive: ids(query.end).size,
-      weeklyActive: recent.size,
-      monthlyActive: ids(last(30)).size,
-      retention: previous.size
-        ? Math.round(([...previous].filter((id) => recent.has(id)).length / previous.size) * 1000) / 10
-        : 0,
-      records,
-      ranking: state.users
-        .filter((u) => counts.has(u.id))
-        .map((u) => ({ ...u, activeDays: counts.get(u.id)!.size }))
-        .sort((a, b) => b.activeDays - a.activeDays || b.answeredCount - a.answeredCount),
-    }
+    const { records } = this.activityRows(query), current = today()
+    const online = this.onlineRows(query).length
+    const ids = (days: number) => new Set(records.filter(r => r.date >= dateOffset(current, 1 - days) && r.date <= current).flatMap(r => r.userIds))
+    const end = query.periodDate ?? current, length = query.period === 'MONTH' ? 30 : query.period === 'DAY' ? 1 : 7
+    const trend = Array.from({ length }, (_, i) => { const date = dateOffset(end, i - length + 1); return { date, activeUsers: new Set(records.filter(r => r.date === date).flatMap(r => r.userIds)).size } })
+    return { onlineUsers: online, dailyActive: ids(1).size, weeklyActive: ids(7).size, monthlyActive: ids(30).size, updatedAt: new Date().toISOString(), activeUsers: new Set(records.filter(r => r.date >= trend[0].date && r.date <= end).flatMap(r => r.userIds)).size, retention: 0, records: trend }
   }
+  async getRankings(query: ActivityQuery) {
+    await simulateRequest()
+    const { users, records } = this.activityRows(query), end = query.periodDate ?? today()
+    const start = query.period === 'ALL' ? '0001-01-01' : dateOffset(end, 1 - (query.period === 'DAY' ? 1 : query.period === 'MONTH' ? 30 : 7))
+    const selected = records.filter(r => r.date >= start && r.date <= end), state = getMockAdminState()
+    const rows = users.map(u => {
+      const visits = selected.filter(r => r.userIds.includes(u.id)), learning = selected.flatMap(r => r.learning.filter(l => l.userId === u.id))
+      return { userId: u.id, nickname: u.name, accountCode: u.account, collegeName: state.colleges.find(c => c.id === u.collegeId)?.name, majorName: state.majors.find(m => m.id === u.majorId)?.name, currentGrade: u.grade,
+        activeDays: new Set(visits.map(r => r.date)).size, answeredCount: learning.reduce((sum, l) => sum + l.answeredCount, 0), correctCount: learning.reduce((sum, l) => sum + l.correctCount, 0), durationSeconds: learning.reduce((sum, l) => sum + l.durationSeconds, 0),
+        lastActiveAt: visits.length ? new Date(Math.min(Date.now(), Date.parse([...visits].sort((a,b) => b.date.localeCompare(a.date))[0].date + 'T20:00:00+08:00'))).toISOString() : undefined }
+    }).filter(r => r.activeDays || r.answeredCount).sort((a,b) => (query.sort === 'ANSWERED_COUNT' ? b.answeredCount - a.answeredCount || b.activeDays - a.activeDays : query.sort === 'DURATION' ? b.durationSeconds - a.durationSeconds || b.answeredCount - a.answeredCount : b.activeDays - a.activeDays || b.answeredCount - a.answeredCount) || a.userId.localeCompare(b.userId))
+    return paged(rows.map((row, i) => ({ ...row, rank: i + 1 })), query)
+  }
+  private validateImport(input: ImportQuestionsInput) {
+    const bank = this.bank(input.questionBankId)
+    if (bank.contentVersion !== input.expectedContentVersion) throw new ApiError('题库内容已更新，请重新预览。', 'VERSION_CONFLICT', 409)
+    if (!input.questions.length || countQuestions(input.questions) > 3000) throw new ApiError('每批最多 3000 道实际作答题。')
+    if (new TextEncoder().encode(JSON.stringify(importBody(input))).length > 8 * 1024 * 1024) throw new ApiError('每批请求最多 8 MiB。')
+    input.questions.forEach((q, index) => { try { validateQuestion(q); this.validateQuestionPlacement({ ...q, questionBankId: input.questionBankId }) } catch (error) { throw new ApiError(`第 ${index + 1} 题：${(error as Error).message}`) } })
+  }
+  async previewImport(input: ImportQuestionsInput) { await simulateRequest(); this.validateImport(input); return { acceptedCount: countQuestions(input.questions) } }
 
   async importQuestions(input: ImportQuestionsInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new Error('目标题库不存在。')
-    if (!input.questions.length || countQuestions(input.questions) > 10000)
-      throw new Error('一次最多导入 10000 道题。')
+    const body = JSON.stringify(importBody(input)), cached = this.imports.get(input.idempotencyKey)
+    if (cached) { if (cached.body !== body) throw new ApiError('幂等键已被其他内容使用。', 'IDEMPOTENCY_CONFLICT', 409); return cached.count }
+    this.validateImport(input)
     const now = new Date().toISOString()
     // Validate the whole batch before writing so a bad question cannot leave a partial import.
     const questions = input.questions.map((q, index) => {
@@ -550,16 +668,19 @@ export class MockAdminContentGateway implements AdminContentGateway {
         this.validateQuestionPlacement(inputQuestion)
         return {
           ...validateQuestion(inputQuestion),
+          version: 1,
           revision: 1,
           id: createId('question'),
           createdAt: now,
           updatedAt: now,
         }
       } catch (error) {
-        throw new Error(`第 ${index + 1} 题：${error instanceof Error ? error.message : '内容无效'}`)
+        throw new ApiError(`第 ${index + 1} 题：${error instanceof Error ? error.message : '内容无效'}`)
       }
     })
     state.setQuestions([...questions, ...state.questions])
+    bumpBank(input.questionBankId)
+    this.imports.set(input.idempotencyKey, { body, count: countQuestions(questions) })
     recordOperation('题库工作台', `导入题目（共 ${countQuestions(questions)} 道，${questions.length} 条记录）`)
     return countQuestions(questions)
   }
@@ -574,17 +695,41 @@ export class MockAdminContentGateway implements AdminContentGateway {
       questionCount: countQuestions(questions),
       userCount: users.length,
       answeredCount: activityRecords.reduce((sum, r) => sum + r.answeredCount, 0),
-      choiceCount: questions.flatMap(questionItems).filter((q) => q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE').length,
-      trueFalseCount: questions.flatMap(questionItems).filter((q) => q.type === 'TRUE_FALSE').length,
+      publishedBankCount: questionBanks.filter(b => b.publicationStatus === 'PUBLISHED').length,
+      draftBankCount: questionBanks.filter(b => b.publicationStatus === 'DRAFT').length,
+      pendingFeedbackCount: getMockAdminState().feedback.filter(f => f.kind === 'QUESTION' && ['OPEN','IN_PROGRESS'].includes(f.status)).length,
+      pendingCourseRequestCount: getMockAdminState().feedback.filter(f => f.kind === 'COURSE_REQUEST' && ['OPEN','IN_PROGRESS'].includes(f.status)).length,
+      missingExplanationCount: missingExplanations(questions.filter(q => q.status === 'ACTIVE')),
+      unassignedQuestionCount: countQuestions(questions.filter(q => !q.chapterId)),
+      emptyBankCount: questionBanks.filter(b => !questions.some(q => q.questionBankId === b.id && q.status === 'ACTIVE')).length,
     }
   }
 
   async listColleges(query?: CollegeQuery) {
     await simulateRequest()
     const keyword = normalize(query?.keyword)
-    return getMockAdminState().colleges.filter((college) =>
-      normalize(`${college.name} ${college.code}`).includes(keyword),
-    )
+    return paged(getMockAdminState().colleges.filter((college) =>
+      normalize(`${college.name} ${college.code}`).includes(keyword) && (!query?.status || college.status === query.status),
+    ).map(c => ({ ...c, studentCount: getMockAdminState().users.filter(u => u.collegeId === c.id).length })), query)
+  }
+
+  async getCollege(id: string) {
+    await simulateRequest()
+    const value = getMockAdminState().colleges.find(row => row.id === id)
+    if (!value) throw new ApiError('学院不存在', 'NOT_FOUND', 404)
+    return structuredClone(value)
+  }
+  async getMajor(id: string) {
+    await simulateRequest()
+    const value = getMockAdminState().majors.find(row => row.id === id)
+    if (!value) throw new ApiError('专业不存在', 'NOT_FOUND', 404)
+    return structuredClone(value)
+  }
+  async getAdminAccount(id: string) {
+    await simulateRequest()
+    const value = getMockAdminState().adminAccounts.find(row => row.id === id)
+    if (!value) throw new ApiError('管理员不存在', 'NOT_FOUND', 404)
+    return publicAccount(value)
   }
 
   async createCollege(input: CreateCollegeInput) {
@@ -592,15 +737,15 @@ export class MockAdminContentGateway implements AdminContentGateway {
     const state = getMockAdminState()
     const name = input.name.trim()
     const code = input.code.trim().toUpperCase()
-    if (!name || !code) throw new Error('名称和代码不能为空。')
+    if (!name || !code) throw new ApiError('名称和代码不能为空。')
     if (state.colleges.some((college) => normalize(college.name) === normalize(name))) {
-      throw new Error('学院名称已存在。')
+      throw new ApiError('学院名称已存在。')
     }
     if (state.colleges.some((college) => normalize(college.code) === normalize(code))) {
-      throw new Error('学院代码已存在。')
+      throw new ApiError('学院代码已存在。')
     }
     const now = new Date().toISOString()
-    const college = { ...input, name, code, id: createId('college'), createdAt: now, updatedAt: now }
+    const college = { ...input, name, code, id: createId('college'), version: 1, createdAt: now, updatedAt: now }
     state.setColleges([college, ...state.colleges])
     recordOperation('学院管理', `保存：${college.name}`)
     return college
@@ -610,68 +755,53 @@ export class MockAdminContentGateway implements AdminContentGateway {
     await simulateRequest('write')
     const state = getMockAdminState()
     const current = state.colleges.find((college) => college.id === id)
-    if (!current) throw new Error('学院不存在。')
+    if (!current) throw new ApiError('学院不存在。', 'NOT_FOUND', 404)
+    version(current, input.expectedVersion)
     const name = input.name.trim()
     const code = input.code.trim().toUpperCase()
-    if (!name || !code) throw new Error('名称和代码不能为空。')
+    if (!name || !code) throw new ApiError('名称和代码不能为空。')
     if (state.colleges.some((college) => college.id !== id && normalize(college.name) === normalize(name))) {
-      throw new Error('学院名称已存在。')
+      throw new ApiError('学院名称已存在。')
     }
     if (state.colleges.some((college) => college.id !== id && normalize(college.code) === normalize(code))) {
-      throw new Error('学院代码已存在。')
+      throw new ApiError('学院代码已存在。')
     }
-    const college = { ...current, ...input, name, code, updatedAt: new Date().toISOString() }
+    const college = { ...current, ...input, version: current.version + 1, name, code, updatedAt: new Date().toISOString() }
     state.setColleges(state.colleges.map((item) => (item.id === id ? college : item)))
     recordOperation('学院管理', `保存：${college.name}`)
     return college
   }
 
-  async deleteCollege(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (state.questionBanks.some((b) => b.audiences.some((a) => a.collegeId === id)))
-      throw new Error('学院仍被题库推荐范围引用，请先调整适用范围。')
-    if (state.users.some((u) => u.collegeId === id)) throw new Error('学院仍有用户，请停用以保留资料关联。')
-    if (state.majors.some((major) => major.collegeId === id)) {
-      throw new Error('学院下仍有专业，请先删除或迁移专业。')
-    }
-    state.setColleges(state.colleges.filter((college) => college.id !== id))
-    recordOperation('学院管理', `删除记录：${id}`)
-  }
-
   async listMajors(query?: MajorQuery) {
     await simulateRequest()
-    const keyword = normalize(query?.keyword)
-    return getMockAdminState()
-      .majors.filter((major) => !query?.collegeId || major.collegeId === query.collegeId)
-      .filter((major) => normalize(`${major.name} ${major.code}`).includes(keyword))
+    return paged(getMockAdminState().majors.filter(m => (!query?.collegeId || m.collegeId === query.collegeId) && (!query?.status || m.status === query.status) && normalize(m.name + ' ' + m.code).includes(normalize(query?.keyword))).map(m => ({ ...m, studentCount: getMockAdminState().users.filter(u => u.majorId === m.id).length })), query)
   }
 
   async createMajor(input: CreateMajorInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
     if (!state.colleges.some((college) => college.id === input.collegeId)) {
-      throw new Error('所属学院不存在。')
+      throw new ApiError('所属学院不存在。', 'NOT_FOUND', 404)
     }
     const name = input.name.trim()
     const code = input.code.trim().toUpperCase()
-    if (!name || !code) throw new Error('名称和代码不能为空。')
+    if (!name || !code) throw new ApiError('名称和代码不能为空。')
     if (
       state.majors.some(
         (major) => major.collegeId === input.collegeId && normalize(major.name) === normalize(name),
       )
     ) {
-      throw new Error('该学院下已存在同名专业。')
+      throw new ApiError('该学院下已存在同名专业。')
     }
     if (
       state.majors.some(
         (major) => major.collegeId === input.collegeId && normalize(major.code) === normalize(code),
       )
     ) {
-      throw new Error('该学院下已存在相同专业代码。')
+      throw new ApiError('该学院下已存在相同专业代码。')
     }
     const now = new Date().toISOString()
-    const major = { ...input, name, code, id: createId('major'), createdAt: now, updatedAt: now }
+    const major = { ...input, name, code, id: createId('major'), version: 1, createdAt: now, updatedAt: now }
     state.setMajors([major, ...state.majors])
     recordOperation('专业管理', `保存：${major.name}`)
     return major
@@ -681,29 +811,30 @@ export class MockAdminContentGateway implements AdminContentGateway {
     await simulateRequest('write')
     const state = getMockAdminState()
     const current = state.majors.find((major) => major.id === id)
-    if (!current) throw new Error('专业不存在。')
+    if (!current) throw new ApiError('专业不存在。', 'NOT_FOUND', 404)
+    version(current, input.expectedVersion)
     if (
       current.collegeId !== input.collegeId &&
       state.questionBanks.some((b) =>
         b.audiences.some((a) => a.majorId === id && a.collegeId && a.collegeId !== input.collegeId),
       )
     )
-      throw new Error('迁移会使题库的学院与专业条件冲突，请先调整适用范围。')
+      throw new ApiError('迁移会使题库的学院与专业条件冲突，请先调整适用范围。')
     if (current.collegeId !== input.collegeId && state.users.some((u) => u.majorId === id))
-      throw new Error('专业仍有用户，暂不能迁移学院。')
+      throw new ApiError('专业仍有用户，暂不能迁移学院。')
     if (!state.colleges.some((college) => college.id === input.collegeId)) {
-      throw new Error('所属学院不存在。')
+      throw new ApiError('所属学院不存在。', 'NOT_FOUND', 404)
     }
     const name = input.name.trim()
     const code = input.code.trim().toUpperCase()
-    if (!name || !code) throw new Error('名称和代码不能为空。')
+    if (!name || !code) throw new ApiError('名称和代码不能为空。')
     if (
       state.majors.some(
         (major) =>
           major.id !== id && major.collegeId === input.collegeId && normalize(major.name) === normalize(name),
       )
     ) {
-      throw new Error('该学院下已存在同名专业。')
+      throw new ApiError('该学院下已存在同名专业。')
     }
     if (
       state.majors.some(
@@ -711,130 +842,32 @@ export class MockAdminContentGateway implements AdminContentGateway {
           major.id !== id && major.collegeId === input.collegeId && normalize(major.code) === normalize(code),
       )
     ) {
-      throw new Error('该学院下已存在相同专业代码。')
+      throw new ApiError('该学院下已存在相同专业代码。')
     }
-    const major = { ...current, ...input, name, code, updatedAt: new Date().toISOString() }
+    const major = { ...current, ...input, version: current.version + 1, name, code, updatedAt: new Date().toISOString() }
     state.setMajors(state.majors.map((item) => (item.id === id ? major : item)))
     recordOperation('专业管理', `保存：${major.name}`)
     return major
   }
 
-  async deleteMajor(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (state.users.some((u) => u.majorId === id)) throw new Error('专业仍有用户，请停用以保留资料关联。')
-    if (state.questionBanks.some((bank) => bank.audiences.some((a) => a.majorId === id)))
-      throw new Error('专业仍被题库推荐范围引用，请先调整适用范围。')
-    if (state.grades.some((grade) => grade.majorId === id))
-      throw new Error('专业下仍有年级，请先删除年级，或停用专业以保留关联。')
-    state.setMajors(state.majors.filter((major) => major.id !== id))
-    state.setSubjects(
-      state.subjects.map((s) => ({ ...s, majorIds: s.majorIds.filter((majorId) => majorId !== id) })),
-    )
-    recordOperation('专业管理', `删除记录：${id}`)
-  }
-
-  async listGrades(majorId?: string) {
-    await simulateRequest()
-    return structuredClone(getMockAdminState().grades.filter((g) => !majorId || g.majorId === majorId))
-      .sort((a, b) => b.enrollmentYear - a.enrollmentYear)
-  }
-
-  private validateGradeYear(year: number) {
-    if (!Number.isInteger(year) || year < 2000 || year > new Date().getFullYear() + 1)
-      throw new Error('请输入 2000 年至明年的四位入学年份。')
-  }
-
-  private gradeInUse(grade: Grade) {
-    const state = getMockAdminState()
-    const major = state.majors.find((m) => m.id === grade.majorId)
-    return state.users.some((u) => u.majorId === grade.majorId && u.enrollmentYear === grade.enrollmentYear) ||
-      Boolean(major && state.questionBanks.some((b) => b.scopeType === 'TARGETED' &&
-        b.audiences.some((a) => referencesGrade(a, grade, major))))
-  }
-
-  async createGrades(input: CreateGradesInput) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (!state.majors.some((m) => m.id === input.majorId)) throw new Error('所属专业不存在。')
-    if (!['ACTIVE', 'INACTIVE'].includes(input.status)) throw new Error('年级状态无效。')
-    if (!input.enrollmentYears.length) throw new Error('请至少选择一个入学年份。')
-    const years = [...new Set(input.enrollmentYears)]
-    for (const year of years) {
-      this.validateGradeYear(year)
-      if (state.grades.some((g) => g.majorId === input.majorId && g.enrollmentYear === year))
-        throw new Error(`该专业已存在 ${year} 级，请勿重复添加。`)
-    }
-    const now = new Date().toISOString()
-    const grades: Grade[] = years.map((enrollmentYear) => ({
-      id: createId('grade'), majorId: input.majorId, enrollmentYear, status: input.status,
-      createdAt: now, updatedAt: now,
-    }))
-    state.setGrades([...grades, ...state.grades])
-    recordOperation('年级管理', `新增年级：${years.join('、')} 级`)
-    return grades
-  }
-
-  async updateGrade(id: string, input: UpdateGradeInput) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    const current = state.grades.find((g) => g.id === id)
-    if (!current) throw new Error('年级不存在。')
-    this.validateGradeYear(input.enrollmentYear)
-    if (!['ACTIVE', 'INACTIVE'].includes(input.status)) throw new Error('年级状态无效。')
-    if (state.grades.some((g) => g.id !== id && g.majorId === current.majorId && g.enrollmentYear === input.enrollmentYear))
-      throw new Error('该专业已存在相同年级。')
-    if (current.enrollmentYear !== input.enrollmentYear && this.gradeInUse(current))
-      throw new Error('该年级已有学生或题库关联，不能直接更改入学年份。可以修改可选状态，历史归属会保留。')
-    const grade = { ...current, enrollmentYear: input.enrollmentYear, status: input.status, updatedAt: new Date().toISOString() }
-    state.setGrades(state.grades.map((g) => g.id === id ? grade : g))
-    recordOperation('年级管理', `编辑年级：${grade.enrollmentYear} 级`)
-    return grade
-  }
-
-  async deleteGrade(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    const grade = state.grades.find((g) => g.id === id)
-    if (!grade) throw new Error('年级不存在。')
-    if (this.gradeInUse(grade)) throw new Error('该年级已有学生或题库关联，请停用以保留历史归属。')
-    state.setGrades(state.grades.filter((g) => g.id !== id))
-    recordOperation('年级管理', `删除年级：${grade.enrollmentYear} 级`)
-  }
-
   async listSubjects(query?: SubjectQuery) {
     await simulateRequest()
-    const keyword = normalize(query?.keyword)
-    return getMockAdminState()
-      .subjects.filter(
-        (subject) =>
-          !query?.majorId ||
-          getMockAdminState().questionBanks.some(
-            (bank) =>
-              bank.subjectId === subject.id &&
-              (bank.scopeType === 'ALL' || bank.audiences.some((a) => a.majorId === query.majorId)),
-          ),
-      )
-      .filter((subject) => normalize(subject.name).includes(keyword))
+    return paged(getMockAdminState().subjects.filter(s => normalize(s.name).includes(normalize(query?.keyword))), query)
   }
 
   async createSubject(input: CreateSubjectInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    const majorIds = [...new Set(input.majorIds)]
-    if (!input.name.trim() || input.name.length > 50) throw new Error('课程名称必填，且最多 50 字。')
-    if (majorIds.some((majorId) => !state.majors.some((major) => major.id === majorId))) {
-      throw new Error('选择的专业不存在。')
-    }
+    if (!input.name.trim() || input.name.length > 50) throw new ApiError('课程名称必填，且最多 50 字。')
     if (state.subjects.some((subject) => normalize(subject.name) === normalize(input.name))) {
-      throw new Error('课程名称已存在，请使用已有课程。')
+      throw new ApiError('课程名称已存在，请使用已有课程。')
     }
     const now = new Date().toISOString()
     const subject = {
       ...input,
-      majorIds,
       name: input.name.trim(),
       id: createId('subject'),
+      version: 1,
       createdAt: now,
       updatedAt: now,
     }
@@ -847,21 +880,18 @@ export class MockAdminContentGateway implements AdminContentGateway {
     await simulateRequest('write')
     const state = getMockAdminState()
     const current = state.subjects.find((subject) => subject.id === id)
-    if (!current) throw new Error('课程不存在。')
-    const majorIds = [...new Set(input.majorIds)]
-    if (!input.name.trim() || input.name.length > 50) throw new Error('课程名称必填，且最多 50 字。')
-    if (majorIds.some((majorId) => !state.majors.some((major) => major.id === majorId))) {
-      throw new Error('选择的专业不存在。')
-    }
+    if (!current) throw new ApiError('课程不存在。', 'NOT_FOUND', 404)
+    version(current, input.expectedVersion)
+    if (!input.name.trim() || input.name.length > 50) throw new ApiError('课程名称必填，且最多 50 字。')
     if (
       state.subjects.some((subject) => subject.id !== id && normalize(subject.name) === normalize(input.name))
     ) {
-      throw new Error('课程名称已存在。')
+      throw new ApiError('课程名称已存在。')
     }
     const subject = {
       ...current,
+      version: current.version + 1,
       ...input,
-      majorIds,
       name: input.name.trim(),
       updatedAt: new Date().toISOString(),
     }
@@ -870,45 +900,26 @@ export class MockAdminContentGateway implements AdminContentGateway {
     return subject
   }
 
-  async deleteSubject(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (state.userCourses.some((c) => c.subjectId === id))
-      throw new Error('已有学生加入该课程，请停用以保留学习关联。')
-    if (state.questionBanks.some((bank) => bank.subjectId === id)) {
-      throw new Error('课程下仍有题库，请先删除或迁移题库。')
-    }
-    state.setSubjects(state.subjects.filter((subject) => subject.id !== id))
-    recordOperation('课程管理', `删除记录：${id}`)
-  }
-
   async listQuestionBanks(query?: QuestionBankQuery) {
     await simulateRequest()
-    const keyword = normalize(query?.keyword)
-    const { questionBanks, questions } = getMockAdminState()
-    return questionBanks
-      .filter((bank) => !query?.subjectId || bank.subjectId === query.subjectId)
-      .filter((bank) => normalize(bank.name).includes(keyword))
-      .map((bank) => ({
-        ...bank,
-        questionCount: countQuestions(questions.filter((question) => question.questionBankId === bank.id)),
-        activeQuestionCount: countQuestions(questions.filter((q) => q.questionBankId === bank.id && q.status === 'ACTIVE')),
-      }))
+    return paged(getMockAdminState().questionBanks.filter(b => (!query?.subjectId || b.subjectId === query.subjectId) && (!query?.publicationStatus || b.publicationStatus === query.publicationStatus) && normalize(b.name).includes(normalize(query?.keyword))).map(b => this.bankFacts(b)), query)
   }
 
   async createQuestionBank(input: CreateQuestionBankInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
     if (!state.subjects.some((s) => s.id === input.subjectId) || !input.name.trim())
-      throw new Error('请选择有效课程并填写题库名称。')
+      throw new ApiError('请选择有效课程并填写题库名称。')
     if (state.questionBanks.some((b) => b.subjectId === input.subjectId && normalize(b.name) === normalize(input.name)))
-      throw new Error('该课程下已有同名题库，请使用不同名称区分教材或年份。')
+      throw new ApiError('该课程下已有同名题库，请使用不同名称区分教材或年份。')
     const now = new Date().toISOString()
     const bank = {
       ...input,
       ...this.validateBank(input),
       publicationStatus: 'DRAFT' as const,
-      status: 'INACTIVE' as const,
+      status: input.status,
+      version: 1,
+      contentVersion: 1,
       id: createId('bank'),
       questionCount: 0,
       createdAt: now,
@@ -922,25 +933,29 @@ export class MockAdminContentGateway implements AdminContentGateway {
   async updateQuestionBank(id: string, input: UpdateQuestionBankInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    const current = state.questionBanks.find((bank) => bank.id === id)
-    if (!current) throw new Error('题库不存在。')
+    const current = this.bank(id)
+    if (!current) throw new ApiError('题库不存在。', 'NOT_FOUND', 404)
+    version(current, input.expectedVersion)
+    if (input.subjectId !== current.subjectId) throw new ApiError('题库所属课程不可变更。')
     if (current.publicationStatus === 'PUBLISHED' && !input.description?.trim())
-      throw new Error('已发布题库的内容说明不能为空。')
+      throw new ApiError('已发布题库的内容说明不能为空。')
     if (!state.subjects.some((s) => s.id === input.subjectId) || !input.name.trim())
-      throw new Error('请选择有效课程并填写题库名称。')
+      throw new ApiError('请选择有效课程并填写题库名称。')
     if (state.questionBanks.some((b) => b.id !== id && b.subjectId === input.subjectId && normalize(b.name) === normalize(input.name)))
-      throw new Error('该课程下已有同名题库。')
+      throw new ApiError('该课程下已有同名题库。')
     if (
       input.subjectId !== current.subjectId &&
       (state.questions.some((q) => q.questionBankId === id) ||
         state.userCourses.some((c) => c.preferredBankId === id))
     )
-      throw new Error('已有内容或学生选择的题库不能更换所属课程。')
+      throw new ApiError('已有内容或学生选择的题库不能更换所属课程。')
     const bank = {
       ...current,
+      version: current.version + 1,
       ...input,
       ...this.validateBank({ ...current, ...input }, current.publicationStatus === 'PUBLISHED'),
-      status: current.status,
+      status: input.status,
+      contentVersion: current.contentVersion + 1,
       publicationStatus: current.publicationStatus,
       updatedAt: new Date().toISOString(),
     }
@@ -949,62 +964,36 @@ export class MockAdminContentGateway implements AdminContentGateway {
     return bank
   }
 
-  async deleteQuestionBank(id: string) {
-    await simulateRequest('write')
-    const state = getMockAdminState()
-    if (state.questions.some((question) => question.questionBankId === id)) {
-      throw new Error('题库中仍有题目，请先删除或迁移题目。')
-    }
-    if (
-      state.chapters.some((c) => c.questionBankId === id) ||
-      state.userCourses.some((c) => c.preferredBankId === id) ||
-      state.feedback.some((f) => f.questionBankId === id)
-    )
-      throw new Error('题库仍有章节、学生选择或反馈记录，请使用归档。')
-    state.setQuestionBanks(state.questionBanks.filter((bank) => bank.id !== id))
-    recordOperation('题库工作台', `删除记录：${id}`)
-  }
-
-  async listQuestions(query?: QuestionQuery) {
+  async listQuestions(query: QuestionQuery & { questionBankId: string }) {
     await simulateRequest()
-    const keyword = normalize(query?.keyword)
-    return getMockAdminState()
-      .questions.filter(
-        (question) => !query?.questionBankId || question.questionBankId === query.questionBankId,
-      )
-      .filter(
-        (q) =>
-          !query?.chapterId ||
-          (query.chapterId === 'unassigned' ? !q.chapterId : q.chapterId === query.chapterId),
-      )
-      .filter((question) => !query?.type || question.type === query.type || question.subQuestions?.some((sub) => sub.type === query.type))
-      .filter((question) => !query?.status || question.status === query.status)
-      .filter((question) => {
-        return normalize(questionSearchText(question)).includes(keyword)
-      })
+    this.bank(query.questionBankId)
+    return paged(getMockAdminState().questions.filter(q => q.questionBankId === query.questionBankId && (!query.chapterId || q.chapterId === query.chapterId) && (!query.unassigned || !q.chapterId) && (!query.type || q.type === query.type || q.subQuestions?.some(s => s.type === query.type)) && (!query.status || q.status === query.status) && normalize(questionSearchText(q)).includes(normalize(query.keyword))), query)
   }
 
   async getQuestion(id: string) {
     await simulateRequest()
     const question = getMockAdminState().questions.find((item) => item.id === id)
-    if (!question) throw new Error('题目不存在。')
-    return question
+    if (!question) throw new ApiError('题目不存在。', 'NOT_FOUND', 404)
+    this.bank(question.questionBankId)
+    return structuredClone(question)
   }
 
   async createQuestion(input: CreateQuestionInput) {
     await simulateRequest('write')
     const state = getMockAdminState()
     const now = new Date().toISOString()
-    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new Error('所属题库不存在。')
+    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new ApiError('所属题库不存在。', 'NOT_FOUND', 404)
     this.validateQuestionPlacement(input)
     const question = {
       ...validateQuestion(input),
+      version: 1,
       revision: 1,
       id: createId('question'),
       createdAt: now,
       updatedAt: now,
     }
     state.setQuestions([question, ...state.questions])
+    bumpBank(input.questionBankId)
     recordOperation('题目管理', `保存：${question.stem}`)
     return question
   }
@@ -1013,45 +1002,86 @@ export class MockAdminContentGateway implements AdminContentGateway {
     await simulateRequest('write')
     const state = getMockAdminState()
     const current = state.questions.find((question) => question.id === id)
-    if (!current) throw new Error('题目不存在。')
-    if (current.type !== input.type) throw new Error('已有题目不能切换题型，请新建对应题型。')
+    if (!current) throw new ApiError('题目不存在。', 'NOT_FOUND', 404)
+    version(current, input.expectedVersion)
+    if (current.type !== input.type) throw new ApiError('已有题目不能切换题型，请新建对应题型。')
     if (current.subQuestions?.some((sub) => input.subQuestions?.some((next) => next.id === sub.id && next.type !== sub.type)))
-      throw new Error('已有阅读小题不能切换题型，请添加新的小题。')
-    if (current.type === 'READING' && current.subQuestions?.some((sub) => !input.subQuestions?.some((next) => next.id === sub.id) && state.feedback.some((f) => f.questionId === sub.id)))
-      throw new Error('阅读小题仍有反馈记录，请保留小题或停用整个题组。')
+      throw new ApiError('已有阅读小题不能切换题型，请添加新的小题。')
     if (current.status === 'ACTIVE' && (input.status !== 'ACTIVE' || input.questionBankId !== current.questionBankId))
       this.requireRemainingQuestion(current)
-    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new Error('所属题库不存在。')
+    if (!state.questionBanks.some((b) => b.id === input.questionBankId)) throw new ApiError('所属题库不存在。', 'NOT_FOUND', 404)
     this.validateQuestionPlacement(input)
     const valid = validateQuestion(input)
     const changed = contentFingerprint(current) !== contentFingerprint(valid)
     const question = {
       ...current,
+      version: current.version + 1,
       ...valid,
       revision: (current.revision ?? 1) + Number(changed),
       updatedAt: new Date().toISOString(),
     }
     state.setQuestions(state.questions.map((item) => (item.id === id ? question : item)))
+    bumpBank(input.questionBankId)
     recordOperation('题目管理', `保存：${question.stem}`)
     return question
   }
 
-  async deleteQuestion(id: string) {
+  async deactivateQuestion(id: string, expectedVersion: number) {
+    const current = await this.getQuestion(id)
+    await this.updateQuestion(id, { ...current, status: 'INACTIVE', expectedVersion })
+  }
+
+  async getUser(id: string) {
+    await simulateRequest()
+    const state = getMockAdminState(), user = state.users.find(u => u.id === id)
+    if (!user) throw new ApiError('用户不存在。', 'NOT_FOUND', 404)
+    return structuredClone({ ...user, collegeName: state.colleges.find(c => c.id === user.collegeId)?.name, majorName: state.majors.find(m => m.id === user.majorId)?.name })
+  }
+  async getUserStatistics(id: string) {
+    await this.getUser(id)
+    const records = getMockAdminState().activityRecords.flatMap(r => r.learning.filter(l => l.userId === id))
+    return records.reduce((a,l) => ({ answeredCount: a.answeredCount + l.answeredCount, correctCount: a.correctCount + l.correctCount, durationSeconds: a.durationSeconds + l.durationSeconds }), { answeredCount: 0, correctCount: 0, durationSeconds: 0 })
+  }
+  async getDirectorySummary(query?: { collegeId?: string; majorId?: string }) {
+    await simulateRequest()
+    const state = getMockAdminState(), users = state.users.filter(u => (!query?.collegeId || u.collegeId === query.collegeId) && (!query?.majorId || u.majorId === query.majorId))
+    return { collegeCount: state.colleges.length, majorCount: state.majors.filter(m => !query?.collegeId || m.collegeId === query.collegeId).length, studentCount: users.length, grades: [1,2,3,4,5].map(grade => ({ grade, studentCount: users.filter(u => u.grade === grade).length })) }
+  }
+  async listSubjectAccess(id: string, query?: PageQuery) {
+    await simulateRequest()
+    const state = getMockAdminState()
+    return paged(state.userCourses.filter(c => c.subjectId === id).map(c => { const u = state.users.find(u => u.id === c.userId)!; return { userId: u.id, nickname: u.name, accountCode: u.account, createdAt: c.addedAt } }), query)
+  }
+  async grantSubjectAccess(id: string, userId: string, expectedVersion: number) {
+    await simulateRequest('write')
+    const state = getMockAdminState(), subject = state.subjects.find(s => s.id === id)
+    version(subject, expectedVersion)
+    if (!state.users.some(u => u.id === userId && u.status === 'ACTIVE')) throw new ApiError('请选择启用的学生账号。')
+    if (!state.userCourses.some(c => c.subjectId === id && c.userId === userId)) {
+      state.setOperations({ userCourses: [...state.userCourses, { subjectId: id, userId, addedAt: new Date().toISOString() }] })
+      state.setSubjects(state.subjects.map(s => s.id === id ? { ...s, version: s.version + 1 } : s))
+    }
+  }
+  async revokeSubjectAccess(id: string, userId: string, expectedVersion: number) {
     await simulateRequest('write')
     const state = getMockAdminState()
-    const current = state.questions.find((q) => q.id === id)
-    if (!current) throw new Error('题目不存在。')
-    if (current.status === 'ACTIVE') this.requireRemainingQuestion(current)
-    if (state.feedback.some((f) => f.questionId === id || current.subQuestions?.some((sub) => sub.id === f.questionId)))
-      throw new Error('题目仍有反馈记录，请停用以保留关联。')
-    state.setQuestions(state.questions.filter((question) => question.id !== id))
-    recordOperation('题目管理', `删除记录：${id}`)
+    version(state.subjects.find(s => s.id === id), expectedVersion)
+    state.setOperations({ userCourses: state.userCourses.filter(c => c.subjectId !== id || c.userId !== userId) })
+    state.setSubjects(state.subjects.map(s => s.id === id ? { ...s, version: s.version + 1 } : s))
   }
+  async uploadImage(bankId: string, file: File) {
+    await simulateRequest('write'); this.bank(bankId)
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new ApiError('请选择 5 MiB 以内的 PNG、JPEG 或 WebP 图片。')
+    const id = crypto.randomUUID()
+    this.images.set(id, file)
+    return { id }
+  }
+  async imageUrl(id: string) { const file = this.images.get(id); if (!file) throw new ApiError('演示图片已失效，请重新上传。'); return URL.createObjectURL(file) }
 
   private requireRemainingQuestion(question: import('../../src/types/admin').Question) {
     const state = getMockAdminState()
     if (state.questionBanks.some((b) => b.id === question.questionBankId && b.publicationStatus === 'PUBLISHED') &&
       !state.questions.some((q) => q.questionBankId === question.questionBankId && q.id !== question.id && q.status === 'ACTIVE'))
-      throw new Error('已发布题库至少保留一道启用题目，请先下架再调整。')
+      throw new ApiError('已发布题库至少保留一道启用题目，请先下架再调整。')
   }
 }

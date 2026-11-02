@@ -20,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
 internal fun invalid(field: String): Nothing = throw ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查请求字段", listOf(FieldError("/$field", "INVALID_FIELD", "字段不符合要求")))
 internal fun conflict(code: String, message: String): Nothing = throw ApiException(HttpStatus.CONFLICT, code, message)
 internal fun unavailable(code: String): Nothing = throw ApiException(HttpStatus.SERVICE_UNAVAILABLE, code, "所需服务暂时不可用")
-internal fun unauthenticated(): Nothing = throw ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请提供有效令牌")
+internal fun unauthenticated(message: String = "登录状态已失效，请重新登录"): Nothing = throw ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", message)
 internal fun invalidProof(): Nothing = throw ApiException(HttpStatus.CONFLICT, "VERIFICATION_FAILED", "验证证明无效或已失效")
 internal fun nickname(value: String): String = value.trim().also {
     if (it.codePointCount(0,it.length) !in 1..40 || it.any { c -> c.code < 32 || c.code == 127 }) invalid("nickname")
@@ -80,12 +80,30 @@ class IdentityCrypto(private val environment: Environment) {
         init(SecretKeySpec(key,"HmacSHA256")); doFinal(value.toByteArray(UTF_8))
     }
     fun preparePassword(raw: String): PreparedPassword {
-        validatePassword(raw)
+        validatePassword(raw,12..128,"password")
+        return encodePassword(raw)
+    }
+    fun prepareStudentPassword(raw: String, field: String = "password"): PreparedPassword {
+        validateStudentPassword(raw,field)
+        return encodePassword(raw)
+    }
+    private fun validateStudentPassword(raw: String, field: String) {
+        validatePassword(raw,8..16,field)
+        if (raw.none { it in 'A'..'Z' || it in 'a'..'z' } || raw.none { it in '0'..'9' }) invalid(field)
+    }
+    private fun encodePassword(raw: String): PreparedPassword {
         val salt = ByteArray(16).also(random::nextBytes)
         return PreparedPassword(listOf("{pbkdf2-sha256}",iterations.toString(),base64.encodeToString(salt),base64.encodeToString(derive(raw,salt,iterations))).joinToString("$"))
     }
     fun verifyPassword(raw: String, encoded: String?): Boolean {
-        validatePassword(raw)
+        validatePassword(raw,12..128,"password")
+        return matchesPassword(raw,encoded)
+    }
+    fun verifyStudentPassword(raw: String, encoded: String?): Boolean {
+        validateStudentPassword(raw,"password")
+        return matchesPassword(raw,encoded)
+    }
+    private fun matchesPassword(raw: String, encoded: String?): Boolean {
         return try {
             val parts = (encoded ?: dummy).split('$')
             require(parts.size == 4 && parts[0] == "{pbkdf2-sha256}" && parts[1] == iterations.toString())
@@ -95,9 +113,9 @@ class IdentityCrypto(private val environment: Environment) {
             encoded != null && matched
         } catch (_: IllegalArgumentException) { false }
     }
-    private fun validatePassword(raw: String) {
-        if (raw.codePointCount(0,raw.length) !in 12..128 || raw.toByteArray(UTF_8).size > 512 || raw.any { it == '\u0000' } ||
-            raw.indices.any { Character.isSurrogate(raw[it]) && !(Character.isHighSurrogate(raw[it]) && it+1 < raw.length && Character.isLowSurrogate(raw[it+1])) && !(Character.isLowSurrogate(raw[it]) && it>0 && Character.isHighSurrogate(raw[it-1])) }) invalid("password")
+    private fun validatePassword(raw: String, length: IntRange, field: String) {
+        if (raw.codePointCount(0,raw.length) !in length || raw.toByteArray(UTF_8).size > 512 || raw.any { it == '\u0000' } ||
+            raw.indices.any { Character.isSurrogate(raw[it]) && !(Character.isHighSurrogate(raw[it]) && it+1 < raw.length && Character.isLowSurrogate(raw[it+1])) && !(Character.isLowSurrogate(raw[it]) && it>0 && Character.isHighSurrogate(raw[it-1])) }) invalid(field)
     }
     private fun derive(raw: String, salt: ByteArray, rounds: Int): ByteArray {
         val spec = PBEKeySpec(raw.toCharArray(),salt,rounds,256)

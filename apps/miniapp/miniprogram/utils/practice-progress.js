@@ -11,7 +11,7 @@
  *   "subject-chinese": { ... }   // 整科抽题 / 模拟测试
  * }
  *
- * answers 的取值：1 = 答对，0 = 答错。未作答的题不写入，因此"已做"= 键数量。
+ * answers 的取值：1 = 答对，0 = 答错，2 = 主观作答，3 = 旧记录评分口径未知。未作答的题不写入，因此"已做"= 键数量。
  */
 
 const PROGRESS_STORAGE_KEY = 'qandaProgress'
@@ -39,13 +39,16 @@ function normalizeProgress(rawProgress) {
       const value = rawAnswers[questionId]
 
       if (value === 1 || value === true) {
-        answers[questionId] = 1
+        answers[questionId] = entry.scoringVersion === 1 ? 1 : 3
       } else if (value === 0 || value === false) {
-        answers[questionId] = 0
+        answers[questionId] = entry.scoringVersion === 1 ? 0 : 3
+      } else if (value === 2 || value === 3) {
+        answers[questionId] = value
       }
     })
 
     result[scopeKey] = {
+      scoringVersion: 1,
       total: Number(entry.total) || 0,
       answers,
       updatedAt: Number(entry.updatedAt) || 0
@@ -69,7 +72,7 @@ function mergeScopeRecords(progress, scopeKey, records, total, timestamp) {
       return
     }
 
-    answers[record.id] = record.correct ? 1 : 0
+    answers[record.id] = record.objective === false ? 2 : (record.correct ? 1 : 0)
     hasNewAnswer = true
   })
 
@@ -80,6 +83,7 @@ function mergeScopeRecords(progress, scopeKey, records, total, timestamp) {
   const nextProgress = Object.assign({}, progress)
 
   nextProgress[scopeKey] = {
+    scoringVersion: 1,
     total: Number(total) || current.total || 0,
     answers,
     updatedAt: Number(timestamp) || Date.now()
@@ -109,9 +113,10 @@ function summarizeAnswers(answers, total) {
   const answered = questionIds.length
   const correct = questionIds.reduce((sum, questionId) => sum + (answers[questionId] === 1 ? 1 : 0), 0)
   const totalCount = Number(total) || answered
-  const wrong = answered - correct
+  const wrong = questionIds.filter(id => answers[id] === 0).length
+  const objectiveAnswered = correct + wrong
   // 正确率按"已做题目"计算，未做的不拉低正确率
-  const accuracy = answered ? Math.round((correct / answered) * 100) : 0
+  const accuracy = objectiveAnswered && !questionIds.some(id => answers[id] === 3) ? Math.round((correct / objectiveAnswered) * 100) : null
   // 进度按"已做 / 总题量"计算，反映掌握范围
   const progressPercent = totalCount ? Math.min(Math.round((answered / totalCount) * 100), 100) : 0
 
@@ -121,7 +126,7 @@ function summarizeAnswers(answers, total) {
     correct,
     wrong,
     accuracy,
-    accuracyText: `${accuracy}%`,
+    accuracyText: accuracy === null ? '—' : `${accuracy}%`,
     progressPercent,
     answeredText: `${answered} / ${totalCount}`,
     hasProgress: answered > 0,
@@ -169,8 +174,9 @@ function summarizeBankProgress(progress, bank) {
 function summarizeCounts(counts, total) {
   const answered = Number(counts.answeredCount) || 0
   const correct = Number(counts.correctCount) || 0
-  const accuracy = answered ? Math.round(correct / answered * 100) : 0
-  return { total, answered, correct, wrong: Number(counts.wrongCount) || 0, accuracy, accuracyText: `${accuracy}%`,
+  const objectiveAnswered = correct + (Number(counts.wrongCount) || 0)
+  const accuracy = objectiveAnswered ? Math.round(correct / objectiveAnswered * 100) : null
+  return { total, answered, correct, wrong: Number(counts.wrongCount) || 0, accuracy, accuracyText: accuracy === null ? '—' : `${accuracy}%`,
     progressPercent: total ? Math.min(100, Math.round(answered / total * 100)) : 0,
     answeredText: `${answered} / ${total}`, hasProgress: answered > 0, totalText: `${total} 题` }
 }
@@ -204,8 +210,9 @@ function buildAnswerRecords(questions, answers) {
 
     return {
       id: question ? question.id : '',
-      answered: !!answer,
-      correct: !!(answer && answer.isCorrect)
+      answered: !!answer && answer.confirmed !== false,
+      objective: !question.isShortAnswer,
+      correct: !!(!question.isShortAnswer && answer && answer.confirmed !== false && answer.isCorrect)
     }
   })
 }

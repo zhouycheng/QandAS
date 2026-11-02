@@ -10,6 +10,18 @@
   margin-top: 84rpx;
 }
 
+.login-notice {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 20rpx;
+  background: #eef4ff;
+  color: #345c96;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.login-notice + .login-form { margin-top: 32rpx; }
+
 /* 两个字段之间 24px（45rpx）：比注册页的 12px 松，是这张画板的节奏 */
 .login-form .field + .field {
   margin-top: 45rpx;

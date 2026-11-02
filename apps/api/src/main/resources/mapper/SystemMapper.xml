@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.platform.persistence.SystemMapper">
-  <select id="ready" resultType="boolean">SELECT to_regclass('public.user_account') IS NOT NULL AND to_regclass('public.question_bank') IS NOT NULL AND to_regclass('public.practice_result') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='practice_session' AND column_name='configuration_snapshot' AND is_nullable='NO')</select>
+  <select id="ready" resultType="boolean">SELECT to_regclass('public.user_account') IS NOT NULL AND to_regclass('public.subject_user_access') IS NOT NULL AND to_regclass('public.practice_result') IS NOT NULL AND to_regclass('public.session_presence') IS NOT NULL AND to_regclass('public.practice_sync_state') IS NOT NULL AND to_regclass('public.sync_command') IS NOT NULL AND to_regclass('public.domain_event_outbox') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass('public.admin_account') AND conname='admin_account_role_check' AND convalidated AND pg_get_constraintdef(oid)='CHECK (((role)::text = ''SUPER_ADMIN''::text))') AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='question_revision' AND column_name='content_data' AND is_nullable='NO') AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='user_profile' AND column_name='grade_academic_year')</select>
   <select id="lock" resultType="int">SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(#{scope},0))</select>
   <select id="receipt" resultType="qanda.backend.platform.persistence.CommandReceipt">SELECT * FROM command_receipt WHERE scope=#{scope} AND operation=#{operation} AND command_id=#{commandId}</select>
   <select id="attempt" resultType="qanda.backend.platform.persistence.LoginAttempt">SELECT failures,blocked_until FROM login_attempt WHERE scope_digest=#{digest}</select>
   <insert id="saveAttempt">INSERT INTO login_attempt(scope_digest,failures,blocked_until) VALUES(#{digest},#{failures},#{until}) ON CONFLICT(scope_digest) DO UPDATE SET failures=excluded.failures,blocked_until=excluded.blocked_until,updated_at=now()</insert>
   <delete id="clearAttempt">DELETE FROM login_attempt WHERE scope_digest=#{digest}</delete>
-  <insert id="activity">INSERT INTO user_activity(user_id,platform,activity_date) VALUES(#{userId},#{platform},(now() AT TIME ZONE 'Asia/Shanghai')::date) ON CONFLICT(user_id,platform,activity_date) DO UPDATE SET last_seen_at=now()</insert>
-  <select id="auditPage" resultType="qanda.backend.platform.persistence.AuditLog">SELECT * FROM audit_log ORDER BY created_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
-  <select id="auditCount" resultType="long">SELECT count(*) FROM audit_log</select>
+  <sql id="auditFilter"><where><if test="keyword != null and keyword != ''">concat_ws(' ',operation,reason_code,request_id::text) ILIKE '%' || #{keyword} || '%' </if><if test="result != null">AND outcome=#{result} </if></where></sql>
+  <select id="auditPage" resultType="qanda.backend.platform.persistence.AuditLog">SELECT * FROM audit_log <include refid="auditFilter"/> ORDER BY created_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="auditCount" resultType="long">SELECT count(*) FROM audit_log <include refid="auditFilter"/></select>
 </mapper>

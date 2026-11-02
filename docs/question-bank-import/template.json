@@ -1,0 +1,40 @@
+{
+  "format": "qanda-question-bank",
+  "version": "1.0",
+  "bank": {
+    "name": "填写题库名称",
+    "description": "填写内容范围和适用对象"
+  },
+  "sources": [],
+  "chapters": [],
+  "assets": [],
+  "questions": [
+    {
+      "id": "question-1",
+      "type": "SHORT_ANSWER",
+      "contentFormat": "MARKDOWN",
+      "presentation": "CONCEPT",
+      "stem": "",
+      "referenceAnswer": "",
+      "scoringPoints": [],
+      "explanation": "### 结论\n\n\n### 核心知识点\n\n\n### 解题过程\n\n\n### 记忆方法\n\n\n### 易错题型\n",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "source-1",
+            "location": "填写实际阅读位置"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "referenceAnswer",
+            "explanation"
+          ],
+          "note": "依据示例程序与要求编写题目和教学解析。"
+        }
+      }
+    }
+  ]
+}

@@ -12,10 +12,16 @@ async function main() {
   const repository = {
     isRemoteEnabled: () => true,
     getRemoteRecent: () => [],
+    getResumableSession: () => null,
     getAuth: () => ({ loggedIn: true }),
     getProgress: () => ({ lastBank: { answers: {}, total: 1, updatedAt: 1 } }),
     getScopeMeta: () => ({ subjectId: 'subject-preferred' }),
     getSubjectSummaries: () => subjects,
+    previewRemotePracticeScope: async (storage, scope) => {
+      assert.equal(scope.questionBankId, 'preferred-bank')
+      assert.equal(scope.count, 4)
+      return { selectedCount: 3, selectionKey: 'selected-group' }
+    },
     loadRemoteSubjects: async () => ({ total: subjects.length, page: 1, pageSize: 20, items: subjects }),
     loadRemoteBanks: async (storage, query) => {
       requests.push(query)
@@ -37,6 +43,8 @@ async function main() {
   assert.strictEqual(result.command.type, 'openRouteWithLoading')
   assert(result.command.payload.url.includes('subjectId=subject-preferred'))
   assert(result.command.payload.url.includes('bankId=preferred-bank'))
+  assert(result.command.payload.url.includes('count=3'))
+  assert(result.command.payload.url.includes('selectionKey=selected-group'))
   assert(!JSON.stringify(result).includes('chooseBank'))
   console.log('remote mock exam selects the last practiced subject and first active bank without a chooser')
 }

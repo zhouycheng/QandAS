@@ -2,6 +2,7 @@ import type { Question } from '../../src/types/admin'
 
 export const questionFixtures: Question[] = [
   {
+    version: 1,
     id: 'question-single',
     questionBankId: 'bank-calculus',
     stem: '函数 f(x) = x² 在 x = 2 处的导数是多少？',
@@ -19,6 +20,7 @@ export const questionFixtures: Question[] = [
     updatedAt: '2026-09-06T08:00:00.000Z',
   },
   {
+    version: 1,
     id: 'question-multiple',
     questionBankId: 'bank-calculus',
     stem: '下列哪些函数在其定义域内连续？',
@@ -36,6 +38,7 @@ export const questionFixtures: Question[] = [
     updatedAt: '2026-09-07T08:00:00.000Z',
   },
   {
+    version: 1,
     id: 'question-true-false',
     questionBankId: 'bank-english-grammar',
     stem: '“She has finished her homework.” 使用了现在完成时。',

@@ -38,6 +38,9 @@ class Question {
     var id: UUID? = null
     var bankId: UUID? = null
     var chapterId: UUID? = null
+    var readingParentId: UUID? = null
+    var readingOrder: Int = 0
+    var isGroup: Boolean = false
     var status: String = "ACTIVE"
     var currentRevisionId: UUID? = null
     var version: Long = 1
@@ -56,6 +59,7 @@ class QuestionRevision {
     var explanation: String = ""
     var correctValue: Boolean? = null
     var referenceAnswer: String? = null
+    var contentData: String = "{}"
     var createdBy: UUID? = null
     var createdAt: Instant = Instant.now()
 }
@@ -76,5 +80,5 @@ class BankAudience {
     var bankId: UUID? = null
     var collegeId: UUID? = null
     var majorId: UUID? = null
-    var enrollmentYear: Int? = null
+    var grade: Int? = null
 }

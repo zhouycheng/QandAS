@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="qanda.backend.learning.api.ReadContracts">
+  <sql id="wrongFacts">WITH facts AS(SELECT i.question_id,i.outcome judgment,s.submitted_at,s.id session_id,row_number() OVER(PARTITION BY i.question_id ORDER BY s.submitted_at DESC,s.id DESC) rn FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED')),totals AS(SELECT question_id,count(*) FILTER(WHERE judgment='CORRECT') right_count,count(*) FILTER(WHERE judgment='WRONG') wrong_count FROM facts GROUP BY question_id), self_facts AS(SELECT i.question_id,'SELF_RATED' judgment,i.self_assessment,s.submitted_at,row_number() OVER(PARTITION BY i.question_id ORDER BY s.submitted_at DESC,s.id DESC) rn FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.outcome='SELF_RATED' AND i.self_assessment IS NOT NULL)
+  </sql>
+</mapper>

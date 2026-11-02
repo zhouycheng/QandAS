@@ -96,7 +96,7 @@
   display: block;
   width: 108rpx;
   height: 108rpx;
-  transform-origin: 10% 72%;
+  transform-origin: 42% 62%;
   pointer-events: none;
 }
 
@@ -124,14 +124,16 @@
 }
 
 .hero-notice-icon-active {
-  animation: notice-shake 1.4s ease-in-out infinite;
+  animation: notice-call 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-@keyframes notice-shake {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-6deg) scale(1.03); }
-  50% { transform: rotate(5deg) scale(1.06); }
-  75% { transform: rotate(-3deg) scale(1.03); }
+/* 招呼后停稳半个周期，回弹幅度逐次收小。 */
+@keyframes notice-call {
+  0%, 8%, 50%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  14% { transform: translateY(1rpx) rotate(-3deg) scale(0.98); }
+  24% { transform: translateY(-5rpx) rotate(6deg) scale(1.04); }
+  33% { transform: translateY(-2rpx) rotate(-2.5deg) scale(1.01); }
+  41% { transform: translateY(-1rpx) rotate(1deg) scale(1); }
 }
 
 /* ==================== 白色内容区 ==================== */
@@ -387,15 +389,15 @@
   color: var(--text-main);
 }
 
-.home-foot {
-  margin-top: 40rpx;
-  text-align: center;
-}
-
-.home-foot-text {
-  font-size: 22rpx;
-  color: var(--text-muted);
-}
+.recommendation-head { display: flex; align-items: center; justify-content: space-between; margin-top: 28rpx; }
+.recommendation-more { padding: 12rpx 0 12rpx 20rpx; color: #466bff; font-size: 24rpx; }
+.recommendation-list { margin-top: 22rpx; overflow: hidden; border-radius: 24rpx; background: #f7f9fc; }
+.recommendation-card { display: flex; align-items: center; justify-content: space-between; min-height: 116rpx; padding: 24rpx; border-bottom: 2rpx solid #e9edf4; box-sizing: border-box; }
+.recommendation-card:last-child { border-bottom: 0; }
+.recommendation-content { flex: 1; min-width: 0; }
+.recommendation-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-main); font-size: 28rpx; font-weight: 600; line-height: 40rpx; }
+.recommendation-count { display: block; margin-top: 8rpx; color: var(--text-muted); font-size: 23rpx; }
+.recommendation-arrow { margin-left: 24rpx; color: var(--text-muted); font-size: 36rpx; }
 
 /* ==================== 搜索结果面板 ==================== */
 

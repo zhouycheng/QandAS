@@ -2,6 +2,7 @@ import type { QuestionBank } from '../../src/types/admin'
 
 export const questionBankFixtures: QuestionBank[] = [
   {
+    version: 1,
     id: 'bank-calculus',
     subjectId: 'subject-math',
     name: '微积分基础题库',
@@ -9,7 +10,8 @@ export const questionBankFixtures: QuestionBank[] = [
     status: 'ACTIVE',
     questionCount: 2,
     textbook: '同济版高等数学 · 上册',
-    owner: '内容组 · 小林',
+    maintainerIds: ['admin-2'],
+    contentVersion: 1,
     publicationStatus: 'PUBLISHED',
     scopeType: 'TARGETED',
     audiences: [{ majorId: 'major-computer-science' }, { majorId: 'major-software-engineering' }],
@@ -17,6 +19,7 @@ export const questionBankFixtures: QuestionBank[] = [
     updatedAt: '2026-09-04T08:00:00.000Z',
   },
   {
+    version: 1,
     id: 'bank-english-grammar',
     subjectId: 'subject-english',
     name: '英语语法题库',
@@ -24,7 +27,8 @@ export const questionBankFixtures: QuestionBank[] = [
     status: 'ACTIVE',
     questionCount: 1,
     textbook: '大学英语通用语法复习',
-    owner: '内容组 · 小陈',
+    maintainerIds: ['admin-2'],
+    contentVersion: 1,
     publicationStatus: 'PUBLISHED',
     scopeType: 'ALL',
     audiences: [],

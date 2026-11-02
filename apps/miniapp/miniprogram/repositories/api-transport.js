@@ -1,5 +1,5 @@
 const metrics = require('../utils/loading-metrics.js')
-const config = { baseUrl: '', timeout: 10000, tokenProvider: null }
+const config = { baseUrl: '', timeout: 10000, tokenProvider: null, onUnauthorized: null }
 const pending = []
 let active = 0
 let backgroundActive = 0
@@ -17,6 +17,7 @@ function configure(options) {
   if (typeof input.baseUrl === 'string') config.baseUrl = input.baseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '')
   if (Number(input.timeout) > 0) config.timeout = Number(input.timeout)
   if (Object.prototype.hasOwnProperty.call(input, 'tokenProvider')) config.tokenProvider = input.tokenProvider
+  if (Object.prototype.hasOwnProperty.call(input, 'onUnauthorized')) config.onUnauthorized = input.onUnauthorized
   return getConfig()
 }
 function getConfig() { return { baseUrl: config.baseUrl, timeout: config.timeout } }
@@ -63,11 +64,12 @@ function request(method, path, data, options) {
   const url = `${config.baseUrl}${path.indexOf('/api/v1') === 0 ? path : `/api/v1${path}`}`
   return new Promise((resolve) => {
     const task = { resolve, path: path.split('?')[0], queuedAt: Date.now(), background: settings.priority === 'background', read: method === 'GET', generation: readGeneration, run: () => {
+      if (settings.shouldSend && !settings.shouldSend()) return Object.assign(failure('请求已取消'), { cancelled: true })
       if (task.read && task.generation !== readGeneration) return Object.assign(failure('读取已取消'), { cancelled: true })
       if (!config.baseUrl) return failure('未配置接口域名')
       const wxApi = typeof wx !== 'undefined' && wx
       if (!wxApi || typeof wxApi.request !== 'function') return failure('当前环境不支持网络请求')
-      return new Promise((done) => { task.handle = wxApi.request({ url, method, data: body, header: headers, timeout: config.timeout,
+      return new Promise((done) => { task.handle = wxApi.request({ url, method, data: body, header: headers, timeout: config.timeout, responseType: settings.responseType || 'text',
         success(response) {
           if (task.read && task.generation !== readGeneration) return done(Object.assign(failure('读取已取消'), { cancelled: true }))
           const statusCode = Number(response.statusCode) || 0
@@ -77,6 +79,9 @@ function request(method, path, data, options) {
           done({ ok: statusCode >= 200 && statusCode < 300, unavailable: statusCode === 0, statusCode, data: payload,
             code: payload && payload.code || '', reason: statusCode >= 200 && statusCode < 300 ? '' : payload && payload.message || `请求失败（${statusCode}）`,
             requestId: responseHeaders['x-request-id'] || requestId, retryAfter: retryAfter(responseHeaders), headers: responseHeaders })
+          if (statusCode === 401 && (!payload || !payload.code || payload.code === 'UNAUTHENTICATED') && token && config.tokenProvider && config.tokenProvider() === token && config.onUnauthorized) {
+            try { config.onUnauthorized(token) } catch (_) { /* The caller still receives the authentication failure. */ }
+          }
         },
         fail(error) {
           const message = error && error.errMsg || ''

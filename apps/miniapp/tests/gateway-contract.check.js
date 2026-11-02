@@ -169,9 +169,10 @@ Promise.resolve()
     // ---------- accuracy 单位 ----------
     assert('正确率 - 0.85 视为比例转 85', httpGateway.normalizeRemoteResult({ accuracy: 0.85, totalCount: 20, correctCount: 17 }, '').accuracy === 85, '未转换')
     assert('正确率 - 85 原样保留', httpGateway.normalizeRemoteResult({ accuracy: 85, totalCount: 20, correctCount: 17 }, '').accuracy === 85, '被误转')
-    assert('正确率 - 缺失时按计数现算', httpGateway.normalizeRemoteResult({ totalCount: 4, correctCount: 1 }, '').accuracy === 25, '未现算')
-    assert('正确率 - 总题量为 0 时不除零', httpGateway.normalizeRemoteResult({ totalCount: 0, correctCount: 0 }, '').accuracy === 0, '除零')
-    assert('正确率 - 非法值回落计数', httpGateway.normalizeRemoteResult({ accuracy: -1, totalCount: 2, correctCount: 1 }, '').accuracy === 50, '未回落')
+    assert('正确率 - 缺失时按客观作答计数现算', httpGateway.normalizeRemoteResult({ totalCount: 4, correctCount: 1, wrongCount: 1 }, '').accuracy === 50, '未现算')
+    assert('正确率 - 旧聚合缺少客观计数显示未知', httpGateway.normalizeRemoteResult({ totalCount: 4, correctCount: 1 }, '').accuracy === null, '不应猜测分母')
+    assert('正确率 - 总题量为 0 时不除零', httpGateway.normalizeRemoteResult({ totalCount: 0, correctCount: 0 }, '').accuracy === null, '除零')
+    assert('正确率 - 非法值回落计数', httpGateway.normalizeRemoteResult({ accuracy: -1, totalCount: 3, correctCount: 1, wrongCount: 1 }, '').accuracy === 50, '未回落')
 
     // ---------- HTTP 成功路径（假 wx） ----------
     installWx((options) => {

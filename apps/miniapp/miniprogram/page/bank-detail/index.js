@@ -75,6 +75,14 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.enterRecent())
   },
 
+  handleChangeProfile() {
+    this.applyViewModelResult(this.viewModel.changeProfile())
+  },
+
+  handleRequestCourse() {
+    this.applyViewModelResult(this.viewModel.requestCourse())
+  },
+
   handleSubjectSwitch(e) {
     const subjectId = e.currentTarget.dataset.subjectId
 
@@ -162,7 +170,7 @@ Page(withPageLifecycle({
       return
     }
 
-    this.applyViewModelResult(this.viewModel.openBankConfig(subjectId, bank.bankId))
+    this.applyViewModelResult(this.viewModel.openBankConfig(subjectId, bank.bankId, bank.chapterId))
   },
 
   /** 搜索结果可能属于别的科目，科目 id 从行数据取，不能用手上的 data.subjectId */
@@ -173,12 +181,16 @@ Page(withPageLifecycle({
       return
     }
 
-    this.applyViewModelResult(this.viewModel.openBankConfig(dataset.subjectId, dataset.bankId))
+    this.applyViewModelResult(this.viewModel.openBankConfig(dataset.subjectId, dataset.bankId, dataset.chapterId))
   },
 
   /** 统计卡 = 整科练习的入口（设计稿没有独立按钮，卡片右上角标了「整科」） */
   handleStatTap() {
     this.applyViewModelResult(this.viewModel.openSubjectConfig(this.data.subjectId))
+  },
+
+  handleSheetBank(event) {
+    this.applyViewModelResult(this.viewModel.setSheetBank(event.currentTarget.dataset.id))
   },
 
   handleSheetMode(e) {
@@ -240,30 +252,7 @@ Page(withPageLifecycle({
     }
   },
 
-  chooseBank(command, offset) {
-    const banks = command.banks || []
-    if (!banks.length && command.hasMore) return this.applyViewModelResult(this.viewModel.loadBankChoices(command.subjectId, command.remotePage + 1))
-    if (!banks.length) return wx.showToast({ title: '当前没有可练习题库', icon: 'none' })
-    const start = offset || 0
-    const page = banks.slice(start, start + 5)
-    const more = banks.length > 5 || command.hasMore || command.remotePage > 1
-    wx.showActionSheet({
-      itemList: page.map((bank) => bank.name).concat(more ? ['更多题库'] : []),
-      success: (result) => {
-        if (result.tapIndex === page.length) {
-          if (start + 5 < banks.length) return this.chooseBank(command, start + 5)
-          if (command.remotePage) return this.applyViewModelResult(this.viewModel.loadBankChoices(command.subjectId, command.hasMore ? command.remotePage + 1 : 1))
-          return this.chooseBank(command, 0)
-        }
-        const bank = page[result.tapIndex]
-        if (bank) this.applyViewModelResult(this.viewModel.openBankConfig(command.subjectId, bank.id))
-      }
-    })
-  },
-
   handleViewModelCommand(command) {
-    if (command.type === 'chooseBank') return this.chooseBank(command, 0)
-
     // 题库是 tabBar 页面，没有可返回的上一页，出错时只用 toast 提示
     if (command.type === 'toast') {
       wx.showToast({

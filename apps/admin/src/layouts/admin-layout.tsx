@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Avatar, Breadcrumb, Button, Drawer, Message, Select, Space } from '@arco-design/web-react'
 import { IconMenuFold, IconMenuUnfold, IconPoweroff, IconUser } from '@arco-design/web-react/icon'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { scenarioLabels, type PlaygroundScenario } from '../../playground/scenarios'
 import { useMockAdminStore } from '../../playground/store/mock-admin-store'
@@ -16,8 +16,23 @@ const groups = [
     icon: 'home',
     items: [
       ['/dashboard', '运营概览', 'dashboard'],
+      ['/activity', '活跃度监控', 'activity'],
+      ['/monitoring', '系统监控', 'activity'],
       ['/colleges', '院级管理', 'college'],
       ['/question-banks', '题库工作台', 'book'],
+      ['/feedback', '学生反馈', 'file'],
+      ['/announcements', '公告管理', 'announcement'],
+      ['/users', '用户管理', 'users'],
+    ],
+  },
+  {
+    title: '设置',
+    icon: 'settings',
+    items: [
+      ['/administrators', '管理员账号', 'shield'],
+      ['/security', '安全规则', 'settings'],
+      ['/community-group', '交流群二维码', 'users'],
+      ['/logs', '操作日志', 'file'],
     ],
   },
 ] as const
@@ -33,8 +48,7 @@ export function AdminLayout() {
   const [mobile, setMobile] = useState(window.innerWidth <= 760)
   const scenario = useMockAdminStore((s) => s.scenario)
   const setScenario = useMockAdminStore((s) => s.setScenario)
-  const security = useQuery({ queryKey: ['security'], queryFn: () => gateway.getSecuritySettings() })
-  const timeoutMinutes = security.data?.sessionMinutes ?? getAdminSession()?.timeoutMinutes ?? 30
+  const timeoutMinutes = getAdminSession()?.timeoutMinutes ?? 30
   const session = getAdminSession()
   useEffect(() => {
     if (mobile) setCollapsed(true)
@@ -50,6 +64,7 @@ export function AdminLayout() {
     const check = () => {
       if (!isAuthenticated()) {
         logout()
+        queryClient.clear()
         navigate('/login', { replace: true })
         return
       }
@@ -98,6 +113,7 @@ export function AdminLayout() {
       <nav aria-label="管理导航">
         {groups.map((group) => (
           <div className="nav-group" key={group.title}>
+            <div className="nav-group-title"><DesignIcon name={group.icon} /><span>{group.title}</span></div>
             {group.items.map(([path, label, icon]) => (
               <Link
                 className={`nav-link ${location.pathname === path || location.pathname.startsWith(path + '/') ? 'active' : ''}`}
@@ -158,10 +174,13 @@ export function AdminLayout() {
               type="text"
               icon={<IconPoweroff />}
               aria-label="退出登录"
-              onClick={() => {
-                logout()
-                queryClient.clear()
-                navigate('/login', { replace: true })
+              onClick={async () => {
+                try {
+                  await gateway.logoutAdmin()
+                  logout()
+                  queryClient.clear()
+                  navigate('/login', { replace: true })
+                } catch (error) { Message.error((error as Error).message) }
               }}
             />
           </Space>
@@ -170,8 +189,8 @@ export function AdminLayout() {
           <Outlet />
         </main>
         <footer className="environment-bar">
-          <span>本地演示环境</span>
-          <div className="scenario-picker">
+          <span>{gateway.mode === 'mock' ? '本地演示环境' : '后端服务'}</span>
+          {gateway.mode === 'mock' && <div className="scenario-picker">
             <span>Playground</span>
             <Select
               aria-label="Playground 场景"
@@ -186,7 +205,7 @@ export function AdminLayout() {
                 </Select.Option>
               ))}
             </Select>
-          </div>
+          </div>}
         </footer>
       </div>
     </div>

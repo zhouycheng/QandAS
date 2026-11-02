@@ -26,9 +26,13 @@ async function main() {
   assert.strictEqual(calls[0].options.idempotencyKey, calls[1].options.idempotencyKey)
   assert.deepStrictEqual(calls[0].body, calls[1].body)
   assert.strictEqual(restarted.get('s1').releaseCommand, undefined)
-  http.request = async (method, path) => ({ ok: true, data: method === 'GET' ? { id: 's2', questionBankId: 'bank2', status: 'IN_PROGRESS' } : { state: 'WAITING', writerToken: null, pendingDeviceId: 'device1' } })
+  http.request = async (method, path) => ({ ok: true, data: method === 'GET' ? { id: 's2', questionBankId: 'bank2', status: 'IN_PROGRESS', configuration: { mode: 'order', order: 'SEQUENTIAL', chapterIds: ['chapter2'], count: 10, timeLimitSeconds: 900, selectionKind: 'NORMAL' } } : { state: 'WAITING', writerToken: null, pendingDeviceId: 'device1' } })
   const waiting = await restarted.prepare({ sessionId: 's2' })
   assert.strictEqual(waiting.route.bankId, 'bank2')
+  assert.strictEqual(waiting.route.mode, 'order', '跨端等待保留服务端答题模式')
+  assert.strictEqual(waiting.route.chapterId, 'chapter2')
+  assert.strictEqual(waiting.route.duration, '15')
+  assert.strictEqual(waiting.route.count, 10)
   assert.deepStrictEqual(restarted.waitingIds(), ['s2'])
   assert.strictEqual(new online.OnlinePractice(storage).getWaiting('s2').route.bankId, 'bank2')
   restarted.put('closed', { id: 'closed', status: 'IN_PROGRESS', writer: { writerToken: null } })
@@ -52,6 +56,31 @@ async function main() {
   assert(restarted.get('completed-7'))
   runtime.queue.stop(); restarted.queue.stop()
   http.request = savedRequest
+
+  const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmodel.js')
+  const handoff = new PracticeViewModel({ storage, repository: { getAuth: () => ({ userId: 'u1' }) } })
+  let paused = 0, saved = 0, flushed = 0
+  let writerState = { pendingDeviceId: 'device2', writerToken: 'old-token' }
+  handoff.ownerId = 'u1'
+  handoff.session = { meta: { sessionId: 'handoff' }, state: {}, pauseStudy: () => { paused++ } }
+  handoff.persistSession = () => { saved++ }
+  handoff.online = { poll: async () => writerState, release: async () => false, flush: async () => { flushed++ } }
+  await handoff.checkWriter(); await handoff.checkWriter()
+  assert.strictEqual(paused, 1, '接管等待停止累计学习时间')
+  assert.strictEqual(saved, 1, '等待期间只保存最后一份草稿')
+  writerState = { state: 'WAITING', writerToken: null }
+  assert.strictEqual((await handoff.checkWriter()).command.type, 'returnBankDetail', '已交出写入权的旧页面退出')
+  await handoff.saveSessionNow()
+  assert.strictEqual(saved, 1, '旧页面退出不再产生新写入')
+  assert.strictEqual(flushed, 1)
+
+  const retrying = new PracticeViewModel({ storage })
+  const retrySteps = []
+  retrying.session = { meta: { sessionId: 'replayed' }, getViewData: () => ({ isCompleted: true }) }
+  retrying.online = { queue: { resume: async id => { retrySteps.push(id) } } }
+  retrying.resolveSubmitOutcome = async result => { retrySteps.push('finish'); return result }
+  assert.strictEqual((await retrying.retrySubmit()).data.isCompleted, true)
+  assert.deepStrictEqual(retrySteps, ['replayed', 'finish'], '死信重放后主动重试先恢复原命令，再交卷')
 
   let appDefinition
   let pageDefinition
@@ -95,10 +124,12 @@ async function main() {
   let subject
   let target
   global.getApp = () => ({ setPendingSubjectId: (id) => { subject = id } })
-  global.wx = { switchTab: (input) => { target = input.url } }
-  pageDefinition.startNewPractice.call({ viewModel: { routeOptions: { subjectId: 'subject1' } }, stopTestTimer() {}, clearAutoAdvance() {} })
+  global.wx = { switchTab: (input) => { target = input.url }, setStorageSync: storage.set }
+  pageDefinition.startNewPractice.call({ viewModel: { routeOptions: { subjectId: 'subject1', bankId: 'bank2', mode: 'test' } }, stopTestTimer() {}, clearAutoAdvance() {} })
   assert.strictEqual(subject, 'subject1')
   assert.strictEqual(target, '/page/bank-detail/index')
+  assert.deepStrictEqual(records.qandaPendingPractice, { subjectId: 'subject1', bankId: 'bank2', mode: 'test' }, '等待页的新练习复用题库配置入口')
+  assert(restarted.getWaiting('s2'), '创建新练习保留原接管等待记录')
   global.setTimeout = savedSetTimeout
   global.clearTimeout = savedClearTimeout
   delete global.App; delete global.Page; delete global.getApp; delete global.wx

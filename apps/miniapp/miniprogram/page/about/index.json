@@ -1,0 +1,4 @@
+{
+  "navigationBarTitleText": "关于 QandA",
+  "usingComponents": { "community-group": "/components/community-group/index" }
+}

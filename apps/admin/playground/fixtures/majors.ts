@@ -2,6 +2,7 @@ import type { Major } from '../../src/types/admin'
 
 export const majorFixtures: Major[] = [
   {
+    version: 1,
     id: 'major-computer-science',
     collegeId: 'college-computer-science',
     name: '计算机科学与技术',
@@ -11,6 +12,7 @@ export const majorFixtures: Major[] = [
     updatedAt: '2026-09-03T08:00:00.000Z',
   },
   {
+    version: 1,
     id: 'major-software-engineering',
     collegeId: 'college-computer-science',
     name: '软件工程',
@@ -20,6 +22,7 @@ export const majorFixtures: Major[] = [
     updatedAt: '2026-09-04T08:00:00.000Z',
   },
   {
+    version: 1,
     id: 'major-english',
     collegeId: 'college-foreign-languages',
     name: '英语',

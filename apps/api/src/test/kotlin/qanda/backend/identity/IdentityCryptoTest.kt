@@ -1,6 +1,8 @@
 package qanda.backend.identity
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.swagger.v3.core.converter.AnnotatedType
+import io.swagger.v3.core.converter.ModelConverters
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.mock.env.MockEnvironment
@@ -21,6 +23,29 @@ class IdentityCryptoTest {
         assertTrue(crypto.verifyPassword("😀".repeat(12),crypto.preparePassword("😀".repeat(12)).encoded))
         assertThrows(ApiException::class.java) { crypto.preparePassword("😀".repeat(129)) }
         assertThrows(ApiException::class.java) { crypto.preparePassword("a".repeat(11)) }
+    }
+    @Test fun `student password policy applies to creation and verification independently of administrator policy`() {
+        for (valid in listOf("abc12345","ABC12345","abc1234567890123"," Abc!123 ","a1"+"😀".repeat(14))) {
+            assertTrue(crypto.verifyStudentPassword(valid,crypto.prepareStudentPassword(valid).encoded))
+        }
+        for (bad in listOf("abc1234","abc12345678901234","abcdefgh","12345678","abc12345\u0000","abc12345\uD800")) {
+            assertThrows(ApiException::class.java) { crypto.prepareStudentPassword(bad) }
+            assertThrows(ApiException::class.java) { crypto.verifyStudentPassword(bad,null) }
+        }
+        assertEquals("/newPassword",assertThrows(ApiException::class.java) { crypto.prepareStudentPassword("abcdefgh","newPassword") }.fieldErrors.single().field)
+        val adminPassword = "administrator-password-123"
+        assertTrue(crypto.verifyPassword(adminPassword,crypto.preparePassword(adminPassword).encoded))
+        assertTrue(crypto.verifyPassword("a".repeat(128),crypto.preparePassword("a".repeat(128)).encoded))
+        assertThrows(ApiException::class.java) { crypto.preparePassword("abc12345") }
+    }
+    @Test fun `student password schemas describe the same rule`() {
+        for ((type,field) in listOf(RegistrationInput::class.java to "password",LoginInput::class.java to "password",ResetPasswordInput::class.java to "newPassword",PasswordInput::class.java to "newPassword")) {
+            val property=ModelConverters.getInstance().resolveAsResolvedSchema(AnnotatedType(type)).schema.properties.getValue(field)
+            assertEquals(8,property.minLength);assertEquals(16,property.maxLength)
+            val pattern=Regex(property.pattern)
+            assertTrue(pattern.matches("abc12345"));assertTrue(pattern.matches(" Abc!123 "))
+            assertFalse(pattern.matches("abcdefgh"));assertFalse(pattern.matches("12345678"));assertFalse(pattern.matches("abc12345\u0000"))
+        }
     }
     @Test fun `email comparison does not fold provider aliases or accept header characters`() {
         assertEquals(Email("User+Tag@Example.com","user+tag@example.com"),email("  User+Tag@Example.com  "))

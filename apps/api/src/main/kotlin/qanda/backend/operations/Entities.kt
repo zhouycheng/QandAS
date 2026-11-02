@@ -34,18 +34,3 @@ class CourseRequest {
     var createdAt: Instant = Instant.now()
     var updatedAt: Instant = Instant.now()
 }
-
-@TableName("announcement")
-class Announcement {
-    @TableId(type = IdType.INPUT)
-    var id: UUID? = null
-    var title: String = ""
-    var summary: String = ""
-    var body: String = ""
-    var audience: String = "ALL"
-    var status: String = "DRAFT"
-    var publishAt: Instant? = null
-    var version: Long = 1
-    var createdBy: UUID? = null
-    var updatedAt: Instant = Instant.now()
-}

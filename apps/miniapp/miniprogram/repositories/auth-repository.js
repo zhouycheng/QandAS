@@ -19,23 +19,37 @@ function clearAuth(storage) {
   if (storage) storage.remove(AUTH_STORAGE_KEY)
   return createEmptyAuth()
 }
+function expireAuth(storage, token) {
+  if (!token || getAuth(storage).token !== token) return false
+  clearAuth(storage)
+  notifyIdentity()
+  return true
+}
 function deviceId(storage) {
   let value = storage.get(DEVICE_KEY)
   if (!value) { value = transport.uuid(); storage.set(DEVICE_KEY, value) }
   return value
 }
 function failure(storage, reason) { return { ok: false, degraded: false, reason: reason || '请求失败，请稍后重试', auth: getAuth(storage) } }
+function notifyIdentity() {
+  if (typeof getApp !== 'function') return
+  const app = getApp()
+  if (app && app.syncActivityHeartbeat) app.syncActivityHeartbeat()
+}
 function settle(storage, remote, provider) {
   if (!remote || !remote.ok || !remote.userId || !remote.token) return failure(storage, remote && remote.reason || '登录接口未返回完整身份')
   const auth = provider === 'email' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { return { ok: true, degraded: false, provider, reason: '', auth: saveAuth(storage, auth) } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, degraded: false, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {
   if (typeof wx === 'undefined' || !wx || !wx.login) { done('', '当前环境不支持微信登录'); return }
   wx.login({ timeout: 10000, success: (result) => done(result.code || ''), fail: () => done('', '微信登录失败，请稍后重试') })
+}
+function requestWechatCode() {
+  return new Promise((resolve, reject) => defaultCodeProvider((code, reason) => code ? resolve(code) : reject(new Error(reason || '未取到微信登录凭证'))))
 }
 function call(fn) { return Promise.resolve().then(fn).then((result) => result || { ok: false, reason: '请求失败，请稍后重试' }).catch(() => ({ ok: false, reason: '网络请求失败，请稍后重试' })) }
 function login(storage, options) {
@@ -95,7 +109,7 @@ function resetPassword(storage, input) {
 function logout(storage) {
   const current = getAuth(storage)
   if (current.token) transport.request('DELETE', '/auth/sessions/current', {}, { token: current.token })
-  try { clearAuth(storage) } catch (error) { return failure(storage, '退出登录失败，请检查设备存储空间') }
+  try { clearAuth(storage); notifyIdentity() } catch (error) { return failure(storage, '退出登录失败，请检查设备存储空间') }
   return { ok: true, provider: '', auth: createEmptyAuth() }
 }
 function updateProfile(storage, profile) {
@@ -104,4 +118,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, clearAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile }
+module.exports = { AUTH_STORAGE_KEY, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }

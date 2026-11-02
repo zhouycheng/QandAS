@@ -223,16 +223,16 @@ function checkHiddenOnOverlay() {
 // ---------- 三、中央「继续答题」 ----------
 
 function checkContinueButton() {
-  assert('中央钮 - WXML 存在中央按钮', tabBarWxml.indexOf('class="continue-btn"') >= 0)
-  assert('中央钮 - 文案为「继续答题」', tabBarWxml.indexOf('继续答题') >= 0)
+  assert('中央钮 - WXML 存在中央按钮', tabBarWxml.indexOf('class="continue-btn') >= 0)
+  assert('中央钮 - 文案绑定当前动作状态', tabBarWxml.includes('{{continueLabel}}') && tabBarJs.includes('继续答题') && tabBarJs.includes('选择题库'))
 
   // 文字必须在圆钮外面（用户明确要求：「不要放在蓝色图标里面」）
-  const circleTag = (tabBarWxml.match(/<view\s+class="continue-btn"[\s\S]*?>[\s\S]*?<\/view>/) || [''])[0]
+  const circleTag = (tabBarWxml.match(/<view\s+class="continue-btn[^\"]*"[\s\S]*?>[\s\S]*?<\/view>/) || [''])[0]
 
   assert('中央钮 - 圆钮里只有播放三角，没有文字',
     circleTag.indexOf('继续答题') < 0 && circleTag.indexOf('continue-icon') >= 0,
     '文字还留在圆钮内部')
-  assert('中央钮 - 文字是独立的 continue-label', tabBarWxml.indexOf('class="continue-label"') >= 0)
+  assert('中央钮 - 文字是独立的 continue-label', tabBarWxml.indexOf('class="continue-label') >= 0)
 
   /*
    * 真实出过的事故：`.continue-label` 用 left:0 + right:0 铺满整条底栏，
@@ -253,7 +253,7 @@ function checkContinueButton() {
     (tabBarWxml.match(/bindtap="handleContinueTap"/g) || []).length === 2,
     `实际 ${(tabBarWxml.match(/bindtap="handleContinueTap"/g) || []).length} 处`)
   assert('中央钮 - 带 hover 反馈且 hover-start-time 为 0',
-    /hover-class="continue-hover"[\s\S]{0,120}?hover-start-time="0"/.test(tabBarWxml))
+    /hover-class="\{\{continueDisabled \? 'none' : 'continue-hover'\}\}"[\s\S]{0,120}?hover-start-time="0"/.test(tabBarWxml))
   assert('中央钮 - 使用绝对定位浮在胶囊上（不挤占 tab 布局）',
     /\.continue-btn\s*\{[^}]*position\s*:\s*absolute/.test(tabBarWxss))
   assert('中央钮 - 胶囊本身是圆角悬浮',

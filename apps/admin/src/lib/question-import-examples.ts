@@ -13,7 +13,7 @@ export const questionImportExamples: Record<QuestionType, QuestionContent> = {
   FILL_BLANK: { type: 'FILL_BLANK', stem: '水的化学式是 {{1}}，常压沸点是 {{2}} ℃。', options: [], correctAnswer: [], blanks: [{ answers: ['H₂O', 'H2O'] }, { answers: ['100', '一百'] }], blankMatch: { ignoreCase: true, trimWhitespace: true }, explanation: '水由氢、氧组成，在标准大气压下沸点为 100 ℃。' },
   SHORT_ANSWER: short,
   READING: { type: 'READING', stem: '学习方法 · 材料阅读', options: [], correctAnswer: [], passage: '小林每天制定学习计划，并在周末复习本周内容。他发现，规律的学习安排有助于长期记忆。', explanation: '结合材料理解计划与复习的作用。', subQuestions: [
-    { ...single, type: 'SINGLE_CHOICE', id: 'reading-sub-1', stem: '小林什么时候复习本周内容？', options: [{ key: 'A', content: '周末' }, { key: 'B', content: '从不复习' }], explanation: '材料明确提到他在周末复习本周内容。' },
-    { ...short, type: 'SHORT_ANSWER', id: 'reading-sub-2' },
+    { ...single, type: 'SINGLE_CHOICE', id: '64bdf675-97bb-4473-bb68-819ac0279c00', stem: '小林什么时候复习本周内容？', options: [{ key: 'A', content: '周末' }, { key: 'B', content: '从不复习' }], explanation: '材料明确提到他在周末复习本周内容。' },
+    { ...short, type: 'SHORT_ANSWER', id: '49b8a732-b0e6-49e9-a114-8edf2dd91c21' },
   ] },
 }

@@ -3,9 +3,9 @@ import type { StudentFeedback, UserCourse } from '../../src/types/operations'
 import { questionFixtures } from './questions'
 
 export const chapterFixtures: Chapter[] = [
-  { id: 'chapter-limits', questionBankId: 'bank-calculus', name: '函数与极限', sortOrder: 0 },
-  { id: 'chapter-derivatives', questionBankId: 'bank-calculus', name: '导数与微分', sortOrder: 1 },
-  { id: 'chapter-tense', questionBankId: 'bank-english-grammar', name: '动词时态', sortOrder: 0 },
+  { version: 1, id: 'chapter-limits', questionBankId: 'bank-calculus', name: '函数与极限', sortOrder: 0 },
+  { version: 1, id: 'chapter-derivatives', questionBankId: 'bank-calculus', name: '导数与微分', sortOrder: 1 },
+  { version: 1, id: 'chapter-tense', questionBankId: 'bank-english-grammar', name: '动词时态', sortOrder: 0 },
 ]
 
 export const userCourseFixtures: UserCourse[] = [
@@ -31,6 +31,7 @@ export const userCourseFixtures: UserCourse[] = [
 
 export const feedbackFixtures: StudentFeedback[] = [
   {
+    version: 1,
     id: 'feedback-1',
     kind: 'QUESTION',
     userId: 'user-1',
@@ -47,6 +48,7 @@ export const feedbackFixtures: StudentFeedback[] = [
     updatedAt: '2026-10-24T11:30:00Z',
   },
   {
+    version: 1,
     id: 'feedback-2',
     kind: 'COURSE_REQUEST',
     userId: 'user-2',
@@ -59,6 +61,7 @@ export const feedbackFixtures: StudentFeedback[] = [
     updatedAt: '2026-10-24T09:00:00Z',
   },
   {
+    version: 1,
     id: 'feedback-3',
     kind: 'COURSE_REQUEST',
     userId: 'user-3',

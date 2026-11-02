@@ -1,58 +1,38 @@
 @import "../../styles/list-page.wxss";
 
-/* 账号管理｜设计稿 Figma 781:2123（画板 402x874，系数 750/402 ≈ 1.8657）
-   公共行高 / 输入框 / 底部按钮在 styles/list-page.wxss，这里只写本页差异。 */
-
-/* 头像行：设计稿里这一行没有下边框（52px 高） */
-.avatar-row {
+button.avatar-button[size="mini"] {
   display: flex;
   align-items: center;
-  min-height: 97rpx;
-}
-
-.avatar-sm {
-  width: 97rpx;
-  height: 97rpx;
-  margin-top: 0;
-}
-
-.avatar-sm .avatar-icon {
-  width: 48rpx;
-  height: 48rpx;
-}
-
-.avatar-label {
-  margin-left: 26rpx;
-  font-size: 22rpx;
-  line-height: 45rpx;
-  font-weight: 500;
-  color: #141820;
-}
-
-/* 用 button 承载 open-type="chooseAvatar"（微信现行唯一合规能力），
-   所以要把它还原成一行普通文字，不能带原生按钮外观 */
-.link-btn {
-  flex: none;
-  display: flex;
-  align-items: center;
-  margin: 0 0 0 auto;
+  justify-content: center;
+  width: 128rpx;
+  height: 128rpx;
+  min-width: 128rpx;
+  max-width: 128rpx;
+  margin: 20rpx auto 40rpx;
   padding: 0;
-  background: transparent;
   border: none;
-  border-radius: 0;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  border-radius: 50%;
+  background: #F0F3FF;
+  overflow: hidden;
 }
+.avatar-button::after { border: none; }
+.avatar-button .profile-avatar-img { width: 100%; height: 100%; }
+.avatar-button .avatar-icon { width: 58rpx; height: 58rpx; }
+.avatar-hover { opacity: .7; }
+.nickname-field { display: flex; align-items: center; box-sizing: border-box; height: 86rpx; margin-top: 15rpx; padding: 0 26rpx; border-radius: 15rpx; background: #efefef; overflow: hidden; }
+.nickname-field .field-input { flex: 1; min-width: 0; width: 0; height: 86rpx; margin: 0; padding: 0; }
+.nickname-wechat-button { flex: none; display: flex; align-items: center; justify-content: flex-end; width: auto; min-width: 0; height: 86rpx; margin: 0 0 0 20rpx; padding: 0; border: 0; border-radius: 0; line-height: 45rpx; font-size: 22rpx; font-weight: 500; color: #466bff; background: transparent; box-shadow: none; }
+.nickname-wechat-button::after { border: none; }
 
-.link-btn::after {
-  border: none;
-}
-
-.link-btn-hover {
-  opacity: 0.7;
-}
-
-/* 换头像按钮里的文字要跟右侧「更换 / 绑定 / 修改」一致 */
-.link-btn .info-action {
-  margin-left: 0;
-}
+.profile-select-mask { position: fixed; inset: 0; z-index: 40; }
+.profile-selector { position: relative; }
+.profile-selector.is-open { z-index: 41; }
+.profile-select { display: flex; align-items: center; min-height: 88rpx; padding: 0 24rpx; border: 2rpx solid #E4E8F0; border-radius: 16rpx; background: #FFFFFF; }
+.profile-select-value { flex: 1; min-width: 0; font-size: 26rpx; color: #141820; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-select-value.is-placeholder { color: #9AA0A6; }
+.profile-select-arrow { width: 12rpx; height: 12rpx; margin: 0 4rpx 6rpx 20rpx; border-right: 3rpx solid #8B8F99; border-bottom: 3rpx solid #8B8F99; transform: rotate(45deg); }
+.profile-options { position: absolute; left: 0; right: 0; top: calc(100% + 8rpx); max-height: 360rpx; border: 2rpx solid #E4E8F0; border-radius: 16rpx; background: #FFFFFF; box-shadow: 0 10rpx 32rpx rgba(22, 34, 58, .12); animation: profile-options-enter 140ms ease-out; }
+.profile-option, .profile-option-note { padding: 23rpx 24rpx; font-size: 26rpx; line-height: 1.5; color: #141820; }
+.profile-option.is-selected { background: #EFF4FF; color: #2B7FFC; }
+.profile-option-note { color: #8B8F99; }
+@keyframes profile-options-enter { from { opacity: 0; transform: translateY(-8rpx); } to { opacity: 1; transform: translateY(0); } }

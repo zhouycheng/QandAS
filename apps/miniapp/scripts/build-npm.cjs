@@ -14,6 +14,6 @@ const cli = process.env.WECHAT_DEVTOOLS_CLI || (process.platform === 'darwin' ? 
 const result = spawnSync(cli, ['build-npm', '--project', project], { stdio: 'inherit', shell: process.platform === 'win32' })
 if (result.error) throw result.error
 if (result.status !== 0) process.exit(result.status || 1)
-for (const name of ['mobx-miniprogram', 'mobx-miniprogram-bindings']) {
+for (const name of ['mobx-miniprogram', 'mobx-miniprogram-bindings', '@qanda/content-format']) {
   if (!fs.existsSync(path.join(project, 'miniprogram/miniprogram_npm', name, 'index.js'))) throw new Error('npm 构建缺少 ' + name)
 }

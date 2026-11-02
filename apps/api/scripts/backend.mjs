@@ -64,7 +64,8 @@ try {
   if (command === 'init') {
     if (existsSync(config)) throw new Error('.env.backend 已存在，保留现有配置');
     let values = readFileSync(join(apiRoot, '.env.backend.example'), 'utf8')
-      .replace('BACKEND_DB_PASSWORD=\n', `BACKEND_DB_PASSWORD=${randomBytes(32).toString('base64url')}\n`);
+      .replace('BACKEND_DB_PASSWORD=\n', `BACKEND_DB_PASSWORD=${randomBytes(32).toString('base64url')}\n`)
+      .replace('BACKEND_RABBIT_PASSWORD=\n', `BACKEND_RABBIT_PASSWORD=${randomBytes(32).toString('base64url')}\n`);
     for (const name of ['COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION']) {
       values = values.replace(`BACKEND_${name}_KEYS=\n`, `BACKEND_${name}_KEYS=1:${randomBytes(32).toString('base64')}\n`);
     }
@@ -80,7 +81,7 @@ try {
     await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', 'build', '--no-cache', 'api']);
     await run('docker', ['image', 'prune', '--force', '--filter', 'label=qanda.backend=true']);
   } else if (['docker-up', 'docker-stop', 'docker-logs', 'docker-bootstrap'].includes(command)) {
-    const args = { 'docker-up': ['up', '-d', '--wait'], 'docker-stop': ['stop', 'api'], 'docker-logs': ['logs', '--tail', '100', '-f', 'api'], 'docker-bootstrap': ['run', '--rm', '--no-deps', '-it', 'api', 'bootstrap'] }[command];
+    const args = { 'docker-up': ['up', '-d', '--wait'], 'docker-stop': ['stop', 'gateway', 'api', 'worker', 'monitor'], 'docker-logs': ['logs', '--tail', '100', '-f', 'api', 'worker', 'monitor'], 'docker-bootstrap': ['run', '--rm', '--no-deps', '-it', 'api', 'bootstrap'] }[command];
     await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', ...args]);
   } else if (['build', 'test', 'verify', 'postgresTest'].includes(command)) {
     const goal = { build: 'package', test: 'test', verify: 'verify', postgresTest: 'verify' }[command];

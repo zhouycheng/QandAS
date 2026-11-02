@@ -4,11 +4,16 @@
 
 ## 运行结构
 
-Docker Compose 管理三个服务：
+Docker Compose 管理核心 API、后台消费者和监控进程，以及各自依赖：
 
 | 服务 | 用途 | 本机入口 |
 | --- | --- | --- |
-| `api` | Java 21 运行时及完整 Spring Boot JAR，使用非 root 用户 | `http://127.0.0.1:8083` |
+| `gateway` | Nginx 路由核心与监控请求，SSE 关闭缓冲 | `http://127.0.0.1:8083` |
+| `api` | 核心业务 HTTP、进度接收与发布，Java 21 非 root 用户 | 内部 8083 |
+| `worker` | 4 个进度消费者、活跃事件投影、邮件投递 | 内部健康与指标 |
+| `monitor` | 在线、活跃、系统健康与 SSE，独立受限连接池 | 内部 8083，由 gateway 转发 |
+| `rabbitmq` | 三条 quorum 队列，卷 `backend_rabbit` | 内部服务 |
+| `prometheus` | 每 5 秒采集，卷 `backend_metrics`，保留 15 天 | 内部服务 |
 | `postgres` | 专用开发数据库，数据位于 `backend_pg` 卷 | 仅本机数据库端口 |
 | `mailpit` | 捕获本地验证码邮件 | `http://127.0.0.1:58025` |
 
@@ -18,7 +23,9 @@ Docker Compose 管理三个服务：
 
 ## 构建和启动
 
-需要 Node.js、JDK 21 和运行中的 Docker。现有配置保存在忽略的 `.env.backend` 中，权限须为 `600`。首次使用时执行 `init` 生成私有密钥；已存在配置可直接进入重建步骤。
+需要 Node.js、JDK 21 和运行中的 Docker。配置保存在忽略的 `.env.backend` 中，权限须为 `600`。首次使用执行 `init` 生成私有密钥及队列密码；已有配置需要补充 `BACKEND_RABBIT_PASSWORD`。
+
+本轮验证使用全新隔离数据库。已有开发库保留原结构和数据，普通重建不会应用结构变化；请为本轮结构准备独立数据库和持久卷后启动。完整边界见[同步与监控说明](../../docs/sync-monitoring.md)。
 
 从仓库根目录执行：
 
@@ -32,15 +39,23 @@ node apps/api/scripts/backend.mjs docker-up
 
 镜像只包含 Java 21 运行时及应用 JAR；私有配置在启动时注入。构建上下文排除源码、私有配置与运行记录。重建脚本和容器重启保留数据库及文件卷。
 
-PostgreSQL 在全新数据卷首次初始化时执行完整 `src/main/resources/db/schema.sql`。应用启动检查当前表结构。各业务记录的 `version`、内容修订与同步序号用于并发和练习一致性，独立于应用发布版本。
+PostgreSQL 在全新数据卷首次初始化时执行 `src/main/resources/db/schema.sql` 和 `monitoring-permissions.sql`。应用启动检查当前表结构；已有库结构不匹配时停止启动。各业务记录的 `version`、内容修订与同步序号用于并发和练习一致性，独立于应用发布版本。
 
-首次创建平台管理员：
+已有数据库从双管理员角色升级时，先执行 `src/main/resources/db/migrations/20261101_super_admin.sql`，再启动新版本；脚本将旧角色统一为 `SUPER_ADMIN`，保留账号状态和凭据，并递增受影响账号的版本。
+
+已有数据库启用用户交流群及公告置顶时，先备份并执行 `src/main/resources/db/migrations/20261102_community_announcements.sql`。群码维护和客户端展示见[用户交流群说明](../../docs/community-group.md)。
+
+已有数据库启用同科目联合题库练习时，先备份并执行 `src/main/resources/db/migrations/20261102_multi_bank_practice.sql`，再更新服务。迁移扩展题目归属校验，保留已有练习和作答记录。
+
+首次创建超级管理员：
 
 ```sh
 node apps/api/scripts/backend.mjs docker-bootstrap
 ```
 
 该命令在临时 API 容器的终端中读取用户名、姓名和密码。普通启动不创建默认管理员或默认密码。
+
+管理员统一使用 `SUPER_ADMIN`，拥有完整管理权限；题库维护者记录工作分工。开发数据库以当前 v1.0 初始化结构为准，账号的 `version` 用于并发编辑校验。独立联调环境的采用过程与验证结果记录在[三端联调记录](../../docs/three-client-integration.md)。
 
 ## 日常操作
 
@@ -64,7 +79,7 @@ node apps/api/scripts/backend.mjs docker-stop
 - 更新使用业务并发版本；冲突返回 `VERSION_CONFLICT`。资料读取统一使用 `GET /me`，`PUT /me/profile` 完整替换资料。
 - 列表采用 `page`、`pageSize`，每页最多 100 条。`GET /questions?keyword=…` 搜索已发布题库的题干与选项，个人题目进度由 `GET /me/question-progress` 提供。
 - 创建练习必须携带 `deviceId`，一次返回固定配置、题序、修订及独立离线判题数据。客户端按题型与反馈模式控制答案展示，正式成绩由服务端判定。
-- 进行中的练习变更携带有效 `writerToken`。进度统一通过 `PUT /practice/sessions/{id}/progress-ack` 提交，并携带递增 `clientSequence`；响应返回业务版本、确认序号及写入状态。
+- 进行中的练习变更携带有效 `writerToken`。小程序通过 `POST /practice/sessions/{id}/progress-commands` 提交进度，`202` 后保留原请求和草稿，查询命令至 `COMMITTED` 才按确认序号清理。`progress-ack` 内部使用同一队列，成功响应仍表示已落库。
 - 跨端调用 `writer-acquire` 后等待原设备同步并 `writer-release`；服务端在事务内更换凭证。持有者通过 `snapshot` 与 `X-Practice-Writer` 取得离线快照。简答题在交卷后按业务版本自评。
 - 本地验证码进入 Mailpit。真实微信身份服务需要官方应用配置；开发配置的本地微信提供端用于自动检查。
 
@@ -72,9 +87,9 @@ node apps/api/scripts/backend.mjs docker-stop
 
 在私有 `.env.backend` 中设置 `BACKEND_MAIL_ENABLED=true`、`BACKEND_MAIL_TRANSPORT=tencent-ses` 和 `BACKEND_SES_SEND_ENABLED=true`。SES 凭据、地域、已验证发信地址及通用验证码模板 ID 存放在仓库外的 `~/.config/qanda/tencent-ses.env`，权限为 `600`，对应字段为 `TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`、`TENCENT_SES_REGION`、`TENCENT_SES_FROM_EMAIL`、`TENCENT_SES_VERIFICATION_TEMPLATE_ID`。
 
-通过 `node apps/api/scripts/backend.mjs docker-up` 启动时，脚本读取私有 SES 配置，Compose 将所需字段注入 API 容器。修改邮件配置后执行该命令重建容器即可生效。出站记录的 `ACCEPTED` 表示服务商受理，实际收件需结合 SES 投递状态和收件箱确认。
+通过 `node apps/api/scripts/backend.mjs docker-up` 启动时，脚本读取私有 SES 配置，Compose 将所需字段注入 API 和消费者容器。独立联调入口 `python3 apps/api/scripts/integration.py up` 同样读取该文件，并使用联调目录中的 `backend.env`。已有进程环境变量优先，私有配置权限必须为 `600`。修改邮件配置后重建对应容器即可生效。出站记录的 `ACCEPTED` 表示服务商受理，实际收件需结合 SES 投递状态和收件箱确认。
 
-API 容器使用 Compose 指定的公共 DNS 解析 SES 域名，数据库仍通过 Docker 内部服务名访问。排查实发失败时同时检查容器内的域名解析与 HTTPS 连通性。
+API 和消费者容器使用 Compose 指定的公共 DNS 解析 SES 域名，数据库仍通过 Docker 内部服务名访问。邮件由消费者投递，排查实发失败时检查实际投递容器内的域名解析与 HTTPS 连通性。
 
 ## 验证与文档
 
@@ -84,4 +99,4 @@ node apps/api/scripts/backend.mjs test
 node apps/api/scripts/backend.mjs verify
 ```
 
-`verify` 使用隔离 PostgreSQL 和 Mailpit 执行 HTTP 及小程序运行时验收。合同和 Postman 的生成、校验方式见[接口验收说明](acceptance/README.md)。业务模型见[后端架构](../../docs/backend-architecture.md)，页面调用关系见[小程序接口台账](../../docs/miniapp-api-integration.md)。
+`verify` 使用隔离 PostgreSQL、RabbitMQ、Prometheus 和 Mailpit 执行 HTTP、SSE、故障恢复及小程序运行时验收，并运行独立监控 JAR 检查受限角色。合同和 Postman 的生成、校验方式见[接口验收说明](acceptance/README.md)。业务模型见[后端架构](../../docs/backend-architecture.md)与[完整 ER](../../docs/database-design.md)，页面调用关系见[小程序接口台账](../../docs/miniapp-api-integration.md)。

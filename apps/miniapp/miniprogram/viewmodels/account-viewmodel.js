@@ -2,25 +2,21 @@ const remoteData = require('../repositories/remote-data-repository.js')
 const practiceRepository = require('../repositories/practice-repository.js')
 const { describeAuth, getProviderLabel } = require('../utils/auth-session.js')
 const { maskEmail } = require('../utils/auth-form.js')
+const { GRADE_LABELS } = require('../utils/profile-rules.js')
+const { AccountSecurityRepository } = require('../repositories/account-security-repository.js')
+const { uuid } = require('../repositories/api-transport.js')
 
 const LOGIN_URL = '/page/login/index'
-const FORGOT_URL = '/page/forgot-password/index'
+const SECURITY_URL = '/page/account-security/index'
 
 /**
- * 账号管理（设计稿 Figma 781:2123）。
+ * 个人资料。
  *
- * 页面只负责改「资料」（头像 / 昵称 / 学院），改完点保存才落盘：
+ * 资料编辑完成后统一保存。
  * 输入过程中每敲一个字就写 storage 会在真机上卡顿，而且中途退出会留下半截数据。
  *
- * 邮箱 / 微信 / 密码三项是账号级操作，端上没有对应能力时**明确告知**，
- * 不静默无反应——这是本项目一贯的处理方式。
+ * 邮箱和密码由账号安全页面处理，微信身份在当前页绑定。
  */
-
-const ACCOUNT_MESSAGES = {
-  email: '邮箱更换入口暂未开放，可通过找回密码验证邮箱',
-  wechatBound: '当前已是微信登录身份，无需重复绑定',
-  wechatGuest: '微信绑定入口暂未开放'
-}
 
 function createNullStorage() {
   return {
@@ -51,18 +47,25 @@ function getInitialAccountViewData() {
     draft: {
       avatarUrl: '',
       nickname: '',
-      college: ''
+      college: '', major: '', currentGrade: null, gradeLabel: ''
     },
     // 有没有未保存的改动：没有改动时保存按钮置灰
     dirty: false,
     saving: false,
+    avatarPreparing: false,
+    nicknameFocus: false,
+    wechatBinding: false,
     collegeOptions: [],
     collegeIndex: 0,
     collegePickerVisible: false,
     collegeLoading: false,
     collegeError: '',
     collegeHasMore: false,
-    collegePage: 1
+    collegePage: 1,
+    required: false,
+    gradeLabels: GRADE_LABELS,
+    gradePickerVisible: false,
+    majorOptions: [], majorPickerVisible: false, majorLoading: false, majorError: '', majorHasMore: false, majorPage: 1
   }
 }
 
@@ -74,17 +77,20 @@ class AccountViewModel {
     // 输入框刻意不受控：只在内存里攒改动，不回写 value，否则真机光标会跳到末尾
     this.pending = null
     this.editRevision = 0
+    this.required = !!normalizedOptions.required
+    this.majorOptions = []
+    this.securityRepository = normalizedOptions.securityRepository
   }
 
   refreshRemote(subjectId) {
     if (!this.repository.isRemoteEnabled || !this.repository.isRemoteEnabled()) return Promise.resolve(null)
     const revision = this.editRevision
-    return this.repository.refreshRemote(this.storage, 'profile').then(() => revision === this.editRevision ? this.load() : null).catch((error) => ({ command: { type: 'toast', title: error.message } }))
+    return this.repository.refreshRemote(this.storage, 'profile').then(() => revision !== this.editRevision ? null : this.loadedEditRevision !== this.editRevision ? { data: { profile: this.readProfile() } } : this.load()).catch((error) => ({ command: { type: 'toast', title: error.message } }))
   }
 
   projectRemote() {
     remoteData.getProfile(this.storage)
-    if (this.loadedEditRevision !== this.editRevision) return { collegeOptions: [{ id: '', name: '未选择' }].concat(remoteData.getColleges()) }
+    if (this.loadedEditRevision !== this.editRevision) return { profile: this.readProfile(), collegeOptions: [{ id: '', name: '未选择' }].concat(remoteData.getColleges()) }
     return this.load().data
   }
 
@@ -96,6 +102,33 @@ class AccountViewModel {
     } }))
   }
 
+  loadMajors(page) {
+    const collegeId = this.pending && this.pending.collegeId
+    if (!collegeId) return Promise.reject(new Error('请先选择学院'))
+    return remoteData.loadMajors(collegeId, page || 1).then(result => {
+      if (!this.pending || collegeId !== this.pending.collegeId) return null
+      this.majorOptions = page > 1 ? this.majorOptions.concat(result.items) : result.items
+      return { data: { majorOptions: this.majorOptions, majorHasMore: result.page * result.pageSize < result.total, majorPage: page || 1 } }
+    })
+  }
+
+  selectMajor(index) {
+    const major = this.majorOptions[Number(index)]
+    if (!major) return null
+    this.editRevision += 1
+    Object.assign(this.pending, { majorId: major.id, major: major.name })
+    return { data: { 'draft.major': major.name, dirty: this.dirtyNow() } }
+  }
+
+  selectGrade(index) {
+    const grade = Number(index) + 1
+    if (!GRADE_LABELS[grade - 1]) return null
+    this.editRevision += 1
+    Object.assign(this.pending, { currentGrade: grade, gradeLabel: GRADE_LABELS[grade - 1] })
+    this.gradeEdited = true
+    return { data: { 'draft.currentGrade': grade, 'draft.gradeLabel': GRADE_LABELS[grade - 1], dirty: true } }
+  }
+
   static getInitialData() {
     return getInitialAccountViewData()
   }
@@ -105,15 +138,19 @@ class AccountViewModel {
     const draft = {
       avatarUrl: profile.avatarUrl,
       nickname: profile.nickname,
-      college: profile.college
+      college: profile.college,
+      collegeId: profile.collegeId, majorId: profile.majorId, major: profile.major,
+      currentGrade: profile.currentGrade, gradeLabel: profile.gradeLabel
     }
 
     this.pending = Object.assign({}, draft)
     this.loadedEditRevision = this.editRevision
+    this.gradeEdited = false
 
     return {
       data: {
         loggedIn: this.readAuth().view.loggedIn,
+        required: this.required,
         profile,
         draft,
         dirty: false,
@@ -132,6 +169,7 @@ class AccountViewModel {
         view: describeAuth(raw),
         // 编辑框要的是「用户真正填过的昵称」，不是带兜底的 displayName
         nickname: raw && typeof raw.nickname === 'string' ? raw.nickname : '',
+        token: raw && raw.token,
         profile: raw && raw.profile
       }
     } catch (error) {
@@ -142,20 +180,24 @@ class AccountViewModel {
   readProfile() {
     const state = this.readAuth()
     const view = state.view
+    const profile = remoteData.getProfile(this.storage) || state.profile || {}
 
     if (!view.loggedIn) {
       return createEmptyProfile()
     }
 
     return {
-      avatarUrl: view.avatarUrl,
+      avatarUrl: profile.avatarUrl || view.avatarUrl,
       nickname: state.nickname,
-      college: view.college || '',
-      emailMasked: maskEmail(view.email),
+      college: profile.collegeName || view.college || '',
+      collegeId: profile.collegeId || null, majorId: profile.majorId || null, major: profile.majorName || '',
+      currentGrade: profile.currentGrade || null, gradeLabel: GRADE_LABELS[profile.currentGrade - 1] || '',
+      emailMasked: maskEmail(profile.email === undefined ? view.email : profile.email),
       providerLabel: getProviderLabel(view.provider) || view.accountTag,
-      // 密码状态随邮箱登录能力显示。
-      passwordStatus: view.provider === 'email' ? '已设置' : '未设置',
-      wechatStatus: (state.profile && state.profile.wechatBound) || view.provider === 'wechat' ? '已绑定' : '未绑定'
+      passwordStatus: profile.passwordSet ? '已设置' : '未设置',
+      wechatBound: !!profile.wechatBound,
+      wechatStatus: profile.wechatBound ? '已绑定' : '未绑定',
+      wechatAction: profile.wechatBound ? '' : '绑定'
     }
   }
 
@@ -163,8 +205,10 @@ class AccountViewModel {
     this.editRevision += 1
     const colleges = [{ id: '', name: '未选择' }].concat(remoteData.getColleges())
     const college = colleges[Number(index)] || colleges[0]
-    this.pending = Object.assign({}, this.pending, { college: college.id ? college.name : '', collegeId: college.id || null })
-    return { data: { collegeIndex: Number(index), 'draft.college': this.pending.college, dirty: true } }
+    if (this.pending && this.pending.collegeId === college.id) return null
+    this.majorOptions = []
+    this.pending = Object.assign({}, this.pending, { college: college.id ? college.name : '', collegeId: college.id || null, majorId: null, major: '' })
+    return { data: { collegeIndex: Number(index), 'draft.college': this.pending.college, 'draft.major': '', majorOptions: [], dirty: true } }
   }
 
   /** 输入：只记改动，不回写 value（回写会让光标跳到末尾） */
@@ -179,10 +223,7 @@ class AccountViewModel {
     this.pending = Object.assign({}, this.pending || {}, { [key]: text })
 
     const current = this.readProfile()
-    const dirty =
-      (this.pending.nickname || '') !== (current.nickname || '') ||
-      (this.pending.college || '') !== (current.college || '') ||
-      (this.pending.avatarUrl || '') !== (current.avatarUrl || '')
+    const dirty = this.dirtyNow()
 
     return {
       data: {
@@ -216,11 +257,15 @@ class AccountViewModel {
     const college = typeof pending.college === 'string' ? pending.college.trim() : ''
 
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
-      const profile = remoteData.getProfile(this.storage) || {}
-      return remoteData.saveProfile(this.storage, { nickname, collegeId: pending.collegeId === undefined ? profile.collegeId : pending.collegeId, majorId: pending.collegeId === undefined || pending.collegeId === profile.collegeId ? profile.majorId : null }).then(() => {
-        this.repository.updateAuthProfile(this.storage, { avatarUrl: pending.avatarUrl || '' })
-        return Object.assign({}, this.load(), { command: { type: 'toast', title: '资料已保存' } })
-      })
+      if (!pending.collegeId || !pending.majorId || !pending.currentGrade) return { command: { type: 'toast', title: '请选择学院、专业和当前年级' } }
+      if (this.saving) return null
+      this.saving = true
+      const patch = { nickname, collegeId: pending.collegeId, majorId: pending.majorId }
+      if (pending.avatarUrl !== this.readProfile().avatarUrl && /^data:image\/(jpeg|png);base64,/.test(pending.avatarUrl || '')) patch.avatar = pending.avatarUrl
+      if (this.gradeEdited) patch.currentGrade = pending.currentGrade
+      return remoteData.saveProfile(this.storage, patch).then(() => {
+        return Object.assign({}, this.load(), { command: { type: this.required ? 'profile-complete' : 'toast', title: '资料已保存' } })
+      }).finally(() => { this.saving = false })
     }
     this.repository.updateAuthProfile(this.storage, {
       nickname,
@@ -243,83 +288,42 @@ class AccountViewModel {
     return (
       (pending.nickname || '') !== (current.nickname || '') ||
       (pending.college || '') !== (current.college || '') ||
-      (pending.avatarUrl || '') !== (current.avatarUrl || '')
+      (pending.avatarUrl || '') !== (current.avatarUrl || '') ||
+      pending.majorId !== current.majorId || pending.currentGrade !== current.currentGrade || this.gradeEdited
     )
   }
 
-  /**
-   * 改密码 = 走「找回密码」流程（邮箱验证码重设）。
-   * 这是设计稿 772:1076 已有的页面，不另造一个入口。
-   */
-  tapPassword() {
-    const view = this.readAuth().view
-
-    if (!view.loggedIn) {
-      return {
-        command: {
-          type: 'navigate',
-          url: LOGIN_URL
-        }
-      }
-    }
-
-    if (view.provider !== 'email') {
-      return {
-        command: {
-          type: 'toast',
-          title: '当前身份没有设置密码，可直接用微信登录'
-        }
-      }
-    }
-
-    return {
-      command: {
-        type: 'navigate',
-        url: `${FORGOT_URL}?email=${encodeURIComponent(view.email || '')}`
-      }
-    }
-  }
-
-  tapEmail() {
-    if (!this.readAuth().view.loggedIn) {
-      return {
-        command: {
-          type: 'navigate',
-          url: LOGIN_URL
-        }
-      }
-    }
-
-    return {
-      command: {
-        type: 'toast',
-        title: ACCOUNT_MESSAGES.email
-      }
-    }
-  }
-
+  security(mode) { return { command: { type: 'navigate', url: this.readAuth().view.loggedIn ? `${SECURITY_URL}?mode=${mode}` : LOGIN_URL } } }
+  tapPassword() { return this.security('password') }
+  tapEmail() { return this.security('email') }
   tapWechat() {
-    const view = this.readAuth().view
+    if (!this.readAuth().view.loggedIn) return { command: { type: 'navigate', url: LOGIN_URL } }
+    if (this.readProfile().wechatBound || this.wechatBinding) return null
+    return { command: { type: 'confirm-wechat-binding' } }
+  }
 
-    if (!view.loggedIn) {
-      return {
-        command: {
-          type: 'navigate',
-          url: LOGIN_URL
-        }
+  async bindWechat() {
+    if (this.wechatBinding) return null
+    this.wechatBinding = true
+    try {
+      const repository = this.securityRepository || (this.securityRepository = new AccountSecurityRepository(this.storage))
+      if (!this.wechatInput) {
+        const profile = await repository.load()
+        if (profile.wechatBound) return { data: { profile: this.readProfile() }, command: { type: 'toast', title: '微信已绑定' } }
+        this.wechatInput = { expectedVersion: profile.version, code: await repository.wechatCode() }
+        this.wechatKey = uuid()
       }
-    }
-
-    return {
-      command: {
-        type: 'toast',
-        title: view.provider === 'wechat' ? ACCOUNT_MESSAGES.wechatBound : ACCOUNT_MESSAGES.wechatGuest
-      }
-    }
+      await repository.wechat(this.wechatInput, this.wechatKey)
+      await repository.refresh()
+      this.wechatInput = null; this.wechatKey = ''
+      return { data: { profile: this.readProfile() }, command: { type: 'toast', title: '微信已绑定' } }
+    } catch (error) {
+      if (error.statusCode) { this.wechatInput = null; this.wechatKey = '' }
+      throw error
+    } finally { this.wechatBinding = false }
   }
 }
 
 module.exports = {
-  ACCOUNT_MESSAGES,
   AccountViewModel
 }

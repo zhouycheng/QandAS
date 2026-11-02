@@ -21,8 +21,9 @@ const DEFAULT_PREFERENCES = {
   autoShowExplanation: true,
   // 答错是否自动进错题本
   autoAddWrongBook: true,
-  // 答对是否自动翻到下一题（仅单选、仅练习模式）
+  // 即时反馈中客观题确认答对后自动翻题
   autoNextWhenCorrect: false,
+  showSelfAssessment: true,
   // 答题页顶部是否显示答题卡入口
   showOverviewEntry: true,
   // 作答时是否轻微震动。**默认关闭**：vibrateShort 会让整台设备震一下，
@@ -51,7 +52,12 @@ const PREFERENCE_SWITCHES = [
   {
     key: 'autoNextWhenCorrect',
     label: '答对后自动进入下一题',
-    description: '单选题答对后约 0.8 秒自动翻页，多选与测试模式不受影响'
+    description: '即时反馈中客观题确认答对后约 0.8 秒自动翻页'
+  },
+  {
+    key: 'showSelfAssessment',
+    label: '交卷后显示自评',
+    description: '主观题可选标记掌握或待复习，不选择时保持未自评'
   },
   {
     key: 'showOverviewEntry',

@@ -30,8 +30,14 @@ class OpenApiConfiguration {
     @Bean fun apiOperations()=OperationCustomizer { operation,handler ->
         val mapping=AnnotatedElementUtils.findMergedAnnotation(handler.method,RequestMapping::class.java)
         val method=mapping?.method?.firstOrNull()?.name ?: "GET"
-        operation.operationId=handler.beanType.simpleName.removeSuffix("Controller")+"_"+handler.method.name+"_"+method
-        operation.tags=listOf(if(handler.beanType.packageName.contains(".platform.")) "platform" else handler.beanType.packageName.substringAfterLast('.'))
+        val owner=when(handler.beanType.simpleName) {
+            "ActivityController" -> "Learning"
+            "AnnouncementController" -> "Operations"
+            "ProgressCommandController" -> if(handler.method.name=="progressAck") "Practice" else "ProgressCommand"
+            else -> handler.beanType.simpleName.removeSuffix("Controller")
+        }
+        operation.operationId=owner+"_"+handler.method.name+"_"+method
+        operation.tags=listOf(when { handler.beanType.packageName.contains(".platform.") -> "platform";handler.beanType.packageName.endsWith(".application") -> "sync";else -> handler.beanType.packageName.substringAfterLast('.') })
         val localPath=mapping?.value?.firstOrNull() ?: ""
         val root=AnnotatedElementUtils.findMergedAnnotation(handler.beanType,RequestMapping::class.java)?.value?.firstOrNull() ?: ""
         val requestSchema=operation.requestBody?.content?.get("application/json")
@@ -61,6 +67,7 @@ class OpenApiConfiguration {
         }
         handlers.getObject().handlerMethods.values.forEach { method -> method.method.genericParameterTypes.forEach { visit(it) };visit(method.method.genericReturnType) }
         visit(ApiError::class.java)
+        visit(qanda.backend.monitoring.SyncHealthView::class.java)
         classes.forEach { clazz ->
             val schema=api.components.schemas[clazz.simpleName] ?: return@forEach
             val parameters=clazz.kotlin.primaryConstructor?.parameters ?: return@forEach
@@ -72,13 +79,26 @@ class OpenApiConfiguration {
                     val reference=Schema<Any>().`$ref`(property.`$ref`);property.`$ref`=null
                     property.anyOf=listOf(reference,Schema<Any>().types(setOf("null")))
                 } else property.types=(property.types ?: property.type?.let { setOf(it) } ?: emptySet())+"null"
+                if(property.enum!=null) {
+                    val values=property.enum.toList()
+                    property.enum=null
+                    (values+null).forEach { property.addEnumItemObject(it) }
+                }
             }
             for(key in listOf("expectedVersion","expectedContentVersion")) schema.properties?.get(key)?.minimum=java.math.BigDecimal.ONE
-            if(clazz.simpleName=="QuestionInput") {
-                schema.properties.getValue("stem").minLength=1
+            if(clazz.simpleName in setOf("QuestionInput","ReadingChildInput")) {
                 schema.properties.getValue("stem").maxLength=10000
-                schema.oneOf=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { kind ->
+                schema.properties["assetIds"]?.maxItems=20
+                schema.properties["scoringPoints"]?.maxItems=30
+                schema.properties["codeLanguage"]=Schema<Any>().types(setOf("null"))
+                schema.oneOf=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING").filter { it!="READING" || clazz.simpleName=="QuestionInput" }.map { kind ->
                     val branch=ObjectSchema().addProperty("type",StringSchema()._enum(listOf(kind)))
+                    branch.addProperty("presentation",StringSchema()._enum(when(kind) {
+                        "SHORT_ANSWER" -> listOf("STANDARD","CONCEPT","CODE_ANALYSIS")
+                        "FILL_BLANK" -> listOf("STANDARD","CONCEPT","CODE_ANALYSIS")
+                        else -> listOf("STANDARD")
+                    }))
+                    if(kind!="READING") branch.addProperty("stem",StringSchema().minLength(1).maxLength(10000).pattern("\\S"))
                     when(kind) {
                         "SINGLE_CHOICE","MULTIPLE_CHOICE" -> {
                             branch.addProperty("options",ArraySchema().minItems(2).maxItems(26))
@@ -92,15 +112,26 @@ class OpenApiConfiguration {
                             branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
                             branch.addProperty("referenceAnswer",Schema<Any>().types(setOf("null")))
                         }
-                        else -> {
+                        "SHORT_ANSWER" -> {
                             branch.addProperty("referenceAnswer",StringSchema().minLength(1).maxLength(10000).pattern("\\S"));branch.required=listOf("referenceAnswer")
                             branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
                             branch.addProperty("correctValue",Schema<Any>().types(setOf("null")))
+                        }
+                        "FILL_BLANK" -> {
+                            branch.addProperty("blanks",ArraySchema().minItems(1).maxItems(20));branch.required=listOf("blanks")
+                            branch.addProperty("options",ArraySchema().maxItems(0));branch.addProperty("correctAnswer",ArraySchema().maxItems(0))
+                            branch.addProperty("correctValue",Schema<Any>().types(setOf("null")));branch.addProperty("referenceAnswer",Schema<Any>().types(setOf("null")))
+                        }
+                        "READING" -> {
+                            branch.addProperty("passage",StringSchema().minLength(1).maxLength(20000).pattern("\\S"))
+                            branch.addProperty("subQuestions",ArraySchema().minItems(1).maxItems(50));branch.required=listOf("passage","subQuestions")
                         }
                     }
                     branch
                 }
             }
+            if(clazz.simpleName=="BlankInput") schema.properties["answers"]?.let { it.minItems=1;it.maxItems=20;it.items?.maxLength=500 }
+            if(clazz.simpleName=="ImportInput") schema.properties["questions"]?.let { it.minItems=1;it.maxItems=3000;it.description="每批最多 3000 道实际作答题，阅读题按小题计数；整个 JSON 请求最多 8 MiB" }
         }
     }
 }
@@ -108,7 +139,7 @@ class OpenApiConfiguration {
 object PublicRoutes {
     private const val ID="(?:[0-9a-fA-F-]+|\\{id})"
     fun permits(method: String,path: String): Boolean = method=="GET" && (
-        path in setOf("/api/v1/colleges","/api/v1/health","/api/v1/subjects","/api/v1/question-banks","/api/v1/questions") ||
+        path in setOf("/api/v1/colleges","/api/v1/health","/api/v1/subjects","/api/v1/question-banks","/api/v1/questions","/api/v1/community/group","/api/v1/community/group/image") ||
         path.matches(Regex("/api/v1/(?:colleges/$ID/majors|subjects/$ID|question-banks/$ID(?:/chapters|/questions)?|questions/$ID|files/$ID)"))) ||
         method=="POST" && path in setOf("/api/v1/auth/email-challenges","/api/v1/auth/email-registrations","/api/v1/auth/wechat-registrations","/api/v1/auth/sessions","/api/v1/auth/wechat-sessions","/api/v1/auth/password-resets","/api/v1/admin/auth/sessions","/api/v1/practice/scope-preview","/api/v1/practice/trial-snapshots")
 }

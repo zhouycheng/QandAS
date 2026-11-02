@@ -17,7 +17,10 @@ function createResourceCache() {
   function load(key, ttl, request, publish, force) {
     if (pending.has(key)) return pending.get(key)
     const entry = read(key)
-    if (!force && entry.at && Date.now() - entry.at < ttl) return Promise.resolve(entry.data)
+    if (!force && entry.at && Date.now() - entry.at < ttl) {
+      if (publish) runInAction(() => publish(entry.data))
+      return Promise.resolve(entry.data)
+    }
     const revision = generation
     runInAction(() => entries.set(key, Object.assign({}, entry, { status: 'loading', error: '' })))
     const promise = Promise.resolve().then(request).then(data => {

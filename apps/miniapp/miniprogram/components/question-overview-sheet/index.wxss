@@ -282,3 +282,6 @@
   background: #F79009;
   border-color: #F79009;
 }
+
+.cell-draft { background: #fff5df; color: #805500; border-style: dashed; }
+.dot-draft { background: #e7b652; }

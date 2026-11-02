@@ -93,9 +93,12 @@ const STATE = process.argv[2] || 'configured'
 const { SubjectListViewModel } = require(path.join(MP, 'viewmodels/subject-list-viewmodel.js'))
 const repository = require(path.join(MP, 'repositories/practice-repository.js'))
 const previewAnnouncements = ['notice', 'modal'].includes(STATE)
-  ? [{ id: 'preview', title: '联调公告示例', body: '公告发布后，首页喇叭会持续摇动。点击喇叭即可查看公告全文。' }]
+  ? [{ id: 'preview', title: '学习提醒', body: '每天留一点时间复习，把学过的知识记得更牢。' }]
   : []
-const noticeData = new SubjectListViewModel({ repository: Object.assign({}, repository, { getRemoteAnnouncements: () => previewAnnouncements }) }).load().data
+const noticeData = new SubjectListViewModel({ repository: Object.assign({}, repository, {
+  getRemoteAnnouncements: () => previewAnnouncements,
+  getRemoteAnnouncementTotal: () => previewAnnouncements.length
+}) }).load().data
 const megaphoneUri = `data:image/png;base64,${fs.readFileSync(path.join(MP, 'assets/home/announcement-megaphone.png')).toString('base64')}`
 
 const MAIN_BLOCK = {
@@ -118,12 +121,11 @@ const MAIN_BLOCK = {
 
 const ACTION_TEXT = STATE === 'empty' ? '去设置' : '修改'
 
-/* modal 状态：公告弹窗打开时的样子。底栏此时应被藏起来（.tabbar-hidden）。 */
+/* modal 状态初始打开公告；其他状态可点击入口查看。 */
 const SHOW_MODAL = STATE === 'modal'
-const TABBAR_CLASS = SHOW_MODAL ? 'tabbar-wrap tabbar-hidden' : 'tabbar-wrap'
 
-const MODAL_HTML = !SHOW_MODAL ? '' : `
-  <div class="bottom-sheet">
+const MODAL_HTML = `
+  <div class="bottom-sheet" ${SHOW_MODAL ? '' : 'hidden'}>
     <div class="mask"></div>
     <div class="panel panel-center">
       <div class="panel-header">
@@ -133,7 +135,7 @@ const MODAL_HTML = !SHOW_MODAL ? '' : `
       <div class="panel-body">
         <div class="notice-sheet portal-theme">
           <div class="notice-badge"><img class="notice-badge-icon" src="${megaphoneUri}"></div>
-          ${noticeData.announcements.map((item) => `<div class="notice-item"><span class="notice-title">${item.title}</span><span class="notice-body">${item.body}</span></div>`).join('')}
+          ${noticeData.announcements.map((item) => `<div class="notice-item"><span class="notice-title">${item.title}</span><span class="notice-body">${item.body}</span></div>`).join('') || '<span class="notice-empty">暂无公告</span>'}
         </div>
       </div>
     </div>
@@ -185,7 +187,7 @@ ${combineCss()}
           <input class="search-input" placeholder="搜索题目、关键词">
           <div class="search-icon"></div>
         </div>
-        <div class="hero-notice-btn" role="button" aria-label="查看公告"><img class="hero-notice-icon${noticeData.hasAnnouncements ? ' hero-notice-icon-active' : ''}" src="${megaphoneUri}"><span class="hero-notice-label">公告</span></div>
+        <div class="hero-notice-btn" role="button" tabindex="0" aria-label="查看公告"><img class="hero-notice-icon${noticeData.hasAnnouncements ? ' hero-notice-icon-active' : ''}" src="${megaphoneUri}"><span class="hero-notice-label">公告</span></div>
       </div>
     </div>
 
@@ -215,7 +217,7 @@ ${combineCss()}
       <div class="home-foot"><span class="home-foot-text">已做 12 / 234 题 · 正确率 75%</span></div>
     </div>
 
-    <div class="${TABBAR_CLASS}">
+    <div class="tabbar-wrap">
       <div class="tabbar">
       ${tabHtml}
       </div>
@@ -225,7 +227,36 @@ ${combineCss()}
 
     ${MODAL_HTML}
   </div>
-</div></div></body></html>`
+</div></div>
+<script>
+  // 浏览器预览只模拟按压与弹窗展示；公告数据来自上方 ViewModel 样例。
+  const noticeButton = document.querySelector('.hero-notice-btn')
+  const noticeSheet = document.querySelector('.bottom-sheet')
+  let pressTimer
+  noticeButton.addEventListener('pointerdown', () => {
+    clearTimeout(pressTimer)
+    noticeButton.classList.add('hero-notice-hover')
+  })
+  for (const event of ['pointerup', 'pointercancel']) {
+    document.addEventListener(event, () => {
+      pressTimer = setTimeout(() => noticeButton.classList.remove('hero-notice-hover'), 80)
+    })
+  }
+  noticeButton.addEventListener('click', () => { noticeSheet.hidden = false })
+  noticeButton.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      noticeButton.click()
+    }
+  })
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') noticeSheet.hidden = true
+  })
+  for (const selector of ['.panel-close', '.mask']) {
+    document.querySelector(selector).addEventListener('click', () => { noticeSheet.hidden = true })
+  }
+</script>
+</body></html>`
 
 fs.mkdirSync(OUT_DIR, { recursive: true })
 const outFile = path.join(OUT_DIR, STATE === 'configured' ? 'home.html' : `home-${STATE}.html`)

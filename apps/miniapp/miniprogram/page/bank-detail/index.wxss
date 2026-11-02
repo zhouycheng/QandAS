@@ -17,6 +17,8 @@ page { background: #fff; }
   background: #ffffff;
 }
 
+.bank-group-title { display: block; margin: 28rpx 4rpx 16rpx; color: #697586; font-size: 24rpx; font-weight: 600; line-height: 1.5; }
+
 .bk-title {
   font-size: 40rpx;
   font-weight: 700;
@@ -501,3 +503,9 @@ page { background: #fff; }
   color: #ffffff;
   background: var(--brand);
 }
+
+.config-banks { width: 100%; margin: 18rpx 0 8rpx; white-space: nowrap; }
+.config-bank-list { display: inline-flex; padding: 2rpx 4rpx 10rpx; }
+.bank-chip { display: inline-flex; align-items: center; flex-shrink: 0; margin-left: 0; margin-right: 14rpx; }
+.bank-check { width: 24rpx; height: 24rpx; line-height: 24rpx; margin-right: 10rpx; border: 2rpx solid currentColor; border-radius: 6rpx; text-align: center; font-size: 21rpx; }
+.config-btn.is-disabled { opacity: 0.4; }

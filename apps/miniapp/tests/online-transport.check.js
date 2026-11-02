@@ -24,6 +24,28 @@ async function main() {
   assert.strictEqual(limited.retryAfter, 12000)
   assert.strictEqual(limited.code, 'RATE_LIMITED')
 
+  const expiredStorage = memory()
+  auth.saveAuth(expiredStorage, { provider: 'email', userId: 'student', token: 'expired-token' })
+  expiredStorage.set('qandaDraft:student:practice', { answer: 'saved' })
+  let expiredCount = 0
+  transport.configure({ tokenProvider: () => auth.getAuth(expiredStorage).token,
+    onUnauthorized: token => { if (auth.expireAuth(expiredStorage, token)) expiredCount += 1 } })
+  let finishRead
+  global.wx.request = input => { finishRead = input.success }
+  const oldRead = transport.request('GET', '/me')
+  await Promise.resolve()
+  auth.saveAuth(expiredStorage, { provider: 'email', userId: 'student', token: 'renewed-token' })
+  finishRead({ statusCode: 401, data: { code: 'UNAUTHENTICATED' } })
+  await oldRead
+  assert.strictEqual(auth.getAuth(expiredStorage).token, 'renewed-token', '旧令牌的迟到响应保留新登录')
+  global.wx.request = input => input.success({ statusCode: 401, data: {} })
+  await transport.request('GET', '/me')
+  await transport.request('GET', '/me')
+  assert.strictEqual(expiredCount, 1)
+  assert.strictEqual(auth.getAuth(expiredStorage).loggedIn, false)
+  assert.deepStrictEqual(expiredStorage.get('qandaDraft:student:practice'), { answer: 'saved' })
+  transport.configure({ tokenProvider: () => 'real-token', onUnauthorized: null })
+
   const storage = memory()
   gateway.setAuthGateway({ loginByEmail: () => ({ ok: false, unavailable: true, reason: '断网' }), login: () => ({ ok: false, reason: '断网' }) })
   assert.strictEqual((await auth.loginWithEmail(storage, { email: 'a@b.com', password: 'abc12345' })).ok, false)
@@ -106,6 +128,25 @@ async function main() {
   assert.strictEqual(rateSends, 1)
   throttled.stop(); throttleRestart.stop()
   const broken = createSyncQueue(Object.assign({}, settings, { storage: { get: () => null, set: () => { throw new Error('full') } } }))
+  const accepted = createSyncQueue(Object.assign({}, settings, { send: async () => ({ ok: false, pending: true, serverState: 'QUEUED' }) }))
+  accepted.save('async', { answer: 1 })
+  await accepted.flush('async')
+  const acceptedCommand = accepted.get('async').pending
+  assert(acceptedCommand.serverAccepted)
+  assert.strictEqual(accepted.get('async').acknowledgedSequence, 0, '202 不清除草稿')
+  accepted.save('async', { answer: 2 })
+  accepted.stop()
+  const afterKill = createSyncQueue(Object.assign({}, settings, { send: async (_id, command) => {
+    assert.deepStrictEqual(command, acceptedCommand, '重启后保持原请求和幂等键')
+    return { ok: true, acknowledgedSequence: command.sequence }
+  } }))
+  clock += 1000
+  await afterKill.flush('async')
+  assert.strictEqual(afterKill.get('async').sequence, 2)
+  assert.strictEqual(afterKill.get('async').acknowledgedSequence, 1, '仅确认已发送序号')
+  assert.deepStrictEqual(afterKill.get('async').payload, { answer: 2 })
+  assert.strictEqual(afterKill.removeConfirmed('async'), false)
+  afterKill.stop()
   assert.strictEqual(broken.save('s1', {}).storageError, true)
   restarted.stop(); paused.stop()
   delete global.wx

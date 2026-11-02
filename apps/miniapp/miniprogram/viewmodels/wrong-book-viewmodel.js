@@ -1,5 +1,5 @@
 const practiceRepository = require('../repositories/practice-repository.js')
-const { getPendingIds, getMasteredIds } = require('../utils/wrong-book.js')
+const { getPendingIds, getMasteredIds, getSubjectiveIds } = require('../utils/wrong-book.js')
 
 /**
  * 错题本 / 收藏本：设计稿「错题本」「收藏本」两张画板。
@@ -20,7 +20,8 @@ const PAGE_SIZE = 5
 
 const CHIPS = {
   wrong: [
-    { key: 'all', text: '全部' },
+    { key: 'all', text: '客观错题' },
+    { key: 'subjective', text: '主观待复习' },
     { key: 'repeat', text: '反复错' },
     { key: 'recent', text: '近 7 天更新' }
   ],
@@ -161,42 +162,48 @@ class WrongBookViewModel {
     const summary = this.repository.getRemoteCollectionSummary(this.storage, options.kind) || { total: 0, facets: [] }
     const subjects = [{ id: 'all', name: '全部科目' }]
     const distribution = new Map()
-    summary.facets.forEach(facet => {
-      if (!distribution.has(facet.subjectId)) subjects.push({ id: facet.subjectId, name: facet.subjectName })
-      distribution.set(facet.subjectId, { subjectName: facet.subjectName, count: ((distribution.get(facet.subjectId) || {}).count || 0) + facet.count })
-      subjects.push({ id: 'bank:' + facet.questionBankId, name: `${facet.subjectName} · ${facet.questionBankName}` })
+    const subjective = wrong && options.chip === 'subjective'
+    const facets = subjective ? summary.subjectiveFacets || [] : summary.facets
+    const filterFacets = summary.facets.concat(summary.subjectiveFacets || [])
+    const seenFilters = new Set()
+    filterFacets.forEach(facet => {
+      if (!seenFilters.has(facet.subjectId)) subjects.push({ id: facet.subjectId, name: facet.subjectName })
+      seenFilters.add(facet.subjectId)
+      if (facets.includes(facet)) distribution.set(facet.subjectId, { subjectName: facet.subjectName, count: ((distribution.get(facet.subjectId) || {}).count || 0) + facet.count })
+      if (!seenFilters.has(facet.questionBankId)) subjects.push({ id: 'bank:' + facet.questionBankId, name: `${facet.subjectName} · ${facet.questionBankName}` })
+      seenFilters.add(facet.questionBankId)
     })
-    const counts = { all: summary.total, repeat: summary.repeatCount, recent: summary.recentCount, practiced: summary.practicedCount, pending: summary.pendingCount }
+    const counts = { all: summary.total, subjective: summary.subjectiveCount, repeat: summary.repeatCount, recent: summary.recentCount, practiced: summary.practicedCount, pending: summary.pendingCount }
     const judged = (summary.rightCount || 0) + (summary.wrongCount || 0)
     const items = page.items.map(item => ({ id: item.questionId, bankId: item.questionBankId, subjectId: item.subjectId,
       subjectName: item.subjectName, bankName: item.questionBankName, title: `${item.subjectName} · ${item.questionBankName}`,
-      stem: item.stem, typeText: ({ SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', SHORT_ANSWER: '简答题' })[item.type],
+      stem: item.stem, blankInputs: item.type === 'FILL_BLANK' ? [] : null, contentFormat: item.contentFormat || 'PLAIN_TEXT', typeText: ({ SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' })[item.type],
       wrongCount: item.wrongCount || 0, rightCount: item.rightCount || 0, practiced: !!item.practiced, available: item.available,
       updatedAt: Date.parse(item.lastPracticedAt || item.createdAt) || 0, dateText: formatMonthDay(Date.parse(item.lastPracticedAt || item.createdAt) || 0),
-      badgeText: wrong ? `错 ${item.wrongCount} 次` : item.practiced ? '已练习' : '待练习', badgeTone: wrong ? 'wrong' : item.practiced ? 'done' : 'todo' }))
+      badgeText: subjective ? '主观待复习 · 不计分' : wrong ? `错 ${item.wrongCount} 次` : item.practiced ? '已练习' : '待练习', badgeTone: wrong ? 'wrong' : item.practiced ? 'done' : 'todo' }))
     const pageCount = Math.max(1, Math.ceil(page.total / PAGE_SIZE))
     return Object.assign(getInitialWrongBookViewData(), {
       type: this.state.type, title: wrong ? '错题本' : '收藏本', statTitle: wrong ? '错题统计' : '收藏统计',
-      statHint: wrong ? '按重要程度，逐个攻克' : `已完成 ${summary.total ? Math.round((summary.practicedCount || 0) / summary.total * 100) : 0}%`,
+      statHint: wrong ? '客观错题与主观自评分开统计' : `已完成 ${summary.total ? Math.round((summary.practicedCount || 0) / summary.total * 100) : 0}%`,
       stats: wrong ? [
-        { key: 'total', label: '错题总数', value: String(summary.total), unit: '道' },
-        { key: 'accuracy', label: '正确率', value: String(judged ? Math.round(summary.rightCount / judged * 100) : 0), unit: '%' },
-        { key: 'recent', label: '近 7 天更新', value: String(summary.recentCount || 0), unit: '道' }
+        { key: 'total', label: '客观错题', value: String(summary.total), unit: '道' },
+        { key: 'accuracy', label: '正确率', value: judged ? String(Math.round(summary.rightCount / judged * 100)) : '—', unit: judged ? '%' : '' },
+        { key: 'subjective', label: '主观待复习', value: String(summary.subjectiveCount || 0), unit: '道' }
       ] : [
         { key: 'total', label: '收藏题', value: String(summary.total), unit: '道' },
         { key: 'practiced', label: '已练习', value: String(summary.practicedCount || 0), unit: '道' },
         { key: 'pending', label: '待练习', value: String(summary.pendingCount || 0), unit: '道' }
       ],
       dist: Array.from(distribution.values()).map((item, i) => ({ name: item.subjectName, count: item.count,
-        percent: summary.total ? Math.round(item.count / summary.total * 100) : 0, tone: DIST_TONES[i % DIST_TONES.length] })),
-      hasDist: summary.total > 0, subjectFilters: subjects, subjectFilter: this.state.subjectFilter,
+        percent: (subjective ? summary.subjectiveCount : summary.total) ? Math.round(item.count / (subjective ? summary.subjectiveCount : summary.total) * 100) : 0, tone: DIST_TONES[i % DIST_TONES.length] })),
+      hasDist: facets.length > 0, subjectFilters: subjects, subjectFilter: this.state.subjectFilter,
       subjectFilterText: this.getSubjectFilterText(subjects), subjectMenuOpen: this.state.subjectMenuOpen, sortText: this.getSortText(),
       chips: CHIPS[this.state.type].map(chip => ({ key: chip.key, text: `${chip.text} ${counts[chip.key] || 0}` })),
-      activeChip: this.state.activeChip, items, totalCount: summary.total, filteredCount: page.total,
+      activeChip: this.state.activeChip, items, totalCount: subjective ? summary.subjectiveCount || 0 : summary.total, filteredCount: page.total,
       pageCount, page: this.state.page, pageText: page.total ? `共 ${page.total} 题 · 第 ${this.state.page} 页` : '',
-      manage: this.state.manage, footerText: `开始${wrong ? '错题' : '收藏'}练习 · ${page.total} 道`,
-      footerHint: wrong ? '掌握的题目会随练习结果更新' : '做错的题会自动进入错题本',
-      emptyText: this.getEmptyText(wrong, summary.total), collectionLoading: resource.status === 'loading', collectionError: resource.error || summaryState.error
+      manage: this.state.manage, footerText: `开始${subjective ? '主观复习' : wrong ? '错题' : '收藏'}练习 · ${page.total} 道`,
+      footerHint: subjective ? '自评掌握后移出；未自评保持原记录' : wrong ? '掌握的题目会随练习结果更新' : '做错的题会自动进入错题本',
+      emptyText: subjective ? '主动自评为待复习的主观题会显示在这里' : this.getEmptyText(wrong, summary.total), collectionLoading: resource.status === 'loading', collectionError: resource.error || summaryState.error
     })
   }
 
@@ -280,7 +287,7 @@ class WrongBookViewModel {
 
     const total = right + wrong
 
-    return total ? Math.round((right / total) * 100) : 0
+    return total ? Math.round((right / total) * 100) : '—'
   }
 
   buildViewData() {
@@ -292,6 +299,8 @@ class WrongBookViewModel {
     const allItems = isWrongType
       ? this.buildWrongItems(sources)
       : this.buildFavoriteItems(sources)
+    const objectiveItems = allItems.filter(item => !item.subjective)
+    const categoryItems = isWrongType && this.state.activeChip === 'subjective' ? allItems.filter(item => item.subjective) : objectiveItems
     const filtered = this.applyFilters(allItems, isWrongType)
     const pageCount = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1)
     const page = Math.min(Math.max(this.state.page, 1), pageCount)
@@ -306,9 +315,9 @@ class WrongBookViewModel {
       statHint: isWrongType
         ? '按重要程度，逐个攻克'
         : `已完成 ${this.buildFavoriteDoneRate(allItems)}%`,
-      stats: isWrongType ? this.buildWrongStats(allItems) : this.buildFavoriteStats(allItems),
-      dist: this.buildDist(allItems),
-      hasDist: allItems.length > 0,
+      stats: isWrongType ? this.buildWrongStats(objectiveItems, allItems.filter(item => item.subjective).length) : this.buildFavoriteStats(allItems),
+      dist: this.buildDist(categoryItems),
+      hasDist: categoryItems.length > 0,
       subjectFilters: subjects,
       subjectFilter: this.state.subjectFilter,
       subjectFilterText: this.getSubjectFilterText(subjects),
@@ -317,7 +326,7 @@ class WrongBookViewModel {
       chips,
       activeChip: this.state.activeChip,
       items,
-      totalCount: allItems.length,
+      totalCount: categoryItems.length,
       pageCount,
       page,
       pageText: filtered.length
@@ -325,12 +334,12 @@ class WrongBookViewModel {
         : '没有符合条件的题目',
       manage: !!this.state.manage,
       footerText: isWrongType
-        ? `开始错题练习 · ${allItems.length} 道`
+        ? `开始${this.state.activeChip === 'subjective' ? '主观复习' : '错题'}练习 · ${filtered.length} 道`
         : `开始收藏练习 · ${allItems.length} 道`,
       footerHint: isWrongType
-        ? '错题会自动进入复习；连续两次答对会自动移出'
+        ? (this.state.activeChip === 'subjective' ? '自评掌握后移出；未自评保持原记录' : '错题会自动进入复习；连续两次答对会自动移出')
         : '做错的题会自动进入错题本',
-      emptyText: this.getEmptyText(isWrongType, allItems.length)
+      emptyText: this.state.activeChip === 'subjective' ? '主动自评为待复习的主观题会显示在这里' : this.getEmptyText(isWrongType, allItems.length)
     })
   }
 
@@ -339,7 +348,7 @@ class WrongBookViewModel {
    * 存储里没有逐条收藏时间，所以「最近更新」用 wrongBook 记录的 updatedAt。
    */
   buildWrongItems(sources) {
-    const pendingIds = getPendingIds(sources.wrongBook)
+    const pendingIds = getPendingIds(sources.wrongBook).concat(getSubjectiveIds(sources.wrongBook))
 
     if (!pendingIds.length) {
       return []
@@ -357,13 +366,16 @@ class WrongBookViewModel {
         subjectName: entry.subjectName,
         title: `${entry.subjectName} · ${entry.bankName}`,
         stem: entry.question.stem,
+        blankInputs: entry.question.isFillBlank ? [] : null,
+        contentFormat: entry.question.contentFormat || 'PLAIN_TEXT',
         typeText: entry.question.typeText,
         wrongCount: Number(record.wrongCount) || 0,
         rightCount: Number(record.rightCount) || 0,
+        subjective: !!record.subjective,
         streak: Number(record.streak) || 0,
         updatedAt,
         dateText: formatMonthDay(updatedAt),
-        badgeText: `错 ${Number(record.wrongCount) || 0} 次`,
+        badgeText: record.subjective ? '主观待复习 · 不计分' : `错 ${Number(record.wrongCount) || 0} 次`,
         badgeTone: 'wrong'
       }
     })
@@ -386,6 +398,8 @@ class WrongBookViewModel {
         subjectName: entry.subjectName,
         title: `${entry.subjectName} · ${entry.bankName}`,
         stem: entry.question.stem,
+        blankInputs: entry.question.isFillBlank ? [] : null,
+        contentFormat: entry.question.contentFormat || 'PLAIN_TEXT',
         typeText: entry.question.typeText,
         practiced,
         wrongCount: 0,
@@ -398,14 +412,11 @@ class WrongBookViewModel {
 
   // ---------- 统计 ----------
 
-  buildWrongStats(items) {
-    const since = Date.now() - 7 * 24 * 60 * 60 * 1000
-    const recent = items.filter((item) => item.updatedAt >= since).length
-
+  buildWrongStats(items, subjectiveCount) {
     return [
-      { key: 'total', label: '错题总数', value: `${items.length}`, unit: '道' },
-      { key: 'accuracy', label: '正确率', value: `${this.readBookAccuracy(items)}`, unit: '%' },
-      { key: 'recent', label: '近 7 天更新', value: `${recent}`, unit: '道' }
+      { key: 'total', label: '客观错题', value: `${items.length}`, unit: '道' },
+      { key: 'accuracy', label: '正确率', value: `${this.readBookAccuracy(items)}`, unit: this.readBookAccuracy(items) === '—' ? '' : '%' },
+      { key: 'subjective', label: '主观待复习', value: `${subjectiveCount || 0}`, unit: '道' }
     ]
   }
 
@@ -472,9 +483,10 @@ class WrongBookViewModel {
     const since = Date.now() - 7 * 24 * 60 * 60 * 1000
     const source = CHIPS[isWrong ? 'wrong' : 'favorite']
     const counters = {
-      all: items.length,
+      all: items.filter(item => !isWrong || !item.subjective).length,
+      subjective: items.filter(item => item.subjective).length,
       repeat: items.filter((item) => item.wrongCount >= REPEAT_THRESHOLD).length,
-      recent: items.filter((item) => item.updatedAt >= since).length,
+      recent: items.filter((item) => !item.subjective && item.updatedAt >= since).length,
       pending: items.filter((item) => !item.practiced).length,
       practiced: items.filter((item) => item.practiced).length
     }
@@ -522,7 +534,7 @@ class WrongBookViewModel {
 
   applyFilters(items, isWrong) {
     const since = Date.now() - 7 * 24 * 60 * 60 * 1000
-    let result = items
+    let result = isWrong ? items.filter(item => this.state.activeChip === 'subjective' ? item.subjective : !item.subjective) : items
 
     if (this.state.subjectFilter !== 'all') {
       result = result.filter((item) => this.state.subjectFilter.indexOf('bank:') === 0 ? `bank:${item.bankId}` === this.state.subjectFilter : item.subjectId === this.state.subjectFilter)
@@ -653,7 +665,7 @@ class WrongBookViewModel {
     }
 
     if (this.state.type === TYPE_WRONG) {
-      this.repository.removeWrongQuestions(this.storage, getPendingIds(this.readSources().wrongBook))
+      this.repository.removeWrongQuestions(this.storage, (this.state.activeChip === 'subjective' ? getSubjectiveIds : getPendingIds)(this.readSources().wrongBook))
     } else {
       this.repository.clearFavorites(this.storage)
     }
@@ -675,7 +687,7 @@ class WrongBookViewModel {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       const options = this.remoteOptions()
       const summary = this.repository.getRemoteCollectionSummary(this.storage, options.kind)
-      const facets = (summary && summary.facets || []).filter(item => (!options.subjectId || item.subjectId === options.subjectId) && (!options.questionBankId || item.questionBankId === options.questionBankId))
+      const facets = (summary && (options.chip === 'subjective' ? summary.subjectiveFacets : summary.facets) || []).filter(item => (!options.subjectId || item.subjectId === options.subjectId) && (!options.questionBankId || item.questionBankId === options.questionBankId))
       if (!facets.length || !this.buildViewData().filteredCount) return { command: { type: 'toast', title: '当前没有可练习的题目' } }
       if (facets.length !== 1) return { command: { type: 'toast', title: '请先筛选同一题库的题目进行练习' } }
       return this.repository.previewRemotePracticeScope(this.storage, {
@@ -684,9 +696,9 @@ class WrongBookViewModel {
         selectionKind: options.kind,
         collectionChip: options.chip
       }).then(preview => {
-        const count = Math.min(Number(preview.availableCount) || 0, 1000)
+        const count = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000)
         if (!count) return { command: { type: 'toast', title: '当前没有可练习的题目' } }
-        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${facets[0].questionBankId}&subjectId=${facets[0].subjectId}&selectionKind=${options.kind}&collectionChip=${options.chip}&count=${count}` } }
+        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${facets[0].questionBankId}&subjectId=${facets[0].subjectId}&selectionKind=${options.kind}&collectionChip=${options.chip}&count=${count}${preview.selectionKey ? '&selectionKey=' + preview.selectionKey : ''}` } }
       })
     }
     const items = this.applyFilters(

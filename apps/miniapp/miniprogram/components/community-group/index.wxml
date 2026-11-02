@@ -1,0 +1,11 @@
+<view class="group-card">
+  <view wx:if="{{!inline}}" class="group-entry" bindtap="open" aria-role="button" aria-label="查看 QandA 用户交流群二维码" hover-class="group-hover" hover-start-time="0" hover-stay-time="80">
+    <view><text class="group-title">加入用户交流群</text><text class="group-description">交流学习心得，反馈问题与建议</text></view><text class="group-arrow">›</text>
+  </view>
+  <block wx:else>
+    <image wx:if="{{imageUrl}}" class="group-qr" src="{{imageUrl}}" mode="widthFix" show-menu-by-longpress="{{true}}" bindtap="open" binderror="imageError" aria-label="QandA 用户交流群二维码" />
+    <text wx:if="{{imageUrl}}" class="group-help">点击放大，长按二维码识别入群</text>
+  </block>
+  <text wx:if="{{loading}}" class="group-help">正在读取群二维码…</text>
+  <view wx:elif="{{message}}" class="group-help" bindtap="open" aria-role="button" hover-class="group-hover" hover-start-time="0" hover-stay-time="80">{{message}}{{retryable ? ' · 点击重试' : ''}}</view>
+</view>

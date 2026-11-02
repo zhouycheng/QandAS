@@ -4,23 +4,23 @@ import { audienceGroups, bankVisibility, getScopeError, groupsToAudiences, publi
 
 describe('题库展示范围与发布预检', () => {
   const data = getScenarioData('normal')
-  const directory = { colleges: data.colleges, majors: data.majors, grades: data.grades }
+  const directory = { colleges: data.colleges, majors: data.majors }
   const bank = { ...data.questionBanks[0], activeQuestionCount: 2 }
 
-  it('多年份范围合并再展开不丢条件，并消除重复条件', () => {
-    const audiences = [{ majorId: 'major-computer-science', enrollmentYear: 2025 }, { majorId: 'major-computer-science', enrollmentYear: 2026 }]
+  it('多年级范围合并再展开不丢条件，并消除重复条件', () => {
+    const audiences = [{ majorId: 'major-computer-science', grade: 2 }, { majorId: 'major-computer-science', grade: 1 }]
     const groups = audienceGroups(audiences, directory)
     expect(groups).toHaveLength(1)
-    expect(groups[0].years).toEqual([2025, 2026])
+    expect(groups[0].grades).toEqual([2, 1])
     const restored = groupsToAudiences([...groups, ...groups])
     expect(restored).toHaveLength(2)
     expect(restored.every((a) => a.collegeId === 'college-computer-science')).toBe(true)
-    expect(restored.map((a) => a.enrollmentYear)).toEqual([2025, 2026])
-    expect(groupsToAudiences([{ id: 'empty', years: [] }])).toEqual([])
+    expect(restored.map((a) => a.grade)).toEqual([2, 1])
+    expect(groupsToAudiences([{ id: 'empty', grades: [] }])).toEqual([])
   })
 
   it('同一范围的不限年级条件不会被合并成限定年级', () => {
-    for (const audiences of [[{ majorId: 'major-english' }, { majorId: 'major-english', enrollmentYear: 2025 }], [{ majorId: 'major-english', enrollmentYear: 2025 }, { majorId: 'major-english' }]]) {
+    for (const audiences of [[{ majorId: 'major-english' }, { majorId: 'major-english', grade: 2 }], [{ majorId: 'major-english', grade: 2 }, { majorId: 'major-english' }]]) {
       expect(groupsToAudiences(audienceGroups(audiences, directory))).toEqual([{ collegeId: 'college-foreign-languages', majorId: 'major-english' }])
     }
   })
@@ -28,15 +28,15 @@ describe('题库展示范围与发布预检', () => {
   it('范围必须来自院级目录，草稿可暂缺范围，发布需要明确配置', () => {
     expect(getScopeError('TARGETED', [], directory, false)).toBeUndefined()
     expect(getScopeError('TARGETED', [], directory)).toContain('至少添加')
-    expect(getScopeError('TARGETED', [{ majorId: 'major-english', enrollmentYear: 2023 }], directory)).toContain('尚未配置')
-    expect(getScopeError('TARGETED', [{ majorId: 'major-english', enrollmentYear: 2025 }], directory)).toBeUndefined()
+    expect(getScopeError('TARGETED', [{ majorId: 'major-english', grade: 6 }], directory)).toContain('年级')
+    expect(getScopeError('TARGETED', [{ majorId: 'major-english', grade: 2 }], directory)).toBeUndefined()
   })
 
-  it('学院、专业和年份同时匹配，多条展示范围满足任意一条', () => {
-    const targeted = { ...bank, audiences: [{ collegeId: 'college-computer-science', majorId: 'major-computer-science', enrollmentYear: 2025 }, { majorId: 'major-english', enrollmentYear: 2026 }] }
-    expect(bankVisibility(targeted, { collegeId: 'college-computer-science', majorId: 'major-computer-science', enrollmentYear: 2025 }, data.subjects).visible).toBe(true)
-    expect(bankVisibility(targeted, { collegeId: 'college-computer-science', majorId: 'major-computer-science', enrollmentYear: 2024 }, data.subjects).visible).toBe(false)
-    expect(bankVisibility(targeted, { majorId: 'major-english', enrollmentYear: 2026 }, data.subjects).visible).toBe(true)
+  it('学院、专业和年级同时匹配，多条展示范围满足任意一条', () => {
+    const targeted = { ...bank, audiences: [{ collegeId: 'college-computer-science', majorId: 'major-computer-science', grade: 2 }, { majorId: 'major-english', grade: 1 }] }
+    expect(bankVisibility(targeted, { collegeId: 'college-computer-science', majorId: 'major-computer-science', grade: 2 }, data.subjects).visible).toBe(true)
+    expect(bankVisibility(targeted, { collegeId: 'college-computer-science', majorId: 'major-computer-science', grade: 3 }, data.subjects).visible).toBe(false)
+    expect(bankVisibility(targeted, { majorId: 'major-english', grade: 1 }, data.subjects).visible).toBe(true)
     expect(bankVisibility(targeted, {}, data.subjects).visible).toBe(false)
   })
 

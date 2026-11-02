@@ -8,7 +8,9 @@
   <select id="adminSession" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE token_digest=#{digest}</select>
   <select id="lockUserSession" resultType="qanda.backend.identity.UserSession">SELECT * FROM user_session WHERE id=#{id} FOR UPDATE</select>
   <select id="lockAdminSession" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE id=#{id} FOR UPDATE</select>
+  <select id="adminSessionById" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE id=#{id}</select>
   <update id="touchUserSession">UPDATE user_session SET last_seen_at=#{now} WHERE id=#{id} AND revoked_at IS NULL AND last_seen_at &lt; CAST(#{now} AS timestamptz) - interval '30 seconds'</update>
+  <insert id="touchForeground">INSERT INTO session_presence(session_id,foreground_seen_at) SELECT s.id,#{now} FROM user_session s JOIN user_account u ON u.id=s.user_id WHERE s.id=#{id} AND s.user_id=#{userId} AND u.status='ACTIVE' AND u.credential_version=s.credential_version AND s.revoked_at IS NULL AND s.expires_at &gt; #{now} ON CONFLICT(session_id) DO UPDATE SET foreground_seen_at=greatest(session_presence.foreground_seen_at,excluded.foreground_seen_at)</insert>
   <update id="touchAdminSession">UPDATE admin_session SET last_seen_at=#{now} WHERE id=#{id} AND revoked_at IS NULL AND last_seen_at &lt; CAST(#{now} AS timestamptz) - interval '30 seconds'</update>
   <update id="revokeUserSessions">UPDATE user_session SET revoked_at=now() WHERE user_id=#{userId} AND revoked_at IS NULL</update>
   <update id="revokeAdminSessions">UPDATE admin_session SET revoked_at=now() WHERE admin_id=#{adminId} AND revoked_at IS NULL</update>
@@ -19,6 +21,6 @@
   <select id="wechat" resultType="qanda.backend.identity.UserWechat">SELECT * FROM user_wechat WHERE app_id=#{appId} AND open_id=#{openId}</select>
   <select id="lockTicket" resultType="qanda.backend.identity.WechatTicket">SELECT * FROM wechat_ticket WHERE token_digest=#{digest} FOR UPDATE</select>
   <update id="consumeTicket">UPDATE wechat_ticket SET consumed_at=now() WHERE id=#{id}</update>
-  <update id="updateProfile">UPDATE user_profile SET college_id=#{collegeId},major_id=#{majorId},enrollment_year=#{year} WHERE user_id=#{userId}</update>
+  <update id="updateProfile">UPDATE user_profile SET college_id=#{collegeId},major_id=#{majorId},grade=#{grade},grade_academic_year=#{year} WHERE user_id=#{userId}</update>
   <update id="updateCredentials">UPDATE user_account SET email=#{email},email_key=#{emailKey},password_hash=#{password},version=version+1,credential_version=credential_version+1,updated_at=now() WHERE id=#{id}</update>
 </mapper>

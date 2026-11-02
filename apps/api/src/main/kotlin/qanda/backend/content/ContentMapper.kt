@@ -5,34 +5,36 @@ import org.apache.ibatis.annotations.Param
 import java.util.UUID
 
 class BankListFacts { var bankId: UUID?=null;var subjectName: String="";var questionCount: Long=0;var activeQuestionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
-class SubjectListFacts { var subjectId: UUID?=null;var bankCount: Long=0;var questionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
 class BankMaintainerRow { var bankId: UUID?=null;var adminId: UUID?=null }
-class QuestionSummaryRow { var id: UUID?=null;var bankId: UUID?=null;var subjectId: UUID?=null;var chapterId: UUID?=null;var status: String="";var version: Long=0;var revisionId: UUID?=null;var revision: Int=0;var type: String="";var stem: String="";var subjectName: String="";var bankName: String="" }
+class ChapterCount { var id: UUID?=null;var count: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
+class QuestionSummaryRow { var contentData: String="{}"; var id: UUID?=null;var bankId: UUID?=null;var subjectId: UUID?=null;var chapterId: UUID?=null;var status: String="";var version: Long=0;var revisionId: UUID?=null;var revision: Int=0;var type: String="";var stem: String="";var subjectName: String="";var bankName: String="" }
 @Mapper interface ContentQueries {
+    fun chapterCounts(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean,@Param("userId") userId: UUID?=null): List<ChapterCount>
     fun favoriteQuestionIds(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
-    fun subjectListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID): List<SubjectListFacts>
     fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<BankListFacts>
     fun bankAudiences(@Param("ids") ids: List<UUID>): List<BankAudience>
     fun bankMaintainers(@Param("ids") ids: List<UUID>): List<BankMaintainerRow>
     fun questionSummaries(@Param("ids") ids: List<UUID>): List<QuestionSummaryRow>
-    fun bank(@Param("id") id: UUID): QuestionBank?
+    fun bank(@Param("id") id: UUID,@Param("userId") userId: UUID?=null): QuestionBank?
     fun lockBank(@Param("id") id: UUID): QuestionBank?
-    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("adminId") adminId: UUID?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<QuestionBank>
-    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("adminId") adminId: UUID?): Long
+    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): List<QuestionBank>
+    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): Long
     fun questionCount(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean): Long
-    fun questions(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int): List<Question>
-    fun filteredQuestionCount(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean): Long
-    fun search(@Param("keyword") keyword: String,@Param("offset") offset: Int,@Param("limit") limit: Int): List<Question>
-    fun searchCount(@Param("keyword") keyword: String): Long
+    fun questions(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): List<Question>
+    fun filteredQuestionCount(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): Long
+    fun search(@Param("keyword") keyword: String,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null): List<Question>
+    fun searchCount(@Param("keyword") keyword: String,@Param("userId") userId: UUID?=null): Long
     fun options(@Param("revisionId") revisionId: UUID): List<QuestionOption>
     fun insertOption(@Param("option") option: QuestionOption)
     fun attachments(@Param("revisionId") revisionId: UUID): List<UUID>
     fun attach(@Param("revisionId") revisionId: UUID,@Param("fileId") fileId: UUID)
-    fun maintainers(@Param("bankId") bankId: UUID): List<UUID>
     fun clearMaintainers(@Param("bankId") bankId: UUID)
     fun addMaintainer(@Param("bankId") bankId: UUID,@Param("adminId") adminId: UUID)
     fun clearAudiences(@Param("bankId") bankId: UUID)
     fun bumpBank(@Param("id") id: UUID)
     fun updateQuestion(@Param("id") id: UUID,@Param("chapterId") chapterId: UUID?,@Param("status") status: String,@Param("revisionId") revisionId: UUID)
     fun chapterQuestions(@Param("id") id: UUID): Long
+    fun publicationIssues(@Param("bankId") bankId: UUID): Long
+    fun readingChildren(@Param("id") id: UUID): List<Question>
+    fun readingOrder(@Param("id") id: UUID,@Param("order") order: Int)
 }

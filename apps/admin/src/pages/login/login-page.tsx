@@ -19,11 +19,10 @@ export function LoginPage() {
   const signIn = useMutation({
     mutationFn: async (values: LoginValues) => ({
       account: await gateway.loginAdmin(values.username.trim(), values.password),
-      settings: await gateway.getSecuritySettings(),
       username: values.username.trim(),
     }),
-    onSuccess: ({ account, settings, username }) => {
-      saveAdminSession(account, settings.sessionMinutes)
+    onSuccess: ({ account, username }) => {
+      saveAdminSession(account)
       if (remember) localStorage.setItem('qanda-admin-remember', username)
       else localStorage.removeItem('qanda-admin-remember')
       const target = (location.state as { from?: string } | null)?.from
@@ -82,7 +81,7 @@ export function LoginPage() {
               onClick={() =>
                 Modal.info({
                   title: '找回密码',
-                  content: '请联系系统管理员重置密码。当前演示账号：admin / mock。',
+                  content: gateway.mode === 'mock' ? '请联系管理员重置密码。当前演示账号：admin / mock。' : '请联系管理员重置密码。',
                 })
               }
             >
@@ -93,7 +92,7 @@ export function LoginPage() {
             登录管理端
           </Button>
         </Form>
-        <p className="login-hint">本地演示账号：admin / mock</p>
+        {!import.meta.env.VITE_API_BASE_URL && <p className="login-hint">本地演示账号：admin / mock</p>}
       </section>
     </main>
   )

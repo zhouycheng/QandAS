@@ -13,7 +13,7 @@
  * }
  *
  * 判定规则：
- * - 答错或未作答：计入错题本，wrongCount + 1，连续答对清零；
+ * - 客观题答错：计入错题本，wrongCount + 1，连续答对清零；
  * - 答对：若该题从未错过则不入库（避免做过的题全部堆进错题本）；
  *   已在错题本中的题目答对时 rightCount + 1、连续答对 + 1，
  *   达到 MASTER_STREAK 后移出待复习列表（记录保留在「已攻克」）。
@@ -36,6 +36,7 @@ function normalizeRecord(rawRecord) {
   const streak = Number(rawRecord.streak) || 0
 
   return {
+    ...(rawRecord.subjective ? { subjective: true } : {}),
     wrongCount,
     rightCount,
     streak,
@@ -63,7 +64,7 @@ function normalizeWrongBook(rawWrongBook) {
 /**
  * 把一次交卷的逐题结果并入错题本。
  * @param {object} wrongBook 已规范化的错题本
- * @param {Array} records [{ id, answered, correct }]，未作答按答错处理
+ * @param {Array} records [{ id, answered, correct }]，主观题和未作答不计入
  * @param {number} timestamp 时间戳
  */
 function mergeResults(wrongBook, records, timestamp) {
@@ -73,7 +74,7 @@ function mergeResults(wrongBook, records, timestamp) {
   let changed = false
 
   ;(records || []).forEach((record) => {
-    if (!record || !record.id) {
+    if (!record || !record.id || !record.answered || record.objective === false) {
       return
     }
 
@@ -111,7 +112,7 @@ function collectIds(wrongBook, mastered) {
   return Object.keys(normalizeWrongBook(wrongBook))
     .filter((questionId) => {
       const record = wrongBook[questionId]
-      return mastered ? record.mastered : !record.mastered
+      return !record.subjective && (mastered ? record.mastered : !record.mastered)
     })
     .sort((left, right) => wrongBook[right].updatedAt - wrongBook[left].updatedAt)
 }
@@ -124,13 +125,24 @@ function getMasteredIds(wrongBook) {
   return collectIds(normalizeWrongBook(wrongBook), true)
 }
 
+function getSubjectiveIds(wrongBook) {
+  const records = normalizeWrongBook(wrongBook)
+  return Object.keys(records).filter(id => records[id].subjective && !records[id].mastered).sort((a, b) => records[b].updatedAt - records[a].updatedAt)
+}
+
+function mergeSelfAssessment(wrongBook, id, assessment, timestamp) {
+  const next = normalizeWrongBook(wrongBook)
+  if (id && ['CORRECT', 'WRONG'].includes(assessment)) next[id] = { subjective: true, mastered: assessment === 'CORRECT', wrongCount: 0, rightCount: 0, streak: 0, updatedAt: timestamp || Date.now() }
+  return next
+}
+
 function summarizeWrongBook(wrongBook) {
   const normalized = normalizeWrongBook(wrongBook)
 
   return {
     pending: collectIds(normalized, false).length,
     mastered: collectIds(normalized, true).length,
-    total: Object.keys(normalized).length
+    total: Object.values(normalized).filter(record => !record.subjective).length
   }
 }
 
@@ -164,6 +176,8 @@ module.exports = {
   createEmptyWrongBook,
   getMasteredIds,
   getPendingIds,
+  getSubjectiveIds,
+  mergeSelfAssessment,
   mergeResults,
   normalizeWrongBook,
   removeIds,

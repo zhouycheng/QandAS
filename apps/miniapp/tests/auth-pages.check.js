@@ -5,7 +5,7 @@
  * 这一版按设计稿重做了认证页（Figma 763:567 / 772:1036 / 772:1076），
  * 本脚本锁住三件容易回退的事：
  *   1. **尺寸来源唯一**：三个页面都引 styles/auth-form.wxss，换算系数 750/402；
- *   2. **校验规则**：邮箱格式、8–20 位字母+数字、验证码 6 位、两次一致、协议必勾；
+ *   2. **校验规则**：邮箱格式、密码 8–16 位且包含字母和数字、验证码 6 位、两次一致、协议必勾；
  *   3. **降级语义**：后端未接入时流程照样走得通，但**密码绝不落库**。
  */
 const fs = require('fs')
@@ -64,12 +64,16 @@ function checkRules() {
   assert('规则 - 缺 @ 被拒', !form.isValidEmail('curry.test.com'))
   assert('规则 - 首尾空格被忽略', form.isValidEmail('  curry@test.com  '))
 
-  assert('规则 - 8 位字母+数字通过', form.isValidPassword('abc12345'))
-  assert('规则 - 纯字母被拒（设计稿要求字母与数字组合）', !form.isValidPassword('abcdefgh'))
+  assert('规则 - 8 位字母和数字通过', form.isValidPassword('abc12345'))
+  assert('规则 - 16 位字母和数字通过', form.isValidPassword('abc1234567890123'))
+  assert('规则 - 7 位被拒', !form.isValidPassword('abc1234'))
+  assert('规则 - 17 位被拒', !form.isValidPassword('abc12345678901234'))
+  assert('规则 - 纯字母被拒', !form.isValidPassword('abcdefgh'))
   assert('规则 - 纯数字被拒', !form.isValidPassword('12345678'))
-  assert('规则 - 7 位被拒（下限 8）', !form.isValidPassword('abc1234'))
-  assert('规则 - 21 位被拒（上限 20）', !form.isValidPassword('abc1234512345123451234'))
-  assert('规则 - 含符号被拒', !form.isValidPassword('abc12345!'))
+  assert('规则 - 符号和空格按原文保留', form.isValidPassword(' Abc!1234_-XYZ '))
+  assert('规则 - Unicode 按码点计数', form.isValidPassword('a1' + '😀'.repeat(14)))
+  assert('规则 - NUL 被拒', !form.isValidPassword('abc12345\u0000'))
+  assert('规则 - 孤立代理项被拒', !form.isValidPassword('abc12345\uD800'))
 
   assert('规则 - 6 位数字验证码通过', form.isValidCode('123456'))
   assert('规则 - 5 位验证码被拒', !form.isValidCode('12345'))
@@ -82,26 +86,28 @@ function checkRules() {
   const loginEmpty = form.validateLogin({})
   assert('规则 - 登录空表单先报邮箱', loginEmpty.field === 'email' && loginEmpty.message === '请输入邮箱')
 
-  const noAgree = form.validateLogin({ email: 'a@b.com', password: 'abc12345', agreed: false })
+  const noAgree = form.validateLogin({ email: 'a@b.com', password: 'abc12345ABCD', agreed: false })
   assert('规则 - 登录未勾协议报协议', noAgree.field === 'agreed')
 
   const mismatch = form.validateRegister({
     email: 'a@b.com',
     code: '123456',
-    password: 'abc12345',
-    confirm: 'abc12346',
+    password: 'abc12345ABCD',
+    confirm: 'abc12346ABCD',
     agreed: true
   })
   assert('规则 - 两次密码不一致报确认栏', mismatch.field === 'confirm')
 
-  const okLogin = form.validateLogin({ email: 'a@b.com', password: 'abc12345', agreed: true })
+  const okLogin = form.validateLogin({ email: 'a@b.com', password: 'abc12345ABCD', agreed: true })
   assert('规则 - 完整表单通过', okLogin.ok === true)
+  assert('规则 - 登录拒绝超过 16 位的密码', !form.validateLogin({ email: 'a@b.com', password: 'abc12345678901234', agreed: true }).ok)
+  assert('规则 - 登录拒绝纯字母密码', !form.validateLogin({ email: 'a@b.com', password: 'abcdefghijkl', agreed: true }).ok)
 
   const resetNoAgree = form.validateReset({
     email: 'a@b.com',
     code: '123456',
-    password: 'abc12345',
-    confirm: 'abc12345'
+    password: 'abc12345ABCD',
+    confirm: 'abc12345ABCD'
   })
   assert('规则 - 找回密码不要求协议勾选', resetNoAgree.ok === true)
 }
@@ -168,7 +174,7 @@ function checkPages() {
 
   assert('页面 - 注册页标题 注册', registerWxml.indexOf('>注册<') >= 0)
   assert('页面 - 注册页有验证码字段', registerWxml.indexOf('邮箱验证码') >= 0)
-  assert('页面 - 注册页密码占位按设计稿写', registerWxml.indexOf('请设置 8–20 位字母与数字组合') >= 0)
+  assert('页面 - 注册页密码占位与服务端一致', registerWxml.indexOf('请设置 8–16 位，包含字母和数字') >= 0)
   assert('页面 - 注册页确认密码占位', registerWxml.indexOf('请再次输入密码') >= 0)
   assert('页面 - 注册页返回登录', registerWxml.indexOf('已有账号？') >= 0)
 
@@ -177,7 +183,14 @@ function checkPages() {
   assert('页面 - 找回密码标题', forgotWxml.indexOf('>找回密码<') >= 0)
   assert('页面 - 找回密码邮箱占位', forgotWxml.indexOf('请输入注册邮箱') >= 0)
   assert('页面 - 找回密码新密码字段', forgotWxml.indexOf('>新密码<') >= 0)
+  assert('页面 - 找回密码页密码占位与服务端一致', forgotWxml.indexOf('请设置 8–16 位，包含字母和数字') >= 0)
   assert('页面 - 找回密码主按钮', forgotWxml.indexOf('>重置密码<') >= 0)
+
+  ;[registerWxml, forgotWxml].forEach((wxml) => {
+    const fields = (wxml.match(/<password-input\b[^>]*\/>/g) || [])
+    assert('页面 - 新密码及确认密码输入上限为 16', fields.length === 2 && fields.every(field => /maxlength="16"/.test(field)))
+  })
+  assert('页面 - 登录密码输入上限为 16', /<password-input\b[^>]*maxlength="16"/.test(loginWxml))
 
   // 认证页不用原生 button：button 自带 after 边框，得靠额外样式清，view 更省事
   ;['page/login/index.wxml', 'page/register/index.wxml', 'page/forgot-password/index.wxml'].forEach((file) => {
@@ -225,8 +238,8 @@ async function checkFlow() {
 
   okRegister.setField('email', 'curry@test.com')
   okRegister.setField('code', '123456')
-  okRegister.setField('password', 'abc12345')
-  okRegister.setField('confirm', 'abc12345')
+  okRegister.setField('password', 'abc12345ABCD')
+  okRegister.setField('confirm', 'abc12345ABCD')
   okRegister.toggleAgreed()
 
   const registered = await okRegister.submit()
@@ -236,13 +249,13 @@ async function checkFlow() {
   assert('认证 - 断网注册没有身份来源', registeredAuth.provider === '', registeredAuth.provider)
   assert('认证 - 注册失败停留原页', registered.command.type === 'toast', JSON.stringify(registered.command))
   assert('降级 - 注册不把密码写进 storage',
-    JSON.stringify(registerStorage.raw).indexOf('abc12345') < 0)
+    JSON.stringify(registerStorage.raw).indexOf('abc12345ABCD') < 0)
 
   // 3) 同一邮箱重复登录 → 身份 id 不变（本机数据不会看起来换了个人）
   const again = new LoginViewModel({ storage: registerStorage })
 
   again.setField('email', 'curry@test.com')
-  again.setField('password', 'abc12345')
+  again.setField('password', 'abc12345ABCD')
   again.toggleAgreed()
 
   await again.submit()
@@ -277,7 +290,7 @@ async function checkFlow() {
   const realVm = new LoginViewModel({ storage: realStorage })
 
   realVm.setField('email', 'curry@test.com')
-  realVm.setField('password', 'abc12345')
+  realVm.setField('password', 'abc12345ABCD')
   realVm.toggleAgreed()
 
   const real = await realVm.submit()
@@ -290,7 +303,7 @@ async function checkFlow() {
   const guardVm = new LoginViewModel({ storage: createMemoryStorage() })
 
   guardVm.setField('email', 'curry@test.com')
-  guardVm.setField('password', 'abc12345')
+  guardVm.setField('password', 'abc12345ABCD')
   guardVm.toggleAgreed()
   guardVm.submitting = true
 
@@ -318,7 +331,7 @@ async function checkRegressions() {
   const rejectVm = new LoginViewModel({ storage: rejectStorage })
 
   rejectVm.setField('email', 'curry@test.com')
-  rejectVm.setField('password', 'abc12345')
+  rejectVm.setField('password', 'abc12345ABCD')
   rejectVm.toggleAgreed()
 
   const rejected = await rejectVm.submit()
@@ -338,7 +351,7 @@ async function checkRegressions() {
   const offlineVm = new LoginViewModel({ storage: offlineStorage })
 
   offlineVm.setField('email', 'curry@test.com')
-  offlineVm.setField('password', 'abc12345')
+  offlineVm.setField('password', 'abc12345ABCD')
   offlineVm.toggleAgreed()
 
   const offline = await offlineVm.submit()
@@ -388,7 +401,7 @@ async function checkRegressions() {
   })
 
   boomVm.setField('email', 'curry@test.com')
-  boomVm.setField('password', 'abc12345')
+  boomVm.setField('password', 'abc12345ABCD')
   boomVm.toggleAgreed()
 
   const boom = await boomVm.submit()
@@ -422,7 +435,7 @@ async function checkRegressions() {
 
   httpGateway.configure({ baseUrl: 'https://api.example.com' })
 
-  const httpReject = await httpGateway.loginByEmail('a@b.com', 'abc12345')
+  const httpReject = await httpGateway.loginByEmail('a@b.com', 'abc12345ABCD')
 
   assert('修复 - HTTP 错误文案取自后端 message',
     httpReject.ok === false && httpReject.reason === '邮箱或密码不正确' && httpReject.unavailable === false,
@@ -435,7 +448,7 @@ async function checkRegressions() {
     }
   }
 
-  const httpDown = await httpGateway.loginByEmail('a@b.com', 'abc12345')
+  const httpDown = await httpGateway.loginByEmail('a@b.com', 'abc12345ABCD')
 
   assert('修复 - 断网标记 unavailable 供上层降级',
     httpDown.ok === false && httpDown.unavailable === true, JSON.stringify(httpDown))

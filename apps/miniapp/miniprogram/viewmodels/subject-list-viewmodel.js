@@ -49,8 +49,13 @@ function resolveMockDuration(count) {
 
 function getInitialSubjectListViewData() {
   return {
-    // 科目列表已归位到「题库」tab，首页只保留全局汇总，不再下发 subjects
     overall: null,
+    recommendations: [],
+    recommendationsLoading: false,
+    recommendationsError: '',
+    recommendationsLoadingMore: false,
+    recommendationsMoreError: '',
+    recommendationsHasMore: false,
     lastPractice: null,
     home: {
       greeting: '',
@@ -105,11 +110,14 @@ class SubjectListViewModel {
   projectRemote() {
     const data = this.load().data
     const result = {}
-    ;['overall', 'home', 'exam', 'entries', 'announcements', 'hasAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key] })
+    ;['overall', 'home', 'exam', 'entries', 'announcements', 'hasAnnouncements', 'lastPractice', 'searchTotalText', 'recommendations', 'recommendationsHasMore'].forEach(key => { result[key] = data[key] })
     if (this.repository.getRemoteResourceState) {
       const overview = this.repository.getRemoteResourceState('overview')
       result.overviewLoading = overview.status === 'loading' && !overview.data
       result.overviewError = overview.error
+      const recommendations = this.repository.getRemoteResourceState('recommendations', { page: 1, pageSize: 3 })
+      result.recommendationsLoading = recommendations.status === 'loading' && !recommendations.data
+      result.recommendationsError = recommendations.error
     }
     return result
   }
@@ -124,9 +132,12 @@ class SubjectListViewModel {
     const overallStats = summarizeOverallProgress(progress, subjects)
     const overview = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() && this.repository.getRemoteOverview(this.storage)
     if (overview) {
+      const objectiveAnswered = overview.correctCount + overview.wrongCount
+      const accuracy = objectiveAnswered ? Math.round(overview.correctCount / objectiveAnswered * 100) : null
       Object.assign(overallStats, { answered: overview.answeredCount, correct: overview.correctCount, total: overview.totalCount,
-        accuracy: overview.answeredCount ? Math.round(overview.correctCount / overview.answeredCount * 100) : 0,
-        accuracyText: `${overview.answeredCount ? Math.round(overview.correctCount / overview.answeredCount * 100) : 0}%`,
+        isCumulative: true, answeredText: `累计 ${overview.answeredCount} 题`, hasProgress: overview.answeredCount > 0,
+        accuracy,
+        accuracyText: accuracy === null ? '—' : `${accuracy}%`,
         progressPercent: overview.totalCount ? Math.min(100, Math.round(overview.answeredCount / overview.totalCount * 100)) : 0 })
     }
     const wrongSummary = this.getWrongBookSummary()
@@ -140,6 +151,7 @@ class SubjectListViewModel {
       total: overallStats.total,
       accuracyText: overallStats.accuracyText,
       progressPercent: overallStats.progressPercent,
+      coverageKnown: !overview,
       pendingWrong: wrongSummary.pending,
       masteredWrong: wrongSummary.mastered,
       studySeconds: studyTime.totalSeconds,
@@ -161,12 +173,37 @@ class SubjectListViewModel {
         }),
         exam: buildExamCountdown({ examName: preferences.examName, examDate: preferences.examDate }),
         entries: this.buildEntries(lastPractice),
+        recommendations: this.buildRecommendations(),
+        recommendationsHasMore: this.hasMoreRecommendations(),
         announcements,
         hasAnnouncements: this.repository.getRemoteAnnouncementTotal ? this.repository.getRemoteAnnouncementTotal(this.storage) > 0 : announcements.length > 0,
         searchTotalText: overallStats.total > 0 ? `在全部 ${overallStats.total} 道题里查题干与选项` : '输入关键词搜索已发布的题目',
         lastPractice
       })
     }
+  }
+
+  buildRecommendations() {
+    const online = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()
+    const subjects = online ? this.repository.getRemoteRecommendations ? this.repository.getRemoteRecommendations(this.storage) : [] : this.repository.getSubjectSummaries()
+    return subjects.filter(subject => subject.questionCount == null || Number(subject.questionCount) > 0).map(subject => ({ id: subject.id, name: subject.name, countText: subject.questionCount == null ? '查看题库' : `${subject.questionCount} 道题` }))
+  }
+
+  hasMoreRecommendations() {
+    if (!this.repository.getRemoteRecommendationPage) return false
+    const page = this.repository.getRemoteRecommendationPage(this.storage)
+    return page.page > 0 && page.page * 3 < page.total
+  }
+
+  loadMoreRecommendations() {
+    if (!this.hasMoreRecommendations()) return Promise.resolve(null)
+    const page = this.repository.getRemoteRecommendationPage(this.storage)
+    return this.repository.loadRemoteRecommendations(this.storage, { page: page.page + 1 }).then(() => ({ data: this.projectRemote() }))
+  }
+
+  openRecommendedSubject(id) {
+    if (!this.buildRecommendations().some(subject => subject.id === id)) return { command: { type: 'toast', title: '该科目已更新，请刷新后重试' } }
+    return { command: { type: 'switchTab', url: '/page/bank-detail/index', subjectId: id } }
   }
 
   /** 读偏好失败时退回默认值：首页是 tabBar 主页面，不能因为一个字段崩掉 */
@@ -258,8 +295,8 @@ class SubjectListViewModel {
 
   buildResumablePractice() {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
-      const recent = this.repository.getRemoteRecent(this.storage).find((item) => item.status === 'IN_PROGRESS')
-      if (recent) { const meta = this.repository.getScopeMeta(recent.questionBankId || recent.bankId); return { resumed: true, scopeKey: recent.questionBankId || recent.bankId, title: meta ? meta.title : recent.title || '继续练习', description: meta ? meta.description : '', url: `/page/practice/index?sessionId=${recent.id}`, metaText: this.repository.getAuth(this.storage).loggedIn ? '云端练习 · 继续答题' : '本机试答 · 继续答题' } }
+      const recent = this.repository.getResumableSession(this.storage)
+      if (recent) { const config = recent.config || {}; const meta = this.repository.getScopeMeta(config.bankId); return { resumed: true, scopeKey: config.bankId || '', title: meta ? meta.title : config.title || '继续练习', description: meta ? meta.description : '', url: `/page/practice/index?sessionId=${recent.sessionId}`, metaText: this.repository.getAuth(this.storage).loggedIn ? '云端练习 · 继续答题' : '本机试答 · 继续答题' } }
       return null
     }
     if (typeof this.repository.getResumableSession !== 'function') {
@@ -426,21 +463,22 @@ class SubjectListViewModel {
     return null
   }
 
-  /**
-   * 最近练习：有半场会话就直接续做；只有历史进度时提示去题库，
-   * 不硬造一个「重新开始」——用户点「最近练习」期待的是接着上次，不是重来。
-   */
+  /** 最近练习同时提供续答和历史成绩入口。 */
   openRecent(loaded) {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       if (!loaded) return this.repository.refreshRemote(this.storage, 'recent').then(() => this.openRecent(true))
-      const recent = this.repository.getRemoteRecent(this.storage)
+      const recent = this.repository.getRemoteRecent(this.storage).filter(item => ['IN_PROGRESS', 'SUBMITTED'].includes(item.status))
       const runtime = require('../repositories/online-practice.js').current()
       const waiting = runtime && this.repository.getAuth(this.storage).loggedIn ? runtime.waitingIds().map(id => { const record = runtime.getWaiting(id); return record ? Object.assign({ id }, record) : null }).filter(Boolean) : []
-      if (waiting.length) {
+      if (waiting.length || recent.length > 1) {
         const choices = waiting.map(item => ({ id: item.id, label: item.writer && item.writer.writerToken ? '同步完成 · 继续答题' : '等待同步 · 查看进度' }))
         recent.filter(item => !choices.some(choice => choice.id === item.id)).forEach(item => {
           const meta = this.repository.getScopeMeta(item.questionBankId)
-          choices.push({ id: item.id, label: `${item.status === 'SUBMITTED' ? '结果' : '继续'} · ${meta ? meta.title : '练习'} · ${(item.createdAt || '').slice(0, 10)}` })
+          const snapshot = runtime && runtime.get && runtime.get(item.id)
+          if (snapshot && snapshot.viewCompleted) return
+          const createdAt = Date.parse(item.createdAt)
+          const time = Number.isFinite(createdAt) ? new Date(createdAt + 8 * 3600000).toISOString().slice(5, 16).replace('T', ' ') : ''
+          choices.push({ id: item.id, label: `${item.status === 'SUBMITTED' ? '结果' : '继续'} · ${meta ? meta.title : snapshot && snapshot.title || '练习'} · ${time}` })
         })
         return { command: { type: 'choosePractice', choices } }
       }
@@ -507,27 +545,16 @@ class SubjectListViewModel {
       return empty
     }
 
-    const count = Math.min(MOCK_EXAM_QUESTION_COUNT, total)
-    const duration = resolveMockDuration(count)
-    const query = [
-      `subjectId=${encodeURIComponent(subjectId)}`,
-      online ? `bankId=${encodeURIComponent(bank.id)}` : 'scope=subject',
-      'mode=test',
-      `count=${encodeURIComponent(count)}`,
-      `duration=${encodeURIComponent(duration)}`,
-      `seed=${Date.now()}`
-    ]
-
-    return {
-      command: {
-        type: 'openRouteWithLoading',
-        payload: {
-          url: `/page/practice/index?${query.join('&')}`,
-          title: '正在生成试卷',
-          description: `${this.getSubjectName(subjectId)} · ${count} 题 / ${duration} 分钟`
-        }
-      }
+    const build = (count, selectionKey) => {
+      if (!count) return empty
+      const duration = resolveMockDuration(count)
+      const query = [`subjectId=${encodeURIComponent(subjectId)}`, online ? `bankId=${encodeURIComponent(bank.id)}` : 'scope=subject', 'mode=test', `count=${count}`, `duration=${duration}`, `seed=${Date.now()}`]
+      if (selectionKey) query.push(`selectionKey=${encodeURIComponent(selectionKey)}`)
+      return { command: { type: 'openRouteWithLoading', payload: { url: `/page/practice/index?${query.join('&')}`, title: '正在生成试卷', description: `${this.getSubjectName(subjectId)} · ${count} 题 / ${duration} 分钟` } } }
     }
+    const count = Math.min(MOCK_EXAM_QUESTION_COUNT, total)
+    if (online) return this.repository.previewRemotePracticeScope(this.storage, { questionBankId: bank.id, count, order: 'RANDOM', selectionKind: 'NORMAL' }).then(preview => build(preview.selectedCount, preview.selectionKey))
+    return build(count)
   }
 
   async loadRemoteMock() {

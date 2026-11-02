@@ -22,12 +22,13 @@ class PracticeSession {
     var createdAt: Instant = Instant.now()
     var submittedAt: Instant? = null
     var configurationSnapshot: String? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var writerDeviceId: UUID? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var writerToken: UUID? = null
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    @TableField(exist = false)
     var pendingWriterDeviceId: UUID? = null
+    @TableField(exist = false)
     var acknowledgedSequence: Long = 0
 }
 
@@ -38,6 +39,8 @@ class PracticeItem {
     var sessionId: UUID? = null
     var questionId: UUID? = null
     var revisionId: UUID? = null
+    var materialRevisionId: UUID? = null
+    var answerBlanks: String? = null
     var position: Int = 0
     var answerText: String? = null
     var answerBoolean: Boolean? = null

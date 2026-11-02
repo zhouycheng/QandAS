@@ -1,6 +1,8 @@
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const { createSyncQueue } = require('./practice-sync-queue.js')
+const { gradeBlanks } = require('../utils/fill-blank.js')
+const assets = require('./question-assets.js')
 let runtime = null
 
 function mapQuestion(item, grading) {
@@ -9,8 +11,10 @@ function mapQuestion(item, grading) {
   const boolean = q.type === 'TRUE_FALSE'
   return {
     id: q.id, itemId: item.itemId, revisionId: q.revisionId, type: q.type,
-    typeText: { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', SHORT_ANSWER: '简答题' }[q.type],
-    stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
+    typeText: { CONCEPT: '概述题', CODE_ANALYSIS: '代码分析', CODE_WRITING: '代码编写' }[q.presentation] || { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' }[q.type],
+    contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
+    isFillBlank: q.type === 'FILL_BLANK', blankCount: q.blankCount || 0, blanks: g.blanks || [], blankMatch: g.blankMatch || {},
+    scoringPoints: g.scoringPoints || [], material: q.material || null, imagePaths: q.imagePaths || [],
     options: boolean ? [{ key: 'true', label: '对', text: '正确' }, { key: 'false', label: '错', text: '错误' }] : (q.options || []).map(o => ({ key: o.key, label: o.key, text: o.content })),
     answerKeys: boolean ? [String(g.correctValue)] : (g.correctAnswer || []),
     referenceAnswer: g.referenceAnswer || '', explanation: g.explanation || '', assetIds: q.assetIds || []
@@ -19,7 +23,20 @@ function mapQuestion(item, grading) {
 function enable(storage) { runtime = new OnlinePractice(storage); return runtime }
 function current() { return runtime }
 class OnlinePractice {
-  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.releasing = {}; this.finishing = {}; this.creating = {}; this.assessing = {} }
+  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.releasing = {}; this.finishing = {}; this.creating = {}; this.assessing = {}; this.saveErrors = {}; this.statusListeners = new Set() }
+  saveStatus(id) {
+    if (this.saveErrors[id]) return { saveStatusText: '本机保存失败，请重试', canRetrySync: true }
+    const draft = this.queue && this.queue.get(id)
+    if (!draft || (!draft.pending && draft.sequence <= draft.acknowledgedSequence)) return { saveStatusText: '服务器已保存', canRetrySync: false }
+    if (draft.paused || draft.failures) return { saveStatusText: '本机已保存 · ' + (draft.reason || '等待同步'), canRetrySync: true }
+    return { saveStatusText: draft.pending && draft.pending.serverAccepted ? '本机已保存 · 服务器处理中' : '本机已保存 · 等待同步', canRetrySync: false }
+  }
+  observeStatus(id, listener) {
+    const owner = this.userId
+    const update = (changedId) => { if (changedId === id && auth.getAuth(this.storage).userId === owner) listener(this.saveStatus(id)) }
+    this.statusListeners.add(update); update(id)
+    return () => this.statusListeners.delete(update)
+  }
   identity() {
     const identity = auth.getAuth(this.storage)
     if (!identity.loggedIn || !identity.token) throw new Error('请先登录')
@@ -29,6 +46,7 @@ class OnlinePractice {
       const queueUserId = this.userId
       this.queue = createSyncQueue({ storage: this.storage, userId: queueUserId, send: (id, command) => this.send(id, command, queueUserId), onChange: (id, draft) => {
         if (draft.lastAcknowledgedKey) this.storage.remove(`qandaOnline:${queueUserId}:${id}:wire:${draft.lastAcknowledgedKey}`)
+        if (auth.getAuth(this.storage).userId === queueUserId) this.statusListeners.forEach(listener => { try { listener(id) } catch (_) {} })
       } })
     }
     if (this.token !== identity.token) {
@@ -39,7 +57,7 @@ class OnlinePractice {
   }
   key(id) { return `qandaOnline:${this.userId}:${id}` }
   get(id) { this.identity(); return this.storage.get(this.key(id)) || null }
-  put(id, value) { this.storage.set(this.key(id), value) }
+  put(id, value) { assets.reuseResultImages(value); this.storage.set(this.key(id), value) }
   deviceId() {
     let id = this.storage.get('qandaDeviceId')
     if (!id) { id = http.uuid(); this.storage.set('qandaDeviceId', id) }
@@ -66,29 +84,30 @@ class OnlinePractice {
         cached = this.get(id)
       }
       let ordinary = cached
-      if (cached && cached.status === 'SUBMITTED') return cached
+      if (cached && cached.status === 'SUBMITTED') return assets.completeSnapshot(this.storage, cached)
       if (!cached || !cached.writer || !cached.writer.writerToken || cached.writer.deviceId !== this.deviceId()) {
         const remote = await this.required('GET', `/practice/sessions/${id}`)
         ordinary = remote
         if (remote.status === 'SUBMITTED') {
           remote.result = await this.required('GET', `/practice/sessions/${id}/result`)
           remote.items = remote.result.items
-          return this.remember(remote, options)
+          return this.remember(await assets.completeSnapshot(this.storage, remote), options)
         }
       }
       if (cached && cached.writer && cached.writer.deviceId === this.deviceId() && cached.writer.writerToken && !this.getWaiting(id)) {
         // 原写入权恢复本机草稿，接管续答读取最新快照。
-        return cached
+        this.storage.set(`qandaOnlineLast:${this.userId}`, id)
+        return assets.completeSnapshot(this.storage, cached)
       }
       const writer = await this.required('POST', `/practice/sessions/${id}/writer-acquire`, { deviceId: this.deviceId() }, { idempotencyKey: http.uuid() })
       if (writer.state !== 'ACTIVE' || !writer.writerToken) {
-        const route = Object.assign({}, ordinary.route || {}, options || {}, { bankId: ordinary.questionBankId })
+        const route = Object.assign({}, this.snapshotRoute(ordinary), ordinary.route || {}, options || {})
         this.rememberWaiting(id, route, writer)
         return { id, waiting: true, writer, route }
       }
       const snapshot = await this.required('GET', `/practice/sessions/${id}/snapshot?deviceId=${this.deviceId()}`, null, { headers: { 'X-Practice-Writer': writer.writerToken } })
       snapshot.writer = writer
-      const prepared = this.remember(snapshot, options)
+      const prepared = this.remember(await assets.completeSnapshot(this.storage, snapshot), options)
       this.forgetWaiting(id)
       return prepared
     }
@@ -111,23 +130,32 @@ class OnlinePractice {
     if (!intent) {
       const bankId = options.bankId
       if (!bankId) throw new Error('请选择一个题库开始练习')
-      const bank = require('./remote-data-repository.js').getBankMeta(bankId) || await this.required('GET', `/question-banks/${bankId}`)
+      const bank = options.selectionKey && require('./remote-data-repository.js').getBankMeta(bankId) || await this.required('GET', `/question-banks/${bankId}`)
       if (this.identity().userId !== userId) throw new Error('账号已切换，请重新打开练习')
-      const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || bank.questionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+      const bankIds = options.bankIds ? String(options.bankIds).split(',').filter(Boolean) : [bankId]
+      const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || (bankIds.length > 1 ? 1000 : bank.questionCount || 20), 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+      if (options.bankIds) scope.questionBankIds = bankIds
       scope.collectionChip = options.collectionChip || 'all'
       if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
-      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE', deviceId: this.deviceId() } }
+      let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankIds) : null
+      if (!preview && bankIds.length > 1) preview = await this.required('POST', '/practice/scope-preview', scope)
+      if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
+      intent = { routeKey, route: options, key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null, deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }
     const response = await this.call('POST', '/practice/sessions', intent.body, { idempotencyKey: intent.key })
     if (!response.ok) {
       if ([400, 404, 409, 422].includes(response.statusCode)) this.storage.set(storageKey, (this.storage.get(storageKey) || []).filter(value => value.key !== intent.key))
+      if (response.statusCode === 409 && response.code === 'VERSION_CONFLICT') {
+        await require('./remote-data-repository.js').loadBank(this.storage, intent.body.scope.questionBankId, { force: true })
+        throw new Error('题库内容已更新，请返回题库重新确认答题配置；已有练习已保留')
+      }
       throw new Error(response.reason || '创建练习失败，请联网后重试')
     }
     const snapshot = response.data
     snapshot.title = intent.title
-    const created = this.remember(snapshot, intent.route)
+    const created = this.remember(await assets.completeSnapshot(this.storage, snapshot), intent.route)
     this.storage.set(storageKey, (this.storage.get(storageKey) || []).filter(value => value.key !== intent.key))
     return created
   }
@@ -165,15 +193,67 @@ class OnlinePractice {
     }
     this.storage.set(key, retained)
   }
+  snapshotRoute(snapshot) {
+    const config = snapshot.configuration
+    if (!config) return snapshot.questionBankId ? { bankId: snapshot.questionBankId } : {}
+    return {
+      bankId: snapshot.questionBankId,
+      bankIds: (config.questionBankIds || []).join(','),
+      mode: config.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : config.order === 'SEQUENTIAL' ? 'order' : 'practice'),
+      chapterId: (config.chapterIds || [])[0] || '',
+      duration: config.timeLimitSeconds ? String(config.timeLimitSeconds / 60) : '',
+      count: config.count,
+      selectionKind: config.selectionKind,
+      collectionChip: config.collectionChip || 'all'
+    }
+  }
   remember(snapshot, options) {
     const previous = this.get(snapshot.id)
-    snapshot.route = Object.assign({}, previous && previous.route || {}, snapshot.route || {}, options || {})
+    snapshot.title = snapshot.title || previous && previous.title || ((snapshot.configuration && snapshot.configuration.questionBankIds || []).length > 1 ? `${snapshot.configuration.questionBankIds.length} 个题库联合练习` : '')
+    snapshot.route = Object.assign({}, this.snapshotRoute(snapshot), previous && previous.route || {}, snapshot.route || {}, options || {})
     snapshot.formatVersion = 1
     this.put(snapshot.id, snapshot)
     this.storage.set(`qandaOnlineLast:${this.userId}`, snapshot.id)
     if (snapshot.status === 'SUBMITTED' && snapshot.result) this.trackCompleted(snapshot.id)
     else this.pruneCompleted()
     return snapshot
+  }
+  async completeView(session) {
+    const id = session.meta.sessionId
+    const snapshot = this.get(id)
+    const key = `qandaViewClosures:${this.userId}`
+    const pending = this.storage.get(key) || {}
+    if (!pending[id]) {
+      pending[id] = { key: http.uuid(), body: { expectedVersion: snapshot.version, writerToken: snapshot.writer.writerToken } }
+      this.storage.set(key, pending)
+    }
+    snapshot.viewCompleted = true
+    this.put(id, snapshot)
+    await this.flushViewClosures()
+  }
+  async flushViewClosures() {
+    const userId = this.identity().userId
+    if (this.closingViews === userId) return
+    this.closingViews = userId
+    const key = `qandaViewClosures:${userId}`
+    try {
+      for (const [id, command] of Object.entries(this.storage.get(key) || {})) {
+        if (command.paused || this.identity().userId !== userId) continue
+        const response = await this.call('POST', `/practice/sessions/${id}/cancel`, command.body, { idempotencyKey: command.key })
+        if (this.identity().userId !== userId) return
+        const pending = this.storage.get(key) || {}
+        if (response.ok) {
+          const snapshot = this.get(id)
+          if (snapshot) this.put(id, Object.assign({}, snapshot, { status: 'CANCELLED', version: response.data.version }))
+          delete pending[id]
+          require('./remote-data-repository.js').invalidateLearning()
+        } else if ([400, 401, 403, 404, 409, 422].includes(response.statusCode)) {
+          pending[id] = Object.assign({}, command, { paused: true, reason: response.reason })
+        }
+        this.storage.set(key, pending)
+        if (!response.ok) break
+      }
+    } finally { if (this.closingViews === userId) this.closingViews = '' }
   }
   quiz(snapshot) {
     return { subjectId: snapshot.route.subjectId || '', bankId: snapshot.questionBankId, title: snapshot.title || '题库练习', storageKey: '', questions: snapshot.items.map(item => mapQuestion(item, (snapshot.offlineGrading || []).find(g => g.itemId === item.itemId))) }
@@ -183,10 +263,16 @@ class OnlinePractice {
     const questions = this.quiz(snapshot).questions
     return { sessionId: snapshot.id, questionIds: questions.map(q => q.id), questionOrder: questions.map((_, i) => i), currentIndex: snapshot.currentIndex, elapsedTime: snapshot.durationSeconds,
       markedIds: snapshot.items.filter(i => i.marked).map(i => i.question.id),
-      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome ? item.outcome === 'CORRECT' : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
+      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', blanks: item.answer.blanks || [], confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? false : item.outcome ? item.outcome === 'CORRECT' : item.question.type === 'FILL_BLANK' ? gradeBlanks(questions[index], item.answer.blanks) : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
       status: snapshot.status === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS', config: snapshot.route }
   }
   save(session) {
+    const id = session.getPersistedState().sessionId
+    try { const result = this.saveLocal(session); delete this.saveErrors[id]; return result }
+    catch (error) { this.saveErrors[id] = true; throw error }
+    finally { this.statusListeners.forEach(listener => { try { listener(id) } catch (_) {} }) }
+  }
+  saveLocal(session) {
     this.identity()
     const state = JSON.parse(JSON.stringify(session.getPersistedState()))
     if ((!state.answers[state.currentIndex] || state.answers[state.currentIndex].confirmed === false) && session.state.selectedKeys.length) {
@@ -202,7 +288,7 @@ class OnlinePractice {
       const question = session.state.questions[i]
       const editing = i === state.currentIndex && (!answer || answer.confirmed === false)
       const keys = editing ? session.state.selectedKeys : answer ? answer.selectedKeys : []
-      return { itemId: item.itemId, answer: question.isShortAnswer ? (answer && answer.text && answer.text.trim() ? { text: answer.text } : null) : keys && keys.length ? (question.type === 'TRUE_FALSE' ? { value: keys[0] === 'true' } : { optionKeys: keys }) : null, confirmed: !!answer && answer.confirmed !== false, marked: state.markedIds.includes(item.question.id) }
+      return { itemId: item.itemId, answer: question.isFillBlank ? (answer && answer.blanks && answer.blanks.some(value => value.trim()) ? { blanks: answer.blanks } : null) : question.isShortAnswer ? (answer && answer.text && answer.text.trim() ? { text: answer.text } : null) : keys && keys.length ? (question.type === 'TRUE_FALSE' ? { value: keys[0] === 'true' } : { optionKeys: keys }) : null, confirmed: !!answer && answer.confirmed !== false, marked: state.markedIds.includes(item.question.id) }
     })
     this.put(snapshot.id, snapshot)
     const saved = this.queue.save(snapshot.id, { progress: { currentIndex: state.currentIndex, durationSeconds: state.elapsedTime, items }, state })
@@ -223,18 +309,42 @@ class OnlinePractice {
       body = Object.assign({}, command.payload.progress, { items: changes, expectedVersion: snapshot.version, writerToken: snapshot.writer.writerToken, clientSequence: command.sequence })
       this.storage.set(key, body)
     }
-    const response = await http.request('PUT', `/practice/sessions/${id}/progress-ack`, body, { token: identity.token, idempotencyKey: command.idempotencyKey, priority: 'background' })
+    const path = `/practice/sessions/${id}/progress-commands`
+    let response = command.serverAccepted
+      ? await http.request('GET', `${path}/${command.idempotencyKey}`, null, { token: identity.token, priority: 'background' })
+      : await http.request('POST', path, body, { token: identity.token, idempotencyKey: command.idempotencyKey, priority: 'background' })
+    if (response.ok) {
+      const state = response.data
+      if (state.state === 'REJECTED') return { ok: false, rejected: true, statusCode: state.failure.status, reason: state.failure.message }
+      if (state.state === 'DEAD_LETTER') return { ok: false, statusCode: 409, reason: '进度处理失败，本机答案已保留，请稍后恢复同步' }
+      if (state.state !== 'COMMITTED') return { ok: false, pending: true, serverState: state.state, reason: '本机已保存，服务器处理中' }
+      if (!state.acknowledgement || !Number.isInteger(state.acknowledgement.acknowledgedSequence) || state.acknowledgement.acknowledgedSequence !== command.sequence || !Number.isInteger(state.acknowledgement.version) || !state.acknowledgement.writer) return { ok: false, statusCode: 503, reason: '保存回执尚未确认，本机答案已保留' }
+      response = Object.assign({}, response, { data: state.acknowledgement })
+    }
     if (response.ok) {
       const latest = this.storage.get(snapshotKey)
-      latest.version = response.data.version; latest.writer = response.data.writer
-      latest.ackItems = latest.ackItems || {}
-      body.items.forEach(item => { latest.ackItems[item.itemId] = item })
+      if (response.data.version >= latest.version) {
+        latest.version = response.data.version; latest.writer = response.data.writer
+        latest.ackItems = latest.ackItems || {}
+        body.items.forEach(item => { latest.ackItems[item.itemId] = item })
+      }
       this.storage.set(snapshotKey, latest)
       if (latest.writer.pendingDeviceId && auth.getAuth(this.storage).userId === queueUserId) this.pendingTakeover = id
     }
     return Object.assign({}, response, response.ok ? response.data : {})
   }
   async flush(id) { this.identity(); return this.queue.flush(id) }
+  async awaitConfirmed(id) {
+    const deadline = Date.now() + 15000
+    while (true) {
+      const pending = this.queue.get(id)
+      if (!pending || (!pending.pending && pending.sequence <= pending.acknowledgedSequence)) return
+      const response = await this.flush(id)
+      if (response.ok) continue
+      if (!(response.pending || response.deferred) || Date.now() >= deadline) throw new Error(response.reason || '进度正在保存，请稍后重试')
+      await new Promise(resolve => setTimeout(resolve, Math.min(response.retryAfter || 1000, 1000)))
+    }
+  }
   finish(session) {
     const key = `${this.identity().userId}:${session.meta.sessionId}`
     if (this.finishing[key]) return this.finishing[key]
@@ -278,12 +388,7 @@ class OnlinePractice {
     if (!snapshot) throw new Error('练习快照不存在')
     if (!snapshot.finishCommand && !snapshot.result) {
       this.save(session)
-      let pending = this.queue.get(id)
-      while (pending && pending.sequence > pending.acknowledgedSequence) {
-        const response = await this.flush(id)
-        if (!response.ok) throw new Error(response.reason || '答题数据待同步，请联网后重试交卷')
-        pending = this.queue.get(id)
-      }
+      await this.awaitConfirmed(id)
       snapshot = this.get(id)
       snapshot.finishCommand = { key: http.uuid(), body: { expectedVersion: snapshot.version, durationSeconds: session.getElapsedSeconds(), items: [], writerToken: snapshot.writer.writerToken } }
       this.put(id, snapshot)
@@ -327,8 +432,7 @@ class OnlinePractice {
     let snapshot = this.get(id)
     if (!snapshot) return false
     if (!snapshot.releaseCommand) {
-      const flushed = await this.flush(id)
-      if (!flushed.ok) return false
+      try { await this.awaitConfirmed(id) } catch (error) { return false }
       const queued = this.queue.get(id)
       if (queued && queued.sequence > queued.acknowledgedSequence) return false
       if (this.identity().userId !== userId) return false

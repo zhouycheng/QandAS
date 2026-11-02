@@ -5,5 +5,7 @@
   "backgroundColor": "#FFFFFF",
   "backgroundTextStyle": "dark",
   "enablePullDownRefresh": true,
-  "usingComponents": {}
+  "usingComponents": {
+    "rich-content": "../../components/rich-content/index"
+  }
 }

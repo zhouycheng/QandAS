@@ -32,6 +32,23 @@ scroll-view {
   padding-bottom: 40rpx;
 }
 
+.secondary-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #fff;
+}
+
+.secondary-page > view {
+  flex: 1;
+  min-height: 0;
+}
+
+.secondary-page-fill {
+  height: 100vh;
+  overflow: hidden;
+}
+
 .card {
   background: var(--card);
   border-radius: 24rpx;

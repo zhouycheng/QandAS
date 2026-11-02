@@ -1,10 +1,12 @@
 const { createWxStorageAdapter } = require('./utils/wx-storage.js')
 const playgroundSwitch = require('./utils/playground-switch.js')
 const practiceRepository = require('./repositories/practice-repository.js')
+const authRepository = require('./repositories/auth-repository.js')
 const http = require('./repositories/http-gateway.js')
 const onlinePractice = require('./repositories/online-practice.js')
 const remoteData = require('./repositories/remote-data-repository.js')
 const localConfig = require('./runtime.local.js')
+const { createHeartbeat } = require('./repositories/activity-heartbeat.js')
 
 App({
   globalData: {
@@ -17,8 +19,17 @@ App({
   onLaunch() {
     this.globalData.launchAt = Date.now()
     const storage = createWxStorageAdapter()
+    this.activityHeartbeat = createHeartbeat({ getAuth: () => practiceRepository.getAuth(storage) })
     const config = Object.assign({}, localConfig, typeof wx.getExtConfigSync === 'function' ? wx.getExtConfigSync() || {} : {})
-    http.configure({ baseUrl: config.apiBaseUrl || '', tokenProvider: () => practiceRepository.getAuth(storage).token || '' })
+    http.configure({ baseUrl: config.apiBaseUrl || '', tokenProvider: () => practiceRepository.getAuth(storage).token || '',
+      onUnauthorized: token => {
+        if (!authRepository.expireAuth(storage, token)) return
+        remoteData.bind(storage)
+        const runtime = onlinePractice.current()
+        if (runtime) runtime.identity()
+        wx.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+      }
+    })
     remoteData.enable(true)
     remoteData.bind(storage)
     onlinePractice.enable(storage)
@@ -33,15 +44,17 @@ App({
 
   onShow() {
     this.appVisible = true
+    this.syncActivityHeartbeat()
     this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     const runtime = onlinePractice.current()
     if (!runtime) return
-    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
+    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.flushViewClosures().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
     this.watchPendingPractice()
   },
 
   onHide() {
     this.appVisible = false
+    if (this.activityHeartbeat) this.activityHeartbeat.stop()
     const epoch = this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     if (this.practiceWatch) clearTimeout(this.practiceWatch)
     const runtime = onlinePractice.current()
@@ -60,6 +73,10 @@ App({
     }).catch(() => {})
   },
 
+  syncActivityHeartbeat() {
+    if (this.appVisible && this.activityHeartbeat) this.activityHeartbeat.start()
+  },
+
   watchPendingPractice() {
     if (this.practiceWatch) clearTimeout(this.practiceWatch)
     if (this.appVisible === false) return
@@ -67,6 +84,7 @@ App({
       const runtime = onlinePractice.current()
       if (runtime && runtime.queue) {
         try {
+          await runtime.flushViewClosures()
           const ids = Array.from(new Set(runtime.queue.sessionIds().concat(runtime.waitingIds())))
           const eligible = ids.filter((id) => {
             if (id === runtime.activeId) return false

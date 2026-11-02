@@ -10,8 +10,10 @@ export function LineChart({
   label: string
 }) {
   if (!data.length) return <Empty description="暂无统计数据" />
-  const max = Math.max(1, ...data.map((d) => d.value))
+  const max = Math.max(1, ...data.flatMap((d) => [d.value, percent ? 0 : (d.secondary ?? 0)]))
   const ceiling = Math.ceil(max / 4) * 4
+  const tickCount = Math.min(5, data.length)
+  const ticks = new Set(Array.from({ length: tickCount }, (_, i) => Math.round(i * (data.length - 1) / Math.max(1, tickCount - 1))))
   const x = (i: number) => 48 + (i / Math.max(1, data.length - 1)) * 490
   const y = (n: number, secondary = false) => 220 - (n / (secondary && percent ? 100 : ceiling)) * 180
   const points = (secondary = false) =>
@@ -39,16 +41,13 @@ export function LineChart({
         {data.map((d, i) => (
           <g key={d.label}>
             <circle cx={x(i)} cy={y(d.value)} r="3" fill="#087bff">
-              <title>
-                {d.label}：{d.value}
-                {d.secondary !== undefined
+              <title>{`${d.label}：${d.value}${d.secondary !== undefined
                   ? `，${percent ? '正确率' : '对比值'} ${d.secondary}${percent ? '%' : ''}`
-                  : ''}
-              </title>
+                  : ''}`}</title>
             </circle>
-            {(i % Math.max(1, Math.ceil(data.length / 7)) === 0 || i === data.length - 1) && (
+            {ticks.has(i) && (
               <text x={x(i)} y="246" textAnchor="middle">
-                {d.label.slice(5)}
+                {/^\d{4}-\d{2}-\d{2}$/.test(d.label) ? d.label.slice(5) : d.label}
               </text>
             )}
           </g>

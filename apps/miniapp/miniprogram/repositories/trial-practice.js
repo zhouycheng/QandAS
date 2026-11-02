@@ -22,7 +22,7 @@ async function required(method, path, body) {
 }
 function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
-  if (saved) return Promise.resolve(saved)
+  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved)
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))
   if (creating) return creating
   creating = create(storage, options).finally(() => { creating = null })
@@ -32,13 +32,19 @@ async function create(storage, options) {
   if (!remaining(storage)) throw quotaError()
   if (options.selectionKind && options.selectionKind !== 'NORMAL') throw new Error('登录后可按错题或收藏范围练习')
   if (!options.bankId) throw new Error('请选择一个题库开始试答')
-  const bank = require('./remote-data-repository.js').getBankMeta(options.bankId) || await required('GET', '/question-banks/' + options.bankId)
-  const scope = { questionBankId: bank.id || options.bankId, count: Math.min(Number(options.count) || bank.questionCount || bank.activeQuestionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+  const bank = options.selectionKey && require('./remote-data-repository.js').getBankMeta(options.bankId) || await required('GET', '/question-banks/' + options.bankId)
+  const bankIds = options.bankIds ? String(options.bankIds).split(',').filter(Boolean) : [options.bankId]
+  const scope = { questionBankId: bank.id || options.bankId, count: Math.min(Number(options.count) || (bankIds.length > 1 ? 1000 : bank.questionCount || bank.activeQuestionCount || 20), 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+  if (options.bankIds) scope.questionBankIds = bankIds
   if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
-  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersion: bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE' })
+  let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(storage, options.selectionKey, bankIds) : null
+  if (!preview && bankIds.length > 1) preview = await required('POST', '/practice/scope-preview', scope)
+  if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
+  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null })
   if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
+  await require('./question-assets.js').completeSnapshot(storage, snapshot)
   snapshot.route = Object.assign({}, options, { bankId: snapshot.questionBankId })
-  snapshot.title = bank.name
+  snapshot.title = options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name)
   snapshot.status = 'IN_PROGRESS'
   snapshot.currentIndex = 0
   snapshot.durationSeconds = 0

@@ -1,6 +1,8 @@
 <!-- 错题本 / 收藏本｜设计稿「错题本」「收藏本」两张画板
      同一份结构承载两种模式：type=wrong 进错题本，type=favorite 进收藏本（由 ViewModel 决定文案与口径）。
-     返回用系统导航栏的返回钮（页内不再自绘，避免双层返回栏）；页内只留「居中标题 + 管理」。 -->
+     顶部返回由共享导航栏提供，正文保留标题与管理操作。 -->
+<view class="secondary-page">
+<page-header />
 <view class="list-page wb-page">
   <view class="load-note" wx:if="{{collectionLoading}}">正在读取列表…</view>
   <view class="load-note" wx:if="{{collectionError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{collectionError}} · 点击重试</view>
@@ -134,7 +136,7 @@
           >移除</view>
           <view class="q-chevron" wx:else></view>
         </view>
-        <text class="q-stem">{{item.stem}}</text>
+        <rich-content class="q-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
         <view class="q-meta">
           <text class="q-badge {{item.badgeTone}}">{{item.badgeText}}</text>
           <text class="q-type">{{item.typeText}}</text>
@@ -179,4 +181,5 @@
     >{{manage ? (type === 'wrong' ? '清空错题本' : '清空收藏') : footerText}}</view>
     <text class="wb-footer-hint">{{footerHint}}</text>
   </view>
+</view>
 </view>

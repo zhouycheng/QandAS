@@ -27,10 +27,15 @@
 }
 
 .chapter-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: 27rpx;
   line-height: 1.35;
   color: #141820;
 }
+
 
 .chapter-meta {
   flex: none;

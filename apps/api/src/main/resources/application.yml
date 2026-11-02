@@ -9,18 +9,37 @@ server:
 spring:
   application:
     name: qanda-backend
+  rabbitmq:
+    host: ${BACKEND_RABBIT_HOST:127.0.0.1}
+    port: ${BACKEND_RABBIT_PORT:5672}
+    username: ${BACKEND_RABBIT_USER:qanda}
+    password: ${BACKEND_RABBIT_PASSWORD:}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    connection-timeout: 3s
+    listener:
+      simple:
+        prefetch: 1
+        missing-queues-fatal: false
+  task:
+    scheduling:
+      pool:
+        size: 4
   datasource:
     url: ${BACKEND_DB_URL:jdbc:postgresql://127.0.0.1:56432/qanda_backend}
     username: ${BACKEND_DB_USER:qanda_backend}
     password: ${BACKEND_DB_PASSWORD}
     hikari:
-      maximum-pool-size: 8
+      maximum-pool-size: ${BACKEND_DB_POOL_SIZE:8}
       connection-timeout: 5000
       transaction-isolation: TRANSACTION_READ_COMMITTED
-      connection-init-sql: SET TIME ZONE 'UTC'
+      connection-init-sql: ${BACKEND_DB_SESSION_INIT:SET TIME ZONE 'UTC'}
   sql:
     init:
       mode: never
+  jdbc:
+    template:
+      query-timeout: ${BACKEND_DB_QUERY_TIMEOUT:5}s
   jackson:
     time-zone: UTC
     serialization:
@@ -31,6 +50,10 @@ spring:
       max-request-size: 8MB
 qanda:
   backend:
+    role: ${BACKEND_ROLE:api}
+    worker-enabled: ${BACKEND_WORKER_ENABLED:false}
+    monitoring-enabled: ${BACKEND_MONITORING_ENABLED:false}
+    prometheus-url: ${BACKEND_PROMETHEUS_URL:http://127.0.0.1:9090}
     mode: ${BACKEND_MODE:production}
     request-limits:
       window-seconds: ${BACKEND_REQUEST_LIMIT_WINDOW_SECONDS:60}
@@ -47,6 +70,24 @@ qanda:
     files:
       enabled: ${BACKEND_FILES_ENABLED:false}
       root: ${BACKEND_FILE_ROOT:${user.home}/.local/share/qanda-backend/assets}
+
+management:
+  server:
+    port: ${BACKEND_METRICS_PORT:9091}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    web:
+      server:
+        max-uri-tags: 256
+    tags:
+      application: qanda
+      role: ${BACKEND_ROLE:api}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml

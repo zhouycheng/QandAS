@@ -1,0 +1,46 @@
+<view class="secondary-page">
+  <page-header title="{{title}}" />
+  <view class="security-page">
+    <view wx:if="{{stage === 'loading'}}" class="security-status">
+      <text>{{loadError || '正在读取账号信息…'}}</text>
+      <button wx:if="{{loadError}}" class="btn btn-primary" bindtap="handleRetry" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">重新读取</button>
+    </view>
+    <view wx:elif="{{stage === 'need-email'}}" class="security-status">
+      <text>设置密码前，请先绑定并验证邮箱。</text>
+      <button class="btn btn-primary" bindtap="handleBindEmail" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">绑定邮箱</button>
+    </view>
+    <block wx:else>
+      <view wx:if="{{stage === 'verify' || stage === 'email'}}" wx:for="{{stage === 'verify' ? ['verify'] : ['email']}}" wx:for-item="formStage" wx:key="*this">
+        <view class="field" wx:if="{{stage === 'verify'}}">
+          <text class="field-label">当前邮箱</text>
+          <text class="security-email">{{emailMasked}}</text>
+        </view>
+        <view class="field" wx:else>
+          <text class="field-label">{{emailMasked ? '新邮箱' : '邮箱'}}</text>
+          <input class="field-input {{errorField === 'email' ? 'field-input-error' : ''}}" type="text" placeholder="输入邮箱地址" maxlength="254" data-key="email" bindinput="handleInput" disabled="{{submitting || sending}}" />
+        </view>
+        <view class="field">
+          <text class="field-label">邮箱验证码</text>
+          <view class="code-row {{errorField === 'code' ? 'field-input-error' : ''}}">
+            <input class="field-input" type="number" placeholder="6 位验证码" maxlength="6" data-key="code" bindinput="handleInput" disabled="{{submitting}}" />
+            <view class="code-btn {{cooldown || sending || submitting ? 'code-btn-off' : ''}}" role="button" bindtap="handleSendCode" hover-class="text-hover" hover-start-time="0" hover-stay-time="80">{{sending ? '发送中…' : cooldown ? cooldown + 's 后重发' : '发送验证码'}}</view>
+          </view>
+        </view>
+      </view>
+      <block wx:if="{{stage === 'password'}}">
+        <view class="field">
+          <text class="field-label">新密码</text>
+          <password-input input-class="security-password-input" error="{{errorField === 'password'}}" placeholder="8–16 位，包含字母和数字" maxlength="32" data-key="password" bindinput="handleInput" disabled="{{submitting}}" />
+        </view>
+        <view class="field">
+          <text class="field-label">确认密码</text>
+          <password-input input-class="security-password-input" error="{{errorField === 'confirm'}}" placeholder="再次输入新密码" maxlength="32" data-key="confirm" bindinput="handleInput" disabled="{{submitting}}" />
+        </view>
+        <text class="security-note">更改成功后，请使用新密码重新登录。</text>
+      </block>
+      <text class="security-error" wx:if="{{errorText}}">{{errorText}}</text>
+      <button class="btn btn-primary" bindtap="handleSubmit" loading="{{submitting}}" disabled="{{submitting || sending}}" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">{{actionLabel}}</button>
+      <text wx:if="{{stage === 'email'}}" class="security-note">绑定成功后需重新登录，学习记录保留。</text>
+    </block>
+  </view>
+</view>

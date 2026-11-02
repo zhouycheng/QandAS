@@ -6,6 +6,7 @@
     "page/practice/index",
     "page/question-detail/index",
     "page/my/index",
+    "page/about/index",
     "page/login/index",
     "page/register/index",
     "page/forgot-password/index",
@@ -14,11 +15,14 @@
     "page/practice-layout/index",
     "page/exam-countdown/index",
     "page/account/index",
+    "page/account-security/index",
     "page/reminder/index",
+    "page/feedback/index",
     "page/import-bank/index",
     "page/playground/index"
   ],
   "window": {
+    "navigationStyle": "custom",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "QandA",
     "navigationBarBackgroundColor": "#ffffff",
@@ -26,6 +30,10 @@
     "backgroundColorTop": "#ffffff",
     "backgroundColorBottom": "#ffffff",
     "backgroundTextStyle": "dark"
+  },
+  "usingComponents": {
+    "page-header": "/components/page-header/index",
+    "password-input": "/components/password-input/index"
   },
   "tabBar": {
     "custom": true,

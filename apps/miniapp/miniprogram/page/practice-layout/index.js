@@ -3,6 +3,10 @@ const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 const { PracticeLayoutViewModel } = require('../../viewmodels/practice-layout-viewmodel.js')
 Page(withPageLifecycle({
   data: PracticeLayoutViewModel.getInitialData(),
+  ignoreSwipe() {},
+  onAnswerFocus() {},
+  onAnswerBlur() {},
+  onKeyboardHeight() {},
   onLoad() { this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() }); this.applyViewModelResult(this.viewModel.load()) },
   onReady() { this.measure() },
   onResize() { this.cancelDrag(); this.measure() },
@@ -69,9 +73,10 @@ Page(withPageLifecycle({
     if (!this._pageUnloaded) this.setData({ dragId: '', dragTarget: '', dragScroll: 0, dragReset: (this.data.dragReset || 0) + 1 }, () => this.measure())
   },
   handleResetLayout() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.reset()) },
+  handlePreviewType(event) { this.cancelDrag(); this.applyViewModelResult(this.viewModel.preview(Number(event.detail.value))) },
   applyViewModelResult(result) {
     if (result.data) this.setData(result.data, () => this.measure())
     if (result.command) wx.showToast({ title: result.command.title, icon: 'none' })
   },
-  selectOption() {}, inputAnswerText() {}, assessShortAnswer() {}, toggleExplanation() {}, toggleFavorite() {}, openOverview() {}, toggleMark() {}, goPrev() {}, goNext() {}
+  openFeedback() {}, selectOption() {}, inputAnswerText() {}, inputBlank() {}, assessShortAnswer() {}, toggleExplanation() {}, toggleFavorite() {}, openOverview() {}, toggleMark() {}, goPrev() {}, goNext() {}
 }))

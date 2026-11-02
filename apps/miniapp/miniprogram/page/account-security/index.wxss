@@ -1,0 +1,13 @@
+@import "../../styles/auth-form.wxss";
+.security-page { padding: 48rpx 41rpx calc(48rpx + env(safe-area-inset-bottom)); }
+.security-page .field + .field { margin-top: 36rpx; }
+.security-page .field-input { padding-left: 28rpx; padding-right: 28rpx; }
+.security-password-input { padding-left: 28rpx; }
+.security-page .code-row { padding-right: 28rpx; }
+.security-page .code-row .field-input { min-width: 0; }
+.security-email { display: block; margin: 24rpx 0 42rpx; font-size: 36rpx; font-weight: 600; color: #202b39; }
+.security-note { display: block; margin-top: 24rpx; color: #7a8493; font-size: 24rpx; line-height: 1.6; }
+.security-error { display: block; margin-top: 24rpx; color: #cf3333; font-size: 26rpx; line-height: 1.5; }
+.security-status { font-size: 28rpx; line-height: 1.7; color: #526174; }
+.security-page button.btn { width: 100%; padding: 0 24rpx; box-sizing: border-box; }
+.security-page button.btn[disabled] { opacity: .55; background: #1477fb; color: #ffffff; }

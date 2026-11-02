@@ -1,3 +1,4 @@
+const { swipeDirection } = require('../../utils/question-swipe.js')
 const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { PracticeViewModel } = require('../../viewmodels/practice-viewmodel.js')
@@ -12,7 +13,8 @@ Page(withPageLifecycle({
   data: Object.assign(PracticeViewModel.getInitialData(), {
     // 长解析默认收起（设计稿「剩下的收起来了」）。纯界面状态，不进 ViewModel：
     // 换题时由 applyViewModelResult 归零，和答题逻辑没有关系
-    explanationOpen: false
+    explanationOpen: false,
+    questionScrollTop: 0
   }),
 
   onLoad(options) {
@@ -26,6 +28,7 @@ Page(withPageLifecycle({
 
   onShow() {
     this.pageVisible = true
+    this.observeSaveStatus()
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = this.viewModel.waitingId || (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     // 回到前台：交接中的练习先确认写入权。
     if (this.viewModel && this.viewModel.online && this.viewModel.session) {
@@ -48,6 +51,10 @@ Page(withPageLifecycle({
 
   onHide() {
     this.pageVisible = false
+    this.clearAutoAdvance()
+    this.swipeStart = null
+    if (this.stopSaveStatus) this.stopSaveStatus()
+    this.stopSaveStatus = null
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = ''
     if (this.syncWatch) clearTimeout(this.syncWatch)
     if (!this.viewModel) {
@@ -62,6 +69,10 @@ Page(withPageLifecycle({
 
   onUnload() {
     this.pageVisible = false
+    this.clearAutoAdvance()
+    this.swipeStart = null
+    if (this.stopSaveStatus) this.stopSaveStatus()
+    this.stopSaveStatus = null
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = ''
     // 异常退出（杀进程 / 系统回收）不总会走 onHide，这里是最后一道保险
     if (this.viewModel) {
@@ -81,6 +92,12 @@ Page(withPageLifecycle({
       Promise.resolve(this.viewModel.saveSessionNow()).catch(error => this.showSaveError(error))
     } catch (error) { this.showSaveError(error) }
   },
+
+  observeSaveStatus() {
+    if (this.stopSaveStatus || this.pageVisible === false || !this.viewModel || !this.viewModel.online || !this.viewModel.session) return
+    this.stopSaveStatus = this.viewModel.observeSaveStatus(data => { if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data) })
+  },
+  retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
 
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
@@ -107,6 +124,10 @@ Page(withPageLifecycle({
     this.clearAutoAdvance()
     const app = getApp()
     const route = this.viewModel && this.viewModel.routeOptions || this.routeOptions || {}
+    if (route.bankId) {
+      try { createWxStorageAdapter().set('qandaPendingPractice', route) }
+      catch (error) { this.showSaveError(error); return }
+    }
     if (app && app.setPendingSubjectId && route.subjectId) app.setPendingSubjectId(route.subjectId)
     navigation.switchTab({ url: '/page/bank-detail/index' })
   },
@@ -114,6 +135,7 @@ Page(withPageLifecycle({
   waitInBackground() { this.returnBankDetail() },
 
   inputAnswerText(e) { this.applyViewModelResult(this.viewModel.setAnswerText(e.detail.value)) },
+  inputBlank(e) { this.applyViewModelResult(this.viewModel.setBlank(Number(e.detail.index === undefined ? e.currentTarget.dataset.index : e.detail.index), e.detail.value)) },
   assessShortAnswer(e) { this.applyViewModelResult(this.viewModel.assessShortAnswer(e.currentTarget.dataset.value)) },
 
   assessResult(e) { this.applyViewModelResult(this.viewModel.assessResult(e.currentTarget.dataset.id, e.currentTarget.dataset.value)) },
@@ -132,14 +154,56 @@ Page(withPageLifecycle({
 
   scheduleAutoAdvance() {
     this.clearAutoAdvance()
+    const sessionId = this.data.sessionId
+    const index = this.data.currentIndex
     this.autoAdvanceTimer = setTimeout(() => {
       this.autoAdvanceTimer = null
+      if (this.pageVisible === false || this.data.sessionId !== sessionId || this.data.currentIndex !== index || this.data.editingLocked || this.data.isCompleted || this.data.showQuestionOverview || this.data.showSubmitModal) return
       this.goNext()
     }, AUTO_ADVANCE_DELAY)
   },
 
+  ignoreSwipe() { this.swipeStart = null },
+  onAnswerFocus() { this.answerFocused = true; this.ignoreSwipe() },
+  onAnswerBlur() { this.answerFocused = false },
+  onKeyboardHeight(e) { this.keyboardVisible = e.detail.height > 0; this.ignoreSwipe() },
+  onTextSelection() { this.textSelectionActive = true; this.ignoreSwipe() },
+  canSwipe() {
+    return (this.data.isViewMode || this.data.feedback === 'AFTER_FINISH') && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive
+  },
+  onQuestionTouchStart(e) {
+    this.swipeStart = null
+    if (!this.canSwipe() || e.touches.length !== 1 || e.target && e.target.dataset && e.target.dataset.noSwipe) return
+    const point = e.touches[0]
+    const width = wx.getWindowInfo().windowWidth
+    if (point.clientX < 24 || point.clientX > width - 24) return
+    this.swipeStart = { x: point.clientX, y: point.clientY, at: Date.now() }
+  },
+  onQuestionTouchMove(e) {
+    if (!this.swipeStart) return
+    const point = e.touches[0]
+    if (e.touches.length !== 1 || Math.abs(point.clientY - this.swipeStart.y) > Math.abs(point.clientX - this.swipeStart.x)) this.ignoreSwipe()
+  },
+  onQuestionTouchEnd(e) {
+    const start = this.swipeStart
+    this.swipeStart = null
+    if (!start || !this.canSwipe() || e.changedTouches.length !== 1) return
+    const point = e.changedTouches[0]
+    const direction = swipeDirection(start, { x: point.clientX, y: point.clientY, at: Date.now() })
+    if (direction === 1) {
+      if (this.data.isLastQuestion) this.showHint('已经是最后一题了')
+      else this.goNext()
+    }
+    if (direction === -1) {
+      if (this.data.currentIndex === 0) this.showHint('已经是第一题了')
+      else this.goPrev()
+    }
+  },
+
+  showHint(message) { this.selectComponent('#practice-hint').show(message) },
+
   startTestTimer() {
-    if (!this.data.isTestMode || this.data.isCompleted || !this.data.questions.length) {
+    if (!this.data.isTimed || this.data.isCompleted || !this.data.questions.length) {
       return
     }
 
@@ -181,17 +245,16 @@ Page(withPageLifecycle({
     this.clearAutoAdvance()
     this.applyViewModelResult(result)
 
-    if (result && result.autoAdvance) {
-      this.scheduleAutoAdvance()
-    }
   },
 
   goNext() {
+    this.textSelectionActive = false
     this.clearAutoAdvance()
     this.applyViewModelResult(this.viewModel.goNext())
   },
 
   goPrev() {
+    this.textSelectionActive = false
     this.clearAutoAdvance()
     this.applyViewModelResult(this.viewModel.goPrev())
   },
@@ -296,6 +359,7 @@ Page(withPageLifecycle({
   },
 
   returnBankDetail() {
+    if (!this.saveBeforeLeaving()) return
     wx.navigateBack({
       fail: () => {
         navigation.switchTab({
@@ -306,9 +370,18 @@ Page(withPageLifecycle({
   },
 
   returnHome() {
+    if (!this.saveBeforeLeaving()) return
     navigation.switchTab({
       url: HOME_PAGE_URL
     })
+  },
+
+  saveBeforeLeaving() {
+    this.clearAutoAdvance()
+    try {
+      if (this.viewModel && !this.viewModel.editingLocked) this.viewModel.persistSession(true)
+      return true
+    } catch (error) { this.showSaveError(error); return false }
   },
 
   applyViewModelResult(result, busyKey) {
@@ -326,18 +399,29 @@ Page(withPageLifecycle({
 
     const runEffects = () => {
       this.applyViewModelEffects(result)
+      this.observeSaveStatus()
     }
 
     if (result.data) {
       if (this.pageVisible !== false && this.viewModel && this.viewModel.online) this.viewModel.online.activeId = this.viewModel.waitingId || (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
       const patch = Object.assign({}, result.data)
 
+      // 原生输入在聚焦时保有光标；计时和同步更新不回写当前输入值。
+      if (this.answerFocused && (patch.currentIndex === undefined || patch.currentIndex === this.lastQuestionIndex) && !patch.isCompleted) {
+        delete patch.answerText
+        delete patch.blankInputs
+      }
+
       // 换题就把解析收回去：否则上一题展开的长解析会带到下一题
       if (patch.currentIndex !== undefined && patch.currentIndex !== this.lastQuestionIndex) {
         this.lastQuestionIndex = patch.currentIndex
-        patch.explanationOpen = false
+        this.clearAutoAdvance()
+        this.textSelectionActive = false
+        patch.explanationOpen = !!patch.isViewMode
+        patch.questionScrollTop = this.data.questionScrollTop === 0 ? 0.01 : 0
       }
 
+      if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
       this.setData(patch, runEffects)
       return
     }
@@ -365,7 +449,12 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.createQuestionDetailCommand(questionId))
   },
 
+  openFeedback() {
+    this.applyViewModelResult(this.viewModel.openFeedback())
+  },
+
   applyViewModelEffects(result) {
+    if (result.autoAdvance) this.scheduleAutoAdvance()
     if (result.stopTimer) {
       this.stopTestTimer()
     }

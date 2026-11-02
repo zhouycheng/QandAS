@@ -156,6 +156,11 @@ Page(withPageLifecycle({
       return
     }
 
+    if (command.type === 'navigate' && command.url) {
+      navigation.redirectTo({ url: command.url, fail: () => navigation.reLaunch({ url: command.url }) })
+      return
+    }
+
     if (command.type === 'back') {
       wx.navigateBack({
         fail: () => this.goLogin()

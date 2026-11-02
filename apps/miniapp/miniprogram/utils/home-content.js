@@ -134,6 +134,11 @@ function buildHomeTip(summary) {
   }
 
   if (answered > 0) {
+    if (stats.coverageKnown === false) return {
+      key: 'keep-going', tag: '进行中', text: `累计练习过 ${answered} 道题，继续巩固知识。`,
+      detail: `学习记录保留了 ${answered} 道题的作答。当前范围有 ${total} 道可练题目，可以按课程选择下一次练习。`,
+      actionText: '去刷题', action: TIP_ACTIONS.BANK
+    }
     const remaining = Math.max(total - answered, 0)
 
     return {
@@ -160,7 +165,7 @@ function buildHomeTip(summary) {
     detail:
       `当前题库共有 ${total} 道题，覆盖多个科目。\n\n` +
       '每个科目都提供背题、顺序、随机三种练习方式：背题模式直接显示答案，适合第一遍过知识点；' +
-      '顺序与随机模式会即时判对错并给出解析。做题进度和错题都保存在本机，不需要登录。',
+      '顺序与随机模式按答题偏好显示判定和解析。登录后同步正式学习记录，游客可在本机试答两次。',
     actionText: '去刷题',
     action: TIP_ACTIONS.BANK
   }

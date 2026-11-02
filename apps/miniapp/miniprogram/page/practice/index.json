@@ -3,7 +3,10 @@
   "navigationBarBackgroundColor": "#FFFFFF",
   "navigationBarTextStyle": "black",
   "usingComponents": {
+    "light-toast": "/components/light-toast/index",
+    "question-images": "/components/question-images/index",
     "question-overview-sheet": "/components/question-overview-sheet/index",
-    "bottom-sheet": "/components/bottom-sheet/index"
+    "bottom-sheet": "/components/bottom-sheet/index",
+    "rich-content": "/components/rich-content/index"
   }
 }

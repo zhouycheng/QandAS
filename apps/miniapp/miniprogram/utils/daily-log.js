@@ -68,6 +68,7 @@ function normalizeDailyEntry(rawEntry) {
   return {
     answered: toSafeCount(entry.answered),
     correct: toSafeCount(entry.correct),
+    objectiveAnswered: entry.objectiveAnswered == null ? (entry.answered ? null : 0) : toSafeCount(entry.objectiveAnswered),
     seconds: toSafeCount(entry.seconds)
   }
 }
@@ -118,12 +119,13 @@ function addDailyResult(log, result, timestamp) {
   }
 
   const dateKey = formatDateKey(timestamp)
-  const entry = current[dateKey] || { answered: 0, correct: 0, seconds: 0 }
+  const entry = current[dateKey] || { answered: 0, correct: 0, objectiveAnswered: 0, seconds: 0 }
   const next = Object.assign({}, current)
 
   next[dateKey] = {
     answered: entry.answered + answered,
     correct: entry.correct + correct,
+    objectiveAnswered: entry.objectiveAnswered == null || payload.objectiveAnswered == null ? null : entry.objectiveAnswered + toSafeCount(payload.objectiveAnswered),
     seconds: entry.seconds + seconds
   }
 
@@ -159,9 +161,9 @@ function getRecentDays(log, days, timestamp) {
     const offset = index - (count - 1)
     const dayTs = shiftDays(end, offset)
     const dateKey = formatDateKey(dayTs)
-    const entry = current[dateKey] || { answered: 0, correct: 0, seconds: 0 }
+    const entry = current[dateKey] || { answered: 0, correct: 0, objectiveAnswered: 0, seconds: 0 }
     const date = new Date(dayTs)
-    const accuracy = entry.answered ? Math.round((entry.correct / entry.answered) * 100) : 0
+    const accuracy = entry.objectiveAnswered ? Math.round((entry.correct / entry.objectiveAnswered) * 100) : null
 
     return {
       key: dateKey,
@@ -171,9 +173,10 @@ function getRecentDays(log, days, timestamp) {
       isToday: offset === 0,
       answered: entry.answered,
       correct: entry.correct,
+      objectiveAnswered: entry.objectiveAnswered,
       seconds: entry.seconds,
       accuracy,
-      accuracyText: `${accuracy}%`
+      accuracyText: accuracy === null ? '—' : `${accuracy}%`
     }
   })
 }
@@ -213,6 +216,8 @@ function calcStreak(log, timestamp) {
 function summarizeRecentDays(log, days, timestamp) {
   const points = getRecentDays(log, days, timestamp)
   const answered = points.reduce((sum, day) => sum + day.answered, 0)
+  const objectiveAnswered = points.some(day => day.objectiveAnswered == null) ? null : points.reduce((sum, day) => sum + day.objectiveAnswered, 0)
+  const accuracy = objectiveAnswered ? Math.round(points.reduce((sum, day) => sum + day.correct, 0) / objectiveAnswered * 100) : null
   const correct = points.reduce((sum, day) => sum + day.correct, 0)
   const seconds = points.reduce((sum, day) => sum + day.seconds, 0)
   const activeDays = points.filter((day) => day.answered > 0 || day.seconds > 0).length
@@ -223,8 +228,9 @@ function summarizeRecentDays(log, days, timestamp) {
     correct,
     seconds,
     activeDays,
-    accuracy: answered ? Math.round((correct / answered) * 100) : 0,
-    accuracyText: `${answered ? Math.round((correct / answered) * 100) : 0}%`,
+    objectiveAnswered,
+    accuracy,
+    accuracyText: accuracy === null ? '—' : `${accuracy}%`,
     peakAnswered: peak ? peak.answered : 0,
     peakDayText: peak && peak.answered > 0 ? peak.monthDayText : '',
     hasData: answered > 0 || seconds > 0

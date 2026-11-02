@@ -17,6 +17,7 @@ const COLLEGE_MAX_LENGTH = 24
 const TOKEN_MAX_LENGTH = 512
 const USER_ID_MAX_LENGTH = 64
 const EMAIL_MAX_LENGTH = 128
+const AVATAR_MAX_LENGTH = 87407
 
 const ANONYMOUS_NAME = '微信用户'
 const GUEST_NAME = '未登录'
@@ -89,7 +90,7 @@ function normalizeAuth(raw) {
     token: readText(raw.token, TOKEN_MAX_LENGTH),
     nickname: readText(raw.nickname, NICKNAME_MAX_LENGTH),
     college: readText(raw.college, COLLEGE_MAX_LENGTH),
-    avatarUrl: readText(raw.avatarUrl, 512),
+    avatarUrl: readText(raw.avatarUrl, AVATAR_MAX_LENGTH),
     profile: raw.profile || null,
     version: Number(raw.version) || 0,
     loginAt: Number(raw.loginAt) > 0 ? Number(raw.loginAt) : 0
@@ -170,7 +171,7 @@ function buildEmailAuth(payload, now) {
     token: readText(data.token || data.accessToken || '', TOKEN_MAX_LENGTH),
     nickname: readText(data.nickname || '', NICKNAME_MAX_LENGTH),
     college: readText(data.college || data.school || '', COLLEGE_MAX_LENGTH),
-    avatarUrl: readText(data.avatarUrl || '', 512),
+    avatarUrl: readText(data.avatarUrl || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
 }
@@ -190,7 +191,7 @@ function buildWechatAuth(payload, now) {
     token: readText(data.token || data.accessToken || '', TOKEN_MAX_LENGTH),
     nickname: readText(data.nickname || data.nickName || '', NICKNAME_MAX_LENGTH),
     college: readText(data.college || data.school || '', COLLEGE_MAX_LENGTH),
-    avatarUrl: readText(data.avatarUrl || data.avatar || '', 512),
+    avatarUrl: readText(data.avatarUrl || data.avatar || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
 }
@@ -209,7 +210,7 @@ function applyProfile(auth, profile) {
     Object.assign({}, normalized, {
       nickname: payload.nickname === undefined ? normalized.nickname : readText(payload.nickname, NICKNAME_MAX_LENGTH),
       college: payload.college === undefined ? normalized.college : readText(payload.college, COLLEGE_MAX_LENGTH),
-      avatarUrl: payload.avatarUrl === undefined ? normalized.avatarUrl : readText(payload.avatarUrl, 512)
+      avatarUrl: payload.avatarUrl === undefined ? normalized.avatarUrl : readText(payload.avatarUrl, AVATAR_MAX_LENGTH)
     })
   )
 }

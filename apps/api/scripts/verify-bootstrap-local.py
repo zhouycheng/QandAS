@@ -25,7 +25,7 @@ def http(path, body=None, token=None):
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(base + path, data=data, headers=headers)
     try:
-        response = opener.open(request, timeout=2)
+        response = opener.open(request, timeout=10)
     except urllib.error.HTTPError as error:
         response = error
     return response.code, json.loads(response.read())
@@ -112,7 +112,7 @@ try:
         status, session = http("/admin/auth/sessions", {"username": username, "password": password, "deviceId": str(uuid.uuid4())})
         assert status == 200
         status, actor = http("/admin/auth/me", token=session["accessToken"])
-        assert status == 200 and actor["role"] == "PLATFORM_ADMIN"
+        assert status == 200 and actor["role"] == "SUPER_ADMIN"
         assert http("/me", token=session["accessToken"])[0] == 403
         server.terminate()
         server.wait(timeout=10)

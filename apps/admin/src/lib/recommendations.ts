@@ -1,4 +1,5 @@
 import type { BankAudience, College, Major, QuestionBank, Subject } from '../types/admin'
+import { gradeLabel } from '../types/admin'
 import type { ManagedUser } from '../types/operations'
 
 export const publicationLabels = {
@@ -33,7 +34,7 @@ export function audienceLabels(bank: QuestionBank, colleges: College[], majors: 
         [
           a.collegeId ? (colleges.find((c) => c.id === a.collegeId)?.name ?? '未知学院') : '',
           a.majorId ? (majors.find((m) => m.id === a.majorId)?.name ?? '未知专业') : '',
-          a.enrollmentYear ? `${a.enrollmentYear} 级` : '',
+          a.grade ? gradeLabel(a.grade) : '',
         ]
           .filter(Boolean)
           .join(' · '),
@@ -41,14 +42,14 @@ export function audienceLabels(bank: QuestionBank, colleges: College[], majors: 
 }
 
 export function matchesAudience(
-  user: Pick<ManagedUser, 'collegeId' | 'majorId' | 'enrollmentYear'>,
+  user: Pick<ManagedUser, 'collegeId' | 'majorId' | 'grade'>,
   audience: BankAudience,
 ) {
   return (
-    Boolean(audience.collegeId || audience.majorId || audience.enrollmentYear) &&
+    Boolean(audience.collegeId || audience.majorId || audience.grade) &&
     (!audience.collegeId || audience.collegeId === user.collegeId) &&
     (!audience.majorId || audience.majorId === user.majorId) &&
-    (!audience.enrollmentYear || audience.enrollmentYear === user.enrollmentYear)
+    (!audience.grade || audience.grade === user.grade)
   )
 }
 
@@ -61,10 +62,10 @@ export function isBankAvailable(bank: QuestionBank, subjects: Subject[]) {
   )
 }
 
-export function recommendedBanks(user: ManagedUser, banks: QuestionBank[], subjects: Subject[]) {
+export function recommendedBanks(user: ManagedUser, banks: QuestionBank[], subjects: Subject[], grantedSubjectIds: string[] = []) {
   return banks.filter(
     (bank) =>
       isBankAvailable(bank, subjects) &&
-      (bank.scopeType === 'ALL' || bank.audiences.some((audience) => matchesAudience(user, audience))),
+      (grantedSubjectIds.includes(bank.subjectId) || bank.scopeType === 'ALL' || bank.audiences.some((audience) => matchesAudience(user, audience))),
   )
 }

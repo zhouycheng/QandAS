@@ -5,20 +5,23 @@ const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 Page(withPageLifecycle({
   data: AccountViewModel.getInitialData(),
 
-  onLoad() {
+  onLoad(options) {
     this.viewModel = new AccountViewModel({
-      storage: createWxStorageAdapter()
+      storage: createWxStorageAdapter(), required: options && options.required === '1'
     })
 
   },
 
-  /** 从登录 / 找回密码返回时资料可能变了；正在编辑就不覆盖用户输入 */
+  /** 从账号安全页面返回时刷新绑定状态，保留未保存的资料。 */
   onShow() {
     if (this.viewModel && !this.data.dirty) {
       this.applyViewModelResult(this.viewModel.load())
       this.applyViewModelResult(this.viewModel.refreshRemote())
+    } else if (this.viewModel) {
+      this.applyViewModelResult(this.viewModel.refreshRemote())
     }
   },
+  onUnload() { if (this.viewModel.securityRepository) this.viewModel.securityRepository.close() },
 
   /**
    * 输入只更新「有改动」标记，不回写 value。
@@ -36,39 +39,47 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.setField(key, e.detail.value))
   },
 
-  /**
-   * 头像：chooseAvatar 给的是临时文件，下次冷启动就失效，
-   * 所以立刻转存到 USER_DATA_PATH 再用。转存失败就用临时路径先顶上，
-   * 至少这次会话里看得到。
-   */
   handleChooseAvatar(e) {
     const tempPath = e.detail && e.detail.avatarUrl
+    if (!tempPath || this.data.avatarPreparing || this.data.saving) return
+    const token = this.viewModel.readAuth().token
+    const selection = this._avatarSelection = (this._avatarSelection || 0) + 1
+    const current = () => !this._pageUnloaded && selection === this._avatarSelection && token === this.viewModel.readAuth().token
+    const fail = title => { if (current()) { this.setData({ avatarPreparing: false }); wx.showToast({ title, icon: 'none' }) } }
+    this.setData({ avatarPreparing: true })
+    wx.compressImage({ src: tempPath, quality: 80, compressedWidth: 160, compressedHeight: 160,
+      success: image => wx.getFileSystemManager().readFile({ filePath: image.tempFilePath, encoding: 'base64',
+        success: file => {
+          if (!current()) return
+          const data = file.data
+          const type = typeof data === 'string' && (data.startsWith('/9j/') ? 'jpeg' : data.startsWith('iVBORw0KGgo') ? 'png' : '')
+          if (!type || data.length > 87384) { fail('头像过大或格式不支持，请重新选择'); return }
+          const avatar = `data:image/${type};base64,${data}`
+          this.applyViewModelResult(this.viewModel.setField('avatarUrl', avatar))
+          this.setData({ 'draft.avatarUrl': avatar, avatarPreparing: false })
+        }, fail: () => fail('头像读取失败，请重新选择')
+      }), fail: () => fail('头像处理失败，请重新选择')
+    })
+  },
 
-    if (!tempPath) {
-      return
-    }
-
-    if (!wx.getFileSystemManager || !wx.env || !wx.env.USER_DATA_PATH) {
-      this.applyViewModelResult(this.viewModel.setField('avatarUrl', tempPath))
-      return
-    }
-
-    const target = `${wx.env.USER_DATA_PATH}/avatar-${Date.now()}.jpg`
-
-    try {
-      wx.getFileSystemManager().copyFileSync(tempPath, target)
-      this.applyViewModelResult(this.viewModel.setField('avatarUrl', target))
-    } catch (error) {
-      this.applyViewModelResult(this.viewModel.setField('avatarUrl', tempPath))
+  handleUseWechatNickname() {
+    this.setData({ nicknameFocus: false }, () => this.setData({ nicknameFocus: true }))
+  },
+  handleNicknameReview(e) {
+    if (e.detail.pass === false) {
+      this.applyViewModelResult(this.viewModel.setField('nickname', ''))
+      this.setData({ 'draft.nickname': '' })
+      wx.showToast({ title: '此昵称暂不可用，请重新选择', icon: 'none' })
     }
   },
 
-  handleCollegeChange(e) {
-    this.applyViewModelResult(this.viewModel.selectCollege(e.detail.value))
-  },
+  handlePickersClose() { this.setData({ collegePickerVisible: false, majorPickerVisible: false, gradePickerVisible: false }) },
+  handleCollegeToggle() { if (this.data.collegePickerVisible) this.handleCollegeClose(); else this.handleCollegeOpen() },
+  handleMajorToggle() { if (this.data.majorPickerVisible) this.handleMajorClose(); else this.handleMajorOpen() },
+  handleGradeToggle() { this.setData({ collegePickerVisible: false, majorPickerVisible: false, gradePickerVisible: !this.data.gradePickerVisible }) },
 
   handleCollegeOpen() {
-    this.setData({ collegePickerVisible: true, collegeLoading: true, collegeError: '' })
+    this.setData({ collegePickerVisible: true, majorPickerVisible: false, gradePickerVisible: false, collegeLoading: true, collegeError: '' })
     return this.viewModel.loadColleges(1).then(result => this.applyViewModelResult(result))
       .catch(error => this.setData({ collegeError: error.message }))
       .finally(() => this.setData({ collegeLoading: false }))
@@ -88,6 +99,21 @@ Page(withPageLifecycle({
     this.handleCollegeClose()
   },
 
+  handleGradePick(e) { this.applyViewModelResult(this.viewModel.selectGrade(e.currentTarget.dataset.index)); this.handlePickersClose() },
+  handleMajorOpen() { return this.loadMajorPage(1) },
+  handleMajorMore() { if (!this.data.majorLoading) return this.loadMajorPage(this.data.majorPage + 1) },
+  loadMajorPage(page) {
+    this.setData({ majorPickerVisible: true, collegePickerVisible: false, gradePickerVisible: false, majorLoading: true, majorError: '' })
+    return this.viewModel.loadMajors(page).then(result => this.applyViewModelResult(result))
+      .catch(error => this.setData({ majorError: error.message }))
+      .finally(() => this.setData({ majorLoading: false }))
+  },
+  handleMajorClose() { this.setData({ majorPickerVisible: false }) },
+  handleMajorPick(e) {
+    this.applyViewModelResult(this.viewModel.selectMajor(e.currentTarget.dataset.index))
+    this.handleMajorClose()
+  },
+
   handleEmailTap() {
     this.applyViewModelResult(this.viewModel.tapEmail())
   },
@@ -101,6 +127,7 @@ Page(withPageLifecycle({
   },
 
   handleSaveTap() {
+    if (this.data.avatarPreparing) return
     this.applyViewModelResult(this.viewModel.save())
   },
 
@@ -117,6 +144,24 @@ Page(withPageLifecycle({
     }
 
     if (!result.command) {
+      return
+    }
+
+    if (result.command.type === 'confirm-wechat-binding') {
+      wx.showModal({ title: '绑定微信', content: '将当前微信绑定到此账号，之后可使用微信登录。', confirmText: '确认绑定', success: choice => {
+        if (!choice.confirm || this._pageUnloaded) return
+        this.setData({ wechatBinding: true })
+        this.applyViewModelResult(this.viewModel.bindWechat()).finally(() => { if (!this._pageUnloaded) this.setData({ wechatBinding: false }) })
+      } })
+      return
+    }
+
+    if (result.command.type === 'profile-complete') {
+      const pages = getCurrentPages()
+      let index = pages.length - 2
+      while (index >= 0 && /page\/(login|register|account)\/index/.test(pages[index].route)) index -= 1
+      if (index >= 0) wx.navigateBack({ delta: pages.length - 1 - index })
+      else navigation.reLaunch({ url: '/page/subject-list/index' })
       return
     }
 

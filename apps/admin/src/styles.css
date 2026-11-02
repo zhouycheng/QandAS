@@ -1361,7 +1361,7 @@ textarea:focus-visible {
   gap: 16px;
   margin-bottom: 24px;
 }
-.compact-metrics > div {
+.compact-metrics > div, .compact-metrics > .metric-link {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1370,6 +1370,11 @@ textarea:focus-visible {
   border-radius: 10px;
   background: white;
 }
+.metric-link { text-align: left; font: inherit; cursor: pointer; }
+.metric-link:hover { background: var(--color-fill-2); }
+.metric-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sync-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sync-metrics small { color: var(--color-text-3); }
 .compact-metrics span {
   color: #6b7b92;
   font-size: 13px;
@@ -1932,10 +1937,12 @@ textarea:focus-visible {
 .directory-detail-panel .arco-table { min-width: 0; }
 .directory-detail-panel .arco-table-th { background: #f6f8fc; font-size: 12px; color: #8290a6; font-weight: 400; }
 .directory-detail-panel .arco-table-td { border-color: #eff3f8; }
-.directory-entity { display: flex; align-items: center; gap: 12px; padding: 6px 0; max-width: 100%; border: 0; background: transparent; color: #344f72; text-align: left; cursor: pointer; }
+.activity-page .arco-table-th { white-space: nowrap; }
+.activity-page .arco-table-th, .activity-page .arco-table-td { padding: 12px; }
+.directory-entity { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 6px 0; max-width: 100%; border: 0; background: transparent; color: #344f72; text-align: left; cursor: pointer; }
 .directory-entity:hover strong { color: var(--primary); }
-.directory-entity > span:last-child { display: flex; flex-direction: column; gap: 6px; }
-.directory-entity strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.directory-entity > span:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 6px; }
+.directory-entity strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .directory-entity small { font-size: 11px; color: #9aa8bb; }
 .directory-entity-icon { display: grid; place-items: center; flex: 0 0 35px; height: 35px; border-radius: 8px; color: #7e9ac7; background: #eff5fe; font-size: 19px; }
 .directory-entity-icon.major { background: #f2effb; color: #9984c7; }
@@ -2069,8 +2076,8 @@ textarea:focus-visible {
 .bw-saved-scopes > div { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-radius: 7px; background: #f5f9ff; color: #718bab; font-size: 13px; line-height: 1.9; }
 .bw-saved-scopes > div > svg { flex-shrink: 0; color: #7ca8df; }
 .bw-directory-selectors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.bw-directory-selectors > label { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-.bw-directory-selectors > label > span { color: #8d9db4; font-size: 11px; }
+.bw-directory-selectors > .field-label { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.bw-directory-selectors > .field-label > span { color: #8d9db4; font-size: 11px; }
 .bw-directory-selectors .arco-select { width: 100%; }
 .bw-scope-preview > .muted { margin: 0 0 22px; }
 .bw-preview-result { display: flex; align-items: center; gap: 12px; margin-top: 24px; padding: 18px; border-radius: 7px; background: #f6f8fc; color: #8c9bb1; font-size: 12px; line-height: 1.9; }

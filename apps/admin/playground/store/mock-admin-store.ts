@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Chapter, College, Grade, Major, Question, QuestionBank, Subject } from '../../src/types/admin'
-import { createGradeFixtures } from '../fixtures/grades'
+import type { Chapter, College, Major, Question, QuestionBank, Subject } from '../../src/types/admin'
 import { getScenarioData, type PlaygroundScenario } from '../scenarios'
 import type {
   ActivityRecord,
+  ForegroundSession,
   Announcement,
   ManagedUser,
   OperationLog,
@@ -23,6 +23,7 @@ interface OperationsData {
   announcements: Announcement[]
   security: SecuritySettings
   activityRecords: ActivityRecord[]
+  foregroundSessions: ForegroundSession[]
   operationLogs: OperationLog[]
 }
 
@@ -31,14 +32,12 @@ interface MockAdminState extends OperationsData {
   scenarioRevision: number
   colleges: College[]
   majors: Major[]
-  grades: Grade[]
   subjects: Subject[]
   questionBanks: QuestionBank[]
   questions: Question[]
   setScenario: (scenario: PlaygroundScenario) => void
   setColleges: (colleges: College[]) => void
   setMajors: (majors: Major[]) => void
-  setGrades: (grades: Grade[]) => void
   setSubjects: (subjects: Subject[]) => void
   setQuestionBanks: (questionBanks: QuestionBank[]) => void
   setQuestions: (questions: Question[]) => void
@@ -61,36 +60,17 @@ export const useMockAdminStore = create<MockAdminState>()(
         })),
       setColleges: (colleges) => set({ colleges }),
       setMajors: (majors) => set({ majors }),
-      setGrades: (grades) => set({ grades }),
       setSubjects: (subjects) => set({ subjects }),
       setQuestionBanks: (questionBanks) => set({ questionBanks }),
       setQuestions: (questions) => set({ questions }),
       setOperations: (patch) => set(patch),
     }),
     {
-      name: 'qanda-admin-playground-v3',
+      name: 'qanda-admin-playground-v1-contract',
       version: 2,
-      migrate: (persisted, version) => {
-        const old = persisted as MockAdminState
-        return {
-          ...old,
-          chapters: old.chapters ?? [],
-          feedback: old.feedback ?? [],
-          userCourses: old.userCourses ?? [],
-          grades: old.grades ?? createGradeFixtures(old.majors, old.users, old.questionBanks),
-          questionBanks: version >= 1 ? old.questionBanks : old.questionBanks.map((bank) => ({
-            ...bank,
-            textbook: bank.textbook ?? '',
-            owner: bank.owner ?? '',
-            publicationStatus: bank.publicationStatus ?? 'DRAFT',
-            status: bank.publicationStatus === 'PUBLISHED' ? 'ACTIVE' : 'INACTIVE',
-            scopeType: bank.scopeType ?? 'TARGETED',
-            audiences:
-              bank.audiences ??
-              old.subjects.find((s) => s.id === bank.subjectId)?.majorIds.map((majorId) => ({ majorId })) ??
-              [],
-          })),
-        }
+      migrate: (persisted) => {
+        const state = persisted as MockAdminState
+        return { ...state, adminAccounts: (state.adminAccounts ?? initialData.adminAccounts).map(account => ({ ...account, role: 'SUPER_ADMIN' as const })) }
       },
     },
   ),
