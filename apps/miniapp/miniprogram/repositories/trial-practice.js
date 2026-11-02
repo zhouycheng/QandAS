@@ -8,9 +8,11 @@ function read(storage) {
   const value = storage.get(KEY)
   if (!value) return { version: 1, usedCount: 0, sessions: [] }
   if (value.version !== 1 || !Array.isArray(value.sessions)) throw new Error('试答记录无法读取，请联系支持')
-  const usedCount = value.usedCount === undefined ? value.sessions.length : value.usedCount
-  if (!Number.isInteger(usedCount) || usedCount < value.sessions.length || usedCount > LIMIT) throw new Error('试答记录无法读取，请联系支持')
-  return JSON.parse(JSON.stringify({ ...value, usedCount }))
+  const usedCount = value.usedCount === undefined ? 0 : value.usedCount
+  if (!Number.isInteger(usedCount) || usedCount < 0 || usedCount > LIMIT) throw new Error('试答记录无法读取，请联系支持')
+  const record = JSON.parse(JSON.stringify({ ...value, usedCount }))
+  if (value.usedCount === undefined) storage.set(KEY, record)
+  return record
 }
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }
