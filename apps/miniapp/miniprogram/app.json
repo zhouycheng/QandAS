@@ -17,9 +17,7 @@
     "page/account/index",
     "page/account-security/index",
     "page/reminder/index",
-    "page/feedback/index",
-    "page/import-bank/index",
-    "page/playground/index"
+    "page/feedback/index"
   ],
   "window": {
     "navigationStyle": "custom",

@@ -6,18 +6,7 @@ const api = require('../miniprogram/repositories/api-transport.js')
 const auth = require('../miniprogram/repositories/auth-repository.js')
 
 async function main() {
-  const subjects = [{ id: 'empty', name: '空科目', questionCount: 0 }].concat([1, 2, 3, 4].map(i => ({ id: 's' + i, name: '课程' + i, questionCount: i })))
-  const model = new SubjectListViewModel({ repository: { getSubjectSummaries: () => subjects } })
-  assert.deepEqual(model.buildRecommendations().map(s => s.id), ['s1', 's2', 's3', 's4'])
-  assert.equal(model.openRecommendedSubject('s2').command.subjectId, 's2')
-  assert.equal(model.openRecommendedSubject('empty').command.type, 'toast')
-  const markup = fs.readFileSync(__dirname + '/../miniprogram/page/subject-list/index.wxml', 'utf8')
-  assert(markup.indexOf('<community-group />') > markup.indexOf('class="entry-grid"'))
-  assert(markup.indexOf('<community-group />') < markup.indexOf('推荐科目'))
-  assert(!markup.includes('home-foot'))
-  const unknownCount = new SubjectListViewModel({ repository: { getSubjectSummaries: () => [{ id: 'guest', name: '公开科目', questionCount: null }] } })
-  assert.equal(unknownCount.buildRecommendations()[0].countText, '查看题库')
-
+  const subjects = [{ id: 'empty', name: '空科目', questionCount: 0 }].concat([1,2,3,4].map(i => ({ id: 's'+i, name: '课程'+i, questionCount: i })))
   const values = {}
   const storage = { get: key => values[key], set: (key, value) => { values[key] = value }, remove: key => delete values[key] }
   const calls = []

@@ -18,16 +18,6 @@ Page(withPageLifecycle({
     })
   },
   onShow() { this.applyViewModelResult(this.viewModel.load()) },
-  handleVersionTap() {
-    const now = Date.now()
-    this.versionTaps = now - (this.versionTappedAt || 0) < 1500 ? (this.versionTaps || 0) + 1 : 1
-    this.versionTappedAt = now
-    if (this.versionTaps === 5) {
-      this.versionTaps = 0
-      this.applyViewModelResult(this.viewModel.unlockPlayground())
-    }
-  },
-  handlePlaygroundTap() { this.applyViewModelResult(this.viewModel.openPlayground()) },
   handleDeveloperTap(event) { this.applyViewModelResult(this.viewModel.copyDeveloper(event.currentTarget.dataset.username)) },
   handleDonationTap(event) {
     const code = this.data.donationCodes[event.currentTarget.dataset.index]

@@ -5,8 +5,7 @@ const DEVICE_KEY = 'qandaDeviceId'
 const CHALLENGE_KEY = 'qandaEmailChallenges'
 function getAuth(storage) {
   try {
-    const auth = normalizeAuth(storage && storage.get(AUTH_STORAGE_KEY))
-    return auth.userId && auth.token && auth.provider !== 'dev' ? auth : createEmptyAuth()
+    return normalizeAuth(storage && storage.get(AUTH_STORAGE_KEY))
   } catch (error) { return createEmptyAuth() }
 }
 function saveAuth(storage, auth) {
@@ -30,18 +29,18 @@ function deviceId(storage) {
   if (!value) { value = transport.uuid(); storage.set(DEVICE_KEY, value) }
   return value
 }
-function failure(storage, reason) { return { ok: false, degraded: false, reason: reason || '请求失败，请稍后重试', auth: getAuth(storage) } }
+function failure(storage, reason) { return { ok: false, reason: reason || '请求失败，请稍后重试', auth: getAuth(storage) } }
 function notifyIdentity() {
   if (typeof getApp !== 'function') return
   const app = getApp()
   if (app && app.syncActivityHeartbeat) app.syncActivityHeartbeat()
 }
 function settle(storage, remote, provider) {
-  if (!remote || !remote.ok || !remote.userId || !remote.token) return failure(storage, remote && remote.reason || '登录接口未返回完整身份')
+  if (!remote || !remote.ok || !remote.userId || !remote.token) return failure(storage, remote && remote.reason || '登录信息读取失败，请重新登录')
   const auth = provider === 'email' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, degraded: false, provider, reason: '', auth: saved } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {
@@ -49,7 +48,7 @@ function defaultCodeProvider(done) {
   wx.login({ timeout: 10000, success: (result) => done(result.code || ''), fail: () => done('', '微信登录失败，请稍后重试') })
 }
 function requestWechatCode() {
-  return new Promise((resolve, reject) => defaultCodeProvider((code, reason) => code ? resolve(code) : reject(new Error(reason || '未取到微信登录凭证'))))
+  return new Promise((resolve, reject) => defaultCodeProvider((code, reason) => code ? resolve(code) : reject(new Error(reason || '微信登录未完成，请重试'))))
 }
 function call(fn) { return Promise.resolve().then(fn).then((result) => result || { ok: false, reason: '请求失败，请稍后重试' }).catch(() => ({ ok: false, reason: '网络请求失败，请稍后重试' })) }
 function login(storage, options) {
@@ -57,7 +56,7 @@ function login(storage, options) {
   return new Promise((resolve) => {
     try {
       (settings.codeProvider || defaultCodeProvider)((code, reason) => {
-        if (!code) { resolve(failure(storage, reason || '未取到微信登录凭证')); return }
+        if (!code) { resolve(failure(storage, reason || '微信登录未完成，请重试')); return }
         call(() => authGateway.login(code, { deviceId: deviceId(storage) })).then(async (remote) => {
           if (remote.registrationToken) {
             const registered = await call(() => authGateway.registerWechat({ registrationToken: remote.registrationToken }))
@@ -118,4 +117,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }
+module.exports = { AUTH_STORAGE_KEY, deviceId, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }

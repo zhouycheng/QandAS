@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { watchSyncStream } from './sync-stream'
-import { monitoringSnapshot } from '../../playground/scenarios/monitoring'
+import { monitoringSnapshot } from '../test-fixtures/monitoring'
 
 const encoder = new TextEncoder()
 function stream() {

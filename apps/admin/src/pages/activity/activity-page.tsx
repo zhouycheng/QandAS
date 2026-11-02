@@ -13,7 +13,7 @@ export function ActivityPage() {
   const gateway = useAdminGateway()
   const [visible, setVisible] = useState(!document.hidden)
   useEffect(() => { const update = () => setVisible(!document.hidden); document.addEventListener('visibilitychange', update); return () => document.removeEventListener('visibilitychange', update) }, [])
-  const [filters, setFilters] = useState<Pick<ActivityQuery, 'collegeId' | 'majorId' | 'grade' | 'platform'>>({})
+  const [filters, setFilters] = useState<Pick<ActivityQuery, 'collegeId' | 'majorId' | 'grade'>>({})
   const [trendPeriod, setTrendPeriod] = useState<'WEEK' | 'MONTH'>('WEEK')
   const [period, setPeriod] = useState<ActivityQuery['period']>('WEEK')
   const [sort, setSort] = useState<ActivityQuery['sort']>('ACTIVE_DAYS')
@@ -29,7 +29,6 @@ export function ActivityPage() {
       <ResourceSelect kind="college" placeholder="全部学院" value={filters.collegeId} onChange={value => setFilter({ ...filters, collegeId: String(value || '') || undefined, majorId: undefined })} />
       <ResourceSelect kind="major" collegeId={filters.collegeId} placeholder="全部专业" value={filters.majorId} onChange={value => setFilter({ ...filters, majorId: String(value || '') || undefined })} />
       <Select style={{ width: 140 }} aria-label="当前年级" placeholder="全部年级" value={filters.grade} allowClear options={GRADE_OPTIONS} onChange={grade => setFilter({ ...filters, grade })} />
-      <Select style={{ width: 140 }} aria-label="客户端" placeholder="全部客户端" value={filters.platform} allowClear options={[{ value: 'MINI_PROGRAM', label: '小程序' }, { value: 'WEB', label: '用户 Web' }]} onChange={platform => setFilter({ ...filters, platform })} />
     </Space>
     {failed && <Alert type="warning" content={'更新失败：' + failed.message + '。已有数据保留，以下时间为最近成功更新。'} action={<Button onClick={() => { void cards.refetch(); void trend.refetch(); void rankings.refetch() }}>重试</Button>} />}
     <div className="compact-metrics dashboard-metrics">

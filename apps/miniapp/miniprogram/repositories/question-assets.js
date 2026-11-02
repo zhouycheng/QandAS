@@ -21,13 +21,13 @@ async function load(storage, ids) {
   }
   async function one(id) {
     current()
-    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('题目图片标识无效')
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('暂时无法读取题目图片，请重新打开题目')
     const path = `${wxApi.env.USER_DATA_PATH}/qanda-image-${encodeURIComponent(owner)}-${id}.png`
     try { if (validPng(fs.readFileSync(path))) return path } catch (error) { /* 下载缺失的附件 */ }
     const response = await http.request('GET', '/files/' + id, null, { token: identity.token || '', responseType: 'arraybuffer' })
     if (!response.ok) throw new Error(response.reason || '题目图片下载失败，请重试')
     current()
-    if (!validPng(response.data)) throw new Error('题目图片内容无效')
+    if (!validPng(response.data)) throw new Error('题目图片无法显示，请重新下载')
     const temporary = path + '.partial'
     try {
       await new Promise((resolve, reject) => fs.writeFile({ filePath: temporary, data: response.data, success: resolve, fail: reject }))

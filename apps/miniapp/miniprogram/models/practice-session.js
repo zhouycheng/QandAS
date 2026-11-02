@@ -1,4 +1,6 @@
-const { buildAnswerRecords } = require('../utils/practice-progress.js')
+const { DEFAULT_PRACTICE_TITLE, DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, formatTimer, getInitialPracticeViewData } = require('./practice-view-data.js')
+const { projectPractice } = require('./practice-presentation.js')
+const { finish, filterResultItems, countResultItems, RESULT_FILTERS, RESULT_FILTER_TEXT } = require('./practice-results.js')
 const { normalizePreferences } = require('../utils/preferences.js')
 const { ranks } = require('../utils/practice-layout.js')
 const { gradeBlanks, blankAnswerText } = require('../utils/fill-blank.js')
@@ -10,40 +12,12 @@ const {
   deriveQuestionStates
 } = require('./practice-session-state.js')
 
-const DEFAULT_PRACTICE_TITLE = '题库练习'
-const DEFAULT_TEST_DURATION_MINUTES = 10
-const PRACTICE_MODES = {
-  ORDER: 'order',
-  PRACTICE: 'practice',
-  VIEW: 'view',
-  TEST: 'test'
-}
-
 /** 页内导航副标题用：模式文案的单一真源，别在页面里另写一份 */
 const MODE_LABELS = {
   order: '顺序练习',
   practice: '练习模式',
   view: '背题模式',
   test: '模拟测试'
-}
-
-/** 结果复盘的筛选项（PRD 4.7） */
-const RESULT_FILTERS = {
-  ALL: 'all',
-  CORRECT: 'correct',
-  WRONG: 'wrong',
-  UNANSWERED: 'unanswered',
-  REVIEW: 'review',
-  UNSCORED: 'unscored'
-}
-
-const RESULT_FILTER_TEXT = {
-  all: '全部',
-  correct: '正确',
-  wrong: '错误',
-  unanswered: '未答',
-  review: '待复习',
-  unscored: '不计分'
 }
 
 function normalizeMode(value) {
@@ -66,116 +40,6 @@ function parsePositiveInteger(value, fallback) {
   }
 
   return Math.floor(parsed)
-}
-
-function formatTimer(totalSeconds) {
-  const safeSeconds = Math.max(Number(totalSeconds) || 0, 0)
-  const minutes = Math.floor(safeSeconds / 60)
-  const seconds = safeSeconds % 60
-  const secondText = seconds < 10 ? `0${seconds}` : `${seconds}`
-
-  return `${minutes}:${secondText}`
-}
-
-function getInitialPracticeViewData() {
-  const durationSeconds = DEFAULT_TEST_DURATION_MINUTES * 60
-
-  return {
-    loadError: '',
-    loadingPractice: false,
-    submitting: false,
-    favoriteSaving: false,
-    waitingForSync: false,
-    waitingSeconds: 0,
-    editingLocked: false,
-    answerText: '',
-    blankInputs: [],
-    mode: PRACTICE_MODES.PRACTICE,
-    // 初始即给一份默认偏好：页面首帧就要读 preferences.showOverviewEntry / fontSize，
-    // 缺了会让答题卡入口闪一下、字号也来不及生效
-    preferences: normalizePreferences(null),
-    layoutRanks: ranks(),
-    editLayout: false,
-    dragId: '',
-    dragTarget: '',
-    moduleLabels: {},
-    trialNotice: '',
-    // 会话状态（PRD 9）：页面用它判断"是否可恢复""是否待重传"
-    sessionId: '',
-    sessionStatus: SESSION_STATUS.IN_PROGRESS,
-    syncStatus: SYNC_STATUS.LOCAL_ONLY,
-    // 交卷失败时的提示文案；为空表示同步正常，结果区不显示重试条
-    submitError: '',
-    // 结果复盘：筛选与搜索（PRD 4.7）
-    resultFilter: RESULT_FILTERS.ALL,
-    resultKeyword: '',
-    filteredResultItems: [],
-    resultFilterCounts: {
-      all: 0,
-      correct: 0,
-      wrong: 0,
-      unanswered: 0,
-      review: 0,
-      unscored: 0
-    },
-    resultFilterEmptyText: '暂无题目',
-    isViewMode: false,
-    isTestMode: false,
-    isTimed: false,
-    feedback: 'IMMEDIATE',
-    answerLocked: false,
-    pendingConfirmationCount: 0,
-    objectiveCount: 0,
-    objectiveAccuracyText: '—',
-    scoreText: '已完成',
-    subjectId: '',
-    bankId: '',
-    practiceTitle: DEFAULT_PRACTICE_TITLE,
-    practiceSubtitle: '',
-    practicePath: '/page/practice/index',
-    questions: [],
-    total: 0,
-    currentIndex: 0,
-    currentNumber: 0,
-    currentQuestion: null,
-    selectedKeys: [],
-    answers: [],
-    hasAnswered: false,
-    shouldRevealAnswer: false,
-    // 与 shouldRevealAnswer 分开：对错标记与正确答案始终显示，
-    // 解析是否自动展开由用户在「学习偏好」里决定
-    shouldShowExplanation: false,
-    isCurrentAnswerCorrect: false,
-    currentCorrectAnswerText: '',
-    currentExplanation: '',
-    progressPercent: 0,
-    primaryActionText: '下一题',
-    isLastQuestion: false,
-    isCompleted: false,
-    favoriteQuestionIds: [],
-    isCurrentQuestionFavorite: false,
-    // 「标记」= 做题时给可疑题打个记号，稍后回看。与收藏分开：
-    // 收藏是长期资产（跨会话），标记属于这一轮练习
-    markedQuestionIds: [],
-    isCurrentQuestionMarked: false,
-    markedCount: 0,
-    wrongQuestionIds: [],
-    wrongCount: 0,
-    hasWrongQuestions: false,
-    showSubmitModal: false,
-    showQuestionOverview: false,
-    unansweredCount: 0,
-    overviewItems: [],
-    durationSeconds,
-    timerSeconds: durationSeconds,
-    timerText: formatTimer(durationSeconds),
-    // 结果页「用时」：已消耗时长（timerText 在考试模式下是剩余时间，两者不能混用）
-    elapsedText: formatTimer(0),
-    correctCount: 0,
-    score: 0,
-    bestScore: 0,
-    resultItems: []
-  }
 }
 
 class PracticeSession {
@@ -442,41 +306,7 @@ class PracticeSession {
     return Math.max(Math.round(elapsedMs / 1000), 0)
   }
 
-  getViewData() {
-    const data = Object.assign({}, this.state)
-
-    /**
-     * 结果页要显示「用时」。
-     * 注意它和考试模式的 timerText 不是一回事：那个是**剩余**时间，这个是**已消耗**时长。
-     * 一旦交卷就把这一刻的读数冻住 —— 否则每秒 setData 都会重算，
-     * 结果页上的「用时」会在用户盯着看的时候继续往上走。
-     */
-    if (data.isCompleted) {
-      if (!this.frozenElapsedText) {
-        this.frozenElapsedText = formatTimer(this.getElapsedSeconds())
-      }
-
-      data.elapsedText = this.frozenElapsedText
-    } else {
-      this.frozenElapsedText = ''
-      data.elapsedText = formatTimer(this.getElapsedSeconds())
-    }
-
-    // 页面只接收展示投影，判题字段留在模型中。
-    data.questions = this.state.questions.map(q => ({ id: q.id }))
-    if (!data.isCompleted) {
-      data.resultItems = []
-      data.filteredResultItems = []
-      data.answers = []
-    }
-    if (!data.isCompleted) data.overviewItems = data.overviewItems.map(item => Object.assign({}, item, { isCorrect: false }))
-    if (!data.shouldRevealAnswer) {
-      data.currentCorrectAnswerText = ''
-      data.currentExplanation = ''
-      data.isCurrentAnswerCorrect = false
-    }
-    return data
-  }
+  getViewData() { return projectPractice(this) }
 
   getShareMessage() {
     return {
@@ -492,7 +322,6 @@ class PracticeSession {
 
     // 重练是新的一轮，计时从零开始
     this.resetStudyClock()
-    this.studyRecorded = false
 
     const patch = {
       currentIndex: 0,
@@ -558,10 +387,9 @@ class PracticeSession {
   updateTimer(timerSeconds) {
     const safeSeconds = Math.max(Number(timerSeconds) || 0, 0)
 
-    return this.updateState({
-      timerSeconds: safeSeconds,
-      timerText: formatTimer(safeSeconds)
-    })
+    this.state.timerSeconds = safeSeconds
+    this.state.timerText = formatTimer(safeSeconds)
+    return { data: { timerSeconds: safeSeconds, timerText: this.state.timerText } }
   }
 
   autoSubmit() {
@@ -754,154 +582,7 @@ class PracticeSession {
     return this.finish()
   }
 
-  finish() {
-    if (this.state.isViewMode) return this.returnCommand()
-    const questions = this.state.questions
-
-    if (!questions.length) {
-      return null
-    }
-
-    // 交卷只能落盘一次：重复调用（例如交卷弹窗与超时自动交卷同时触发）
-    // 会把同一份结果重复累加进错题本与进度表。
-    const alreadyCompleted = this.state.isCompleted
-    if (!alreadyCompleted) this.confirmAllAnswers()
-    const answers = this.state.answers
-    const objectiveCount = questions.filter(question => !question.isShortAnswer).length
-    const objectiveAnswered = questions.filter((question, index) => !question.isShortAnswer && this.hasInput(question, answers[index])).length
-    const correctCount = answers.filter((item, index) => !questions[index].isShortAnswer && item && item.isCorrect).length
-    const score = objectiveCount ? Math.round((correctCount / objectiveCount) * 100) : null
-    const bestScore = score === null ? this.state.bestScore : Math.max(score, this.state.bestScore)
-    const resultItems = questions.map((question, index) => {
-      // 先取原始值再兜底：直接写 answers[index] || {} 会让未作答也变成 truthy，
-      // 于是"没做"被误判成"已答"（且计为答错）
-      const rawAnswer = answers[index]
-      const answer = rawAnswer || {}
-      // answered 必须显式区分：未作答的 isCorrect 也是 false，
-      // 只靠 isCorrect 筛选会把"没做"和"做错"混成一类
-      const answered = !!rawAnswer && rawAnswer.confirmed !== false
-
-      return {
-        id: question.id,
-        number: index + 1,
-        typeText: question.typeText,
-        isShortAnswer: !!question.isShortAnswer,
-        blankInputs: question.isFillBlank ? (question.blanks || []).map((_, i) => ({ value: (answer.blanks || [])[i] || '' })) : null,
-        contentFormat: question.contentFormat || 'PLAIN_TEXT',
-        presentation: question.presentation || 'STANDARD',
-        codeLanguage: question.codeLanguage || 'text',
-        selfAssessment: answer.selfAssessment || '',
-        stem: question.stem,
-        material: question.material || null,
-        assetIds: question.assetIds || [],
-        imagePaths: question.imagePaths || [],
-        scoringPoints: question.scoringPoints || [],
-        selectedText: question.isFillBlank ? (answer.blanks || []).map((value, i) => `${String.fromCharCode(9312 + i)} ${value || '未填写'}`).join('\n') || '未作答' : answer.text || this.getAnswerText(question, answer.selectedKeys) || '未作答',
-        correctText: question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : this.getAnswerText(question, question.answerKeys),
-        answered,
-        isCorrect: answered && !question.isShortAnswer && !!answer.isCorrect,
-        explanation: this.getExplanation(question),
-        // 搜索用：题干 + 全部选项文本预先拼好，避免在 WXML 里做字符串运算
-        searchText: `${question.stem} ${(question.options || []).map((option) => option.text).join(' ')}`,
-        options: (question.options || []).map((option) => ({
-          key: option.key,
-          label: option.label,
-          text: option.text,
-          isCorrectOption: question.answerKeys.indexOf(option.key) >= 0,
-          isSelected: (answer.selectedKeys || []).indexOf(option.key) >= 0
-        }))
-      }
-    })
-
-    const wrongQuestionIds = resultItems
-      .filter((item) => item.answered && !item.isShortAnswer && !item.isCorrect)
-      .map((item) => item.id)
-    const shouldRecord = !alreadyCompleted
-    const answerRecords = buildAnswerRecords(questions, answers)
-    // 只取一次：多次采样会让「学习时长」与「每日日志」对不上
-    const elapsedSeconds = this.getElapsedSeconds()
-    const answeredCount = answerRecords.filter((record) => record.answered).length
-
-    return this.updateState({
-      answers: answers.slice(),
-      isCompleted: true,
-      // 交卷即进入 SUBMITTED；同步状态由 ViewModel 决定（成功 SYNCED / 失败 SYNC_PENDING）
-      sessionStatus: SESSION_STATUS.SUBMITTED,
-      showSubmitModal: false,
-      showQuestionOverview: false,
-      correctCount,
-      objectiveCount,
-      unansweredCount: questions.length - answeredCount,
-      pendingConfirmationCount: 0,
-      objectiveAccuracyText: objectiveAnswered ? `${Math.round(correctCount / objectiveAnswered * 1000) / 10}%` : '—',
-      scoreText: score === null ? '已完成' : `${score} 分`,
-      score,
-      bestScore,
-      wrongQuestionIds,
-      wrongCount: wrongQuestionIds.length,
-      hasWrongQuestions: wrongQuestionIds.length > 0,
-      resultItems,
-      // 结果页答题卡直接复用 overviewItems：不重新算一遍，
-      // 但必须在这里按最终 answers 重刷一次——交卷前它只反映"打开弹层那一刻"的快照，
-      // 交卷后若沿用旧值，结果页会整片灰格（answered 全 false）。
-      // currentIndex 传 -1：已交卷没有"当前题"，不该有格子高亮。
-      overviewItems: this.getOverviewItems(answers, -1),
-      // 交卷后复盘区从"全部"开始，不清空上一轮的搜索词
-      resultFilter: RESULT_FILTERS.ALL,
-      filteredResultItems: resultItems,
-      resultFilterCounts: countResultItems(resultItems),
-      resultFilterEmptyText: resultItems.length ? '暂无题目' : '暂无题目'
-    }, {
-      stopTimer: true,
-      saveBestScore: alreadyCompleted || score === null || !this.storageKey ? null : {
-        key: this.storageKey,
-        value: bestScore
-      },
-      saveScopeProgress: alreadyCompleted ? null : this.buildScopeProgressPayload(questions, answers),
-      // 错题本：背题模式不记录（翻一遍答案不是做题），未作答单独保留；
-      // 用户也可以在「学习偏好」里关掉自动收集
-      saveWrongResults:
-        !shouldRecord || this.state.isViewMode || !this.preferences.autoAddWrongBook
-          ? null
-          : {
-            records: answerRecords
-          },
-      // 学习时长：背题模式也在学，同样计入；重复交卷不重复结算
-      saveStudyTime: !shouldRecord ? null : {
-        seconds: elapsedSeconds
-      },
-      // 每日日志：给统计页的趋势图提供时间序列。
-      // 背题模式不计题量（翻答案不算练题），但时长照记。
-      saveDailyLog: !shouldRecord ? null : {
-        answered: this.state.isViewMode ? 0 : answeredCount,
-        correct: this.state.isViewMode ? 0 : correctCount,
-        objectiveAnswered: this.state.isViewMode ? 0 : objectiveAnswered,
-        seconds: elapsedSeconds
-      }
-    })
-  }
-
-  /**
-   * 交卷后写入逐题对错记录，用于首页/科目页的「已做 / 正确率」统计。
-   * 抽题练习的 scopeKey 落在科目上，题目 id 天然与题库去重。
-   */
-  buildScopeProgressPayload(questions, answers) {
-    if (this.state.isViewMode) {
-      return null
-    }
-
-    const scopeKey = this.state.bankId || this.state.subjectId
-
-    if (!scopeKey) {
-      return null
-    }
-
-    return {
-      scopeKey,
-      records: buildAnswerRecords(questions, answers),
-      total: questions.length
-    }
-  }
+  finish() { return finish(this) }
 
   showQuestionAtIndex(index, extraData) {
     const question = this.state.questions[index]
@@ -1167,76 +848,12 @@ class PracticeSession {
   }
 
   returnCommand() {
-    const seconds = this.getElapsedSeconds()
-    const record = this.state.isViewMode && !this.studyRecorded
-    this.studyRecorded = true
     return {
       stopTimer: true,
-      saveStudyTime: record ? { seconds } : null,
-      saveDailyLog: record ? { answered: 0, correct: 0, objectiveAnswered: 0, seconds } : null,
       command: {
         type: 'returnBankDetail'
       }
     }
-  }
-}
-
-/**
- * 结果筛选 + 搜索。纯函数，便于直接断言。
- * 未作答必须靠 answered 区分，不能只看 isCorrect（未答的 isCorrect 也是 false）。
- */
-function filterResultItems(items, filter, keyword) {
-  const source = Array.isArray(items) ? items : []
-  const normalizedFilter = RESULT_FILTER_TEXT[filter] ? filter : RESULT_FILTERS.ALL
-  const needle = String(keyword === undefined || keyword === null ? '' : keyword).trim().toLowerCase()
-
-  return source.filter((item) => {
-    if (!item) {
-      return false
-    }
-
-    if (normalizedFilter === RESULT_FILTERS.CORRECT && !(item.answered && !item.isShortAnswer && item.isCorrect)) {
-      return false
-    }
-
-    if (normalizedFilter === RESULT_FILTERS.WRONG && !(item.answered && !item.isShortAnswer && !item.isCorrect)) {
-      return false
-    }
-
-    if (normalizedFilter === RESULT_FILTERS.UNANSWERED && item.answered) {
-      return false
-    }
-
-    if (normalizedFilter === RESULT_FILTERS.REVIEW && item.selfAssessment !== 'WRONG') return false
-    if (normalizedFilter === RESULT_FILTERS.UNSCORED && !item.isShortAnswer) return false
-
-    if (!needle) {
-      return true
-    }
-
-    const haystack = [
-      item.stem,
-      item.searchText,
-      item.selectedText,
-      item.correctText,
-      item.explanation
-    ].filter(Boolean).join(' ').toLowerCase()
-
-    return haystack.indexOf(needle) >= 0
-  })
-}
-
-function countResultItems(items) {
-  const source = Array.isArray(items) ? items : []
-  const answeredItems = source.filter((item) => item && item.answered)
-
-  return {
-    all: source.length,
-    review: source.filter(item => item.selfAssessment === 'WRONG').length,
-    unscored: source.filter(item => item.isShortAnswer).length,
-    correct: answeredItems.filter((item) => !item.isShortAnswer && item.isCorrect).length,
-    wrong: answeredItems.filter((item) => item.answered && !item.isShortAnswer && !item.isCorrect).length,
-    unanswered: source.filter((item) => item && !item.answered).length
   }
 }
 

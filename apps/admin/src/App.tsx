@@ -21,13 +21,13 @@ const BankWorkspacePage = lazy(() =>
 )
 const ActivityPage = lazy(() => import('./pages/activity/activity-page').then(m => ({ default: m.ActivityPage })))
 const MonitoringPage = lazy(() => import('./pages/monitoring/monitoring-page').then(m => ({ default: m.MonitoringPage })))
-const UsersPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.UsersPage })))
-const FeedbackPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.FeedbackPage })))
-const AnnouncementsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.AnnouncementsPage })))
-const AdministratorsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.AdministratorsPage })))
-const SecurityPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.SecurityPage })))
+const UsersPage = lazy(() => import('./pages/operations/users-page').then(m => ({ default: m.UsersPage })))
+const FeedbackPage = lazy(() => import('./pages/operations/feedback-page').then(m => ({ default: m.FeedbackPage })))
+const AnnouncementsPage = lazy(() => import('./pages/operations/announcements-page').then(m => ({ default: m.AnnouncementsPage })))
+const AdministratorsPage = lazy(() => import('./pages/operations/administrators-page').then(m => ({ default: m.AdministratorsPage })))
+const SecurityPage = lazy(() => import('./pages/operations/security-page').then(m => ({ default: m.SecurityPage })))
 const CommunityGroupPage = lazy(() => import('./pages/operations/community-group-page').then(m => ({ default: m.CommunityGroupPage })))
-const LogsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.LogsPage })))
+const LogsPage = lazy(() => import('./pages/operations/logs-page').then(m => ({ default: m.LogsPage })))
 
 export default function App() {
   return (

@@ -10,11 +10,11 @@ async function main() {
   const storage = { get: key => values[key], set: (key, value) => { values[key] = value }, remove: key => delete values[key] }
   auth.saveAuth(storage, { provider: 'email', userId: 'student', token: 'token' })
   let banks = [
-    { id: 'a', subjectId: 's', name: '题库甲', activeQuestionCount: 4, contentVersion: 1, progress: { wrongCount: 1 } },
+    { id: 'a', subjectId: 's', name: '题库甲', activeQuestionCount: 4, contentVersion: 1, progress: { wrongCount: 1, wrongBookCount: 1 } },
     { id: 'b', subjectId: 's', name: '题库乙', activeQuestionCount: 1, contentVersion: 1 }
   ]
   const chapters = {
-    a: [{ id: 'a1', name: '第一章', questionCount: 1, progress: { answeredCount: 1, correctCount: 1, wrongCount: 0 } }, { id: 'a2', name: '第二章', questionCount: 2, progress: { answeredCount: 1, correctCount: 0, wrongCount: 1 } }],
+    a: [{ id: 'a1', name: '第一章', questionCount: 1, progress: { answeredCount: 1, correctCount: 1, wrongCount: 0, wrongBookCount: 0 } }, { id: 'a2', name: '第二章', questionCount: 2, progress: { answeredCount: 1, correctCount: 0, wrongCount: 1, wrongBookCount: 1 } }],
     b: [{ id: 'b1', name: '第一章', questionCount: 1, progress: { answeredCount: 0, correctCount: 0, wrongCount: 0 } }]
   }
   let failBank = '', selectedScope

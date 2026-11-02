@@ -44,7 +44,7 @@ function dispatch(channel, args) {
     return {
       ok: false,
       unavailable: true,
-      reason: '未配置接口域名'
+      reason: '服务暂不可用，请稍后重试'
     }
   }
 
@@ -57,7 +57,7 @@ function login(code, options) {
   if (!credential) {
     return {
       ok: false,
-      reason: '未取到微信登录凭证'
+      reason: '微信登录未完成，请重试'
     }
   }
 

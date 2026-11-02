@@ -17,7 +17,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-internal fun invalid(field: String): Nothing = throw ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查请求字段", listOf(FieldError("/$field", "INVALID_FIELD", "字段不符合要求")))
+internal fun invalid(field: String): Nothing = throw ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查填写内容", listOf(FieldError("/$field", "INVALID_FIELD", "填写内容不符合要求")))
 internal fun conflict(code: String, message: String): Nothing = throw ApiException(HttpStatus.CONFLICT, code, message)
 internal fun unavailable(code: String): Nothing = throw ApiException(HttpStatus.SERVICE_UNAVAILABLE, code, "所需服务暂时不可用")
 internal fun unauthenticated(message: String = "登录状态已失效，请重新登录"): Nothing = throw ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", message)

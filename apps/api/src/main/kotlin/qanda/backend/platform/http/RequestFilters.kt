@@ -69,12 +69,12 @@ class JsonBodyFilter(private val errors: ErrorWriter) : OncePerRequestFilter() {
             val charset = MediaType.parseMediaType(request.contentType).charset
             if (charset != null && charset != Charsets.UTF_8) throw ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "JSON请求须使用UTF-8")
             val decoded = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(body))
-            if (decoded.contains('\u0000')) throw ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "请求JSON格式不正确")
+            if (decoded.contains('\u0000')) throw ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "提交内容无法识别，请检查后重试")
             chain.doFilter(BufferedJsonRequest(request, body), response)
         } catch (_: CharacterCodingException) {
             errors.write(request, response, ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "JSON请求须使用有效UTF-8"))
         } catch (_: InvalidMediaTypeException) {
-            errors.write(request, response, ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "请求媒体类型不受支持"))
+            errors.write(request, response, ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "提交格式不支持，请重新操作"))
         } catch (error: ApiException) {
             errors.write(request, response, error)
         }

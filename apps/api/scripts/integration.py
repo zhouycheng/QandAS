@@ -1,4 +1,4 @@
-"""Prepare and inspect the isolated, persistent three-client development environment."""
+"""Prepare and inspect the isolated, persistent development environment."""
 import base64
 import json
 import os
@@ -126,8 +126,6 @@ def login(config, name):
     account = config[name]
     admin = "username" in account
     body = {key: account[key] for key in ["username" if admin else "email", "password", "deviceId"]}
-    if not admin:
-        body["clientType"] = "WEB"
     return request(config, "POST", "/admin/auth/sessions" if admin else "/auth/sessions", body)["accessToken"]
 
 
@@ -138,7 +136,7 @@ def bootstrap(config):
         return
     master, slave = pty.openpty()
     process = subprocess.Popen(compose(config, "run", "--rm", "--no-deps", "-it", "api", "bootstrap"),
-                               stdin=slave, stdout=slave, stderr=slave)
+                               stdin=slave, stdout=slave, stderr=slave, env=compose_environment())
     os.close(slave)
     prompts = ["管理员用户名：", "管理员姓名：", "管理员密码："]
     account = config["admin"]

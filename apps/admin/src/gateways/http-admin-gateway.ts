@@ -60,7 +60,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   }
   private async page<T>(path: string, query?: object): Promise<Page<T>> {
     const data = await this.request<Page<T>>('GET', path, undefined, { page: 1, pageSize: 20, ...query })
-    if (!Array.isArray(data.items) || !Number.isInteger(data.total) || !Number.isInteger(data.page) || !Number.isInteger(data.pageSize)) throw new Error('分页响应格式无效')
+    if (!Array.isArray(data.items) || !Number.isInteger(data.total) || !Number.isInteger(data.page) || !Number.isInteger(data.pageSize)) throw new Error('列表读取失败，请稍后重试')
     return data
   }
   private async write<T = Mutation>(method: string, path: string, body?: unknown, query?: object, originalKey?: string): Promise<T> {
@@ -176,4 +176,5 @@ export class HttpAdminContentGateway implements AdminContentGateway {
     return this.request<{ id: string }>('POST', `/admin/question-banks/${segment(bankId)}/images`, file, undefined, key)
   }
   async imageUrl(id: string) { return URL.createObjectURL(await this.request<Blob>('GET', '/files/' + segment(id), undefined, undefined, undefined, true)) }
+
 }

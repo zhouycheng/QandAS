@@ -3,11 +3,28 @@ import { mapImportFile, parseImportFile } from './question-bank-file'
 import { countQuestions } from './question-content'
 import { importBody, questionFromWire, questionToWire } from '../gateways/question-wire'
 import example from '../../../../docs/question-bank-import/examples/six-types.json'
+import { matchImportChapters, prepareImportIntent } from './import-intent'
 
 const document = () => structuredClone(example)
 const parse = (value: unknown) => parseImportFile(JSON.stringify(value), 'target-bank')
 
 describe('portable question bank v1.0', () => {
+  it('keeps one write intent across retries and renews it when the content version changes', () => {
+    const file = { ...parse(document()), chapterMap: { basics: 'chapter-uuid' }, assetMap: {} }
+    const first = prepareImportIntent([file], 'target-bank', 1, undefined)
+    first.previewed = true
+    expect(prepareImportIntent([file], 'target-bank', 1, undefined, first)).toBe(first)
+    const changed = prepareImportIntent([file], 'target-bank', 2, undefined, first)
+    expect(changed.previewed).toBe(false)
+    expect(changed.input.idempotencyKey).not.toBe(first.input.idempotencyKey)
+  })
+  it('maps only chapter names with a unique match', () => {
+    const parsed = parse(document())
+    const name = parsed.document!.chapters[0].name
+    const chapters = [{ id: 'one', name }, { id: 'two', name }] as Parameters<typeof matchImportChapters>[1]
+    expect(matchImportChapters(parsed, chapters)).toEqual({})
+    expect(matchImportChapters(parsed, chapters.slice(0, 1))).toEqual({ [parsed.document!.chapters[0].id]: 'one' })
+  })
   it('writes a loaded question status without response-only null fields', () => {
     const [question] = parse(document()).questions
     const loaded = questionFromWire({ ...question, blankMatch: null, passage: null, referenceAnswer: null } as unknown as typeof question)

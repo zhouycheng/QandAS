@@ -42,7 +42,7 @@ class OpenApiConfiguration {
         val root=AnnotatedElementUtils.findMergedAnnotation(handler.beanType,RequestMapping::class.java)?.value?.firstOrNull() ?: ""
         val requestSchema=operation.requestBody?.content?.get("application/json")
         val requestClass=handler.method.parameters.firstOrNull { it.isAnnotationPresent(org.springframework.web.bind.annotation.RequestBody::class.java) }?.type
-        if(requestSchema!=null && method in setOf("PUT","PATCH") && requestClass!=qanda.backend.discovery.CourseInput::class.java && requestClass?.kotlin?.primaryConstructor?.parameters?.any { it.name=="expectedVersion" }==true) {
+        if(requestSchema!=null && method in setOf("PUT","PATCH") && requestClass?.kotlin?.primaryConstructor?.parameters?.any { it.name=="expectedVersion" }==true) {
             requestSchema.schema=ComposedSchema().addAllOfItem(requestSchema.schema).addAllOfItem(ObjectSchema().addProperty("expectedVersion",IntegerSchema().format("int64").minimum(java.math.BigDecimal.ONE)).required(listOf("expectedVersion")))
         }
         if(requestSchema!=null && method=="POST" && root+localPath=="/api/v1/admin/administrators") {

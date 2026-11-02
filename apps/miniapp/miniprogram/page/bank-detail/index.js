@@ -105,10 +105,6 @@ Page(withPageLifecycle({
   onPullDownRefresh() { return this.handleRetryLoad().finally(() => wx.stopPullDownRefresh()) },
   onUnload() { clearTimeout(this.searchTimer) },
 
-  handleImportTap() {
-    wx.showToast({ title: '题库由平台统一维护', icon: 'none' })
-  },
-
   /**
    * 输入原文由页面保存，搜索结果按请求关键词更新，保持光标位置。
    */

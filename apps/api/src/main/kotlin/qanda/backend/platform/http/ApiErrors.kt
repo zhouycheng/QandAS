@@ -82,33 +82,37 @@ class ApiExceptionHandler(private val audits: ObjectProvider<AuditFailures>) {
     fun integrity(request: HttpServletRequest) = business(ApiException(HttpStatus.CONFLICT,"RELATION_CONFLICT","记录已存在或仍有关联数据"),request)
 
     @ExceptionHandler(TransientDataAccessException::class)
-    fun transientFailure(request: HttpServletRequest) = business(ApiException(HttpStatus.SERVICE_UNAVAILABLE,"TEMPORARILY_UNAVAILABLE","服务繁忙，请使用原请求标识重试"),request)
+    fun transientFailure(request: HttpServletRequest) = business(ApiException(HttpStatus.SERVICE_UNAVAILABLE,"TEMPORARILY_UNAVAILABLE","服务繁忙，请稍后重试"),request)
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun unreadable(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "请求JSON格式或字段不符合要求"), request)
+    fun unreadable(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "提交内容无法识别，请检查后重试"), request)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun invalid(error: MethodArgumentNotValidException, request: HttpServletRequest): ResponseEntity<ApiError> {
         val fields = error.bindingResult.fieldErrors.map {
-            FieldError("/" + it.field.replace("~", "~0").replace("/", "~1").replace(".", "/"), "INVALID_FIELD", "字段不符合要求")
+            FieldError("/" + it.field.replace("~", "~0").replace("/", "~1").replace(".", "/"), "INVALID_FIELD", "填写内容不符合要求")
         }
-        return business(ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查请求字段", fields), request)
+        return business(ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查填写内容", fields), request)
     }
 
     @ExceptionHandler(NoResourceFoundException::class)
     fun missing(request: HttpServletRequest) = business(ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "资源不存在"), request)
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
-    fun method(request: HttpServletRequest) = business(ApiException(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED", "请求方法不受支持"), request)
+    fun method(request: HttpServletRequest) = business(ApiException(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED", "当前操作暂不支持，请返回后重试"), request)
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException::class)
-    fun media(request: HttpServletRequest) = business(ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "请求媒体类型不受支持"), request)
+    fun media(request: HttpServletRequest) = business(ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "提交格式不支持，请重新操作"), request)
 
     @ExceptionHandler(org.springframework.web.HttpMediaTypeNotAcceptableException::class)
-    fun acceptable(request: HttpServletRequest) = business(ApiException(HttpStatus.NOT_ACCEPTABLE, "NOT_ACCEPTABLE", "请求的响应媒体类型不受支持"), request)
+    fun acceptable(request: HttpServletRequest) = business(ApiException(HttpStatus.NOT_ACCEPTABLE, "NOT_ACCEPTABLE", "暂时无法显示内容，请重新打开"), request)
 
     @ExceptionHandler(TypeMismatchException::class, ServletRequestBindingException::class)
-    fun parameter(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "请求参数不符合要求"), request)
+    fun parameter(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "提交的信息有误，请检查后重试"), request)
+
+    // A closed stream cannot receive an error response and does not represent a failed business operation.
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestNotUsableException::class)
+    fun disconnected() = Unit
 
     @ExceptionHandler(Exception::class)
     fun unexpected(error: Exception, request: HttpServletRequest): ResponseEntity<ApiError> {

@@ -66,9 +66,9 @@ function request(method, path, data, options) {
     const task = { resolve, path: path.split('?')[0], queuedAt: Date.now(), background: settings.priority === 'background', read: method === 'GET', generation: readGeneration, run: () => {
       if (settings.shouldSend && !settings.shouldSend()) return Object.assign(failure('请求已取消'), { cancelled: true })
       if (task.read && task.generation !== readGeneration) return Object.assign(failure('读取已取消'), { cancelled: true })
-      if (!config.baseUrl) return failure('未配置接口域名')
+      if (!config.baseUrl) return failure('服务暂不可用，请稍后重试')
       const wxApi = typeof wx !== 'undefined' && wx
-      if (!wxApi || typeof wxApi.request !== 'function') return failure('当前环境不支持网络请求')
+      if (!wxApi || typeof wxApi.request !== 'function') return failure('暂时无法连接网络，请重新打开小程序')
       return new Promise((done) => { task.handle = wxApi.request({ url, method, data: body, header: headers, timeout: config.timeout, responseType: settings.responseType || 'text',
         success(response) {
           if (task.read && task.generation !== readGeneration) return done(Object.assign(failure('读取已取消'), { cancelled: true }))
@@ -85,7 +85,7 @@ function request(method, path, data, options) {
         },
         fail(error) {
           const message = error && error.errMsg || ''
-          done(failure(/not in domain/i.test(message) ? '接口域名未加入小程序后台的合法域名' : /timeout/i.test(message) ? '请求超时，请稍后重试' : /ssl|certificate/i.test(message) ? '接口证书校验失败，请使用 HTTPS 证书' : '网络请求失败，请检查网络后重试'))
+          done(failure(/not in domain/i.test(message) ? '暂时无法连接服务，请稍后重试' : /timeout/i.test(message) ? '请求超时，请稍后重试' : /ssl|certificate/i.test(message) ? '暂时无法建立安全连接，请稍后重试' : '网络请求失败，请检查网络后重试'))
         }
       }) })
     } }

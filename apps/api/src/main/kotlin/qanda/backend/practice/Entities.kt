@@ -6,7 +6,6 @@ import java.util.UUID
 
 @TableName("practice_session")
 class PracticeSession {
-    var clientType: String = "WEB"
     var updatedAt: Instant = Instant.now()
     @TableId(type = IdType.INPUT)
     var id: UUID? = null
@@ -15,6 +14,7 @@ class PracticeSession {
     var selectionKind: String = "NORMAL"
     var questionOrder: String = "SEQUENTIAL"
     var feedback: String = "AFTER_FINISH"
+    var autoAddWrongBook: Boolean = true
     var status: String = "IN_PROGRESS"
     var version: Long = 1
     var currentIndex: Int = 0
@@ -26,8 +26,6 @@ class PracticeSession {
     var writerDeviceId: UUID? = null
     @TableField(exist = false)
     var writerToken: UUID? = null
-    @TableField(exist = false)
-    var pendingWriterDeviceId: UUID? = null
     @TableField(exist = false)
     var acknowledgedSequence: Long = 0
 }

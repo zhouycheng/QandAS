@@ -14,11 +14,11 @@ import java.util.UUID
 class OverviewRow {
     var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var masteredCount: Long=0
     var favoriteCount: Long=0;var totalCount: Long=0;var subjectCount: Long=0;var bankCount: Long=0
-    var durationSeconds: Long=0;var practiceCount: Long=0
+    var durationSeconds: Long=0;var practiceCount: Long=0;var wrongBookCount: Long=0
 }
 data class LearningOverviewView(val answeredCount: Long,val correctCount: Long,val wrongCount: Long,val masteredCount: Long,
     val favoriteCount: Long,val totalCount: Long,val subjectCount: Long,val bankCount: Long,val durationSeconds: Long,
-    val practiceCount: Long,val recentSession: PracticeSummary?)
+    val practiceCount: Long,val recentSession: PracticeSummary?,val wrongBookCount: Long)
 class CollectionRow {
     var questionId: UUID?=null;var questionBankId: UUID?=null;var subjectId: UUID?=null
     var questionBankName: String="";var subjectName: String="";var stem: String="";var type: String="";var contentFormat: String="PLAIN_TEXT";var presentation: String="STANDARD"
@@ -38,7 +38,7 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
     val chip: String="all",val sort: String="recent",val since: Instant)
 @Mapper interface LearningReadMapper {
     fun overview(@Param("userId") userId: UUID): OverviewRow
-    fun latestSession(@Param("userId") userId: UUID): PracticeSummary?
+    fun latestSession(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?): PracticeSummary?
     fun collection(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter,@Param("offset") offset: Int,@Param("limit") limit: Int): List<CollectionRow>
     fun collectionCount(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): Long
     fun collectionTotals(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): CollectionTotals
@@ -47,10 +47,10 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
 @Service
 @Transactional(readOnly=true)
 class LearningReadService(private val sql: LearningReadMapper,private val clock: Clock) {
-    fun overview(userId: UUID): LearningOverviewView {
-        val r=sql.overview(userId);val s=sql.latestSession(userId)
+    fun overview(userId: UUID,deviceId: UUID?=null): LearningOverviewView {
+        val r=sql.overview(userId);val s=sql.latestSession(userId,deviceId)
         return LearningOverviewView(r.answeredCount,r.correctCount,r.wrongCount,r.masteredCount,r.favoriteCount,r.totalCount,
-            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s)
+            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s,r.wrongBookCount)
     }
     private fun filter(kind: String,status: String="UNMASTERED",subjectId: UUID?=null,bankId: UUID?=null,chip: String="all",sort: String="recent"): CollectionFilter {
         if(kind !in setOf("WRONG","FAVORITE")) invalid("/kind")

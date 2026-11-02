@@ -23,7 +23,7 @@ api.request = async (method, path, body) => {
   if (path === '/subjects/s21') return { ok: true, data: { id: 's21', name: '直接进入的课程', bankCount: 30, questionCount: 600 } }
   if (path === '/me/learning-overview') return { ok: true, data: { answeredCount: 1, correctCount: 1, wrongCount: 1, favoriteCount: 1, subjectCount: 1, bankCount: 1, totalCount: 3, durationSeconds: 600, practiceCount: 1 } }
   if (path === '/me/question-collections/summary') return { ok: true, data: { total: 1, pendingCount: 1, repeatCount: 1, facets: [] } }
-  if (path.startsWith('/me/recent-learning')) return { ok: true, data: { total: 1, page: 1, pageSize: 20, items: [{ id: 'p1', questionBankId: 'b1', status: 'IN_PROGRESS' }] } }
+  if (path.startsWith('/me/recent-learning')) return { ok: true, data: { total: 1, page: 1, pageSize: 20, items: [{ id: 'p1', questionBankId: 'b1', status: 'IN_PROGRESS', deviceId: body.deviceId }] } }
   if (path === '/me') return { ok: true, data: { id: 'u1', nickname: '同学', version: 2, collegeId: 'c1', majorId: 'm1' } }
   if (path === '/questions') return { ok: true, data: { total: 1, page: 1, items: [{ id: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [] }] } }
   if (path.startsWith('/questions/')) return { ok: true, data: { id: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '选项' }], correctAnswer: ['A'], explanation: '不可提前显示' } }
@@ -83,7 +83,7 @@ async function main() {
   await remote.refresh(storage, 'collection', { kind: 'FAVORITE' })
   await remote.refresh(storage, 'stats', { period: 'WEEK' })
   await remote.refresh(storage, 'recent')
-  assert.strictEqual(repository.getResumableSession(storage).sessionId, 'p1', '新设备从云端摘要续答')
+  assert.strictEqual(repository.getResumableSession(storage).sessionId, 'p1', '创建设备从云端摘要找到进行中练习')
   storage.set('qandaOnlineLast:u1', 'p1')
   storage.set('qandaOnline:u1:p1', { id: 'p1', status: 'IN_PROGRESS', viewCompleted: true })
   assert.strictEqual(repository.getResumableSession(storage), null, '背题本机已结束时，不受迟到的云端进行中摘要影响')
@@ -124,13 +124,6 @@ async function main() {
   pendingSearch['旧词']({ total: 1, items: [{ questionId: 'old' }] })
   assert.strictEqual(await oldSearch, null, '迟到搜索响应不得替换新结果')
 
-  const onlineRuntime = require('../miniprogram/repositories/online-practice.js')
-  const oldCurrent = onlineRuntime.current
-  onlineRuntime.current = () => ({ waitingIds: () => ['waiting-id'], getWaiting: () => ({ route: { bankId: 'bank' }, writer: { state: 'WAITING' } }) })
-  const waitingChoices = await new SubjectListViewModel({ storage }).openRecent()
-  assert.strictEqual(waitingChoices.command.type, 'choosePractice')
-  assert.strictEqual(waitingChoices.command.choices[0].id, 'waiting-id', '后台等待的原练习必须有可重新打开的入口')
-  onlineRuntime.current = oldCurrent
   const historyChoices = await new SubjectListViewModel({ storage, repository: {
     isRemoteEnabled: () => true, refreshRemote: async () => {}, getAuth: () => ({ loggedIn: false }),
     getRemoteRecent: () => [{ id: 'reading', status: 'IN_PROGRESS', createdAt: '2026-11-01T10:00:00Z' }, { id: 'graded', status: 'SUBMITTED' }, { id: 'closed', status: 'CANCELLED' }],

@@ -150,6 +150,9 @@ async function main() {
     page.handleDragCancel()
     assert.equal(page.drag, null)
   } finally { global.setInterval = originalInterval; global.clearInterval = originalClear }
+  const quota = storage.get(trials.KEY)
+  storage.set(trials.KEY, { ...quota, sessions: [] })
+  assert.equal(trials.remaining(storage), 0, '清理草稿保留已使用试答次数')
   console.log('trial-layout checks passed: quota, persistence failure, duplicate starts, four question types, offline restore, disclosure, account isolation, layout rollback')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, HttpAdminContentGateway } from './http-admin-gateway'
+import { HttpAdminContentGateway } from './http-admin-gateway'
 import { questionFromWire, questionToWire } from './question-wire'
 import { questionImportExamples } from '../lib/question-import-examples'
 const json = (body: unknown, status = 200, headers?: Record<string, string>) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
@@ -17,7 +17,7 @@ describe('HTTP 管理合同', () => {
   it('列表只请求当前页，并传递范围、排序与请求追踪', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json(page))
     const api = new HttpAdminContentGateway('https://api.example.test/api/v1/', fetcher, () => 'admin-token')
-    await api.getRankings({ period: 'WEEK', sort: 'DURATION', page: 2, pageSize: 20, collegeId: 'college', majorId: 'major', grade: 3, platform: 'MINI_PROGRAM' })
+    await api.getRankings({ period: 'WEEK', sort: 'DURATION', page: 2, pageSize: 20, collegeId: 'college', majorId: 'major', grade: 3 })
     const [url, options] = fetcher.mock.calls[0]
     const parsed = new URL(String(url))
     expect(parsed.pathname).toBe('/api/v1/admin/statistics/rankings')
@@ -29,7 +29,7 @@ describe('HTTP 管理合同', () => {
   })
   it('拒绝不符合分页合同的响应', async () => {
     const api = new HttpAdminContentGateway('', vi.fn<typeof fetch>().mockResolvedValue(json([])), () => '')
-    await expect(api.listQuestionBanks()).rejects.toThrow('分页响应格式')
+    await expect(api.listQuestionBanks()).rejects.toThrow('列表读取失败，请稍后重试')
   })
   it('管理员重新登录不携带过期令牌，身份查询使用新令牌', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ accessToken: 'new', expiresAt: '2027-01-01T00:00:00Z', sessionMinutes: 60 }))

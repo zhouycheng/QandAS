@@ -4,7 +4,7 @@
     <view class="about-brand">
       <text class="about-name">QandA</text>
       <text class="about-description">课程复习与题库练习</text>
-      <text class="about-version" bindtap="handleVersionTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">版本 {{version || '—'}}</text>
+      <text class="about-version" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">版本 {{version || '—'}}</text>
     </view>
     <view class="about-section" wx:if="{{developers.length}}">
       <text class="about-heading">开发团队</text>
@@ -23,9 +23,6 @@
       <view class="donation-card" wx:for="{{donationCodes}}" wx:key="image" data-index="{{index}}" bindtap="handleDonationTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
         <image class="donation-code" src="{{item.image}}" mode="widthFix" show-menu-by-longpress="{{true}}" /><text class="donation-label">{{item.label}}</text>
       </view>
-    </view>
-    <view wx:if="{{playgroundEnabled}}" class="about-row" bindtap="handlePlaygroundTap" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">
-      <text>开发者 Playground</text><view class="chevron"></view>
     </view>
   </view>
 </view>

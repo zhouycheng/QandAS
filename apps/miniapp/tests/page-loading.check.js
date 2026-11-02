@@ -182,7 +182,7 @@ async function favoriteFailureChecks() {
     addQuestionFavorite: () => Promise.reject(new Error('保存失败'))
   })
   const vm = new PracticeViewModel({ repository })
-  vm.load({ subjectId: 'subject-chinese', bankId: 'chinese-ch001', mode: 'order' })
+  vm.session = new (require('../miniprogram/models/practice-session.js').PracticeSession)({ quiz: { bankId: 'bank', questions: [{ id: 'q', stem: '题', options: [{ key: 'A', text: '甲' }], answerKeys: ['A'] }] }, mode: 'order' }); vm.session.reset()
   await assert.rejects(vm.toggleFavoriteQuestion(), /保存失败/)
   assert.equal(vm.session.getViewData().isCurrentQuestionFavorite, false, '失败后保持原收藏状态')
   assert.equal(vm.session.state.favoriteQuestionIds.length, 0)

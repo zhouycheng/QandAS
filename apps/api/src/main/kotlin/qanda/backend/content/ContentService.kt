@@ -18,7 +18,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
                      private val revisions: QuestionRevisionMapper,private val audiences: BankAudienceMapper,private val files: FileAssetMapper,
                      private val accounts: AccountDirectory,private val directory: CatalogDirectory,
-                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper) {
+                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val reader: QuestionReader) {
+    fun bankViewsByIds(ids: List<UUID>): List<BankView> = if(ids.isEmpty()) emptyList() else bankViews(banks.selectByIds(ids),false)
     fun bankView(row: QuestionBank,admin: Boolean): BankView = bankViews(listOf(row),admin).first()
     private fun bankViews(rows: List<QuestionBank>,admin: Boolean,userId: UUID?=null): List<BankView> {
         if(rows.isEmpty()) return emptyList()
@@ -29,7 +30,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
             BankView(row.id!!,row.subjectId!!,row.name,row.description,row.textbook,row.status,row.publicationStatus,row.scopeType,
                 audienceRows[row.id].orEmpty().map { AudienceInput(it.collegeId,it.majorId,it.grade) },
                 maintainers[row.id].orEmpty().map { it.adminId!! },row.version,row.contentVersion,if(admin) f.questionCount else f.activeQuestionCount,f.activeQuestionCount,row.updatedAt,f.subjectName,
-                userId?.let { BankProgressView(f.answeredCount,f.correctCount,f.wrongCount) })
+                userId?.let { BankProgressView(f.answeredCount,f.correctCount,f.wrongCount,f.wrongBookCount) })
         }
     }
     fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null): Page<BankView> {
@@ -72,7 +73,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         return chapters.selectList(QueryWrapper<Chapter>().eq("bank_id",bankId).orderByAsc("sort_order").orderByAsc("id")).map {
             val facts=counts[it.id]
             ChapterView(it.id!!,bankId,it.name,it.sortOrder,it.version,facts?.count ?: 0,
-                userId?.let { BankProgressView(facts?.answeredCount ?: 0,facts?.correctCount ?: 0,facts?.wrongCount ?: 0) })
+                userId?.let { BankProgressView(facts?.answeredCount ?: 0,facts?.correctCount ?: 0,facts?.wrongCount ?: 0,facts?.wrongBookCount ?: 0) })
         }
     }
     fun saveChapter(actor: Actor,bankId: UUID,id: UUID?,input: ChapterInput): MutationResult {
@@ -155,17 +156,8 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     private fun safeText(value: String,maximum: Int) { text(value,maximum) }
     fun materialRevision(question: Question): UUID? = question.readingParentId?.let { questions.selectById(it)?.currentRevisionId }
-    fun questionView(question: Question,revisionId: UUID=question.currentRevisionId!!,answers: Boolean=false,materialRevisionId: UUID?=materialRevision(question)): QuestionView {
-        val revision=revisions.selectById(revisionId) ?: missing();if(revision.questionId!=question.id) missing();val options=sql.options(revisionId)
-        val extra=json.readValue(revision.contentData,QuestionContentData::class.java)
-        val material=materialRevisionId?.let { id -> val parent=revisions.selectById(id) ?: missing()
-            ReadingMaterialView(parent.questionId!!,id,json.readValue(parent.contentData,QuestionContentData::class.java).passage.orEmpty(),sql.attachments(id),json.readValue(parent.contentData,QuestionContentData::class.java).contentFormat) }
-        return QuestionView(question.id!!,question.bankId!!,question.chapterId,question.status,question.version,revision.id!!,revision.revisionNumber,revision.type,revision.stem,
-            options.map { OptionInput(it.optionKey,it.content) },if(answers) options.filter { it.isCorrect }.map { it.optionKey } else null,
-            revision.correctValue.takeIf { answers },revision.referenceAnswer.takeIf { answers },revision.explanation.takeIf { answers },sql.attachments(revisionId),
-            blankCount=extra.blanks.size,blanks=extra.blanks.takeIf { answers },blankMatch=extra.blankMatch.takeIf { answers && revision.type=="FILL_BLANK" },scoringPoints=extra.scoringPoints.takeIf { answers },
-            passage=extra.passage,subQuestions=extra.children.map { questionView(questions.selectById(it.id) ?: missing(),it.revisionId,answers,revisionId) },material=material,contentFormat=extra.contentFormat,presentation=extra.presentation,codeLanguage=extra.codeLanguage)
-    }
+    fun questionView(question: Question,revisionId: UUID=question.currentRevisionId!!,answers: Boolean=false,materialRevisionId: UUID?=materialRevision(question)): QuestionView =
+        reader.read(listOf(qanda.backend.content.api.RevisionReference(question.id!!,revisionId,materialRevisionId)),answers).single()
     fun question(actor: Actor?,id: UUID): QuestionView {
         val row=questions.selectById(id) ?: missing();access.bank(actor,row.bankId!!);if(actor?.kind!="ADMIN" && row.status!="ACTIVE") missing()
         return questionView(row,answers=actor?.kind=="ADMIN")
@@ -184,7 +176,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     private fun listQuestions(rows: List<Question>,answers: Boolean,view: String): List<QuestionView> {
         if(view !in setOf("full","summary")) invalid("/view")
-        if(view=="full") return rows.map { questionView(it,answers=answers) }
+        if(view=="full") return reader.read(rows.map { qanda.backend.content.api.RevisionReference(it.id!!) },answers)
         if(rows.isEmpty()) return emptyList()
         val summaries=sql.questionSummaries(rows.map { it.id!! }).associateBy { it.id }
         return rows.map { row -> val q=summaries.getValue(row.id)

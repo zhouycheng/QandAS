@@ -9,6 +9,7 @@
       (SELECT count(*) FROM facts WHERE rn=1) answered_count,
       (SELECT count(*) FROM facts WHERE rn=1 AND judgment='CORRECT') correct_count,
       (SELECT count(*) FROM facts WHERE rn=1 AND judgment='WRONG') wrong_count,
+      (SELECT count(*) FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1 AND f.judgment='WRONG' AND t.wrong_count>0) wrong_book_count,
       (SELECT count(*) FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1 AND f.judgment='CORRECT' AND t.wrong_count>0) mastered_count,
       (SELECT count(*) FROM user_favorite WHERE user_id=#{userId}) favorite_count,
       (SELECT count(*) FROM visible) total_count,
@@ -17,7 +18,7 @@
       (SELECT coalesce(sum(r.duration_seconds),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') duration_seconds,
       (SELECT count(*) FROM practice_session WHERE user_id=#{userId} AND status='SUBMITTED') practice_count
   </select>
-  <select id="latestSession" resultType="qanda.backend.practice.PracticeSummary">SELECT id,bank_id question_bank_id,status,version,duration_seconds,created_at,submitted_at FROM practice_session WHERE user_id=#{userId} AND status='IN_PROGRESS' ORDER BY updated_at DESC,id DESC LIMIT 1</select>
+  <select id="latestSession" resultType="qanda.backend.practice.PracticeSummary">SELECT id,bank_id question_bank_id,status,version,duration_seconds,created_at,submitted_at,(SELECT writer_device_id FROM practice_sync_state WHERE session_id=practice_session.id) device_id FROM practice_session WHERE user_id=#{userId} AND status='IN_PROGRESS'<if test="deviceId != null"> AND EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId})</if> ORDER BY updated_at DESC,id DESC LIMIT 1</select>
   <sql id="collection">
     <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>, collection AS (
       SELECT q.id question_id,q.bank_id question_bank_id,s.id subject_id,s.name subject_name,b.name question_bank_name,

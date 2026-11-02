@@ -4,11 +4,14 @@ import org.apache.ibatis.annotations.Mapper
 import org.apache.ibatis.annotations.Param
 import java.util.UUID
 
-class BankListFacts { var bankId: UUID?=null;var subjectName: String="";var questionCount: Long=0;var activeQuestionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
+class BankListFacts { var bankId: UUID?=null;var subjectName: String="";var questionCount: Long=0;var activeQuestionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var wrongBookCount: Long=0 }
 class BankMaintainerRow { var bankId: UUID?=null;var adminId: UUID?=null }
-class ChapterCount { var id: UUID?=null;var count: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0 }
+class ChapterCount { var id: UUID?=null;var count: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var wrongBookCount: Long=0 }
 class QuestionSummaryRow { var contentData: String="{}"; var id: UUID?=null;var bankId: UUID?=null;var subjectId: UUID?=null;var chapterId: UUID?=null;var status: String="";var version: Long=0;var revisionId: UUID?=null;var revision: Int=0;var type: String="";var stem: String="";var subjectName: String="";var bankName: String="" }
+class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null }
 @Mapper interface ContentQueries {
+    fun batchOptions(@Param("ids") ids: List<UUID>): List<QuestionOption>
+    fun batchAttachments(@Param("ids") ids: List<UUID>): List<QuestionAttachmentRow>
     fun chapterCounts(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean,@Param("userId") userId: UUID?=null): List<ChapterCount>
     fun favoriteQuestionIds(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
     fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<BankListFacts>
@@ -36,5 +39,6 @@ class QuestionSummaryRow { var contentData: String="{}"; var id: UUID?=null;var 
     fun chapterQuestions(@Param("id") id: UUID): Long
     fun publicationIssues(@Param("bankId") bankId: UUID): Long
     fun readingChildren(@Param("id") id: UUID): List<Question>
+    fun readingChildrenFor(@Param("ids") ids: List<UUID>): List<Question>
     fun readingOrder(@Param("id") id: UUID,@Param("order") order: Int)
 }

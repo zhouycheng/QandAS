@@ -9,12 +9,13 @@
     <if test="scope.selectionKind == 'WRONG'">AND (SELECT <choose><when test="scope.collectionChip == 'subjective'">i.self_assessment</when><otherwise>i.outcome</otherwise></choose> FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED'
       <choose><when test="scope.collectionChip == 'subjective'">AND i.outcome='SELF_RATED' AND i.self_assessment IS NOT NULL</when><otherwise>AND i.outcome IN ('CORRECT','WRONG')</otherwise></choose>
       ORDER BY ps.submitted_at DESC,ps.id DESC LIMIT 1)='WRONG'</if>
-    <if test="scope.collectionChip == 'repeat'">AND (SELECT count(*) FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND i.outcome='WRONG') &gt;= 2</if>
+    <if test="scope.selectionKind == 'WRONG' and scope.collectionChip != 'subjective'">AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=q.id AND t.wrong_count>0)</if>
+    <if test="scope.collectionChip == 'repeat'">AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=q.id AND t.wrong_count &gt;= 2)</if>
     <if test="scope.collectionChip == 'recent'">AND EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND ps.submitted_at &gt;= now()-interval '7 days' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED'))</if>
     <if test="scope.collectionChip == 'pending' or scope.collectionChip == 'practiced'">AND <if test="scope.collectionChip == 'pending'">NOT</if> EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED'))</if>
   </sql>
   <select id="eligible" resultType="qanda.backend.content.api.QuestionReference">
-    WITH candidates AS(SELECT q.*,<choose><when test="scope.selectionKind == 'NORMAL'">coalesce(q.reading_parent_id,q.id)</when><otherwise>q.id</otherwise></choose> group_id,
+    <choose><when test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>,</when><otherwise>WITH</otherwise></choose> candidates AS(SELECT q.*,<choose><when test="scope.selectionKind == 'NORMAL'">coalesce(q.reading_parent_id,q.id)</when><otherwise>q.id</otherwise></choose> group_id,
       coalesce(parent.created_at,q.created_at) group_created,
       <choose><when test="scope.questionIds.size > 0">array_position(ARRAY[<foreach collection="scope.questionIds" item="id" separator=",">CAST(#{id} AS uuid)</foreach>],q.id)</when><otherwise>0</otherwise></choose> requested_position
       FROM question q LEFT JOIN question parent ON parent.id=q.reading_parent_id <include refid="eligibleFilter"/>),
@@ -23,14 +24,15 @@
     limits AS(SELECT *,sum(size) OVER(ORDER BY position) total FROM ordered)
     SELECT c.* FROM candidates c JOIN limits g ON g.group_id=c.group_id WHERE g.total &lt;= #{scope.count} ORDER BY g.position,c.reading_order,c.id
   </select>
-  <select id="eligibleCount" resultType="long">SELECT count(*) FROM question q <include refid="eligibleFilter"/></select>
+  <select id="eligibleCount" resultType="long"><if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/></if> SELECT count(*) FROM question q <include refid="eligibleFilter"/></select>
   <select id="lockSession" resultType="qanda.backend.practice.PracticeSession">SELECT * FROM practice_session WHERE id=#{id} FOR UPDATE</select>
   <select id="items" resultType="qanda.backend.practice.PracticeItem">SELECT * FROM practice_item WHERE session_id=#{sessionId} ORDER BY position</select>
+  <select id="batchChoices" resultType="qanda.backend.practice.PracticeChoiceRow">SELECT item_id,option_key FROM practice_item_choice WHERE item_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> ORDER BY item_id,option_key</select>
   <select id="choices" resultType="string">SELECT option_key FROM practice_item_choice WHERE item_id=#{itemId} ORDER BY option_key</select>
   <delete id="clearChoices">DELETE FROM practice_item_choice WHERE item_id=#{itemId}</delete>
   <insert id="addChoice">INSERT INTO practice_item_choice(item_id,revision_id,option_key) VALUES(#{itemId},#{revisionId},#{key})</insert>
   <update id="updateAnswer">UPDATE practice_item SET answer_text=#{item.answerText},answer_boolean=#{item.answerBoolean},answer_blanks=#{item.answerBlanks},confirmed=#{item.confirmed},marked=#{item.marked},outcome=#{item.outcome},self_assessment=#{item.selfAssessment} WHERE id=#{item.id}</update>
   <select id="result" resultType="qanda.backend.practice.PracticeResult">SELECT * FROM practice_result WHERE session_id=#{sessionId}</select>
-  <select id="history" resultType="qanda.backend.practice.PracticeSession">SELECT * FROM practice_session WHERE user_id=#{userId}<if test="completedOnly">AND status='SUBMITTED'</if> ORDER BY <choose><when test="completedOnly">submitted_at</when><otherwise>updated_at</otherwise></choose> DESC,id LIMIT #{limit} OFFSET #{offset}</select>
-  <select id="historyCount" resultType="long">SELECT count(*) FROM practice_session WHERE user_id=#{userId}<if test="completedOnly">AND status='SUBMITTED'</if></select>
+  <select id="history" resultType="qanda.backend.practice.PracticeSession">SELECT practice_session.*,sync.writer_device_id FROM practice_session LEFT JOIN practice_sync_state sync ON sync.session_id=practice_session.id WHERE user_id=#{userId}<if test="deviceId != null">AND (status&lt;&gt;'IN_PROGRESS' OR EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId}))</if> ORDER BY updated_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="historyCount" resultType="long">SELECT count(*) FROM practice_session WHERE user_id=#{userId}<if test="deviceId != null">AND (status&lt;&gt;'IN_PROGRESS' OR EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId}))</if></select>
 </mapper>

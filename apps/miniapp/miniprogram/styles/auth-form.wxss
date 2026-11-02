@@ -45,7 +45,6 @@
   font-weight: 500;
   color: #000000;
 }
-
 .page-title {
   display: block;
   margin-top: 34rpx;
@@ -257,7 +256,6 @@
   font-weight: 400;
   color: #000000;
 }
-
 .back-link {
   margin-left: 8rpx;
   font-size: 26rpx;
@@ -274,16 +272,4 @@
   line-height: 30rpx;
   font-weight: 400;
   color: #000000;
-}
-
-/* 降级提示条：后端未接入时出现，说清楚现状而不是让用户以为登录失败 */
-.degrade-note {
-  display: block;
-  margin-top: 24rpx;
-  padding: 16rpx 24rpx;
-  border-radius: 16rpx;
-  background: #fff7e6;
-  font-size: 22rpx;
-  line-height: 32rpx;
-  color: #b06d00;
 }

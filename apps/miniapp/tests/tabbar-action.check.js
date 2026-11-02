@@ -55,7 +55,7 @@ async function main() {
   definition.lifetimes.attached.call(component)
   component.setSelected(routes[1])
   assert.equal(component.data.continueDisabled, true)
-  recent = { id: 'cloud-session', questionBankId: 'bank', status: 'IN_PROGRESS' }
+  recent = { id: 'cloud-session', questionBankId: 'bank', status: 'IN_PROGRESS', deviceId: auth.deviceId(storage) }
   await remote.refresh(storage, 'home', { force: true }); await Promise.resolve()
   assert.equal(component.data.continueLabel, '继续答题', '异步读取云端会话后全局按钮自动刷新')
   assert.equal(component.data.continueDisabled, false)
