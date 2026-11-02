@@ -14,17 +14,11 @@
   margin-top: 40rpx;
 }
 
-.section-head {
+.settings-actions {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   margin: 0 6rpx 18rpx;
-}
-
-.section-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: var(--text-main);
 }
 
 .section-note {

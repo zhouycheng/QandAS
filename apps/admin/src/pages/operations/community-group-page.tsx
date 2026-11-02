@@ -32,7 +32,7 @@ export function CommunityGroupPage() {
     reader.readAsDataURL(file)
   }
   const valid = !!query.data && !!image && !!expires && Number.isFinite(Date.parse(expires)) && Date.parse(expires) > Date.now()
-  return <Card title="用户交流群">
+  return <Card>
     {query.error && <ErrorState message={query.error.message} onRetry={() => void query.refetch()} />}
     <p>当前状态：{query.data ? query.data.available ? '有效' : query.data.expiresAt ? '已过期' : '未设置' : '读取中'}</p>
     {query.data?.expiresAt && <p>有效期至：{new Date(query.data.expiresAt).toLocaleString()}</p>}
