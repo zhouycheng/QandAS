@@ -32,16 +32,27 @@ case "$qanda_operation" in
     BACKEND_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["backend"])')
     WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["web"])')
     REVISION=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["revision"])')
+    qanda_app=(docker compose -p qanda-application --env-file /srv/qanda/production.env)
+    if test -f /srv/qanda/node.env; then qanda_app+=(--env-file /srv/qanda/node.env); fi
+    qanda_app+=(-f /srv/qanda/compose.application.yml)
+    qanda_services=(api worker monitor web)
+    if test -f /srv/qanda/node.json; then
+      qanda_role=$(python3 -c 'import json;print(json.load(open("/srv/qanda/node.json"))["role"])')
+      test "$qanda_role" != frontend
+      if test "$qanda_role" = backend; then
+        qanda_app+=(-f /srv/qanda/compose.backend-node.yml)
+        qanda_services=(api worker monitor)
+      fi
+    fi
     /usr/local/sbin/qanda-backup
-    docker compose -p qanda-application --env-file /srv/qanda/production.env -f /srv/qanda/compose.application.yml stop api worker monitor web
+    "${qanda_app[@]}" stop "${qanda_services[@]}"
     if test "$qanda_operation" = sql; then
       "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 --single-transaction < "$2"
     else
       "${qanda_db[@]}" pg_restore -U qanda_backend -d qanda_backend --exit-on-error --single-transaction < "$2"
     fi
     "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 -c 'ANALYZE;'
-    docker compose -p qanda-application --env-file /srv/qanda/production.env -f /srv/qanda/compose.application.yml \
-      up -d --no-build --pull never --wait --wait-timeout 240 api worker monitor web
+    "${qanda_app[@]}" up -d --no-build --pull never --wait --wait-timeout 240 "${qanda_services[@]}"
     ;;
   *) echo 'Usage: sudo qanda-db {psql|export FILE.dump|sql FILE.sql|restore FILE.dump}' >&2; exit 1 ;;
 esac

@@ -21,6 +21,8 @@ visudo -cf /etc/sudoers.d/qanda-deploy
 if ! test -s /etc/qanda/backup.key; then (umask 077; openssl rand -base64 48 > /etc/qanda/backup.key); fi
 install -m 0644 "$qanda_source_dir"/qanda-backup.{service,timer} /etc/systemd/system/
 systemctl daemon-reload
+qanda_node_role=$(python3 -c 'import json,pathlib;p=pathlib.Path("/srv/qanda/node.json");print(json.loads(p.read_text())["role"] if p.exists() else "combined")')
+if test "$qanda_node_role" = frontend; then exit 0; fi
 systemctl enable --now qanda-backup.timer
 docker volume create qanda-production-assets >/dev/null
 docker compose -p qanda-infrastructure --env-file /srv/qanda/production.env \

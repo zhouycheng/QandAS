@@ -1,0 +1,4 @@
+{
+  "frontend": {"server": "your-tailscale-server", "admin_user": "ubuntu"},
+  "backend": {"server": "your-tailscale-server", "admin_user": "ubuntu"}
+}

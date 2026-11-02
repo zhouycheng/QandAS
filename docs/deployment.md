@@ -26,7 +26,7 @@ QandA 使用私有仓库、GHCR 和 Docker Compose。`develop` 用于开发，`m
 
 ## GitHub 与 Tailscale
 
-仓库 Secrets：`TAILSCALE_SERVER`、`TS_OAUTH_CLIENT_ID`、`TS_AUDIENCE`。应用提供端密钥留在服务器。
+仓库 Secrets：`DEPLOY_TARGETS`、`TS_OAUTH_CLIENT_ID`、`TS_AUDIENCE`。应用提供端密钥留在服务器。
 
 在 Tailscale 建立 GitHub OIDC trust credential，scope 仅 `auth_keys`，标签为 `tag:qanda-ci`。使用 GitHub 的不可变仓库身份 subject，限定当前仓库和 `refs/heads/main`；同时限定 `workflow_ref` 为 `zhouycheng/QandA/.github/workflows/deploy.yml@refs/heads/main`。私有 Free 仓库使用仓库级 Secrets，不依赖 Environment。
 
@@ -96,6 +96,18 @@ SQL 和自定义格式 dump 导入与部署共用互斥锁，先在线备份，�
 用户记录、会话、练习、成绩和附件存在关联，导入工具保留唯一约束和外键校验。旧账号的密码摘要格式、用户 ID、学院专业映射需按源数据单独转换，不直接复制明文密码或覆盖当前密钥。附件文件需与其元数据一同迁移。导入前先在隔离恢复环境中演练。
 
 ## 多服务器扩容
+
+目标地址统一维护在仓库外权限 `600` 的 `~/.config/qanda/production/targets.json`，结构见 `deploy/targets.example.json`。`frontend.server` 和 `backend.server` 填 Tailscale 设备名；相同时按合并节点部署，不同时分别部署管理端和后端。修改这一份文件后执行：
+
+```sh
+python3 deploy/targets.py "$HOME/.config/qanda/production/targets.json"
+```
+
+该命令使用现有管理员 Tailscale SSH，将节点职责和私网路由写入目标服务器 root 管理的 `node.json`、`node.env`，并同步仓库 Secret `DEPLOY_TARGETS`。Actions 按后端、管理端顺序发布，同一服务器只执行一次。各节点分别保存上一版本；管理端失败时先前已完成的后端节点会回滚。
+
+新服务器需先安装 Docker、Tailscale、受限部署入口和相应生产配置；迁移数据库及附件并核验后，再切换目标。地址配置不代替数据迁移。管理端节点仅运行 `web`，不安装数据库或队列，生产提供端密钥仅保存在后端节点。
+
+分机模式的后端 API、monitor 分别仅绑定本机 Tailscale 地址的 `18084`、`18085`，需在 Tailnet policy 中仅允许管理端节点访问这两个端口；数据库仍不发布端口。`qanda-ci` 的权限继续只有部署 SSH，不增加 API 或数据库访问权限。
 
 管理端与后端分机时，在服务器私有配置中设置 `PRODUCTION_API_UPSTREAM`、`PRODUCTION_MONITOR_UPSTREAM` 指向后端的 Tailnet 私网入口；前端域名和客户端 API 地址保持稳定。跨服务器入口只绑定 Tailscale 地址，并用 Tailnet policy 限定前端节点访问后端 API。数据库迁移和维护继续使用 Tailscale SSH 与 `qanda-db`，不开放公网数据库或额外管理 HTTP API。文件可通过 Tailscale SSH 的标准输入输出传输，接收端先设置 `umask 077` 并校验摘要。
 

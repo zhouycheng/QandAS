@@ -2,11 +2,15 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import sys
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('deployctl', Path(__file__).parents[1] / 'deployctl.py')
 deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
+sys.path.insert(0, str(Path(__file__).parents[1]))
+import targets
+import dispatch
 
 
 def release(character='a'):
@@ -15,6 +19,35 @@ def release(character='a'):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_node_roles_select_only_the_owned_services(self):
+        for role, expected in [('frontend', ('web',)), ('backend', ('api', 'worker', 'monitor')), ('combined', deploy.SERVICES)]:
+            with self.subTest(role=role), patch.object(deploy, 'node_role', return_value=role):
+                self.assertEqual(deploy.services(), expected)
+
+    def test_topology_rejects_shell_syntax_and_arbitrary_users(self):
+        good = {k: {'server': 'server-a', 'admin_user': 'ubuntu'} for k in ('frontend', 'backend')}
+        self.assertEqual(targets.validate(good), good)
+        for field, value in [('server', 'host;whoami'), ('server', '-oProxyCommand=bad'), ('admin_user', 'root@other')]:
+            bad = {**good, 'backend': {**good['backend'], field: value}}
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                targets.validate(bad)
+
+    def test_frontend_failure_restores_previously_deployed_backend(self):
+        import json
+        topology = {k: {'server': k, 'admin_user': 'ubuntu'} for k in ('frontend', 'backend')}
+        with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
+            'DEPLOY_TARGETS': json.dumps(topology), 'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name
+        }), patch.object(dispatch, 'remote', return_value={'current': release()}), \
+             patch.object(dispatch, 'execute') as execute:
+            def result(server, action):
+                if server == 'frontend':
+                    raise RuntimeError('frontend failed')
+                return {'operation': {'phase': 'complete'}, 'current': release('b')}
+            execute.side_effect = result
+            with self.assertRaises(RuntimeError):
+                dispatch.main()
+            self.assertEqual(execute.call_args_list[-1].args, ('backend', 'rollback'))
+
     def test_only_qanda_immutable_images_are_accepted(self):
         self.assertEqual(deploy.validate_release(release()), release())
         for field, value in [('revision', 'main'), ('backend', 'nginx:latest'), ('web', 'ghcr.io/other/web@sha256:' + 'a'*64)]:

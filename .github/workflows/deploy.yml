@@ -85,43 +85,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      contents: read
       id-token: write
       packages: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:qanda-ci
-      - name: Start the release on the server
+      - name: Deploy and verify the configured nodes
         env:
           OPERATION: ${{ inputs.operation }}
           BACKEND: ${{ needs.publish.outputs.backend }}
           WEB: ${{ needs.publish.outputs.web }}
           REGISTRY_TOKEN: ${{ github.token }}
-          TAILSCALE_SERVER: ${{ secrets.TAILSCALE_SERVER }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY' | tailscale ssh "qanda-deploy@${TAILSCALE_SERVER}" "sudo -n /usr/local/sbin/qanda-deployctl ${OPERATION}"
-          import json, os
-          request = {'username': os.environ['GITHUB_ACTOR'], 'token': os.environ['REGISTRY_TOKEN']}
-          if os.environ['OPERATION'] == 'deploy':
-              request['release'] = {'revision': os.environ['GITHUB_SHA'], 'backend': os.environ['BACKEND'], 'web': os.environ['WEB']}
-          print(json.dumps(request))
-          PY
-      - name: Wait for server verification and report the release
-        env:
-          TAILSCALE_SERVER: ${{ secrets.TAILSCALE_SERVER }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 150); do
-            status=$(tailscale ssh "qanda-deploy@${TAILSCALE_SERVER}" 'sudo -n /usr/local/sbin/qanda-deployctl status')
-            phase=$(jq -er '.operation.phase' <<< "$status")
-            case "$phase" in
-              complete) printf '%s\n' "$status" >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
-              failed|rolled-back) printf '%s\n' "$status" >> "$GITHUB_STEP_SUMMARY"; exit 1 ;;
-            esac
-            sleep 10
-          done
-          echo 'Server operation continues independently; inspect its status before another deployment.' >&2
-          exit 1
+          DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
+        run: python3 deploy/dispatch.py

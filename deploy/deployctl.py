@@ -18,6 +18,17 @@ STATE = Path('/var/lib/qanda-deploy')
 SERVICES = ('api', 'worker', 'monitor', 'web')
 
 
+def node_role():
+    role = read(ROOT / 'node.json', {'role': 'combined'})['role']
+    if role not in ('combined', 'backend', 'frontend'):
+        raise ValueError('Unknown node role')
+    return role
+
+
+def services():
+    return ('web',) if node_role() == 'frontend' else SERVICES[:3] if node_role() == 'backend' else SERVICES
+
+
 def run(*args, **kwargs):
     return subprocess.run([str(x) for x in args], check=True, text=True, capture_output=True, **kwargs).stdout.strip()
 
@@ -53,17 +64,26 @@ def protected(path):
 
 def compose(release, *args):
     env = {**os.environ, 'BACKEND_IMAGE': release['backend'], 'WEB_IMAGE': release['web'], 'REVISION': release['revision']}
-    return run('docker', 'compose', '-p', 'qanda-application', '--env-file', ROOT / 'production.env',
-               '-f', ROOT / 'compose.application.yml', *args, env=env)
+    command = ['docker', 'compose', '-p', 'qanda-application', '--env-file', ROOT / 'production.env']
+    if (ROOT / 'node.env').exists():
+        command += ['--env-file', ROOT / 'node.env']
+    command += ['-f', ROOT / 'compose.application.yml']
+    if node_role() == 'backend':
+        command += ['-f', ROOT / 'compose.backend-node.yml']
+    return run(*command, *args, env=env)
 
 
 def preflight(first=False):
     for name in ('compose.application.yml', 'production.env'):
         protected(ROOT / name)
+    for name in ('node.json', 'node.env', 'compose.backend-node.yml'):
+        if (ROOT / name).exists():
+            protected(ROOT / name)
     if (ROOT / 'production.env').stat().st_mode & 0o077:
         raise RuntimeError('production.env must have mode 0600')
     info = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
-    if int(info['MemAvailable'].split()[0]) < (1536 if first else 384) * 1024:
+    required = 128 if node_role() == 'frontend' else 1536 if first else 384
+    if int(info['MemAvailable'].split()[0]) < required * 1024:
         raise RuntimeError('Insufficient available RAM')
     if shutil.disk_usage(ROOT).free < 3 * 1024**3:
         raise RuntimeError('At least 3 GiB free disk is required')
@@ -92,10 +112,12 @@ def assets(release):
 
 
 def health(release):
-    for role in SERVICES:
+    for role in services():
         container = compose(release, 'ps', '-q', role)
         if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
             raise RuntimeError('Application group is not healthy')
+    if node_role() == 'backend':
+        return
     with urllib.request.urlopen('https://qanda.zhoust.cn/api/v1/health', timeout=15) as response:
         if json.load(response).get('status') != 'UP':
             raise RuntimeError('Public API check failed')
@@ -106,13 +128,15 @@ def health(release):
 
 def mark(phase):
     state = read(STATE / 'operation.json', {})
+    if phase == 'failed':
+        state['failed_phase'] = state.get('phase')
     atomic(STATE / 'operation.json', {**state, 'phase': phase, 'updated': int(time.time())})
 
 
 def activate(release):
     # Persist the image variables so host restarts/manual compose commands use the same release.
     atomic(STATE / 'desired.json', release)
-    compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *SERVICES)
+    compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *services())
 
 
 def apply(request):
@@ -122,7 +146,7 @@ def apply(request):
     mark('pulling')
     for kind in ('backend', 'web'):
         run('docker', 'pull', release[kind])
-    if request['action'] == 'deploy':
+    if request['action'] == 'deploy' and node_role() != 'frontend':
         mark('backing-up')
         run('/usr/local/sbin/qanda-backup')
     stopped = False
@@ -131,13 +155,14 @@ def apply(request):
             mark('stopping')
             # Stop only QandA application roles. Infrastructure and persistent volumes stay running.
             stopped = True
-            compose(current, 'stop', '--timeout', '120', *SERVICES)
-        if request['action'] == 'deploy':
+            compose(current, 'stop', '--timeout', '120', *services())
+        if request['action'] == 'deploy' and node_role() != 'frontend':
             mark('checking-candidate')
             run('/usr/local/lib/qanda/candidate-check.py', release['backend'], release['web'])
             mark('migrating')
             compose(release, 'run', '--rm', '--no-deps', 'migrate')
-        assets(release)
+        if node_role() != 'backend':
+            assets(release)
         mark('starting')
         activate(release)
         mark('observing')
@@ -151,6 +176,7 @@ def apply(request):
             health(current)
             mark('rolled-back')
         else:
+            compose(release, 'stop', '--timeout', '120', *services())
             mark('failed')
         raise
     if current:
@@ -212,5 +238,9 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        if isinstance(error, subprocess.CalledProcessError) and STATE.exists():
+            path = STATE / 'diagnostic.txt'
+            path.write_text(error.stderr or 'Command failed without diagnostic output')
+            path.chmod(0o600)
         print(f'qanda-deployctl: {type(error).__name__}; inspect deployment status', file=sys.stderr)
         sys.exit(1)
