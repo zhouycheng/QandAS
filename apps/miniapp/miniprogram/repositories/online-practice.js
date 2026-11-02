@@ -59,7 +59,24 @@ class OnlinePractice {
     if (!response.ok) throw new Error(response.reason || '请求失败，请重试')
     return response.data
   }
-  async prepare(options) { this.identity(); const id = options.sessionId || (options.resume === '1' ? this.storage.get(`qandaOnlineLast:${this.userId}`) : ''); if (!id) return this.createPractice(options); const cached = this.get(id); if (cached) { if (cached.writer && cached.writer.deviceId !== this.deviceId() && cached.status !== 'SUBMITTED') throw new Error('请在创建练习的设备上继续答题'); return assets.completeSnapshot(this.storage, cached) } const remote = await this.required('GET', `/practice/sessions/${id}`); if (remote.status !== 'SUBMITTED') throw new Error('未找到本机的练习记录，请返回题库重新开始'); remote.result = await this.required('GET', `/practice/sessions/${id}/result`); remote.items = remote.result.items; return this.remember(await assets.completeSnapshot(this.storage, remote), options) }
+  async prepare(options) {
+    const userId = this.identity().userId
+    const id = options.sessionId || (options.resume === '1' ? this.storage.get(`qandaOnlineLast:${userId}`) : '')
+    if (!id) return this.createPractice(options)
+    const cached = this.get(id)
+    if (cached) {
+      if (cached.writer && cached.writer.deviceId !== this.deviceId() && cached.status !== 'SUBMITTED') throw new Error('请在创建练习的设备上继续答题')
+      const snapshot = await assets.completeSnapshot(this.storage, cached)
+      if (auth.getAuth(this.storage).userId !== userId) throw new Error('账号已切换，请重新打开练习')
+      if (snapshot.status === 'IN_PROGRESS') this.storage.set(`qandaOnlineLast:${userId}`, id)
+      return snapshot
+    }
+    const remote = await this.required('GET', `/practice/sessions/${id}`)
+    if (remote.status !== 'SUBMITTED') throw new Error('未找到本机的练习记录，请返回题库重新开始')
+    remote.result = await this.required('GET', `/practice/sessions/${id}/result`)
+    remote.items = remote.result.items
+    return this.remember(await assets.completeSnapshot(this.storage, remote), options)
+  }
   createPractice(options) {
     const userId = this.identity().userId
     const route = {}

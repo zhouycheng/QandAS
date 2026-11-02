@@ -2,6 +2,8 @@ const assert = require('node:assert/strict')
 const { OnlinePractice } = require('../miniprogram/repositories/online-practice.js')
 const { PracticeSession } = require('../miniprogram/models/practice-session.js')
 const http = require('../miniprogram/repositories/http-gateway.js')
+const repository = require('../miniprogram/repositories/practice-repository.js')
+const assets = require('../miniprogram/repositories/question-assets.js')
 const copy = value => JSON.parse(JSON.stringify(value))
 
 async function main() {
@@ -21,12 +23,30 @@ async function main() {
   const restarted = new OnlinePractice(storage)
   assert.equal((await restarted.prepare({ sessionId: 's1' })).localState.answers[0].selectedKeys[0], 'A')
   assert.equal(restarted.get('s1').writer.writerToken, 'fixed-token')
+  restarted.put('s2', { ...snapshot, id: 's2' })
+  storage.set('qandaOnlineLast:u1', 's2')
+  assert.equal(repository.getResumableSession(storage).sessionId, 's2')
+  await restarted.prepare({ sessionId: 's1' })
+  assert.equal(repository.getResumableSession(storage).sessionId, 's1', '恢复较早的练习后继续答题指向该练习')
+  assert.equal((await restarted.prepare({ resume: '1' })).id, 's1')
+  restarted.put('submitted', { ...snapshot, id: 'submitted', status: 'SUBMITTED' })
+  await restarted.prepare({ sessionId: 'submitted' })
+  assert.equal(repository.getResumableSession(storage).sessionId, 's1', '回看结果保留进行中的续答指针')
   storage.set('qandaDeviceId', 'device2')
   await assert.rejects(restarted.prepare({ sessionId: 's1' }), /创建练习的设备/)
   storage.set('qandaDeviceId', 'device1')
   const request = http.request
   http.request = async () => { throw new Error('账号切换后不得发送原账号请求') }
+  const completeSnapshot = assets.completeSnapshot
+  let complete
+  assets.completeSnapshot = () => new Promise(resolve => { complete = resolve })
+  const restoring = restarted.prepare({ sessionId: 's1' })
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })
+  try {
+    complete(copy(snapshot))
+    await assert.rejects(restoring, /账号已切换/)
+    assert.equal(storage.get('qandaOnlineLast:u2'), undefined, '迟到的恢复结果不写入新账号')
+  } finally { assets.completeSnapshot = completeSnapshot }
   assert.equal((await restarted.send('s1', {}, 'u1')).statusCode, 401)
   http.request = request
   restarted.queue.stop()
