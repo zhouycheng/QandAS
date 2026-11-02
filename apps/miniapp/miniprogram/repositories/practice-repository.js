@@ -162,7 +162,11 @@ module.exports.getResumableSession = function (storage) {
   const snapshot = !auth.loggedIn ? require('./trial-practice.js').resumable(storage) : storage.get(`qandaOnline:${auth.userId}:${storage.get(`qandaOnlineLast:${auth.userId}`) || ''}`)
   if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: snapshot.route })
   if (!auth.loggedIn) return null
-  const recent = remoteData.getRecent(storage).find(item => {
+  const overview = remoteData.getOverview(storage)
+  const recentItems = overview && Object.prototype.hasOwnProperty.call(overview, 'recentSession')
+    ? overview.recentSession ? [overview.recentSession] : []
+    : remoteData.getRecent(storage)
+  const recent = recentItems.find(item => {
     const local = storage.get(`qandaOnline:${auth.userId}:${item.id}`)
     return item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
   })

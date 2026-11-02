@@ -126,6 +126,8 @@
   opacity: 0.86;
 }
 
+.continue-btn.is-disabled { background: #b9c9eb; box-shadow: none; }
+
 .continue-icon {
   width: 0;
   height: 0;
@@ -134,6 +136,29 @@
   border-width: 20rpx 0 20rpx 32rpx;
   border-color: transparent transparent transparent #ffffff;
 }
+
+.continue-icon-arrow-right, .continue-icon-arrow-left {
+  position: relative;
+  width: 46rpx;
+  height: 6rpx;
+  margin-left: 0;
+  border: 0;
+  border-radius: 3rpx;
+  background: #fff;
+}
+.continue-icon-arrow-right::after, .continue-icon-arrow-left::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -10rpx;
+  width: 26rpx;
+  height: 26rpx;
+  border-top: 6rpx solid #fff;
+  border-right: 6rpx solid #fff;
+  box-sizing: border-box;
+  transform: rotate(45deg);
+}
+.continue-icon-arrow-left { transform: rotate(180deg); }
 
 /**
  * ⚠️ 「继续答题」这四个字**绝不能 left:0 + right:0 铺满整条底栏**。
@@ -162,3 +187,4 @@
 .continue-label-hover {
   opacity: 0.72;
 }
+.continue-label.is-disabled { color: #929eb3; }

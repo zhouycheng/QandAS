@@ -67,6 +67,9 @@ Component({
 
   data: {
     selected: 0,
+    continueLabel: '跳转题库',
+    continueIcon: 'arrow-right',
+    continueDisabled: false,
     tabs: [
       { key: 'home', text: '首页', icon: '/assets/tabbar/home.png', activeIcon: '/assets/tabbar/home-active.png' },
       { key: 'bank', text: '题库', icon: '/assets/tabbar/bank.png', activeIcon: '/assets/tabbar/bank-active.png' },
@@ -77,8 +80,24 @@ Component({
 
   lifetimes: {
     attached() {
+      const { createStoreBindings } = require('mobx-miniprogram-bindings')
+      this.storage = createWxStorageAdapter()
       // 组件实例可能早于页面 onShow 创建，先按当前页面栈定位一次
       this.syncFromRoute()
+      this.storeBindings = createStoreBindings({ setData: () => this.syncContinueState() }, {
+        fields: { resumeTarget: () => {
+          if (practiceRepository.isRemoteEnabled()) {
+            practiceRepository.getRemoteOverview(this.storage)
+            practiceRepository.getRemoteRecent(this.storage)
+          }
+          return resolveContinueTarget(this.storage)
+        } },
+        structuralComparison: true
+      })
+      this.storeBindings.updateStoreBindings()
+    },
+    detached() {
+      if (this.storeBindings) this.storeBindings.destroyStoreBindings()
     }
   },
 
@@ -89,9 +108,8 @@ Component({
       const route = current && current.route ? current.route : ''
       const index = findTabIndexByRoute(route)
 
-      if (index >= 0 && index !== this.data.selected) {
-        this.setData({ selected: index })
-      }
+      if (index >= 0) this.setSelected(route)
+      else this.syncContinueState()
 
       return index
     },
@@ -101,6 +119,20 @@ Component({
     setSelected(route) {
       const index = findTabIndexByRoute(route)
       if (index >= 0 && index !== this.data.selected) this.setData({ selected: index })
+      this.syncContinueState()
+      if (practiceRepository.isRemoteEnabled()) practiceRepository.refreshRemoteOverview(this.storage || createWxStorageAdapter()).catch(() => {})
+    },
+
+    syncContinueState() {
+      const target = resolveContinueTarget(this.storage || createWxStorageAdapter())
+      const canContinue = target.type === 'practice'
+      const onBank = this.data.selected === 1
+      this.setData({
+        continueLabel: canContinue ? '继续答题' : onBank ? '选择题库' : '跳转题库',
+        continueIcon: canContinue || onBank ? 'play' : this.data.selected === 0 ? 'arrow-right' : 'arrow-left',
+        continueDisabled: !canContinue && onBank
+      })
+      return target
     },
 
     handleTabTap(e) {
@@ -128,7 +160,8 @@ Component({
     },
 
     handleContinueTap() {
-      const target = resolveContinueTarget(createWxStorageAdapter())
+      const target = this.syncContinueState()
+      if (this.data.continueDisabled) return
 
       if (target.type === 'practice') {
         navigation.navigateTo({

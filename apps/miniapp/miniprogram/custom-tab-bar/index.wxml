@@ -17,24 +17,28 @@
     </view>
   </view>
 
-  <!-- 中央圆钮：只放播放三角，不再塞文字 —— 文字放下面白色胶囊里，
-       一是圆钮能变小一点不压顶，二是文字和左右四个 tab 的标签齐平。
-       两者各自可点，都走 handleContinueTap。 -->
+  <!-- 中央动作与文案共用状态，点击时再次读取可续答任务。 -->
   <view
-    class="continue-btn"
+    class="continue-btn {{continueDisabled ? 'is-disabled' : ''}}"
+    aria-role="button"
+    aria-label="{{continueLabel}}"
+    aria-disabled="{{continueDisabled}}"
     bindtap="handleContinueTap"
-    hover-class="continue-hover"
+    hover-class="{{continueDisabled ? 'none' : 'continue-hover'}}"
     hover-start-time="0"
     hover-stay-time="80"
   >
-    <view class="continue-icon"></view>
+    <view class="continue-icon continue-icon-{{continueIcon}}"></view>
   </view>
 
   <text
-    class="continue-label"
+    class="continue-label {{continueDisabled ? 'is-disabled' : ''}}"
+    aria-role="button"
+    aria-label="{{continueLabel}}"
+    aria-disabled="{{continueDisabled}}"
     bindtap="handleContinueTap"
-    hover-class="continue-label-hover"
+    hover-class="{{continueDisabled ? 'none' : 'continue-label-hover'}}"
     hover-start-time="0"
     hover-stay-time="80"
-  >继续答题</text>
+  >{{continueLabel}}</text>
 </view>
