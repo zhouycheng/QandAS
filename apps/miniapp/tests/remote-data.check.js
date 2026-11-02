@@ -76,6 +76,12 @@ async function main() {
   await remote.refresh(storage, 'collection', { kind: 'WRONG' })
   await remote.refresh(storage, 'collection', { kind: 'FAVORITE' })
   await remote.refresh(storage, 'stats', { period: 'WEEK' })
+  await remote.refresh(storage, 'recent')
+  assert.strictEqual(repository.getResumableSession(storage).sessionId, 'p1', '新设备从云端摘要续答')
+  storage.set('qandaOnlineLast:u1', 'p1')
+  storage.set('qandaOnline:u1:p1', { id: 'p1', status: 'IN_PROGRESS', viewCompleted: true })
+  assert.strictEqual(repository.getResumableSession(storage), null, '背题本机已结束时，不受迟到的云端进行中摘要影响')
+  storage.remove('qandaOnline:u1:p1')
   assert.strictEqual(remote.getSubjectSummaries()[0].questionCount, 3)
   assert.strictEqual(remote.getBankMeta('b1').contentVersion, 8)
   assert.strictEqual(remote.getProgress(storage).b1.answeredCount, 1)
@@ -119,6 +125,13 @@ async function main() {
   assert.strictEqual(waitingChoices.command.type, 'choosePractice')
   assert.strictEqual(waitingChoices.command.choices[0].id, 'waiting-id', '后台等待的原练习必须有可重新打开的入口')
   onlineRuntime.current = oldCurrent
+  const historyChoices = await new SubjectListViewModel({ storage, repository: {
+    isRemoteEnabled: () => true, refreshRemote: async () => {}, getAuth: () => ({ loggedIn: false }),
+    getRemoteRecent: () => [{ id: 'reading', status: 'IN_PROGRESS', createdAt: '2026-11-01T10:00:00Z' }, { id: 'graded', status: 'SUBMITTED' }, { id: 'closed', status: 'CANCELLED' }],
+    getScopeMeta: () => null
+  } }).openRecent()
+  assert.deepStrictEqual(historyChoices.command.choices.map(choice => choice.id), ['reading', 'graded'], '最近练习同时提供续答与历史结果入口')
+  assert(historyChoices.command.choices[0].label.endsWith('11-01 18:00'), '历史菜单使用北京时间')
 
   await remote.refreshProfile(storage)
   await remote.saveProfile(storage, { nickname: '新昵称' })
@@ -146,6 +159,59 @@ async function main() {
   await pendingHome
   assert.deepStrictEqual(remote.getAnnouncements(storage), [], '迟到公告不得显示到新账号')
   assert.strictEqual(homeVm.load().data.hasAnnouncements, false)
+
+  remote.enable(true)
+  let published = true
+  api.request = async (method, path) => {
+    if (path === '/subjects') return { ok: true, data: { items: published ? [{ id: 'visible', name: '可见课程' }] : [], total: published ? 1 : 0, page: 1, pageSize: 20 } }
+    if (path === '/question-banks') return { ok: true, data: { items: published ? [{ id: 'visible-bank', subjectId: 'visible', name: '题库' }] : [], total: published ? 1 : 0, page: 1, pageSize: 20 } }
+    return { ok: false, statusCode: 404, reason: '内容已下架' }
+  }
+  await remote.refreshCatalog(storage)
+  assert.strictEqual(remote.getSubjectSummaries().length, 1)
+  published = false
+  await remote.refreshCatalog(storage, { subjectId: 'visible', force: true })
+  assert.strictEqual(remote.getSubjectSummaries().length, 0, '主动刷新移除已失效的课程；原课程 404 不阻断刷新')
+
+  remote.enable(true)
+  let detailReads = 0
+  api.request = async (method, path) => {
+    if (path === '/subjects') return { ok: true, data: { items: [{ id: 'first', name: '第一页课程' }], total: 21, page: 1, pageSize: 20 } }
+    if (path === '/subjects/direct') { detailReads++; return { ok: true, data: { id: 'direct', name: '直接进入的课程' } } }
+    return { ok: true, data: { items: [], total: 0, page: 1, pageSize: 20 } }
+  }
+  await remote.refreshCatalog(storage, { subjectId: 'direct' })
+  await remote.refreshSubjects(storage, { force: true })
+  await remote.refreshCatalog(storage, { subjectId: 'direct' })
+  assert.strictEqual(remote.getSubjectDetail('direct').name, '直接进入的课程', '详情缓存命中时仍恢复第一页之外的目标课程')
+  assert.strictEqual(detailReads, 1, '目标详情有效缓存不重复请求')
+  const tip = require('../miniprogram/utils/home-content.js').buildHomeTip({ answered: 14, total: 8, coverageKnown: false })
+  assert(!tip.text.includes('所有题目'), '历史题目和当前可见题目不同，不能推断题库全部做完')
+
+  remote.enable(true)
+  let selectedScope
+  api.request = async (method, path, body) => {
+    const bank = { id: 'bank', subjectId: 'subject', name: '真实题库', activeQuestionCount: 7, contentVersion: 3 }
+    if (path === '/subjects') return { ok: true, data: { items: [{ id: 'subject', name: '课程', questionCount: 7, bankCount: 1 }], total: 1, page: 1, pageSize: 20 } }
+    if (path === '/question-banks') return { ok: true, data: { items: [bank], total: 1, page: 1, pageSize: 20 } }
+    if (path === '/question-banks/bank') return { ok: true, data: bank }
+    if (path === '/question-banks/bank/chapters') return { ok: true, data: [{ id: 'chapter', name: '真实章节', questionCount: 2 }] }
+    if (path === '/practice/scope-preview') { selectedScope = body; return { ok: true, data: { availableCount: 2, selectedCount: 2 } } }
+    return { ok: true, data: {} }
+  }
+  await remote.refreshCatalog(storage)
+  const { BankDetailViewModel } = require('../miniprogram/viewmodels/bank-detail-viewmodel.js')
+  const chapterVm = new BankDetailViewModel({ storage })
+  chapterVm.load('subject')
+  const sheet = await chapterVm.openBankConfig('subject', 'bank')
+  assert.strictEqual(sheet.data.rows[0].title, '真实题库')
+  assert.strictEqual(sheet.data.sheetChapters[1].name, '真实章节')
+  assert.strictEqual(chapterVm.setSheetChapter('missing'), null)
+  chapterVm.setSheetChapter('chapter')
+  const startChapter = await chapterVm.confirmConfig()
+  assert.deepStrictEqual(selectedScope.chapterIds, ['chapter'])
+  assert(startChapter.command.payload.url.includes('chapterId=chapter'))
+  assert(startChapter.command.payload.url.includes('count=2'))
 
   remote.enable(false)
   console.log('remote-data checks passed')

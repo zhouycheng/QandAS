@@ -25,7 +25,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     private fun validateScope(actor: Actor?,scope: ScopeInput): BankReference {
         if(scope.count !in 1..1000 || scope.order !in setOf("SEQUENTIAL","RANDOM") || scope.selectionKind !in setOf("NORMAL","WRONG","FAVORITE")) invalid("/scope")
         if(actor==null && scope.selectionKind!="NORMAL") forbidden()
-        val chips=when(scope.selectionKind) { "WRONG" -> setOf("all","repeat","recent");"FAVORITE" -> setOf("all","pending","practiced");else -> setOf("all") }
+        val chips=when(scope.selectionKind) { "WRONG" -> setOf("all","repeat","recent","subjective");"FAVORITE" -> setOf("all","pending","practiced");else -> setOf("all") }
         if(scope.collectionChip !in chips) invalid("/scope/collectionChip")
         val bank=content.bank(actor,scope.questionBankId)
         if(scope.chapterIds.size>100 || scope.chapterIds.distinct().size!=scope.chapterIds.size) invalid("/scope/chapterIds")
@@ -45,7 +45,12 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     }
     private fun grading(id: UUID,q: QuestionView)=OfflineGrading(id,q.correctAnswer,q.correctValue,q.referenceAnswer,q.explanation,q.blanks,q.blankMatch,q.scoringPoints)
     private fun display(q: QuestionView)=q.copy(correctAnswer=null,correctValue=null,referenceAnswer=null,explanation=null,blanks=null,blankMatch=null,scoringPoints=null)
+    private fun validateConfiguration(mode: String?,timeLimitSeconds: Int?) {
+        if(mode!=null && mode !in setOf("order","practice","test","view")) invalid("/mode")
+        if(timeLimitSeconds!=null && (timeLimitSeconds !in 1..86400 || mode=="view")) invalid("/timeLimitSeconds")
+    }
     fun trialSnapshot(input: TrialSnapshotInput): TrialSnapshotView {
+        validateConfiguration(input.mode,input.timeLimitSeconds)
         val bank=validateScope(null,input.scope)
         val locked=content.lockBank(bank.id!!) ?: missing()
         content.bank(null,bank.id!!)
@@ -57,12 +62,13 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         val items=selected.mapIndexed { position,q ->
             val id=UUID.randomUUID();val answer=content.revision(q.id!!,q.currentRevisionId,answers=true)
             grading.add(grading(id,answer))
-            PracticeItemView(id,position,display(answer),null,false,false,null,null)
+            PracticeItemView(id,position,if(input.mode=="view") answer else display(answer),null,false,false,null,null)
         }
         return TrialSnapshotView(UUID.randomUUID(),bank.id!!,input.feedback,
-            PracticeConfiguration(input.scope.chapterIds,items.size,input.scope.order,"NORMAL",input.feedback,locked.contentVersion,selected.map { it.id!! }),items,grading,clock.instant())
+            PracticeConfiguration(input.scope.chapterIds,items.size,input.scope.order,"NORMAL",input.feedback,locked.contentVersion,selected.map { it.id!! },mode=input.mode,timeLimitSeconds=input.timeLimitSeconds),items,grading,clock.instant())
     }
     fun create(actor: Actor,input: CreatePracticeInput): PracticeView {
+        validateConfiguration(input.mode,input.timeLimitSeconds)
         val bank=validateScope(actor,input.scope)
         system.lock("practice:${actor.id}:${bank.id}")
         // All content writes hold the bank row, so selection and revision pinning share one boundary.
@@ -73,7 +79,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         val chosen=sql.eligible(actor.id,input.scope)
         if(chosen.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;clientType=actor.clientType;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
-        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,locked.contentVersion,chosen.map { it.id!! },input.scope.collectionChip))
+        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,locked.contentVersion,chosen.map { it.id!! },input.scope.collectionChip,input.mode,input.timeLimitSeconds))
         session.writerDeviceId=input.deviceId;session.writerToken=UUID.randomUUID()
         rows.insert(session)
         ownership.create(session.id!!,writeState(session))
@@ -100,7 +106,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
         return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);item.answerBlanks!=null -> AnswerInput(blanks=json.readValue(item.answerBlanks,Array<String>::class.java).toList());else -> null }
     }
     private fun views(session: PracticeSession): List<PracticeItemView> = sql.items(session.id!!).map { item ->
-        val reveal=session.status=="SUBMITTED" || session.feedback=="IMMEDIATE" && item.confirmed
+        val configuration=json.readValue(session.configurationSnapshot,PracticeConfiguration::class.java)
+        val revision=content.revision(item.questionId!!,item.revisionId!!,false,item.materialRevisionId)
+        val reveal=session.status=="SUBMITTED" || configuration.mode=="view" || session.feedback=="IMMEDIATE" && item.confirmed && revision.type!="SHORT_ANSWER"
         val question=content.question(item.questionId!!)
         PracticeItemView(item.id!!,item.position,content.revision(question.id!!,item.revisionId!!,reveal,item.materialRevisionId),answer(item),item.confirmed,item.marked,item.outcome.takeIf { reveal },item.selfAssessment.takeIf { reveal })
     }
@@ -179,24 +187,26 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
             val question=content.revision(item.questionId!!,item.revisionId!!,true,item.materialRevisionId)
             Grading.validate(question,normalized)
             val previous=answer(item)
-            if(row.feedback=="IMMEDIATE" && item.confirmed && (normalized!=previous || !change.confirmed)) conflict("ANSWER_CONFIRMED","已确认的答案不能修改")
-            if(change.confirmed && normalized==null) invalid("/items/confirmed")
+            if(row.feedback=="IMMEDIATE" && question.type!="SHORT_ANSWER" && item.confirmed && (normalized!=previous || !change.confirmed)) conflict("ANSWER_CONFIRMED","已确认的答案不能修改")
+            if(change.confirmed && !Grading.hasInput(normalized)) invalid("/items/confirmed")
             if(normalized==previous && change.confirmed==item.confirmed && change.marked==item.marked) return@forEach
             item.answerText=normalized?.text;item.answerBoolean=normalized?.value;item.answerBlanks=normalized?.blanks?.let { json.writeValueAsString(it) };item.confirmed=change.confirmed;item.marked=change.marked
-            item.outcome=if(row.feedback=="IMMEDIATE" && change.confirmed) Grading.outcome(question,normalized) else null
+            item.outcome=if(row.feedback=="IMMEDIATE" && question.type!="SHORT_ANSWER" && change.confirmed) Grading.outcome(question,normalized) else null
             sql.clearChoices(item.id!!);normalized?.optionKeys?.forEach { sql.addChoice(item.id!!,item.revisionId!!,it) };sql.updateAnswer(item)
         }
     }
     fun finish(actor: Actor,id: UUID,input: FinishInput): ResultView {
         val row=owned(actor.id,id,true)
         if(row.status=="SUBMITTED") return result(actor.id,id)
+        if(json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java).mode=="view") conflict("STUDY_NOT_SCORED","背题通过结束浏览完成")
         ownership.requireDrained(id)
         writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version);if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
         duration(row,input.durationSeconds);val items=sql.items(id);applyAnswers(row,items,input.items)
         val finalItems=sql.items(id)
         finalItems.forEach { item ->
             val question=content.revision(item.questionId!!,item.revisionId!!,true,item.materialRevisionId)
-            val submitted=answer(item).takeIf { question.type !in setOf("MULTIPLE_CHOICE","FILL_BLANK") || item.confirmed }
+            val submitted=answer(item)?.takeIf { Grading.hasInput(it) }
+            item.confirmed=submitted!=null
             item.outcome=Grading.outcome(question,submitted);sql.updateAnswer(item)
         }
         val short=finalItems.filter { content.revision(it.questionId!!,it.revisionId!!,false,it.materialRevisionId).type=="SHORT_ANSWER" }
@@ -210,9 +220,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     fun result(userId: UUID,id: UUID): ResultView {
         val session=owned(userId,id);if(session.status!="SUBMITTED") conflict("RESULT_NOT_READY","练习尚未交卷")
         val result=sql.result(id) ?: missing();val items=views(session);val short=items.filter { it.question.type=="SHORT_ANSWER" }
-        val rated=short.count { it.selfAssessment!=null };val answered=short.count { it.answer!=null };val objectiveAnswered=result.correctCount+result.wrongCount
+        val rated=short.count { it.selfAssessment!=null };val answered=short.count { it.outcome=="SELF_RATED" };
         return ResultView(result.id!!,id,session.version,result.totalCount,result.answeredCount,result.durationSeconds,
-            ObjectiveMetrics(result.objectiveCount,objectiveAnswered,result.correctCount,result.wrongCount,result.unansweredCount,if(objectiveAnswered==0) 0.0 else result.correctCount.toDouble()/objectiveAnswered),
+            objectiveMetrics(result.objectiveCount,result.correctCount,result.wrongCount),
             SelfMetrics(short.size,answered,rated,short.count { it.selfAssessment=="CORRECT" },short.count { it.selfAssessment=="WRONG" },short.size-rated),items,session.submittedAt!!)
     }
     fun assess(actor: Actor,id: UUID,itemId: UUID,input: SelfAssessmentInput): ResultView {

@@ -15,6 +15,10 @@ async function cacheChecks() {
   resolve({ items: [1], total: 100 }); await one
   assert.deepEqual(await cache.load(key, 300000, request), published)
   assert.equal(calls, 1, '有效缓存不发请求')
+  published = { items: [99] }
+  await cache.load(key, 300000, request, data => { published = data })
+  assert.deepEqual(published.items, [1], '返回缓存页时恢复对应列表，避免保留其他页或丢失已缓存的后续页')
+  assert.equal(calls, 1)
   await assert.rejects(cache.load(key, 300000, () => Promise.reject(new Error('慢网失败')), null, true))
   assert.equal(cache.read(key).status, 'error')
   assert.deepEqual(cache.read(key).data.items, [1], '失败时保留可用内容')

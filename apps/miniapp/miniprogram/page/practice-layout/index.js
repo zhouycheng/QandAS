@@ -3,6 +3,10 @@ const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 const { PracticeLayoutViewModel } = require('../../viewmodels/practice-layout-viewmodel.js')
 Page(withPageLifecycle({
   data: PracticeLayoutViewModel.getInitialData(),
+  ignoreSwipe() {},
+  onAnswerFocus() {},
+  onAnswerBlur() {},
+  onKeyboardHeight() {},
   onLoad() { this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() }); this.applyViewModelResult(this.viewModel.load()) },
   onReady() { this.measure() },
   onResize() { this.cancelDrag(); this.measure() },

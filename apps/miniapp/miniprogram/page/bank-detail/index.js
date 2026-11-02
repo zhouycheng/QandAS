@@ -193,6 +193,10 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.setSheetMode(e.currentTarget.dataset.value))
   },
 
+  handleSheetChapter(e) {
+    this.applyViewModelResult(this.viewModel.setSheetChapter(e.currentTarget.dataset.chapterId))
+  },
+
   handleSheetOrder(e) {
     if (this.data.sheetOrderDisabled) {
       wx.showToast({

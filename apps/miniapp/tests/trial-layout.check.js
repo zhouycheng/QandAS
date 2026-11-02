@@ -62,9 +62,10 @@ async function main() {
   assert.equal(resumed.session.getViewData().shouldRevealAnswer, true)
   resumed.goNext(); resumed.selectOption(0); resumed.goNext()
   resumed.setAnswerText('我的简答'); resumed.goNext()
-  assert.equal(resumed.session.getViewData().currentCorrectAnswerText, '参考内容')
-  resumed.assessShortAnswer('CORRECT')
+  assert.equal(resumed.session.getViewData().currentCorrectAnswerText, '', '主观参考内容交卷后展示')
   resumed.forceSubmit()
+  await resumed.assessResult('q3', 'CORRECT')
+  assert.equal(resumed.session.state.score, 100, '主观自评不改变客观得分')
   assert.equal(resumed.session.state.isCompleted, true)
   assert.equal(requests.length, beforeRestart, '离线试答交卷只落盘')
   assert.deepEqual(storage.keys(), [trials.KEY], '试答不写账号、错题、收藏或正式同步记录')
@@ -107,6 +108,10 @@ async function main() {
   assert.equal(repository.getPreferences(local).examName, '期末考试')
   const reload = new PracticeLayoutViewModel({ storage: local }).load().data
   assert.equal(reload.layoutRanks.tools, 0)
+  editor.reset(); editor.preview(6); editor.drop('tools', 3)
+  assert.equal(editor.order[editor.order.length - 1], 'tools', '填空隐藏独立作答区后仍能拖到末尾')
+  editor.drop('analysis', 1)
+  assert.deepEqual(editor.order.filter(id => id !== 'response'), ['info', 'analysis', 'stem', 'tools'])
   const scriptVm = require('node:vm')
   const fs = require('node:fs')
   const context = { module: { exports: {} } }

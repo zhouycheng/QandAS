@@ -17,6 +17,7 @@ const utils = {
 const { PracticeViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/practice-viewmodel.js'))
 const { WrongBookViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/wrong-book-viewmodel.js'))
 const { MyViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/my-viewmodel.js'))
+const { AboutViewModel } = require(path.join(MINIPROGRAM, 'viewmodels/about-viewmodel.js'))
 
 const results = []
 
@@ -119,7 +120,7 @@ function answerSession(vm, shouldAnswerWrong) {
   assert('错题本 - 再错回到待复习', getPendingIds(wrongBook).length === 1, '未回到待复习')
 
   const withUnanswered = mergeResults(null, [{ id: 'q-002', answered: false, correct: false }])
-  assert('错题本 - 未作答按答错处理', getPendingIds(withUnanswered).length === 1, '未作答未入错题本')
+  assert('错题本 - 未作答单独保留', getPendingIds(withUnanswered).length === 0, '未作答不得进入客观错题本')
 
   const summary = summarizeWrongBook(wrongBook)
   assert('错题本 - 汇总字段完整', summary.pending === 1 && summary.total === 1, JSON.stringify(summary))
@@ -238,10 +239,10 @@ function answerSession(vm, shouldAnswerWrong) {
   assert('错题本页 - 科目分布有数据',
     wrongData.hasDist && wrongData.dist.length >= 1 && wrongData.dist[0].count === 2,
     JSON.stringify(wrongData.dist))
-  assert('错题本页 - chips 是「全部 / 反复错 / 近 7 天更新」',
-    wrongData.chips.map((chip) => chip.key).join(',') === 'all,repeat,recent',
+  assert('错题本页 - chips 区分客观错题与主观待复习',
+    wrongData.chips.map((chip) => chip.key).join(',') === 'all,subjective,repeat,recent',
     wrongData.chips.map((chip) => chip.key).join(','))
-  assert('错题本页 - chips 带真实计数', wrongData.chips[0].text === '全部 2', wrongData.chips[0].text)
+  assert('错题本页 - chips 带真实计数', wrongData.chips[0].text === '客观错题 2', wrongData.chips[0].text)
   assert('错题本页 - 底部按钮带题量',
     wrongData.footerText === '开始错题练习 · 2 道', wrongData.footerText)
   assert('错题本页 - 默认按「最需复习」排', wrongData.sortText === '最需复习', wrongData.sortText)
@@ -357,8 +358,8 @@ function answerSession(vm, shouldAnswerWrong) {
   assert('我的页 - 不再重复展示错题/收藏计数',
     myData.wrongCount === undefined && myData.favoriteCount === undefined,
     `wrong=${myData.wrongCount} favorite=${myData.favoriteCount}`)
-  assert('我的页 - 关于弹层带题库规模', myData.about.questionCount > 0,
-    `questionCount=${myData.about.questionCount}`)
+  const about = new AboutViewModel({ storage }).load().data
+  assert('关于页 - 展示应用说明', about.paragraphs.length === 3)
 }
 
 // ---------- 6. 底部主按钮文案（底部只保留上一题 / 下一题） ----------

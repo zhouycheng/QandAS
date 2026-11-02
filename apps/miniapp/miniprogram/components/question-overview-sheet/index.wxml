@@ -14,7 +14,7 @@
     <view class="panel-stats" wx:if="{{showStatus}}">
       <view class="stat-item">
         <view class="stat-dot dot-answered"></view>
-        <text class="stat-text">已答 {{answeredCount}}题</text>
+        <text class="stat-text">已答 {{answeredCount}}题 · 草稿 {{draftCount}}题</text>
       </view>
       <text class="stat-sep">·</text>
       <view class="stat-item">
@@ -34,6 +34,7 @@
     <view class="legend" wx:if="{{showStatus}}">
       <view class="legend-item"><view class="dot dot-answered"></view><text class="legend-text">已答</text></view>
       <view class="legend-item"><view class="dot dot-pending"></view><text class="legend-text">未答</text></view>
+      <view class="legend-item"><view class="dot dot-draft"></view><text class="legend-text">草稿</text></view>
       <view class="legend-item"><view class="dot dot-current"></view><text class="legend-text">当前</text></view>
       <view class="legend-item"><view class="dot dot-mark"></view><text class="legend-text">标记</text></view>
     </view>
@@ -43,7 +44,7 @@
         <view
           wx:for="{{items}}"
           wx:key="index"
-          class="cell {{item.isCurrent ? 'cell-current' : ''}} {{item.answered ? 'cell-answered' : 'cell-pending'}}"
+          class="cell {{item.isCurrent ? 'cell-current' : ''}} {{item.isDraft ? 'cell-draft' : (item.answered ? 'cell-answered' : 'cell-pending')}}"
           data-index="{{item.index}}"
           bindtap="handleItemTap"
           hover-class="cell-hover"

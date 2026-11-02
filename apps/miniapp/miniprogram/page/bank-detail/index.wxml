@@ -176,6 +176,11 @@
       </view>
 
       <view class="config-rows">
+        <scroll-view wx:if="{{sheetChapters.length}}" class="config-chapters" scroll-y>
+          <view class="seg-group">
+            <view wx:for="{{sheetChapters}}" wx:key="id" class="seg-chip {{sheetChapterId === item.id ? 'is-active' : ''}}" data-chapter-id="{{item.id}}" bindtap="handleSheetChapter" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.name}} · {{item.questionCount}} 题</view>
+          </view>
+        </scroll-view>
         <view class="config-row">
           <text class="config-label">模式</text>
           <view class="seg-group">

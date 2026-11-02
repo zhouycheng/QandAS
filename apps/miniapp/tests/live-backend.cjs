@@ -40,13 +40,14 @@ async function main() {
     if (question.isShortAnswer) {
       vm.setAnswerText('自主练习验收作答')
       vm.goNext()
-      vm.assessShortAnswer('CORRECT')
     } else {
       question.answerKeys.forEach(key => vm.selectOption(question.options.findIndex(option => option.key === key)))
       if (question.isMultiple) vm.goNext()
     }
   }
   await vm.forceSubmit()
+  const subjective = vm.session.state.questions.find(question => question.isShortAnswer)
+  await vm.assessResult(subjective.id, 'CORRECT')
   const completed = runtime.get(vm.session.meta.sessionId)
   assert.equal(completed.status, 'SUBMITTED')
   assert.equal(completed.result.objective.wrong, 0)

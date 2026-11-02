@@ -32,14 +32,18 @@ const RESULT_FILTERS = {
   ALL: 'all',
   CORRECT: 'correct',
   WRONG: 'wrong',
-  UNANSWERED: 'unanswered'
+  UNANSWERED: 'unanswered',
+  REVIEW: 'review',
+  UNSCORED: 'unscored'
 }
 
 const RESULT_FILTER_TEXT = {
   all: '全部',
   correct: '正确',
   wrong: '错误',
-  unanswered: '未答'
+  unanswered: '未答',
+  review: '待复习',
+  unscored: '不计分'
 }
 
 function normalizeMode(value) {
@@ -110,11 +114,20 @@ function getInitialPracticeViewData() {
       all: 0,
       correct: 0,
       wrong: 0,
-      unanswered: 0
+      unanswered: 0,
+      review: 0,
+      unscored: 0
     },
     resultFilterEmptyText: '暂无题目',
     isViewMode: false,
     isTestMode: false,
+    isTimed: false,
+    feedback: 'IMMEDIATE',
+    answerLocked: false,
+    pendingConfirmationCount: 0,
+    objectiveCount: 0,
+    objectiveAccuracyText: '—',
+    scoreText: '已完成',
     subjectId: '',
     bankId: '',
     practiceTitle: DEFAULT_PRACTICE_TITLE,
@@ -173,7 +186,7 @@ class PracticeSession {
     const isViewMode = mode === PRACTICE_MODES.VIEW
     const isTestMode = mode === PRACTICE_MODES.TEST
     const durationMinutes = parsePositiveInteger(normalizedOptions.durationMinutes, DEFAULT_TEST_DURATION_MINUTES)
-    const durationSeconds = durationMinutes * 60
+    const durationSeconds = parsePositiveInteger(normalizedOptions.timeLimitSeconds, durationMinutes * 60)
     const preferences = normalizePreferences(normalizedOptions.preferences)
     const restored = normalizedOptions.restored || null
     const now = typeof normalizedOptions.now === 'number' ? normalizedOptions.now : Date.now()
@@ -186,7 +199,7 @@ class PracticeSession {
       sessionId: (restored && restored.sessionId) || createSessionId(now, normalizedOptions.random),
       subjectId: quiz ? quiz.subjectId : '',
       questionBankId: quiz ? quiz.bankId : '',
-      config: normalizedOptions.config || {},
+      config: Object.assign({}, normalizedOptions.config, { feedback: normalizedOptions.feedback || (isTestMode ? 'AFTER_FINISH' : 'IMMEDIATE') }),
       questionIds: (restored && restored.questionIds) || null,
       questionOrder: (restored && restored.questionOrder) || null,
       createdAt: (restored && restored.createdAt) || now,
@@ -196,6 +209,8 @@ class PracticeSession {
       mode,
       isViewMode,
       isTestMode,
+      isTimed: !isViewMode && (normalizedOptions.isTimed === undefined ? isTestMode || !!normalizedOptions.timeLimitSeconds : normalizedOptions.isTimed),
+      feedback: normalizedOptions.feedback || (isTestMode ? 'AFTER_FINISH' : 'IMMEDIATE'),
       sessionId: this.meta.sessionId,
       sessionStatus: (restored && restored.status) || SESSION_STATUS.IN_PROGRESS,
       syncStatus: (restored && restored.syncStatus) || SYNC_STATUS.LOCAL_ONLY,
@@ -210,7 +225,7 @@ class PracticeSession {
       // 页内导航的第二行：「练习模式 · 共 12 题」。
       // 用真实字段拼，别写死章节名——题库里没有章节信息
       practiceSubtitle: `${MODE_LABELS[mode] || '练习'} · 共 ${quiz ? quiz.questions.length : 0} 题`,
-      practicePath: normalizedOptions.practicePath || (quiz ? quiz.sharePath : '/page/practice/index'),
+      practicePath: normalizedOptions.practicePath || (quiz && quiz.sharePath) || '/page/practice/index',
       questions: quiz ? quiz.questions : [],
       total: quiz ? quiz.questions.length : 0,
       durationSeconds,
@@ -329,7 +344,7 @@ class PracticeSession {
     this.pausedAt = 0
 
     // 模拟测试的倒计时也要接着走，否则恢复一场 10 分钟的测试会白得一个满时间
-    if (this.state.isTestMode) {
+    if (this.state.isTimed) {
       this.state.timerSeconds = Math.max(this.state.durationSeconds - elapsedSeconds, 0)
       this.state.timerText = formatTimer(this.state.timerSeconds)
     }
@@ -454,11 +469,11 @@ class PracticeSession {
       data.filteredResultItems = []
       data.answers = []
     }
+    if (!data.isCompleted) data.overviewItems = data.overviewItems.map(item => Object.assign({}, item, { isCorrect: false }))
     if (!data.shouldRevealAnswer) {
       data.currentCorrectAnswerText = ''
       data.currentExplanation = ''
       data.isCurrentAnswerCorrect = false
-      if (data.isTestMode && !data.isCompleted) data.overviewItems = (data.overviewItems || []).map(item => Object.assign({}, item, { isCorrect: false }))
     }
     return data
   }
@@ -477,12 +492,15 @@ class PracticeSession {
 
     // 重练是新的一轮，计时从零开始
     this.resetStudyClock()
+    this.studyRecorded = false
 
     const patch = {
       currentIndex: 0,
       currentNumber: firstQuestion ? 1 : 0,
-      currentQuestion: this.getQuestionView(firstQuestion, [], false),
+      currentQuestion: this.getQuestionView(firstQuestion, [], isViewMode),
       selectedKeys: [],
+      answerText: '',
+      blankInputs: Array.from({ length: firstQuestion && firstQuestion.blankCount || 0 }, (_, i) => ({ index: i, value: isViewMode ? (firstQuestion.blanks[i].answers || []).join(' / ') : '' })),
       answers: [],
       hasAnswered: false,
       shouldRevealAnswer: isViewMode,
@@ -510,7 +528,11 @@ class PracticeSession {
       timerSeconds: this.state.durationSeconds,
       timerText: formatTimer(this.state.durationSeconds),
       correctCount: 0,
-      score: 0,
+      score: null,
+      scoreText: '已完成',
+      objectiveAccuracyText: '—',
+      answerLocked: isViewMode,
+      pendingConfirmationCount: 0,
       wrongQuestionIds: [],
       wrongCount: 0,
       hasWrongQuestions: false,
@@ -552,51 +574,45 @@ class PracticeSession {
     this.state.timerSeconds = 0
     this.state.timerText = formatTimer(0)
 
-    if (this.shouldConfirmCurrentAnswer()) {
-      this.commitCurrentAnswerInternal(this.state.selectedKeys)
-    }
+    this.confirmAllAnswers()
 
     return this.finish()
   }
 
   selectOption(selectedIndex) {
-    if (this.state.isCompleted || this.state.hasAnswered || this.state.isViewMode) {
-      return null
-    }
-
     const question = this.getCurrentBaseQuestion()
+    if (!question || this.state.isCompleted || this.state.isViewMode || this.isAnswerLocked(question) || !question.options[selectedIndex]) return null
+    const key = question.options[selectedIndex].key
+    const selectedKeys = question.isMultiple ? this.toggleSelectedKey(this.state.selectedKeys, key) : [key]
+    this.state.answers[this.state.currentIndex] = { questionId: question.id, selectedKeys, confirmed: false, isCorrect: false }
+    this.state.selectedKeys = selectedKeys
+    if (!question.isMultiple && this.state.feedback === 'IMMEDIATE') return this.commitCurrentAnswer(selectedKeys)
+    return this.showQuestionAtIndex(this.state.currentIndex)
+  }
 
-    if (!question || Number.isNaN(selectedIndex) || !question.options[selectedIndex]) {
-      return null
-    }
+  isAnswerLocked(question) {
+    return this.state.isViewMode || this.state.isCompleted || this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer && this.state.hasAnswered
+  }
 
-    const selectedKey = question.options[selectedIndex].key
+  hasInput(question, answer) {
+    if (!answer) return false
+    if (question.isShortAnswer) return !!(answer.text || '').trim()
+    if (question.isFillBlank) return (answer.blanks || []).some(value => value.trim())
+    return (answer.selectedKeys || []).length > 0
+  }
 
-    if (question.isMultiple) {
-      const selectedKeys = this.toggleSelectedKey(this.state.selectedKeys, selectedKey)
-
-      return this.updateState({
-        selectedKeys,
-        currentQuestion: this.getQuestionView(question, selectedKeys, false),
-        primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, selectedKeys)
-      })
-    }
-
-    const result = this.commitCurrentAnswer([selectedKey])
-
-    // 「答对自动进入下一题」只在单选题、练习模式、且不是最后一题时生效：
-    // 多选题勾选后仍需用户确认，模拟测试需要能回头检查，最后一题要留给结果页
-    if (
-      result &&
-      this.preferences.autoNextWhenCorrect &&
-      this.state.isCurrentAnswerCorrect &&
-      !this.state.isLastQuestion &&
-      !this.state.isTestMode
-    ) {
-      result.autoAdvance = true
-    }
-
-    return result
+  confirmAllAnswers() {
+    this.state.answers = this.state.questions.map((question, index) => {
+      const answer = this.state.answers[index]
+      if (!this.hasInput(question, answer)) return null
+      let isCorrect = false
+      if (question.isFillBlank) isCorrect = gradeBlanks(question, answer.blanks)
+      else if (!question.isShortAnswer) {
+        const keys = (answer.selectedKeys || []).slice().sort()
+        isCorrect = JSON.stringify(keys) === JSON.stringify(question.answerKeys.slice().sort())
+      }
+      return Object.assign({}, answer, { confirmed: true, isCorrect, unscored: !!question.isShortAnswer })
+    })
   }
 
   toggleFavoriteQuestion() {
@@ -689,21 +705,10 @@ class PracticeSession {
   }
 
   submit() {
-    if (this.state.isViewMode) {
-      return this.returnCommand()
-    }
-
-    const unansweredIndexes = this.getUnansweredIndexes(this.state.answers)
-
-    if (unansweredIndexes.length > 0) {
-      return this.updateState({
-        showSubmitModal: true,
-        unansweredCount: unansweredIndexes.length,
-        overviewItems: this.getOverviewItems(this.state.answers, this.state.currentIndex)
-      })
-    }
-
-    return this.finish()
+    if (this.state.isViewMode) return this.returnCommand()
+    const unansweredCount = this.getUnansweredIndexes(this.state.answers).length
+    const pendingConfirmationCount = this.state.questions.filter((question, index) => this.hasInput(question, this.state.answers[index]) && this.state.answers[index].confirmed === false).length
+    return this.updateState({ showSubmitModal: true, unansweredCount, pendingConfirmationCount, overviewItems: this.getOverviewItems(this.state.answers, this.state.currentIndex) })
   }
 
   closeSubmitModal() {
@@ -716,6 +721,8 @@ class PracticeSession {
     return this.updateState({
       showSubmitModal: false,
       showQuestionOverview: true,
+      unansweredCount: this.getUnansweredIndexes(this.state.answers).length,
+      pendingConfirmationCount: this.getOverviewItems(this.state.answers, this.state.currentIndex).filter(item => item.isDraft).length,
       overviewItems: this.getOverviewItems(this.state.answers, this.state.currentIndex)
     })
   }
@@ -739,9 +746,8 @@ class PracticeSession {
   }
 
   forceSubmit() {
-    if (this.shouldConfirmCurrentAnswer()) {
-      this.commitCurrentAnswerInternal(this.state.selectedKeys)
-    }
+    if (this.state.isCompleted) return this.finish()
+    this.confirmAllAnswers()
 
     this.state.showSubmitModal = false
     this.state.showQuestionOverview = false
@@ -749,6 +755,7 @@ class PracticeSession {
   }
 
   finish() {
+    if (this.state.isViewMode) return this.returnCommand()
     const questions = this.state.questions
 
     if (!questions.length) {
@@ -758,10 +765,13 @@ class PracticeSession {
     // 交卷只能落盘一次：重复调用（例如交卷弹窗与超时自动交卷同时触发）
     // 会把同一份结果重复累加进错题本与进度表。
     const alreadyCompleted = this.state.isCompleted
+    if (!alreadyCompleted) this.confirmAllAnswers()
     const answers = this.state.answers
-    const correctCount = answers.filter((item) => item && item.isCorrect).length
-    const score = Math.round((correctCount / questions.length) * 100)
-    const bestScore = Math.max(score, this.state.bestScore)
+    const objectiveCount = questions.filter(question => !question.isShortAnswer).length
+    const objectiveAnswered = questions.filter((question, index) => !question.isShortAnswer && this.hasInput(question, answers[index])).length
+    const correctCount = answers.filter((item, index) => !questions[index].isShortAnswer && item && item.isCorrect).length
+    const score = objectiveCount ? Math.round((correctCount / objectiveCount) * 100) : null
+    const bestScore = score === null ? this.state.bestScore : Math.max(score, this.state.bestScore)
     const resultItems = questions.map((question, index) => {
       // 先取原始值再兜底：直接写 answers[index] || {} 会让未作答也变成 truthy，
       // 于是"没做"被误判成"已答"（且计为答错）
@@ -776,16 +786,20 @@ class PracticeSession {
         number: index + 1,
         typeText: question.typeText,
         isShortAnswer: !!question.isShortAnswer,
+        blankInputs: question.isFillBlank ? (question.blanks || []).map((_, i) => ({ value: (answer.blanks || [])[i] || '' })) : null,
+        contentFormat: question.contentFormat || 'PLAIN_TEXT',
+        presentation: question.presentation || 'STANDARD',
+        codeLanguage: question.codeLanguage || 'text',
         selfAssessment: answer.selfAssessment || '',
         stem: question.stem,
         material: question.material || null,
         assetIds: question.assetIds || [],
         imagePaths: question.imagePaths || [],
         scoringPoints: question.scoringPoints || [],
-        selectedText: question.isFillBlank ? (answer.blanks || []).map((value, i) => `第 ${i + 1} 空：${value || '未填写'}`).join('\n') || '未作答' : answer.text || this.getAnswerText(question, answer.selectedKeys) || '未作答',
+        selectedText: question.isFillBlank ? (answer.blanks || []).map((value, i) => `${String.fromCharCode(9312 + i)} ${value || '未填写'}`).join('\n') || '未作答' : answer.text || this.getAnswerText(question, answer.selectedKeys) || '未作答',
         correctText: question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : this.getAnswerText(question, question.answerKeys),
         answered,
-        isCorrect: answered && !!answer.isCorrect,
+        isCorrect: answered && !question.isShortAnswer && !!answer.isCorrect,
         explanation: this.getExplanation(question),
         // 搜索用：题干 + 全部选项文本预先拼好，避免在 WXML 里做字符串运算
         searchText: `${question.stem} ${(question.options || []).map((option) => option.text).join(' ')}`,
@@ -800,7 +814,7 @@ class PracticeSession {
     })
 
     const wrongQuestionIds = resultItems
-      .filter((item) => !item.isCorrect)
+      .filter((item) => item.answered && !item.isShortAnswer && !item.isCorrect)
       .map((item) => item.id)
     const shouldRecord = !alreadyCompleted
     const answerRecords = buildAnswerRecords(questions, answers)
@@ -816,6 +830,11 @@ class PracticeSession {
       showSubmitModal: false,
       showQuestionOverview: false,
       correctCount,
+      objectiveCount,
+      unansweredCount: questions.length - answeredCount,
+      pendingConfirmationCount: 0,
+      objectiveAccuracyText: objectiveAnswered ? `${Math.round(correctCount / objectiveAnswered * 1000) / 10}%` : '—',
+      scoreText: score === null ? '已完成' : `${score} 分`,
       score,
       bestScore,
       wrongQuestionIds,
@@ -834,12 +853,12 @@ class PracticeSession {
       resultFilterEmptyText: resultItems.length ? '暂无题目' : '暂无题目'
     }, {
       stopTimer: true,
-      saveBestScore: alreadyCompleted || !this.storageKey ? null : {
+      saveBestScore: alreadyCompleted || score === null || !this.storageKey ? null : {
         key: this.storageKey,
         value: bestScore
       },
       saveScopeProgress: alreadyCompleted ? null : this.buildScopeProgressPayload(questions, answers),
-      // 错题本：背题模式不记录（翻一遍答案不是做题），未作答按答错计入；
+      // 错题本：背题模式不记录（翻一遍答案不是做题），未作答单独保留；
       // 用户也可以在「学习偏好」里关掉自动收集
       saveWrongResults:
         !shouldRecord || this.state.isViewMode || !this.preferences.autoAddWrongBook
@@ -856,6 +875,7 @@ class PracticeSession {
       saveDailyLog: !shouldRecord ? null : {
         answered: this.state.isViewMode ? 0 : answeredCount,
         correct: this.state.isViewMode ? 0 : correctCount,
+        objectiveAnswered: this.state.isViewMode ? 0 : objectiveAnswered,
         seconds: elapsedSeconds
       }
     })
@@ -889,7 +909,7 @@ class PracticeSession {
     const selectedKeys = savedAnswer ? savedAnswer.selectedKeys || [] : []
     const hasAnswered = !!savedAnswer && savedAnswer.confirmed !== false
     // 模拟测试模式下不即时反馈，交卷后才统一公布答案
-    const shouldRevealAnswer = this.state.isViewMode || (hasAnswered && !this.state.isTestMode)
+    const shouldRevealAnswer = this.state.isViewMode || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer)
     // 对错与正确答案照常给出，解析是否展开服从用户偏好（背题模式始终展开）
     const shouldShowExplanation =
       shouldRevealAnswer && (this.state.isViewMode || this.preferences.autoShowExplanation)
@@ -900,8 +920,9 @@ class PracticeSession {
       currentQuestion: this.getQuestionView(question, selectedKeys, shouldRevealAnswer),
       selectedKeys,
       answerText: savedAnswer ? savedAnswer.text || '' : '',
-      blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: `第 ${i + 1} 空`, value: savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
+      blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: String.fromCharCode(9312 + i), value: this.state.isViewMode ? (question.blanks[i].answers || []).join(' / ') : savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
       hasAnswered,
+      answerLocked: this.state.isViewMode || this.state.isCompleted || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer),
       shouldRevealAnswer,
       shouldShowExplanation,
       isCurrentAnswerCorrect: this.state.isViewMode || (savedAnswer ? !!savedAnswer.isCorrect : false),
@@ -919,12 +940,14 @@ class PracticeSession {
   commitCurrentAnswer(selectedKeys) {
     const question = this.getCurrentBaseQuestion()
 
-    if (!question || (!question.isShortAnswer && !question.isFillBlank && !selectedKeys.length)) {
+    if (this.state.isCompleted || !question || this.isAnswerLocked(question) || (!question.isShortAnswer && !question.isFillBlank && !selectedKeys.length)) {
       return null
     }
 
     this.commitCurrentAnswerInternal(selectedKeys)
-    return this.showQuestionAtIndex(this.state.currentIndex)
+    const result = this.showQuestionAtIndex(this.state.currentIndex)
+    if (this.preferences.autoNextWhenCorrect && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer && this.state.isCurrentAnswerCorrect && !this.state.isLastQuestion) result.autoAdvance = true
+    return result
   }
 
   commitCurrentAnswerInternal(selectedKeys) {
@@ -942,7 +965,7 @@ class PracticeSession {
     }
     if (question.isShortAnswer) {
       const previous = this.state.answers[this.state.currentIndex] || {}
-      this.state.answers[this.state.currentIndex] = { questionId: question.id, text: this.state.answerText, selectedKeys: [], confirmed: true, selfAssessment: previous.selfAssessment || null, isCorrect: previous.selfAssessment === 'CORRECT' }
+      this.state.answers[this.state.currentIndex] = { questionId: question.id, text: this.state.answerText, selectedKeys: [], confirmed: true, selfAssessment: previous.selfAssessment || null, unscored: true, isCorrect: false }
       return
     }
     const normalizedKeys = selectedKeys.slice().sort()
@@ -958,47 +981,50 @@ class PracticeSession {
       confirmed: true
     }
     this.state.hasAnswered = true
-    this.state.shouldRevealAnswer = !this.state.isTestMode
-    this.state.shouldShowExplanation = !this.state.isTestMode && this.preferences.autoShowExplanation
+    this.state.shouldRevealAnswer = this.state.feedback === 'IMMEDIATE'
+    this.state.shouldShowExplanation = this.state.feedback === 'IMMEDIATE' && this.preferences.autoShowExplanation
     this.state.isCurrentAnswerCorrect = isCorrect
     this.state.currentCorrectAnswerText = this.getCorrectAnswerText(question)
     this.state.currentExplanation = this.getExplanation(question)
-    this.state.currentQuestion = this.getQuestionView(question, normalizedKeys, !this.state.isTestMode)
+    this.state.currentQuestion = this.getQuestionView(question, normalizedKeys, this.state.feedback === 'IMMEDIATE')
     this.state.unansweredCount = this.getUnansweredIndexes(this.state.answers).length
     this.state.primaryActionText = this.getPrimaryActionText(this.state.currentIndex, true, normalizedKeys)
   }
 
   setAnswerText(text) {
     const question = this.getCurrentBaseQuestion()
-    if (!question || !question.isShortAnswer || this.state.hasAnswered || this.state.isCompleted) return null
+    if (!question || !question.isShortAnswer || this.isAnswerLocked(question)) return null
     this.state.answerText = String(text || '').slice(0, 10000)
     this.state.answers[this.state.currentIndex] = { questionId: question.id, text: this.state.answerText, selectedKeys: [], confirmed: false, isCorrect: false }
+    this.state.hasAnswered = false
     return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
   }
 
   setBlank(index, value) {
     const question = this.getCurrentBaseQuestion()
-    if (!question || !question.isFillBlank || this.state.hasAnswered || this.state.isCompleted || !Number.isInteger(index) || index < 0 || index >= question.blankCount) return null
+    if (!question || !question.isFillBlank || this.isAnswerLocked(question) || !Number.isInteger(index) || index < 0 || index >= question.blankCount) return null
     const previous = this.state.answers[this.state.currentIndex] || {}
     const blanks = previous.blanks ? previous.blanks.slice() : Array(question.blankCount).fill('')
     blanks[index] = String(value || '').slice(0, 500)
+    this.state.blankInputs = this.state.blankInputs.map(input => input.index === index ? Object.assign({}, input, { value: blanks[index] }) : input)
     this.state.answers[this.state.currentIndex] = { questionId: question.id, blanks, selectedKeys: [], confirmed: false, isCorrect: false }
+    this.state.hasAnswered = false
     return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
   }
 
   assessShortAnswer(value) {
     const question = this.getCurrentBaseQuestion()
     const answer = this.state.answers[this.state.currentIndex]
-    if (!question || !question.isShortAnswer || !answer || !answer.confirmed || !this.state.shouldRevealAnswer) return null
+    if (!question || !question.isShortAnswer || !answer || !answer.confirmed || !this.state.isCompleted) return null
     answer.selfAssessment = value === 'CORRECT' ? 'CORRECT' : 'WRONG'
-    answer.isCorrect = value === 'CORRECT'
+    answer.isCorrect = false
     return this.showQuestionAtIndex(this.state.currentIndex)
   }
 
   shouldConfirmCurrentAnswer() {
     const question = this.getCurrentBaseQuestion()
 
-    return !!question && !this.state.hasAnswered && this.hasConfirmableInput(question, this.state.currentIndex, this.state.selectedKeys)
+    return !!question && !question.isShortAnswer && this.state.feedback === 'IMMEDIATE' && !this.state.hasAnswered && this.hasConfirmableInput(question, this.state.currentIndex, this.state.selectedKeys)
   }
 
   hasConfirmableInput(question, index, keys) {
@@ -1027,7 +1053,7 @@ class PracticeSession {
       return null
     }
 
-    return Object.assign({ id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
+    return Object.assign({ contentFormat: question.contentFormat || 'PLAIN_TEXT', presentation: question.presentation || 'STANDARD', codeLanguage: question.codeLanguage || 'text', id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
       options: question.options.map((option) => ({
         key: option.key,
         label: option.label,
@@ -1044,7 +1070,9 @@ class PracticeSession {
     return this.state.questions.map((question, index) => ({
       number: index + 1,
       index,
-      answered: !!answers[index] && answers[index].confirmed !== false,
+      answered: this.hasInput(question, answers[index]) && (answers[index].confirmed !== false),
+      isDraft: this.hasInput(question, answers[index]) && answers[index].confirmed === false,
+      isShortAnswer: !!question.isShortAnswer,
       isCorrect: answers[index] ? !!answers[index].isCorrect : false,
       selectedKeys: answers[index] ? answers[index].selectedKeys : [],
       isCurrent: index === currentIndex,
@@ -1055,7 +1083,7 @@ class PracticeSession {
 
   getUnansweredIndexes(answers) {
     return this.state.questions.reduce((items, question, index) => {
-      if (!answers[index] || answers[index].confirmed === false) {
+      if (!this.hasInput(question, answers[index])) {
         items.push(index)
       }
 
@@ -1073,8 +1101,8 @@ class PracticeSession {
 
   /**
    * 主按钮文案。底部只保留「上一题 / 下一题」两个按钮，因此文案固定为翻页语义：
-   * - 单选题未作答也可直接跳到下一题（该题按未作答计入错题）；
-   * - 多选题已勾选但未确认时，按钮暂变为「确认答案」，这是必要动作提示，不是冗余选项；
+   * - 单选题未作答也可直接跳到下一题（该题记为未作答）；
+   * - 多选题已勾选但未确认时，按钮暂变为「确认」，这是必要动作提示，不是冗余选项；
    * - 最后一题变为「交卷」（背题模式为「返回题库」）。
    */
   getPrimaryActionText(index, hasAnswered, selectedKeys) {
@@ -1087,8 +1115,8 @@ class PracticeSession {
     if (!hasAnswered) {
       const question = this.state.questions[index]
 
-      if (question && this.hasConfirmableInput(question, index, selectedKeys)) {
-        return '确认答案'
+      if (question && !question.isShortAnswer && this.state.feedback === 'IMMEDIATE' && this.hasConfirmableInput(question, index, selectedKeys)) {
+        return '确认'
       }
     }
 
@@ -1096,7 +1124,7 @@ class PracticeSession {
   }
 
   shouldStartTimerAfterPatch(patch) {
-    return this.state.isTestMode && !patch.isCompleted
+    return this.state.isTimed && !patch.isCompleted
   }
 
   toggleSelectedKey(selectedKeys, key) {
@@ -1139,7 +1167,13 @@ class PracticeSession {
   }
 
   returnCommand() {
+    const seconds = this.getElapsedSeconds()
+    const record = this.state.isViewMode && !this.studyRecorded
+    this.studyRecorded = true
     return {
+      stopTimer: true,
+      saveStudyTime: record ? { seconds } : null,
+      saveDailyLog: record ? { answered: 0, correct: 0, objectiveAnswered: 0, seconds } : null,
       command: {
         type: 'returnBankDetail'
       }
@@ -1161,17 +1195,20 @@ function filterResultItems(items, filter, keyword) {
       return false
     }
 
-    if (normalizedFilter === RESULT_FILTERS.CORRECT && !(item.answered && item.isCorrect)) {
+    if (normalizedFilter === RESULT_FILTERS.CORRECT && !(item.answered && !item.isShortAnswer && item.isCorrect)) {
       return false
     }
 
-    if (normalizedFilter === RESULT_FILTERS.WRONG && !(item.answered && !item.isCorrect)) {
+    if (normalizedFilter === RESULT_FILTERS.WRONG && !(item.answered && !item.isShortAnswer && !item.isCorrect)) {
       return false
     }
 
     if (normalizedFilter === RESULT_FILTERS.UNANSWERED && item.answered) {
       return false
     }
+
+    if (normalizedFilter === RESULT_FILTERS.REVIEW && item.selfAssessment !== 'WRONG') return false
+    if (normalizedFilter === RESULT_FILTERS.UNSCORED && !item.isShortAnswer) return false
 
     if (!needle) {
       return true
@@ -1195,8 +1232,10 @@ function countResultItems(items) {
 
   return {
     all: source.length,
-    correct: answeredItems.filter((item) => item.isCorrect).length,
-    wrong: answeredItems.filter((item) => !item.isCorrect).length,
+    review: source.filter(item => item.selfAssessment === 'WRONG').length,
+    unscored: source.filter(item => item.isShortAnswer).length,
+    correct: answeredItems.filter((item) => !item.isShortAnswer && item.isCorrect).length,
+    wrong: answeredItems.filter((item) => item.answered && !item.isShortAnswer && !item.isCorrect).length,
     unanswered: source.filter((item) => item && !item.answered).length
   }
 }

@@ -27,14 +27,15 @@ const SYNC_STATUS = {
 const QUESTION_STATE = {
   UNANSWERED: 'unanswered',
   CORRECT: 'correct',
-  WRONG: 'wrong'
+  WRONG: 'wrong',
+  UNSCORED: 'unscored'
 }
 
 const VALID_SESSION_STATUS = Object.keys(SESSION_STATUS)
 const VALID_SYNC_STATUS = Object.keys(SYNC_STATUS)
-const VALID_QUESTION_STATES = [QUESTION_STATE.UNANSWERED, QUESTION_STATE.CORRECT, QUESTION_STATE.WRONG]
+const VALID_QUESTION_STATES = [QUESTION_STATE.UNANSWERED, QUESTION_STATE.CORRECT, QUESTION_STATE.WRONG, QUESTION_STATE.UNSCORED]
 
-const CONFIG_KEYS = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'durationMinutes', 'title', 'ids']
+const CONFIG_KEYS = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'durationMinutes', 'title', 'ids', 'feedback']
 
 /**
  * 生成 sessionId。
@@ -107,6 +108,7 @@ function serializeSession(rawSession) {
         ...(Array.isArray(answer.blanks) ? { blanks: answer.blanks.map(value => String(value || '').slice(0, 500)) } : {}),
         ...(typeof answer.confirmed === 'boolean' ? { confirmed: answer.confirmed } : {}),
         ...(answer.selfAssessment ? { selfAssessment: answer.selfAssessment } : {}),
+        unscored: !!answer.unscored,
         isCorrect: !!answer.isCorrect
       }
     }),
@@ -206,6 +208,7 @@ function normalizeSession(rawSession) {
         ...(Array.isArray(answer.blanks) ? { blanks: answer.blanks.slice(0, 20).map(value => String(value || '').slice(0, 500)) } : {}),
         ...(typeof answer.confirmed === 'boolean' ? { confirmed: answer.confirmed } : {}),
         ...(['CORRECT', 'WRONG'].includes(answer.selfAssessment) ? { selfAssessment: answer.selfAssessment } : {}),
+        unscored: !!answer.unscored,
         isCorrect: !!answer.isCorrect
       }
     }),
@@ -217,7 +220,7 @@ function normalizeSession(rawSession) {
       }
 
       const answer = rawAnswers[index]
-      return answer && answer.confirmed !== false ? (answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG) : QUESTION_STATE.UNANSWERED
+      return answer && answer.confirmed !== false ? (answer.unscored ? QUESTION_STATE.UNSCORED : (answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG)) : QUESTION_STATE.UNANSWERED
     }),
     // 历史版本没有这个字段：缺省成空数组即可，不需要迁移脚本
     markedIds: Array.isArray(rawSession.markedIds)
@@ -251,7 +254,7 @@ function deriveQuestionStates(answers, total) {
       return QUESTION_STATE.UNANSWERED
     }
 
-    return answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG
+    return answer.unscored ? QUESTION_STATE.UNSCORED : answer.isCorrect ? QUESTION_STATE.CORRECT : QUESTION_STATE.WRONG
   })
 }
 

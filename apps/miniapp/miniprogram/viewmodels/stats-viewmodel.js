@@ -101,7 +101,7 @@ function getInitialStatsViewData() {
     rangeIndex: 0,
     metrics: {
       answered: '0',
-      accuracy: '0',
+      accuracy: '—',
       duration: '0'
     },
     // 学习活动热力图（始终是近半年，不随区间变）
@@ -193,7 +193,7 @@ class StatsViewModel {
     const days = this.getRecentPoints()
 
     const serverStatistics = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() && this.repository.getRemoteStatistics(this.storage)
-    if (serverStatistics) { overall.answered = serverStatistics.answeredCount; overall.accuracy = Math.round(serverStatistics.objectiveAccuracy * 100) }
+    if (serverStatistics) { overall.answered = serverStatistics.answeredCount; overall.accuracy = serverStatistics.objectiveAccuracy == null ? null : Math.round(serverStatistics.objectiveAccuracy * 100) }
     this.cache = { overall, days, studySeconds: Number(studyTime.totalSeconds) || 0 }
 
     const favorites = this.repository.getFavorites(this.storage)
@@ -300,17 +300,18 @@ class StatsViewModel {
   buildMetrics(option, cache) {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       const statistics = this.repository.getRemoteStatistics(this.storage, option.days === 7 ? 'WEEK' : option.days === 30 ? 'MONTH' : 'ALL')
-      return { answered: `${statistics && statistics.answeredCount || 0}`, accuracy: `${Math.round((statistics && statistics.objectiveAccuracy || 0) * 100)}`, duration: `${Math.floor((statistics && statistics.durationSeconds || 0) / 60)}` }
+      return { answered: `${statistics && statistics.answeredCount || 0}`, accuracy: statistics && statistics.objectiveAccuracy != null ? `${Math.round(statistics.objectiveAccuracy * 100)}` : '—', duration: `${Math.floor((statistics && statistics.durationSeconds || 0) / 60)}` }
     }
     if (option.days > 0) {
       const window = cache.days.slice(-option.days)
       const answered = window.reduce((sum, day) => sum + day.answered, 0)
       const correct = window.reduce((sum, day) => sum + day.correct, 0)
+      const objectiveAnswered = window.some(day => day.objectiveAnswered == null) ? null : window.reduce((sum, day) => sum + day.objectiveAnswered, 0)
       const seconds = window.reduce((sum, day) => sum + day.seconds, 0)
 
       return {
         answered: `${answered}`,
-        accuracy: `${answered ? Math.round((correct / answered) * 100) : 0}`,
+        accuracy: objectiveAnswered ? `${Math.round((correct / objectiveAnswered) * 100)}` : '—',
         duration: `${Math.floor(seconds / 60)}`
       }
     }
@@ -319,7 +320,7 @@ class StatsViewModel {
 
     return {
       answered: `${overall.answered || 0}`,
-      accuracy: `${overall.accuracy || 0}`,
+      accuracy: overall.accuracy == null ? '—' : `${overall.accuracy}`,
       duration: `${Math.floor((Number(cache.studySeconds) || 0) / 60)}`
     }
   }

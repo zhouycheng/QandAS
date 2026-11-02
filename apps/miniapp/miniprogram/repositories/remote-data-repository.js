@@ -34,7 +34,10 @@ function persistSummary() {
   if (!owner || !activeStorage || !activeStorage.set) return
   try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: state.overview, profile: state.profile }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
 }
-function checked(response) { if (!response.ok) throw new Error(response.reason || '请求失败'); return response.data }
+function checked(response) {
+  if (!response.ok) throw Object.assign(new Error(response.reason || '请求失败'), { statusCode: response.statusCode })
+  return response.data
+}
 function get(path, query) { return api.request('GET', path, query).then(checked) }
 function mutate(method, path, data) { return api.request(method, path, data, { idempotencyKey: api.uuid() }).then(checked) }
 function resource(storage, name, query, ttl, path, publish, force) {
@@ -56,32 +59,45 @@ function refreshSubjects(storage, options) {
   bind(storage)
   const query = { page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }
   return resource(storage, 'subjects', query, TTL.catalog, '/subjects', data => {
-    state.subjects = mergeById(state.subjects, data.items); state.subjectTotal = data.total
+    state.subjects = query.page === 1 ? data.items : mergeById(state.subjects, data.items); state.subjectTotal = data.total
   }, options && options.force)
 }
 function bankQuery(options) { return { subjectId: options && options.subjectId || undefined, keyword: options && options.keyword || undefined, page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined } }
 function refreshBanks(storage, options) {
   bind(storage)
   const query = bankQuery(options)
-  return resource(storage, 'banks', query, TTL.catalog, '/question-banks', data => { state.banks = mergeById(state.banks, data.items) }, options && options.force)
+  return resource(storage, 'banks', query, TTL.catalog, '/question-banks', data => {
+    const previous = query.page === 1 && !query.keyword ? state.banks.filter(bank => query.subjectId && bank.subjectId !== query.subjectId) : state.banks
+    state.banks = mergeById(previous, data.items)
+  }, options && options.force)
 }
 async function refreshCatalog(storage, options) {
   const settings = options || {}
-  await Promise.all([
-    refreshSubjects(storage, { force: settings.force }),
-    settings.subjectId ? loadSubject(storage, settings.subjectId, settings) : Promise.resolve()
-  ])
-  const subjectId = settings.subjectId || (state.subjects[0] || {}).id
+  if (settings.force) ['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:'].forEach(cache.invalidate)
+  await refreshSubjects(storage, { force: settings.force })
+  if (settings.subjectId && !state.subjects.some(subject => subject.id === settings.subjectId)) {
+    try { await loadSubject(storage, settings.subjectId, settings) }
+    catch (error) { if (error.statusCode !== 404) throw error }
+  }
+  const subjectId = state.subjects.some(subject => subject.id === settings.subjectId) ? settings.subjectId : (state.subjects[0] || {}).id
   if (subjectId || settings.keyword) return refreshBanks(storage, Object.assign({}, settings, { subjectId: settings.keyword ? undefined : subjectId }))
   return null
 }
 function loadSubject(storage, id, options) {
   bind(storage)
   const listed = getSubjectPage(1)
-  if (!(options && options.force) && Date.now() - listed.at < TTL.catalog && listed.data && listed.data.items.some(subject => subject.id === id)) return Promise.resolve()
+  const listedSubject = listed.data && listed.data.items.find(subject => subject.id === id)
+  if (!(options && options.force) && Date.now() - listed.at < TTL.catalog && listedSubject) {
+    runInAction(() => { state.subjects = mergeById(state.subjects, [listedSubject]) })
+    return Promise.resolve(listedSubject)
+  }
+  const expectedOwner = owner, expectedScope = scope
   return resource(storage, 'subject:' + id, { includeProgress: owner ? true : undefined }, TTL.catalog, '/subjects/' + encodeURIComponent(id), data => {
     state.subjects = mergeById(state.subjects, [data])
-  }, options && options.force)
+  }, options && options.force).then(data => {
+    if (data && expectedOwner === owner && expectedScope === scope) runInAction(() => { state.subjects = mergeById(state.subjects, [data]) })
+    return data
+  })
 }
 function loadBank(storage, id, options) {
   return resource(storage, 'bank:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id), data => {
@@ -106,8 +122,8 @@ function getScopePreview(storage, key, bankId) {
   if (!record || record.data.selectionKey !== key || record.scope.questionBankId !== bankId || record.context !== scopeKey(authRepository.getAuth(storage))) throw new Error('练习配置已更新，请返回题库重新选择')
   return record.data
 }
-function loadChapters(storage, id) {
-  return resource(storage, 'chapters:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id) + '/chapters', data => { state.chapters = Object.assign({}, state.chapters, { [id]: data }) })
+function loadChapters(storage, id, options) {
+  return resource(storage, 'chapters:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id) + '/chapters', data => { state.chapters = Object.assign({}, state.chapters, { [id]: data }) }, options && options.force)
 }
 function refreshProfile(storage, options) {
   return resource(storage, 'profile', {}, TTL.profile, '/me', profile => {
@@ -219,7 +235,7 @@ function getQuestionIndex() { bind(activeStorage); const index = {}; Object.valu
 function findQuestionEntries(ids) { const index = getQuestionIndex(); return ids.map((id) => index[id]).filter(Boolean) }
 function getFavorites(storage) { bind(storage); return { ids: state.favorites.map((q) => q.questionId) } }
 function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: state.mastered.indexOf(q) >= 0, updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
-function getDailyLog(storage) { bind(storage); const result = {}; state.days.forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
+function getDailyLog(storage) { bind(storage); const result = {}; state.days.forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, objectiveAnswered: d.objectiveAnsweredCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
 function getStudyTime(storage) { bind(storage); return { totalSeconds: state.overview && state.overview.durationSeconds || 0, sessionCount: state.overview && state.overview.practiceCount || 0 } }
 function getStatistics(storage, period) { bind(storage); return period ? state.periodStatistics[period] : state.statistics }
 function getProgress(storage) {

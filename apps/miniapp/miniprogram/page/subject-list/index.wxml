@@ -124,7 +124,7 @@
 
     <!-- 底部说明：原型留白处放一条状态提示，空着会显得页面没写完 -->
     <view class="home-foot" wx:if="{{overall}}">
-      <text class="home-foot-text">已做 {{overall.answered}} / {{overall.total}} 题 · 正确率 {{overall.accuracyText}}</text>
+      <text class="home-foot-text">{{overall.isCumulative ? '累计已答 ' + overall.answered + ' 题' : '已做 ' + overall.answered + ' / ' + overall.total + ' 题'}} · 正确率 {{overall.accuracyText}}</text>
     </view>
     <view class="load-note" wx:if="{{overviewLoading}}">正在读取学习摘要…</view>
     <view class="load-note" wx:if="{{overviewError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{overviewError}} · 点击重试</view>

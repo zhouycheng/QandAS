@@ -1,7 +1,8 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
-<!-- 答题页｜设计稿：练习模式 / 即时模式 / 答题卡 / 答题结果
-     逻辑一律不放这里：改 UI 只动本文件与 index.wxss，处理函数名保持不变。 -->
+<!-- 答题页：顶部导航、题目模块与底部操作共用练习模板。 -->
 <view class="page practice-page font-{{preferences.fontSize}}">
+  <light-toast id="practice-hint" />
+  <include src="../../templates/practice-head.wxml" />
   <view wx:if="{{trialNotice}}" class="load-note">{{trialNotice}}</view>
   <view wx:if="{{loadingPractice}}" class="load-note">正在读取本次练习…</view>
   <view wx:if="{{submitting}}" class="pra-modal"><view class="pra-modal-panel"><text>正在确认交卷结果…</text></view></view>
@@ -16,9 +17,8 @@
   </view>
   <view wx:if="{{editingLocked}}" class="pra-modal"><view class="pra-modal-panel"><text>正在交接练习，请保持联网</text></view></view>
   <block wx:if="{{!isCompleted && !waitingForSync && !loadingPractice && !loadError}}">
-    <include src="../../templates/practice-head.wxml" />
-    <view wx:if="{{saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text wx:if="{{canRetrySync}}" bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
-    <scroll-view class="pra-body" scroll-y enhanced bounces show-scrollbar="{{false}}">
+    <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
+    <scroll-view class="pra-body" scroll-y enhanced bounces show-scrollbar="{{false}}" scroll-top="{{questionScrollTop}}" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection">
       <include src="../../templates/practice-content.wxml" />
     </scroll-view>
     <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>
@@ -27,11 +27,11 @@
     <view class="pra-modal" wx:if="{{showSubmitModal}}">
       <view class="pra-modal-mask" bindtap="closeSubmitModal"></view>
       <view class="pra-modal-panel">
-        <text class="pra-modal-title">还有 {{unansweredCount}} 题未作答</text>
-        <text class="pra-modal-desc">未作答的题目将计为错误，确定交卷吗？</text>
+        <text class="pra-modal-title">确认交卷</text>
+        <text class="pra-modal-desc">未答 {{unansweredCount}} 题，待确认 {{pendingConfirmationCount}} 题。交卷将确认所有已保存的作答，未答客观题不得分。</text>
         <view class="pra-modal-actions">
           <view class="pra-btn" bindtap="closeSubmitModal" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">继续答题</view>
-          <view class="pra-btn primary" bindtap="forceSubmit" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">直接交卷</view>
+          <view class="pra-btn primary" bindtap="forceSubmit" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">确认交卷</view>
         </view>
       </view>
     </view>
@@ -41,7 +41,8 @@
       items="{{overviewItems}}"
       unanswered-count="{{unansweredCount}}"
       marked-count="{{markedCount}}"
-      answered-count="{{total - unansweredCount}}"
+      answered-count="{{total - unansweredCount - pendingConfirmationCount}}"
+      draft-count="{{pendingConfirmationCount}}"
       total="{{total}}"
       show-status="{{!isViewMode}}"
       can-submit="{{!isViewMode}}"
@@ -54,13 +55,6 @@
 
   <block wx:elif="{{isCompleted}}">
     <scroll-view class="pra-result" scroll-y enhanced bounces show-scrollbar="{{false}}">
-      <view class="pra-head pra-head-result">
-        <view class="pra-head-text">
-          <text class="pra-head-title">练习结果</text>
-          <text class="pra-head-sub">{{practiceTitle}} · {{practiceSubtitle}}</text>
-        </view>
-      </view>
-
       <view wx:if="{{submitError}}" class="pra-submit-error">
         <text class="pra-submit-error-text">{{submitError}}</text>
         <view
@@ -85,8 +79,8 @@
         </view>
         <view class="res-card-split"></view>
         <view class="res-card-cell">
-          <text class="res-card-value">{{score}}%</text>
-          <text class="res-card-label">正确率</text>
+          <text class="res-card-value">{{scoreText}}</text>
+          <text class="res-card-label">{{objectiveCount ? '客观题得分' : '本次练习'}}</text>
         </view>
       </view>
 
@@ -94,7 +88,7 @@
       <view class="res-detail">
         <view class="res-detail-head">
           <text class="res-detail-title">答题明细</text>
-          <text class="res-detail-sub">历史最佳 {{bestScore}}</text>
+          <text class="res-detail-sub">客观正确率 {{objectiveAccuracyText}}<text wx:if="{{objectiveCount}}"> · 最高分 {{bestScore}}</text></text>
         </view>
 
         <view class="res-legend">
@@ -108,7 +102,7 @@
           <view
             wx:for="{{overviewItems}}"
             wx:key="index"
-            class="res-cell {{item.answered ? (item.isCorrect ? 'cell-correct' : 'cell-wrong') : 'cell-pending'}}"
+            class="res-cell {{item.answered ? (item.isShortAnswer ? 'cell-unscored' : (item.isCorrect ? 'cell-correct' : 'cell-wrong')) : 'cell-pending'}}"
             data-index="{{item.index}}"
             bindtap="jumpToQuestion"
             hover-class="cell-flat-hover"
@@ -168,6 +162,8 @@
               hover-start-time="0"
               hover-stay-time="80"
             >未答 {{resultFilterCounts.unanswered}}</view>
+            <view class="res-filter {{resultFilter === 'unscored' ? 'active' : ''}}" data-filter="unscored" bindtap="handleResultFilter" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">不计分 {{resultFilterCounts.unscored}}</view>
+            <view class="res-filter {{resultFilter === 'review' ? 'active' : ''}}" data-filter="review" bindtap="handleResultFilter" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">待复习 {{resultFilterCounts.review}}</view>
           </view>
 
           <input
@@ -187,7 +183,7 @@
         <view
           wx:for="{{filteredResultItems}}"
           wx:key="id"
-          class="res-item {{item.isCorrect ? '' : 'is-wrong'}}"
+          class="res-item {{item.answered && !item.isShortAnswer && !item.isCorrect ? 'is-wrong' : ''}}"
           data-id="{{item.id}}"
           bindtap="handleOpenQuestionDetail"
           hover-class="res-item-hover"
@@ -197,28 +193,37 @@
           <view class="res-item-head">
             <text class="res-item-number">{{item.number}}</text>
             <text class="res-item-type">{{item.typeText}}</text>
-            <text class="res-item-flag {{item.answered ? (item.isCorrect ? 'ok' : 'no') : 'skip'}}">{{item.answered ? (item.isCorrect ? '正确' : '错误') : '未答'}}</text>
+            <text class="res-item-flag {{item.answered ? (item.isShortAnswer ? 'skip' : (item.isCorrect ? 'ok' : 'no')) : 'skip'}}">{{item.isShortAnswer ? (item.answered ? '已作答 · 不计分' : '未作答 · 不计分') : (item.answered ? (item.isCorrect ? '正确' : '错误') : '未答')}}</text>
           </view>
-          <view class="pra-material" wx:if="{{item.material}}">{{item.material.passage}}</view>
-          <question-images wx:if="{{item.material}}" paths="{{item.material.imagePaths}}" />
-          <text class="res-item-stem">{{item.stem}}</text>
-          <question-images paths="{{item.imagePaths}}" />
+          <view class="pra-material" wx:if="{{item.material}}"><rich-content text="{{(item.material.passage) || ''}}" format="{{(item.material.contentFormat) || 'PLAIN_TEXT'}}" /></view>
+          <question-images wx:if="{{item.material}}" paths="{{(item.material.imagePaths) || []}}" />
+          <rich-content class="res-item-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
+          <question-images paths="{{(item.imagePaths) || []}}" />
           <view class="res-item-line">
             <text class="res-item-label">你的答案</text>
-            <text class="res-item-value">{{item.selectedText}}</text>
+            <rich-content class="res-item-value" text="{{(item.selectedText) || ''}}" code-language="{{(item.presentation === 'CODE_WRITING' ? item.codeLanguage : '') || ''}}" />
           </view>
           <view class="res-item-line">
-            <text class="res-item-label">正确答案</text>
-            <text class="res-item-value is-correct">{{item.correctText}}</text>
-            <view wx:if="{{item.isShortAnswer}}">
-              <text>自评：{{item.selfAssessment === 'CORRECT' ? '掌握' : (item.selfAssessment === 'WRONG' ? '待复习' : '待评价')}}</text>
-              <view class="pra-btn" bindtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">掌握</view>
-              <view class="pra-btn" bindtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">待复习</view>
+            <text class="res-item-label">{{item.isShortAnswer ? (item.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路') : '正确答案'}}</text>
+            <rich-content class="res-item-value" text="{{(item.correctText) || ''}}" format="{{(item.isShortAnswer ? item.contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" />
+          </view>
+          <view class="res-item-line" wx:if="{{item.scoringPoints.length}}">
+            <text class="res-item-label">参考要点</text>
+            <view class="res-scoring-point" wx:for="{{item.scoringPoints}}" wx:for-item="point" wx:for-index="pointIndex" wx:key="*this">
+              <text class="res-point-number">{{pointIndex + 1}}.</text>
+              <rich-content class="res-point-content" text="{{(point) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
+            </view>
+          </view>
+          <view class="res-self-assessment" wx:if="{{item.isShortAnswer && item.answered}}">
+            <text class="res-item-label">自评：{{item.selfAssessment === 'CORRECT' ? '掌握' : (item.selfAssessment === 'WRONG' ? '待复习' : '未自评')}}</text>
+            <view class="res-assessment-actions" wx:if="{{preferences.showSelfAssessment}}">
+              <view class="res-assessment-option {{item.selfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">掌握</view>
+              <view class="res-assessment-option {{item.selfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">待复习</view>
             </view>
           </view>
           <view class="res-item-line">
             <text class="res-item-label">解析</text>
-            <text class="res-item-value">{{item.explanation}}</text>
+            <rich-content class="res-item-value" text="{{(item.explanation) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
           </view>
         </view>
       </view>

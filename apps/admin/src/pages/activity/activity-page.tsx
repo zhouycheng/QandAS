@@ -48,7 +48,7 @@ export function ActivityPage() {
       <Table<RankingRow> rowKey="userId" data={rankings.data?.items ?? []} loading={rankings.isFetching} scroll={{ x: 1300 }} pagination={{ current: page, pageSize: 20, total: rankings.data?.total ?? 0, onChange: setPage, showTotal: true }} columns={[
         { title: '名次', dataIndex: 'rank', width: 65 }, { title: '昵称', width: 120, render: (_, row) => <Button type="text" onClick={() => setUserId(row.userId)}>{row.nickname}</Button> }, { title: '账号', dataIndex: 'accountCode', width: 120 },
         { title: '学院', dataIndex: 'collegeName', width: 150 }, { title: '专业', dataIndex: 'majorName', width: 180 }, { title: '年级', width: 90, render: (_, row) => gradeLabel(row.currentGrade) },
-        { title: '活跃天数', dataIndex: 'activeDays', width: 100 }, { title: '答题量', dataIndex: 'answeredCount', width: 100 }, { title: '学习时长', width: 110, render: (_, row) => Math.round(row.durationSeconds / 60) + ' 分钟' }, { title: '最近活跃', width: 180, render: (_, row) => row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—' },
+        { title: '活跃天数', dataIndex: 'activeDays', width: 100 }, { title: '答题量', dataIndex: 'answeredCount', width: 100 }, { title: '学习时长', width: 110, render: (_, row) => Math.floor(row.durationSeconds / 60) + ' 分钟' }, { title: '最近活跃', width: 180, render: (_, row) => row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—' },
       ]} />
       <p className="muted">榜单更新：{rankings.dataUpdatedAt ? new Date(rankings.dataUpdatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'}。答题量与学习时长按已提交正式练习统计。</p>
     </Card>

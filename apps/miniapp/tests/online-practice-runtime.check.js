@@ -26,10 +26,11 @@ async function main() {
   const routeStorage = { get: key => routeStorageData[key] && copy(routeStorageData[key]), set: (key, value) => { routeStorageData[key] = copy(value) }, remove: key => delete routeStorageData[key] }
   const routeRuntime = new OnlinePractice(routeStorage)
   routeRuntime.identity()
-  routeRuntime.put('route-session', { id: 'route-session', route: { mode: 'test', duration: '25', subjectId: 'subject-1' } })
+  routeRuntime.put('route-session', { id: 'route-session', title: '已归档题库', route: { mode: 'test', duration: '25', subjectId: 'subject-1' } })
   const routed = routeRuntime.remember({ id: 'route-session', questionBankId: 'bank-1' }, { sessionId: 'route-session' })
   assert.strictEqual(routed.route.duration, '25')
   assert.strictEqual(routed.route.subjectId, 'subject-1')
+  assert.strictEqual(routed.title, '已归档题库')
   routeRuntime.queue.stop()
   const snapshot = { id: 's1', questionBankId: 'b1', status: 'IN_PROGRESS', version: 1, currentIndex: 0, durationSeconds: 0, feedback: 'IMMEDIATE', configuration: { chapterIds: [], count: 1, order: 'SEQUENTIAL', selectionKind: 'NORMAL', feedback: 'IMMEDIATE', contentVersion: 1 }, writer, items: [{ itemId: 'i1', position: 0, question: { id: 'q1', revisionId: 'r1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题干', options: [{ key: 'A', content: '选项甲' }, { key: 'B', content: '选项乙' }], correctAnswer: null, correctValue: null, referenceAnswer: null, explanation: null, assetIds: [] }, answer: null, confirmed: false, marked: false, outcome: null, selfAssessment: null }], offlineGrading: [{ itemId: 'i1', correctAnswer: ['A'], correctValue: null, referenceAnswer: null, explanation: '解析仅答后显示' }] }
   const unified = new PracticeSession({ quiz: new OnlinePractice(storage).quiz(Object.assign({ route: {} }, snapshot)), mode: 'test' })
@@ -67,6 +68,8 @@ async function main() {
       submitted = true
       body = result
       if (finishLost) { finishLost = false; input.fail({ errMsg: 'request:fail timeout' }); return }
+    } else if (input.url.endsWith('/cancel')) {
+      body = { id: input.url.split('/').slice(-2)[0], version: input.data.expectedVersion + 1 }
     } else if (input.url.endsWith('/self-assessment')) {
       const match = input.url.match(/\/practice\/sessions\/([^/]+)\/items\/([^/]+)\/self-assessment/)
       const items = storage.get(`qandaOnline:u1:${match[1]}`).items
@@ -95,6 +98,8 @@ async function main() {
   assert.deepStrictEqual(creations[0].data, creations[1].data)
   assert.strictEqual(requests.filter(r => r.url.endsWith('/question-banks/b1')).length, 1)
   assert.deepStrictEqual(storage.get('qandaOnlineCreate:u1'), [])
+  await runtime.prepare({ bankId: 'b1', mode: 'practice', seed: 'new-attempt' })
+  assert.strictEqual(requests.filter(r => r.url.endsWith('/question-banks/b1')).length, 2, '新一轮练习重新校验元数据，已发送创建请求重试仍复用原内容')
   const session = new PracticeSession({ quiz: runtime.quiz(created), restored: runtime.restored(created), mode: 'practice', config: created.route })
   session.reset(); session.restore(runtime.restored(created))
   const initial = session.getViewData()
@@ -185,7 +190,7 @@ async function main() {
   assert.strictEqual(restarted.get('s4').assessmentCommands.i4, undefined)
   assert.strictEqual(restarted.get('s4').assessed.i4, 'CORRECT')
   assert.strictEqual(assessmentVm.session.state.answers[0].selfAssessment, 'CORRECT')
-  assert.strictEqual(assessmentVm.session.state.overviewItems[0].isCorrect, true)
+  assert.strictEqual(assessmentVm.session.state.overviewItems[0].isCorrect, false)
   assert.deepStrictEqual(assessmentVm.session.state.wrongQuestionIds, [])
   assert.strictEqual(assessmentVm.session.state.hasWrongQuestions, false)
   assert.strictEqual(assessmentVm.session.state.resultFilter, 'wrong')
@@ -193,9 +198,9 @@ async function main() {
   await assessmentVm.assessResult('q1', 'WRONG')
   assert.strictEqual(assessmentVm.session.state.answers[0].isCorrect, false)
   assert.strictEqual(assessmentVm.session.state.overviewItems[0].isCorrect, false)
-  assert.deepStrictEqual(assessmentVm.session.state.wrongQuestionIds, ['q1'])
-  assert.strictEqual(assessmentVm.session.state.wrongCount, 1)
-  assert.strictEqual(assessmentVm.session.state.filteredResultItems.length, 1)
+  assert.deepStrictEqual(assessmentVm.session.state.wrongQuestionIds, [])
+  assert.strictEqual(assessmentVm.session.state.wrongCount, 0)
+  assert.strictEqual(assessmentVm.session.state.filteredResultItems.length, 0)
   const pairedAssessment = Object.assign({}, copy(shortSnapshot), { id: 's7', version: 3, result: Object.assign({}, result, { sessionId: 's7' }), assessmentCommands: {}, assessed: {} })
   pairedAssessment.items = [copy(shortSnapshot.items[0]), copy(shortSnapshot.items[0])]
   pairedAssessment.items.forEach((item, index) => { item.itemId = `i7${index}`; item.question.id = `q7${index}` })
@@ -254,11 +259,27 @@ async function main() {
   assert.strictEqual(retriedResult.submitOk, true, '恢复后的交卷可以通过页面重试完成')
   assert.strictEqual(restoreRuntime.get('s3').status, 'SUBMITTED')
   restoreRuntime.put('s6', Object.assign({}, copy(snapshot), { id: 's6', route: { bankId: 'b1', mode: 'view' } }))
-  const viewVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}) } })
+  const viewVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}), saveSession: () => {} } })
   const resumedView = await viewVm.loadOnline({ sessionId: 's6' })
   assert.strictEqual(resumedView.data.isViewMode, true)
   assert.strictEqual(resumedView.data.shouldRevealAnswer, true)
   assert.strictEqual(resumedView.data.currentExplanation, '解析仅答后显示')
+  viewVm.persistSession(true)
+  assert(restoreRuntime.get('s6').localState, '背题位置保存在快照中')
+  offline = true
+  await viewVm.goNext()
+  const viewClose = storage.get('qandaViewClosures:u1').s6
+  assert(viewClose, '离线读完后保留结束命令')
+  assert(restoreRuntime.get('s6').viewCompleted)
+  offline = false
+  const closingRuntime = new OnlinePractice(storage)
+  await closingRuntime.flushViewClosures()
+  assert.strictEqual(closingRuntime.get('s6').status, 'CANCELLED', '背题结束不产生答题成绩')
+  assert.deepStrictEqual(storage.get('qandaViewClosures:u1'), {})
+  const closeCalls = requests.filter(r => r.url.endsWith('/s6/cancel'))
+  assert.strictEqual(closeCalls[0].header['Idempotency-Key'], closeCalls[1].header['Idempotency-Key'])
+  assert.deepStrictEqual(closeCalls[0].data, closeCalls[1].data)
+  closingRuntime.queue.stop()
   restoreRuntime.queue.stop()
   restarted.queue.stop()
   submitted = false

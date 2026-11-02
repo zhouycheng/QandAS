@@ -11,8 +11,8 @@ function mapQuestion(item, grading) {
   const boolean = q.type === 'TRUE_FALSE'
   return {
     id: q.id, itemId: item.itemId, revisionId: q.revisionId, type: q.type,
-    typeText: { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' }[q.type],
-    stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
+    typeText: { CONCEPT: '概述题', CODE_ANALYSIS: '代码分析', CODE_WRITING: '代码编写' }[q.presentation] || { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' }[q.type],
+    contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
     isFillBlank: q.type === 'FILL_BLANK', blankCount: q.blankCount || 0, blanks: g.blanks || [], blankMatch: g.blankMatch || {},
     scoringPoints: g.scoringPoints || [], material: q.material || null, imagePaths: q.imagePaths || [],
     options: boolean ? [{ key: 'true', label: '对', text: '正确' }, { key: 'false', label: '错', text: '错误' }] : (q.options || []).map(o => ({ key: o.key, label: o.key, text: o.content })),
@@ -96,11 +96,12 @@ class OnlinePractice {
       }
       if (cached && cached.writer && cached.writer.deviceId === this.deviceId() && cached.writer.writerToken && !this.getWaiting(id)) {
         // 原写入权恢复本机草稿，接管续答读取最新快照。
+        this.storage.set(`qandaOnlineLast:${this.userId}`, id)
         return assets.completeSnapshot(this.storage, cached)
       }
       const writer = await this.required('POST', `/practice/sessions/${id}/writer-acquire`, { deviceId: this.deviceId() }, { idempotencyKey: http.uuid() })
       if (writer.state !== 'ACTIVE' || !writer.writerToken) {
-        const route = Object.assign({}, ordinary.route || {}, options || {}, { bankId: ordinary.questionBankId })
+        const route = Object.assign({}, this.snapshotRoute(ordinary), ordinary.route || {}, options || {})
         this.rememberWaiting(id, route, writer)
         return { id, waiting: true, writer, route }
       }
@@ -129,20 +130,24 @@ class OnlinePractice {
     if (!intent) {
       const bankId = options.bankId
       if (!bankId) throw new Error('请选择一个题库开始练习')
-      const bank = require('./remote-data-repository.js').getBankMeta(bankId) || await this.required('GET', `/question-banks/${bankId}`)
+      const bank = options.selectionKey && require('./remote-data-repository.js').getBankMeta(bankId) || await this.required('GET', `/question-banks/${bankId}`)
       if (this.identity().userId !== userId) throw new Error('账号已切换，请重新打开练习')
       const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || bank.questionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
       scope.collectionChip = options.collectionChip || 'all'
       if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
       const preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankId) : null
       if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE', deviceId: this.deviceId() } }
+      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null, deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }
     const response = await this.call('POST', '/practice/sessions', intent.body, { idempotencyKey: intent.key })
     if (!response.ok) {
       if ([400, 404, 409, 422].includes(response.statusCode)) this.storage.set(storageKey, (this.storage.get(storageKey) || []).filter(value => value.key !== intent.key))
+      if (response.statusCode === 409 && response.code === 'VERSION_CONFLICT') {
+        await require('./remote-data-repository.js').loadBank(this.storage, intent.body.scope.questionBankId, { force: true })
+        throw new Error('题库内容已更新，请返回题库重新确认答题配置；已有练习已保留')
+      }
       throw new Error(response.reason || '创建练习失败，请联网后重试')
     }
     const snapshot = response.data
@@ -185,15 +190,66 @@ class OnlinePractice {
     }
     this.storage.set(key, retained)
   }
+  snapshotRoute(snapshot) {
+    const config = snapshot.configuration
+    if (!config) return snapshot.questionBankId ? { bankId: snapshot.questionBankId } : {}
+    return {
+      bankId: snapshot.questionBankId,
+      mode: config.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : config.order === 'SEQUENTIAL' ? 'order' : 'practice'),
+      chapterId: (config.chapterIds || [])[0] || '',
+      duration: config.timeLimitSeconds ? String(config.timeLimitSeconds / 60) : '',
+      count: config.count,
+      selectionKind: config.selectionKind,
+      collectionChip: config.collectionChip || 'all'
+    }
+  }
   remember(snapshot, options) {
     const previous = this.get(snapshot.id)
-    snapshot.route = Object.assign({}, previous && previous.route || {}, snapshot.route || {}, options || {})
+    snapshot.title = snapshot.title || previous && previous.title || ''
+    snapshot.route = Object.assign({}, this.snapshotRoute(snapshot), previous && previous.route || {}, snapshot.route || {}, options || {})
     snapshot.formatVersion = 1
     this.put(snapshot.id, snapshot)
     this.storage.set(`qandaOnlineLast:${this.userId}`, snapshot.id)
     if (snapshot.status === 'SUBMITTED' && snapshot.result) this.trackCompleted(snapshot.id)
     else this.pruneCompleted()
     return snapshot
+  }
+  async completeView(session) {
+    const id = session.meta.sessionId
+    const snapshot = this.get(id)
+    const key = `qandaViewClosures:${this.userId}`
+    const pending = this.storage.get(key) || {}
+    if (!pending[id]) {
+      pending[id] = { key: http.uuid(), body: { expectedVersion: snapshot.version, writerToken: snapshot.writer.writerToken } }
+      this.storage.set(key, pending)
+    }
+    snapshot.viewCompleted = true
+    this.put(id, snapshot)
+    await this.flushViewClosures()
+  }
+  async flushViewClosures() {
+    const userId = this.identity().userId
+    if (this.closingViews === userId) return
+    this.closingViews = userId
+    const key = `qandaViewClosures:${userId}`
+    try {
+      for (const [id, command] of Object.entries(this.storage.get(key) || {})) {
+        if (command.paused || this.identity().userId !== userId) continue
+        const response = await this.call('POST', `/practice/sessions/${id}/cancel`, command.body, { idempotencyKey: command.key })
+        if (this.identity().userId !== userId) return
+        const pending = this.storage.get(key) || {}
+        if (response.ok) {
+          const snapshot = this.get(id)
+          if (snapshot) this.put(id, Object.assign({}, snapshot, { status: 'CANCELLED', version: response.data.version }))
+          delete pending[id]
+          require('./remote-data-repository.js').invalidateLearning()
+        } else if ([400, 401, 403, 404, 409, 422].includes(response.statusCode)) {
+          pending[id] = Object.assign({}, command, { paused: true, reason: response.reason })
+        }
+        this.storage.set(key, pending)
+        if (!response.ok) break
+      }
+    } finally { if (this.closingViews === userId) this.closingViews = '' }
   }
   quiz(snapshot) {
     return { subjectId: snapshot.route.subjectId || '', bankId: snapshot.questionBankId, title: snapshot.title || '题库练习', storageKey: '', questions: snapshot.items.map(item => mapQuestion(item, (snapshot.offlineGrading || []).find(g => g.itemId === item.itemId))) }
@@ -203,7 +259,7 @@ class OnlinePractice {
     const questions = this.quiz(snapshot).questions
     return { sessionId: snapshot.id, questionIds: questions.map(q => q.id), questionOrder: questions.map((_, i) => i), currentIndex: snapshot.currentIndex, elapsedTime: snapshot.durationSeconds,
       markedIds: snapshot.items.filter(i => i.marked).map(i => i.question.id),
-      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', blanks: item.answer.blanks || [], confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? item.selfAssessment === 'CORRECT' : item.outcome ? item.outcome === 'CORRECT' : item.question.type === 'FILL_BLANK' ? gradeBlanks(questions[index], item.answer.blanks) : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
+      answers: snapshot.items.map((item, index) => item.answer ? { questionId: item.question.id, selectedKeys: item.answer.optionKeys || (item.answer.value === null || item.answer.value === undefined ? [] : [String(item.answer.value)]), text: item.answer.text || '', blanks: item.answer.blanks || [], confirmed: item.confirmed, selfAssessment: item.selfAssessment, isCorrect: item.question.type === 'SHORT_ANSWER' ? false : item.outcome ? item.outcome === 'CORRECT' : item.question.type === 'FILL_BLANK' ? gradeBlanks(questions[index], item.answer.blanks) : JSON.stringify((item.answer.optionKeys || (item.answer.value === undefined || item.answer.value === null ? [] : [String(item.answer.value)])).slice().sort()) === JSON.stringify(questions[index].answerKeys.slice().sort()) } : null),
       status: snapshot.status === 'SUBMITTED' ? 'SUBMITTED' : 'IN_PROGRESS', config: snapshot.route }
   }
   save(session) {

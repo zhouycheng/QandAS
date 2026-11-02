@@ -3,8 +3,7 @@
  *   node scripts/preview-practice.cjs
  * 输出 .tmp-preview/practice-preview.png
  *
- * 四态并排，对应设计稿的四个面板：
- *   即时模式·答对 / 即时模式·答错 / 答题卡弹层 / 答题结果
+ * 并排展示答题、答题卡、结果、长标题与八种题型的布局编辑。
  */
 const fs = require('fs')
 const path = require('path')
@@ -27,6 +26,24 @@ function rpxToPx(css) {
 const { PracticeViewModel } = require(path.join(MP, 'viewmodels/practice-viewmodel.js'))
 const { PracticeLayoutViewModel } = require(path.join(MP, 'viewmodels/practice-layout-viewmodel.js'))
 const { LABELS } = require(path.join(MP, 'utils/practice-layout.js'))
+const { getInitialHomeHeaderData } = require(path.join(MP, 'utils/home-header.js'))
+const headerLayout = getInitialHomeHeaderData({ statusBarHeight: 44, windowWidth: STAGE_W }, { top: 50, height: 32, left: STAGE_W - 95 })
+const escapeHtml = value => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+const { contentBlocks } = require(path.join(MP, 'utils/rich-content.js'))
+function richContent(text, format, language, blanks) {
+  const { blocks, links } = contentBlocks(text, format, language, blanks)
+  const htmlNodes = nodes => nodes.map(node => node.type === 'text' ? escapeHtml(node.text) : `<${node.name} ${Object.entries(node.attrs || {}).map(([name, value]) => `${name}="${escapeHtml(value)}"`).join(' ')}>${htmlNodes(node.children || [])}</${node.name}>`).join('')
+  const renderParts = parts => parts.map(part => part.blankIndex !== undefined ? `<input class="rich-blank" value="${escapeHtml(part.value)}" aria-label="填写空白处" readonly>` : `<span class="rich-inline">${htmlNodes(part.nodes)}</span>`).join('')
+  return '<div class="rich-content">' + blocks.map(block => {
+    const body = htmlNodes(block.nodes)
+    if (block.tag === 'pre') return `<div class="rich-code"><div class="code-bar"><span>${escapeHtml(block.language)}</span><button>复制</button></div><div class="code-scroll" style="overflow-x:auto">${body}</div></div>`
+    if (block.rows) return `<div class="table-scroll" style="overflow-x:auto"><div class="rich-fill-table">${block.rows.map(row => `<div class="rich-fill-row">${row.cells.map(cell => `<div class="rich-fill-cell ${cell.header ? 'rich-fill-heading' : ''}">${renderParts(cell.parts)}</div>`).join('')}</div>`).join('')}</div></div>`
+    if (block.tag === 'table') return `<div class="table-scroll" style="overflow-x:auto">${body}</div>`
+    if (block.parts) return '<div class="rich-fill-line">' + renderParts(block.parts) + '</div>'
+    return body
+  }).join('') + links.map(link => `<div class="rich-link">复制链接：${escapeHtml(link)}</div>`).join('') + '</div>'
+}
 
 function createStorage() {
   const store = {}
@@ -46,7 +63,7 @@ function createStorage() {
 /** elapsedMinutes：把开始时刻往前推，让预览里的用时不是 0:00（设计稿是 20:22） */
 function createSession(elapsedMinutes) {
   const vm = new PracticeViewModel({ storage: createStorage() })
-  vm.load({ subjectId: 'subject-chinese', bankId: 'chinese-ch001', mode: 'practice' })
+  vm.load({ subjectId: 'subject-chinese', bankId: 'chinese-ch001', mode: 'order' })
 
   if (elapsedMinutes) {
     vm.session.startedAt = Date.now() - elapsedMinutes * 60 * 1000
@@ -133,9 +150,10 @@ const PREVIEW_BASE = `
 .stage .page.practice-page { flex: 1; min-height: 0; height: auto; }
 /* 弹层的 position:fixed 在预览里要相对画板，否则会跑出 .stage */
 .stage .overview { position: absolute; }
-/* 答题页是二级页，真机顶部有系统导航栏 + 返回钮，预览里画出来对齐效果 */
-.pra-nav { flex: none; height: 91px; position: relative; background: #fff; }
-.pra-nav .nav-back { position: absolute; left: 12px; bottom: 12px; font-size: 24px; line-height: 1; color: #141820; font-weight: 300; }
+.stage .pra-body { overflow-y: auto; }
+page-header { display: block; flex: none; }
+.preview-status { position: absolute; top: 0; left: 16px; right: 16px; height: 44px; display: flex; align-items: center; justify-content: space-between; font: 12px/1 -apple-system, sans-serif; z-index: 80; pointer-events: none; }
+.preview-capsule { position: absolute; top: 50px; right: 8px; height: 32px; width: 87px; box-sizing: border-box; border: 1px solid #dedee2; border-radius: 18px; display: flex; align-items: center; justify-content: space-evenly; font: 18px/1 -apple-system, sans-serif; z-index: 80; pointer-events: none; }
 `
 
 function buildCss() {
@@ -149,20 +167,27 @@ body { margin: 0; background: #fff; font-family: -apple-system, BlinkMacSystemFo
 ${app}
 ${page}
 ${sheet}
+${read('components/page-header/index.wxss')}
+${read('components/rich-content/index.wxss')}
 ${PREVIEW_BASE}
 `)
 }
 
 /** 固定标题和进度。 */
-function head(data, title) {
+function head(data) {
+  const title = data.isCompleted ? '练习结果' : data.practiceTitle
+  const subtitle = data.isCompleted ? `${data.practiceTitle} · ${data.practiceSubtitle}` : data.practiceSubtitle
   return `
-  <div class="pra-head">
-    <div class="pra-head-text">
-      <span class="pra-head-title">${title || data.practiceTitle}</span>
-      <span class="pra-head-sub">${data.practiceSubtitle}</span>
+  <page-header><div class="nav-header" style="padding-top: ${headerLayout.homeStatusBarHeight}px">
+    <div class="nav-bar" style="height: ${headerLayout.homeNavigationBarHeight}px; padding-right: ${headerLayout.homeNavigationRight}px">
+      <div class="nav-back"><div class="nav-back-icon"></div></div>
+      <div class="nav-caption">
+        <span class="nav-title">${escapeHtml(title)}</span>
+        <span class="nav-subtitle">${escapeHtml(subtitle)}</span>
+      </div>
     </div>
-  </div>
-  <div class="pra-progress"><div class="pra-progress-fill" style="width: ${data.progressPercent}%"></div></div>`
+  </div></page-header>
+  ${data.isCompleted ? '' : `<div class="pra-progress"><div class="pra-progress-fill" style="width: ${data.progressPercent}%"></div></div>`}`
 }
 
 function questionInfo(data) {
@@ -179,7 +204,7 @@ function optionList(data) {
     .map((option) => `
       <div class="pra-option ${option.selected ? 'is-selected' : ''} ${option.isCorrectOption ? 'is-correct' : ''} ${option.isWrongOption ? 'is-wrong' : ''}">
         <span class="pra-option-key">${option.label}</span>
-        <span class="pra-option-text">${option.text}</span>
+        <div class="pra-option-text">${richContent(option.text, data.currentQuestion.contentFormat)}</div>
       </div>`)
     .join('')
 }
@@ -188,12 +213,12 @@ function analysis(data, explanationOpen) {
   return `
   <div class="pra-analysis">
     <div class="pra-analysis-head">
-      <span class="pra-result-tag ${data.isCurrentAnswerCorrect ? 'ok' : 'no'}">${data.isCurrentAnswerCorrect ? '答对啦' : '答错了'}</span>
-      <span class="pra-analysis-answer">${data.currentCorrectAnswerText}</span>
+      <span class="pra-result-tag ${data.isCurrentAnswerCorrect ? 'ok' : 'no'}">${data.isViewMode ? '参考内容' : data.currentQuestion.isShortAnswer ? '不计分' : data.isCurrentAnswerCorrect ? '答对啦' : '答错了'}</span>
+      <div class="pra-analysis-answer">${richContent(data.currentCorrectAnswerText, data.currentQuestion.isShortAnswer ? data.currentQuestion.contentFormat : 'PLAIN_TEXT')}</div>
     </div>
     <div class="pra-explanation ${explanationOpen ? 'is-open' : ''}">
       <span class="pra-side-title">解析</span>
-      <span class="pra-explanation-text">${data.currentExplanation || '这道题考的是修辞格的辨析：比喻是把甲事物比作乙事物，本体与喻体之间要有相似点；借代是用相关事物代替本体，两者不能同时出现。判断时先看有没有「像、好像、仿佛」这类喻词，再看两个成分是不是同类事物。'}</span>
+      <div class="pra-explanation-text">${richContent(data.currentExplanation, data.currentQuestion.contentFormat)}</div>
       <div class="pra-explanation-toggle">${explanationOpen ? '收起解析' : '展开全部解析'}</div>
     </div>
   </div>`
@@ -243,8 +268,13 @@ function questionStage(data, explanationOpen) {
 }
 
 function content(data, explanationOpen) {
-  const modules = { info: questionInfo(data), stem: `<div class="pra-stem">${data.currentQuestion.stem}</div>`, response: `<div class="pra-options">${optionList(data)}</div>`, analysis: data.shouldRevealAnswer ? analysis(data, explanationOpen) : '', tools: tools(data) }
-  return '<div class="pra-content">' + Object.keys(modules).map(id => `<div class="pra-module ${data.editLayout ? 'layout-module' : ''}" style="order:${data.layoutRanks[id]}">${data.editLayout ? `<div class="layout-handle" aria-label="拖动${LABELS[id]}调整顺序"><div class="layout-grip" aria-hidden="true"></div></div>` : ''}${modules[id]}</div>`).join('') + '</div>'
+  const question = data.currentQuestion
+  const response = question.isShortAnswer
+    ? `<textarea disabled>${escapeHtml(data.answerText)}</textarea>`
+    : question.isFillBlank ? '' : `<div class="pra-options">${optionList(data)}</div>`
+  const material = question.material ? `<div class="pra-material"><span class="pra-side-title">阅读材料</span>${richContent(question.material.passage, question.material.contentFormat)}</div>` : ''
+  const modules = { info: questionInfo(data), stem: `${material}<div class="pra-stem">${richContent(question.stem, question.contentFormat, undefined, question.isFillBlank ? data.blankInputs : undefined)}</div>`, response, analysis: data.shouldRevealAnswer ? analysis(data, explanationOpen) : '', tools: tools(data) }
+  return '<div class="pra-content">' + Object.keys(modules).filter(id => id !== 'response' || !question.isFillBlank).map(id => `<div class="pra-module ${data.editLayout ? 'layout-module' : ''}" style="order:${data.layoutRanks[id]}">${data.editLayout ? `<div class="layout-handle" aria-label="拖动${LABELS[id]}调整顺序"><div class="layout-grip" aria-hidden="true"></div></div>` : ''}${modules[id]}</div>`).join('') + '</div>'
 }
 
 function sheetStage(data, items) {
@@ -286,7 +316,7 @@ function sheetStage(data, items) {
 
   return `
   <div class="page practice-page font-${data.preferences.fontSize}">
-    ${head(data)}
+    ${head(Object.assign({}, data, { isCompleted: false }))}
     <div class="pra-body">${content(data, false)}</div>
     ${footer(data)}
 
@@ -318,7 +348,7 @@ function sheetStage(data, items) {
 function resultStage(data) {
   const cells = data.overviewItems
     .map((item) => `
-      <div class="res-cell ${item.answered ? (item.isCorrect ? 'cell-correct' : 'cell-wrong') : 'cell-pending'}">
+      <div class="res-cell ${item.answered ? (item.unscored ? 'cell-unscored' : item.isCorrect ? 'cell-correct' : 'cell-wrong') : 'cell-pending'}">
         <span class="res-cell-number">${item.number}</span>
         ${item.isMarked ? '<div class="res-cell-mark"></div>' : ''}
       </div>`)
@@ -328,20 +358,14 @@ function resultStage(data) {
 
   return `
   <div class="page practice-page font-${data.preferences.fontSize}">
+    ${head(data)}
     <div class="pra-result">
-      <div class="pra-head pra-head-result">
-        <div class="pra-head-text">
-          <span class="pra-head-title">练习结果</span>
-          <span class="pra-head-sub">${data.practiceTitle} · ${data.practiceSubtitle}</span>
-        </div>
-      </div>
-
       <div class="res-card">
         <div class="res-card-cell"><span class="res-card-value">${data.elapsedText}</span><span class="res-card-label">总用时</span></div>
         <div class="res-card-split"></div>
         <div class="res-card-cell"><span class="res-card-value">${answered}/${data.total}</span><span class="res-card-label">已答/总题</span></div>
         <div class="res-card-split"></div>
-        <div class="res-card-cell"><span class="res-card-value">${data.score}%</span><span class="res-card-label">正确率</span></div>
+        <div class="res-card-cell"><span class="res-card-value">${data.scoreText}</span><span class="res-card-label">${data.objectiveCount ? '客观题得分' : '完成状态'}</span></div>
       </div>
 
       <div class="res-detail">
@@ -367,19 +391,24 @@ function resultStage(data) {
   </div>`
 }
 
-const stages = [
+const layoutVm = new PracticeLayoutViewModel({ storage: createStorage() })
+const stageDefinitions = [
   { tag: '答题页 · 练习模式（未作答）', body: questionStage(freshData, false) },
   { tag: '答题页 · 即时模式（答错 + 已收藏已标记）', body: questionStage(wrongData, true) },
   { tag: '答题页 · 答题卡（还有未答）', body: sheetStage(sheetData, sheetItems) },
   { tag: '答题页 · 答题卡（已答完 · 有标记）', body: sheetStage(markedDoneData, markedDoneItems) },
   { tag: '答题页 · 答题卡（已答完 · 无标记）', body: sheetStage(plainDoneData, plainDoneItems) },
   { tag: '答题页 · 答题结果', body: resultStage(resultData) },
-  { tag: '自定义布局 · 共用答题样式', body: questionStage(new PracticeLayoutViewModel({ storage: createStorage() }).load().data, true) }
+  { tag: '答题页 · 长题库名', body: questionStage(Object.assign({}, freshData, { practiceTitle: '学习能力与知识迁移综合练习题库：第一单元至第十二单元' }), false) },
+  ...Array.from({ length: 8 }, (_, index) => {
+    const data = layoutVm.preview(index).data
+    return { tag: `自定义布局 · ${data.previewTypes[index]}`, body: questionStage(data, true) }
+  })
 ]
-  .map((stage) => `
+const stages = stageDefinitions.map((stage) => `
     <div class="panel-col">
       <div class="panel-tag">${stage.tag}</div>
-      <div class="stage"><style>${buildCss()}</style><div class="pra-nav"><span class="nav-back">‹</span></div>${stage.body}</div>
+      <div class="stage"><style>${buildCss()}</style><div class="preview-status"><span>9:41</span><span>··· ▰</span></div><div class="preview-capsule"><span>•••</span><span>⦿</span></div>${stage.body}</div>
     </div>`)
   .join('')
 
@@ -417,7 +446,7 @@ execFileSync(edge, [
   '--hide-scrollbars',
   '--force-device-scale-factor=1',
   '--virtual-time-budget=2000',
-  `--window-size=${STAGE_W * 7 + 194},${STAGE_H + 70}`,
+  `--window-size=${(STAGE_W + 24) * stageDefinitions.length + 24},${STAGE_H + 70}`,
   `--screenshot=${pngPath}`,
   `file:///${htmlPath.replace(/\\/g, '/')}`
 ], { stdio: 'ignore' })

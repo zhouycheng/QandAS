@@ -195,6 +195,7 @@ answers[secondQuestionId] = 0
 
 storage.set('qandaProgress', {
   'chinese-ch001': {
+    scoringVersion: 1,
     total: firstBank.questions.length,
     answers,
     updatedAt: Date.now()

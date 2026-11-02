@@ -84,6 +84,8 @@ function getInitialBankDetailViewData() {
     configTitle: '答题配置',
     configSubtitle: '',
     configTargetName: '',
+    sheetChapters: [],
+    sheetChapterId: '',
     sheetMode: DEFAULT_SHEET.mode,
     sheetOrder: DEFAULT_SHEET.order,
     sheetTimed: DEFAULT_SHEET.timed,
@@ -156,13 +158,14 @@ class BankDetailViewModel {
   refreshRemote(subjectId, options) {
     if (!this.repository.isRemoteEnabled || !this.repository.isRemoteEnabled()) return Promise.resolve(null)
     if (subjectId) this.currentSubjectId = subjectId
+    if (options && options.force) { this.remotePage = 1; this.remoteSubjectPage = 1 }
     return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1 }))
       .then(() => ({ data: this.projectRemote() })).catch(() => ({ data: this.projectRemote() }))
   }
 
   projectRemote() {
     const subjects = this.repository.getSubjectSummaries()
-    const id = this.currentSubjectId || (subjects[0] || {}).id
+    const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id
     const detail = this.repository.getSubjectDetail(id)
     if (!this.repository.isRemoteEnabled || !this.repository.isRemoteEnabled()) return detail ? this.buildViewData(subjects, detail) : {}
     const current = this.repository.getRemoteCatalogPage({ subjectId: id, page: this.remotePage || 1 })
@@ -352,7 +355,7 @@ class BankDetailViewModel {
         bankId: bank.id,
         subjectId: detail.id,
         index,
-        title: chapterTitle(index, bank.name),
+        title: this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() ? bank.name : chapterTitle(index, bank.name),
         unitText: bank.unitText || `单元 ${index + 1}`,
         metaText: chapterMetaText(bankStats, hasProgress),
         questionCount: bank.questionCount || 0,
@@ -573,7 +576,7 @@ class BankDetailViewModel {
         subjectId: detail.id,
         bankId: bank.id,
         name: bank.name,
-        title: chapterTitle((detail.banks || []).indexOf(bank), bank.name),
+        title: this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() ? bank.name : chapterTitle((detail.banks || []).indexOf(bank), bank.name),
         questionCount: bank.questionCount || 0
       }
     } else {
@@ -594,7 +597,14 @@ class BankDetailViewModel {
 
   openBankConfig(subjectId, bankId) {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
-      return this.repository.loadRemoteBank(this.storage, bankId).then(bank => this.openConfig({ type: 'bank', subjectId: bank.subjectId, bankId }))
+      return Promise.all([
+        this.repository.loadRemoteBank(this.storage, bankId),
+        this.repository.loadRemoteChapters(this.storage, bankId)
+      ]).then(([bank, chapters]) => {
+        const result = this.openConfig({ type: 'bank', subjectId: bank.subjectId, bankId })
+        this.sheetTarget.chapters = chapters || []
+        return Object.assign({}, result, { data: Object.assign({}, result.data, this.buildSheetData()) })
+      })
     }
     return this.openConfig({ type: 'bank', subjectId, bankId })
   }
@@ -608,6 +618,8 @@ class BankDetailViewModel {
     this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random'
     this.sheet.timed = !!pending.duration || pending.mode === 'test'
     this.sheet.duration = Number(pending.duration) || DEFAULT_DURATION_MINUTES
+    this.sheet.onlyWrong = pending.selectionKind === 'WRONG'
+    this.setSheetChapter(pending.chapterId || '')
     this.storage.remove('qandaPendingPractice')
     return this.buildConfigOpenResult()
   }
@@ -666,6 +678,12 @@ class BankDetailViewModel {
     return {
       data: this.buildSheetData()
     }
+  }
+
+  setSheetChapter(id) {
+    if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id))) return null
+    this.sheet.chapterId = id || ''
+    return { data: this.buildSheetData() }
   }
 
   setSheetTimed(timed) {
@@ -727,14 +745,18 @@ class BankDetailViewModel {
     const target = this.sheetTarget
     const wrongCount = this.wrongCountFor(target)
     const isView = this.sheet.mode === 'view'
+    const chapter = target && (target.chapters || []).find(item => item.id === this.sheet.chapterId)
+    const count = chapter ? chapter.questionCount : target && target.questionCount
     const startText = this.sheet.mode === 'test'
       ? '开始测试'
       : (isView ? '开始背题' : '开始答题')
 
     return {
       configTitle: '答题配置',
-      configSubtitle: target ? `${target.title} · ${target.questionCount} 题` : '',
+      configSubtitle: target ? `${target.title}${chapter ? ' · ' + chapter.name : ''} · ${count} 题` : '',
       configTargetName: target ? target.name : '',
+      sheetChapters: target && target.chapters && target.chapters.length ? [{ id: '', name: '全部章节', questionCount: target.questionCount }].concat(target.chapters) : [],
+      sheetChapterId: this.sheet.chapterId || '',
       sheetMode: this.sheet.mode,
       sheetOrder: this.sheet.order,
       sheetTimed: this.sheet.timed,
@@ -828,6 +850,7 @@ class BankDetailViewModel {
     if (target.type === 'bank') {
       query.push(`subjectId=${encodeURIComponent(target.subjectId)}`)
       query.push(`bankId=${encodeURIComponent(target.bankId)}`)
+      if (this.sheet.chapterId) query.push(`chapterId=${encodeURIComponent(this.sheet.chapterId)}`)
     } else if (!wrongIds.length) {
       query.push(`subjectId=${encodeURIComponent(target.subjectId)}`)
       query.push('scope=subject')
@@ -867,6 +890,7 @@ class BankDetailViewModel {
     if (remote && target.bankId) {
       return this.repository.previewRemotePracticeScope(this.storage, {
         questionBankId: target.bankId,
+        chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [],
         count: this.sheet.onlyWrong ? 1000 : Math.min(target.questionCount || 1000, 1000),
         order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
         selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',

@@ -10,6 +10,6 @@ function gradeBlanks(question, values) {
     blanks.every((blank, index) => (blank.answers || []).some(answer => normalize(answer) === normalize(values[index])))
 }
 function blankAnswerText(question) {
-  return (question.blanks || []).map((blank, index) => `第 ${index + 1} 空：${(blank.answers || []).join(' / ')}`).join('\n')
+  return (question.blanks || []).map((blank, index) => `${(question.blanks || []).length > 1 ? String.fromCharCode(9312 + index) + ' ' : ''}${(blank.answers || []).join(' / ')}`).join('\n')
 }
 module.exports = { gradeBlanks, blankAnswerText }

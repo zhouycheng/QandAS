@@ -124,9 +124,12 @@ class SubjectListViewModel {
     const overallStats = summarizeOverallProgress(progress, subjects)
     const overview = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() && this.repository.getRemoteOverview(this.storage)
     if (overview) {
+      const objectiveAnswered = overview.correctCount + overview.wrongCount
+      const accuracy = objectiveAnswered ? Math.round(overview.correctCount / objectiveAnswered * 100) : null
       Object.assign(overallStats, { answered: overview.answeredCount, correct: overview.correctCount, total: overview.totalCount,
-        accuracy: overview.answeredCount ? Math.round(overview.correctCount / overview.answeredCount * 100) : 0,
-        accuracyText: `${overview.answeredCount ? Math.round(overview.correctCount / overview.answeredCount * 100) : 0}%`,
+        isCumulative: true, answeredText: `累计 ${overview.answeredCount} 题`, hasProgress: overview.answeredCount > 0,
+        accuracy,
+        accuracyText: accuracy === null ? '—' : `${accuracy}%`,
         progressPercent: overview.totalCount ? Math.min(100, Math.round(overview.answeredCount / overview.totalCount * 100)) : 0 })
     }
     const wrongSummary = this.getWrongBookSummary()
@@ -140,6 +143,7 @@ class SubjectListViewModel {
       total: overallStats.total,
       accuracyText: overallStats.accuracyText,
       progressPercent: overallStats.progressPercent,
+      coverageKnown: !overview,
       pendingWrong: wrongSummary.pending,
       masteredWrong: wrongSummary.mastered,
       studySeconds: studyTime.totalSeconds,
@@ -258,8 +262,8 @@ class SubjectListViewModel {
 
   buildResumablePractice() {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
-      const recent = this.repository.getRemoteRecent(this.storage).find((item) => item.status === 'IN_PROGRESS')
-      if (recent) { const meta = this.repository.getScopeMeta(recent.questionBankId || recent.bankId); return { resumed: true, scopeKey: recent.questionBankId || recent.bankId, title: meta ? meta.title : recent.title || '继续练习', description: meta ? meta.description : '', url: `/page/practice/index?sessionId=${recent.id}`, metaText: this.repository.getAuth(this.storage).loggedIn ? '云端练习 · 继续答题' : '本机试答 · 继续答题' } }
+      const recent = this.repository.getResumableSession(this.storage)
+      if (recent) { const config = recent.config || {}; const meta = this.repository.getScopeMeta(config.bankId); return { resumed: true, scopeKey: config.bankId || '', title: meta ? meta.title : config.title || '继续练习', description: meta ? meta.description : '', url: `/page/practice/index?sessionId=${recent.sessionId}`, metaText: this.repository.getAuth(this.storage).loggedIn ? '云端练习 · 继续答题' : '本机试答 · 继续答题' } }
       return null
     }
     if (typeof this.repository.getResumableSession !== 'function') {
@@ -426,21 +430,22 @@ class SubjectListViewModel {
     return null
   }
 
-  /**
-   * 最近练习：有半场会话就直接续做；只有历史进度时提示去题库，
-   * 不硬造一个「重新开始」——用户点「最近练习」期待的是接着上次，不是重来。
-   */
+  /** 最近练习同时提供续答和历史成绩入口。 */
   openRecent(loaded) {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       if (!loaded) return this.repository.refreshRemote(this.storage, 'recent').then(() => this.openRecent(true))
-      const recent = this.repository.getRemoteRecent(this.storage)
+      const recent = this.repository.getRemoteRecent(this.storage).filter(item => ['IN_PROGRESS', 'SUBMITTED'].includes(item.status))
       const runtime = require('../repositories/online-practice.js').current()
       const waiting = runtime && this.repository.getAuth(this.storage).loggedIn ? runtime.waitingIds().map(id => { const record = runtime.getWaiting(id); return record ? Object.assign({ id }, record) : null }).filter(Boolean) : []
-      if (waiting.length) {
+      if (waiting.length || recent.length > 1) {
         const choices = waiting.map(item => ({ id: item.id, label: item.writer && item.writer.writerToken ? '同步完成 · 继续答题' : '等待同步 · 查看进度' }))
         recent.filter(item => !choices.some(choice => choice.id === item.id)).forEach(item => {
           const meta = this.repository.getScopeMeta(item.questionBankId)
-          choices.push({ id: item.id, label: `${item.status === 'SUBMITTED' ? '结果' : '继续'} · ${meta ? meta.title : '练习'} · ${(item.createdAt || '').slice(0, 10)}` })
+          const snapshot = runtime && runtime.get && runtime.get(item.id)
+          if (snapshot && snapshot.viewCompleted) return
+          const createdAt = Date.parse(item.createdAt)
+          const time = Number.isFinite(createdAt) ? new Date(createdAt + 8 * 3600000).toISOString().slice(5, 16).replace('T', ' ') : ''
+          choices.push({ id: item.id, label: `${item.status === 'SUBMITTED' ? '结果' : '继续'} · ${meta ? meta.title : snapshot && snapshot.title || '练习'} · ${time}` })
         })
         return { command: { type: 'choosePractice', choices } }
       }

@@ -10,7 +10,7 @@ async function identity(response) {
   const me = await request('GET', '/me', {}, { token })
   if (!me.ok) return me
   if (!me.data || !me.data.id) return { ok: false, reason: '登录接口未返回用户标识' }
-  return { ok: true, userId: me.data.id, token, email: me.data.email || '', nickname: me.data.nickname, version: me.data.version, profile: me.data }
+  return { ok: true, userId: me.data.id, token, email: me.data.email || '', nickname: me.data.nickname, avatarUrl: me.data.avatarUrl || '', version: me.data.version, profile: me.data }
 }
 function login(code, options) { return request('POST', '/auth/wechat-sessions', { code, deviceId: options && options.deviceId || uuid() }, { token: '' }).then(identity) }
 function registerWechat(input) { return request('POST', '/auth/wechat-registrations', { registrationToken: input.registrationToken, nickname: input.nickname || 'Q友' }, { token: '', idempotencyKey: input.idempotencyKey || uuid() }) }
@@ -24,6 +24,11 @@ async function sendCode(input) {
   return response.ok ? Object.assign({}, response, { challengeId: response.data.id, expiresAt: response.data.expiresAt, cooldown: response.data.resendAfterSeconds }) : response
 }
 function resetPassword(input) { return request('POST', '/auth/password-resets', { challengeId: input.challengeId, code: input.code, newPassword: input.password }, { token: '', idempotencyKey: input.idempotencyKey || uuid() }) }
+function requestOwnEmailChallenge(input, options) { return request('POST', '/me/email-challenges', input, options) }
+function verifyOwnEmailChallenge(id, input, options) { return request('POST', `/me/email-challenges/${encodeURIComponent(id)}/verification`, input, options) }
+function changeOwnPassword(input, options) { return request('PUT', '/me/password', input, options) }
+function changeOwnEmail(input, options) { return request('PUT', '/me/email-binding', input, options) }
+function bindOwnWechat(input, options) { return request('PUT', '/me/wechat-binding', input, options) }
 
 function getSession(storage, sessionId) {
   const id = sessionId || ''
@@ -88,6 +93,7 @@ function getResult(storage, sessionId) {
 const RESULT_STATUS = {
   CORRECT: 'correct',
   WRONG: 'wrong',
+  UNSCORED: 'unscored',
   UNANSWERED: 'unanswered'
 }
 
@@ -127,9 +133,9 @@ function normalizeQuestionResult(raw) {
   const givenStatus = typeof payload.status === 'string' ? payload.status.toLowerCase() : ''
   const userAnswer = normalizeAnswerKeys(payload.userAnswer)
 
-  let status = givenStatus
+  let status = payload.type === 'SHORT_ANSWER' || payload.unscored ? (payload.answered === false ? RESULT_STATUS.UNANSWERED : RESULT_STATUS.UNSCORED) : givenStatus
 
-  if (status !== RESULT_STATUS.CORRECT && status !== RESULT_STATUS.WRONG && status !== RESULT_STATUS.UNANSWERED) {
+  if (status !== RESULT_STATUS.CORRECT && status !== RESULT_STATUS.WRONG && status !== RESULT_STATUS.UNANSWERED && status !== RESULT_STATUS.UNSCORED) {
     if (!userAnswer.length) {
       status = RESULT_STATUS.UNANSWERED
     } else {
@@ -177,6 +183,10 @@ function normalizeAnswerKeys(raw) {
  */
 function normalizeRemoteResult(raw, sessionId) {
   const payload = raw && typeof raw === 'object' ? raw : {}
+  if (payload.objective) {
+    const objective = payload.objective
+    return { sessionId: payload.sessionId || sessionId || '', totalCount: payload.totalCount, answeredCount: payload.answeredCount, correctCount: objective.correct, wrongCount: objective.wrong, unansweredCount: payload.totalCount - payload.answeredCount, score: objective.score === undefined ? (objective.count ? Math.round(objective.correct / objective.count * 100) : null) : objective.score, accuracy: objective.answered ? Math.round(objective.correct / objective.answered * 1000) / 10 : null, duration: payload.durationSeconds, questionResults: (payload.items || []).map(item => ({ questionId: item.question.id, userAnswer: item.answer, correctAnswer: item.question.correctAnswer, status: item.outcome === 'SELF_RATED' ? RESULT_STATUS.UNSCORED : (item.outcome || 'UNANSWERED').toLowerCase(), explanation: item.question.explanation || '' })) }
+  }
   const questionResults = (Array.isArray(payload.questionResults) ? payload.questionResults : [])
     .map(normalizeQuestionResult)
 
@@ -197,32 +207,17 @@ function normalizeRemoteResult(raw, sessionId) {
     correctCount,
     wrongCount,
     unansweredCount,
-    accuracy: normalizeAccuracy(payload.accuracy, totalCount, correctCount),
+    accuracy: normalizeAccuracy(payload.accuracy, correctCount, wrongCount, questionResults.length > 0 || typeof payload.correctCount === 'number' && typeof payload.wrongCount === 'number'),
     duration: Math.max(Number(payload.duration) || 0, 0),
     questionResults
   }
 }
 
-/**
- * 正确率单位归一化。
- *
- * 后端可能返回 0.85（比例）也可能返回 85（百分制），端内统一按百分制整数。
- * 判据：比例落在 (0, 1] 且百分制的合法值不可能落在这个区间——
- * 除非整卷只对了不到 1 分，而分数是整数，不存在 0 < score <= 1 以外的情况。
- * Contract Freeze 时把这个约定写进文档即可，不用再改代码。
- */
-function normalizeAccuracy(rawAccuracy, totalCount, correctCount) {
+/** 旧正式结果保留已记录正确率；旧聚合缺少客观计数时返回未知。 */
+function normalizeAccuracy(rawAccuracy, correctCount, wrongCount, known) {
   const given = Number(rawAccuracy)
-
-  if (!isFinite(given) || given < 0) {
-    return totalCount ? Math.round((correctCount / totalCount) * 100) : 0
-  }
-
-  if (given > 0 && given <= 1) {
-    return Math.round(given * 100)
-  }
-
-  return Math.round(given)
+  if (rawAccuracy !== null && rawAccuracy !== undefined && isFinite(given) && given >= 0 && given <= 100) return Math.round(given > 0 && given <= 1 ? given * 100 : given)
+  return known && correctCount + wrongCount ? Math.round(correctCount / (correctCount + wrongCount) * 100) : null
 }
 
 module.exports = {
@@ -243,5 +238,10 @@ module.exports = {
   register,
   registerWechat,
   resetPassword,
+  requestOwnEmailChallenge,
+  verifyOwnEmailChallenge,
+  changeOwnPassword,
+  changeOwnEmail,
+  bindOwnWechat,
   sendCode
 }

@@ -12,6 +12,7 @@ async function main() {
   const repository = {
     isRemoteEnabled: () => true,
     getRemoteRecent: () => [],
+    getResumableSession: () => null,
     getAuth: () => ({ loggedIn: true }),
     getProgress: () => ({ lastBank: { answers: {}, total: 1, updatedAt: 1 } }),
     getScopeMeta: () => ({ subjectId: 'subject-preferred' }),

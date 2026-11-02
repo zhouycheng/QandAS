@@ -4,6 +4,7 @@ Component({
       type: Boolean,
       value: false
     },
+    draftCount: { type: Number, value: 0 },
     items: {
       type: Array,
       value: []
