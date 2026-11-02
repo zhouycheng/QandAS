@@ -2,6 +2,7 @@ import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateColle
 import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, SubjectAccess, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UserQuery } from '../types/operations'
 
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
+import type { CommunityGroup } from '../types/operations'
 
 export interface AdminContentGateway {
   readonly mode: 'mock' | 'http'
@@ -28,6 +29,9 @@ export interface AdminContentGateway {
   deleteAnnouncement(id: string, expectedVersion: number): Promise<void>
   getSecuritySettings(): Promise<SecuritySettings>
   saveSecuritySettings(input: SecuritySettings): Promise<SecuritySettings>
+  getCommunityGroup(): Promise<CommunityGroup>
+  saveCommunityGroup(input: { expectedVersion: number; image: string; expiresAt: string }): Promise<CommunityGroup>
+  communityGroupImage(version: number): string
   listOperationLogs(query?: LogQuery): Promise<Page<OperationLog>>
   getActivity(query: ActivityQuery): Promise<ActivitySummary>
   getRankings(query: ActivityQuery): Promise<Page<RankingRow>>

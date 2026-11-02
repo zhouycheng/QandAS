@@ -31,6 +31,7 @@ const groups = [
     items: [
       ['/administrators', '管理员账号', 'shield'],
       ['/security', '安全规则', 'settings'],
+      ['/community-group', '交流群二维码', 'users'],
       ['/logs', '操作日志', 'file'],
     ],
   },

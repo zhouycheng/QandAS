@@ -26,6 +26,7 @@ const FeedbackPage = lazy(() => import('./pages/operations/operations-pages').th
 const AnnouncementsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.AnnouncementsPage })))
 const AdministratorsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.AdministratorsPage })))
 const SecurityPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.SecurityPage })))
+const CommunityGroupPage = lazy(() => import('./pages/operations/community-group-page').then(m => ({ default: m.CommunityGroupPage })))
 const LogsPage = lazy(() => import('./pages/operations/operations-pages').then(m => ({ default: m.LogsPage })))
 
 export default function App() {
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/announcements" element={<AnnouncementsPage />} />
           <Route path="/administrators" element={<AdministratorsPage />} />
           <Route path="/security" element={<SecurityPage />} />
+          <Route path="/community-group" element={<CommunityGroupPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/question-banks" element={<QuestionBanksPage />} />

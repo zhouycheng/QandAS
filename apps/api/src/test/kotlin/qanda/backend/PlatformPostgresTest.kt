@@ -858,6 +858,40 @@ class PlatformPostgresTest {
         assertFalse(call("GET","/announcements",token=one.token)["items"].any { it["id"].asText()==announcement.toString() })
     }
 
+    @Test fun `announcements keep pinned community notice ahead of newer notices`() {
+        val s=student()
+        val body=mapOf("title" to "欢迎加入 QandA 用户交流群","summary" to "欢迎交流和反馈","body" to "课程复习与题库练习","status" to "PUBLISHED","pinned" to true,"showCommunityGroup" to true)
+        val pinned=id(call("POST","/admin/announcements",body))
+        val ordinary=id(call("POST","/admin/announcements",body + mapOf("title" to "更新公告","pinned" to false,"showCommunityGroup" to false)))
+        val first=call("GET","/announcements?pageSize=1",token=s.token)["items"].first()
+        assertEquals(pinned.toString(),first["id"].asText());assertTrue(first["showCommunityGroup"].asBoolean())
+        call("PUT","/admin/announcements/$pinned",body + mapOf("pinned" to false,"expectedVersion" to 1))
+        assertFalse(call("GET","/admin/announcements")["items"].first { it["id"].asText()==pinned.toString() }["pinned"].asBoolean())
+        call("DELETE","/admin/announcements/$pinned?expectedVersion=2");call("DELETE","/admin/announcements/$ordinary?expectedVersion=1")
+    }
+
+    @Test fun `community group validates image permissions concurrency and expiry`() {
+        val current=call("GET","/community/group",token=null)
+        assertFalse(current["available"].asBoolean())
+        call("GET","/admin/community/group",token=null,status=401)
+        val image=ByteArrayOutputStream().also { ImageIO.write(BufferedImage(32,32,BufferedImage.TYPE_INT_RGB),"png",it) }.toByteArray()
+        val body=mapOf("expectedVersion" to current["version"].asLong(),"image" to "data:image/png;base64,"+Base64.getEncoder().encodeToString(image),"expiresAt" to Instant.now().plusSeconds(3600))
+        call("PUT","/admin/community/group",body,token=student().token,status=403)
+        call("PUT","/admin/community/group",body + mapOf("expiresAt" to Instant.now().minusSeconds(1)),status=422)
+        call("PUT","/admin/community/group",body + mapOf("image" to "data:image/png;base64,broken!"),status=422)
+        val key=UUID.randomUUID()
+        val saved=call("PUT","/admin/community/group",body,key=key)
+        assertEquals(saved,call("PUT","/admin/community/group",body,key=key))
+        assertTrue(call("GET","/community/group",token=null)["available"].asBoolean())
+        call("PUT","/admin/community/group",body,status=409)
+        val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/api/v1/community/group/image")).GET().build(),HttpResponse.BodyHandlers.ofByteArray())
+        assertEquals(200,response.statusCode());assertEquals("image/png",response.headers().firstValue("content-type").orElse(""))
+        assertTrue(ImageIO.read(response.body().inputStream()) != null)
+        jdbc.update("UPDATE community_group SET expires_at=now()-interval '1 minute' WHERE id=1")
+        assertFalse(call("GET","/community/group",token=null)["available"].asBoolean())
+        call("GET","/community/group/image",token=null,status=404)
+    }
+
     @Test fun `offline snapshots compact synchronization and strict writer handoff preserve all answers`() {
         val s=student();val other=student();val f=fixture();val device=UUID.randomUUID();val next=UUID.randomUUID()
         val bank=call("GET","/question-banks/${f.bank}",token=s.token)

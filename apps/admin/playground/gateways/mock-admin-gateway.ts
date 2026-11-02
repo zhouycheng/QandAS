@@ -125,9 +125,21 @@ function publicAccount(account: import('../../src/types/operations').StoredAdmin
 }
 
 export class MockAdminContentGateway implements AdminContentGateway {
+  private communityGroup: import('../../src/types/operations').CommunityGroup = { version: 1, expiresAt: null, available: false }
+  private communityImage = ''
   private syncDeadLetter = { commandId: '10000000-0000-4000-8000-000000000001', sessionId: '10000000-0000-4000-8000-000000000002', failure: { code: 'SYNC_PROCESSING_FAILED', message: '数据库暂不可用，已保留原命令', status: 503 }, reason: null }
   private syncReplayed = false
   readonly mode = 'mock' as const
+  async getCommunityGroup() { await simulateRequest(); return { ...this.communityGroup, available: !!this.communityGroup.expiresAt && Date.parse(this.communityGroup.expiresAt) > Date.now() } }
+  async saveCommunityGroup(input: { expectedVersion: number; image: string; expiresAt: string }) {
+    await simulateRequest('write')
+    if (input.expectedVersion !== this.communityGroup.version) throw new ApiError('内容已更新，请刷新后重试。', 'VERSION_CONFLICT', 409)
+    if (!/^data:image\/(png|jpeg);base64,/.test(input.image) || !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= Date.now()) throw new ApiError('请选择图片并填写有效期。', 'VALIDATION_FAILED', 422)
+    this.communityImage = input.image
+    this.communityGroup = { version: input.expectedVersion + 1, expiresAt: input.expiresAt, available: true }
+    return this.communityGroup
+  }
+  communityGroupImage(_version: number) { return this.communityImage }
   async getSubject(id: string) { await simulateRequest(); const subject = getMockAdminState().subjects.find(s => s.id === id); if (!subject) throw new ApiError('课程不存在。', 'NOT_FOUND', 404); return structuredClone(subject) }
   private imports = new Map<string, { body: string; count: number }>()
   private images = new Map<string, Blob>()
@@ -468,7 +480,7 @@ export class MockAdminContentGateway implements AdminContentGateway {
       a.status === 'SCHEDULED' && a.publishAt && new Date(a.publishAt).getTime() <= Date.now()
         ? { ...a, status: 'PUBLISHED' as const }
         : a,
-    ), query)
+    ).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt.localeCompare(a.updatedAt)), query)
   }
 
   async saveAnnouncement(id: string | undefined, input: AnnouncementInput) {

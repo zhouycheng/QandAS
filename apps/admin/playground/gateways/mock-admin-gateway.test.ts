@@ -253,6 +253,15 @@ describe('管理员会话、运营与场景隔离', () => {
     vi.advanceTimersByTime(61000)
     expect((await run(() => gateway.listAnnouncements())).items.find(a => a.id === draft.id)?.status).toBe('PUBLISHED')
   })
+  it('置顶入群公告排在更新的普通公告前', async () => {
+    const input = { ...store.getState().announcements[0], title: '用户交流群', status: 'PUBLISHED' as const, body: '欢迎交流与反馈', summary: '加入用户交流群', pinned: true, showCommunityGroup: true }
+    const pinned = await run(() => gateway.saveAnnouncement(undefined, input))
+    vi.advanceTimersByTime(1000)
+    await run(() => gateway.saveAnnouncement(undefined, { ...input, title: '普通公告', pinned: false, showCommunityGroup: false }))
+    const first = (await run(() => gateway.listAnnouncements({ pageSize: 1 }))).items[0]
+    expect(first.id).toBe(pinned.id)
+    expect(first.showCommunityGroup).toBe(true)
+  })
   it('写入失败和切换场景不污染数据', async () => {
     store.getState().setScenario('write-error')
     const before = structuredClone(store.getState().questions)

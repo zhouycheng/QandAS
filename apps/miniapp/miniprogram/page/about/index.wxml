@@ -18,6 +18,7 @@
       <text class="about-heading">关于这个应用</text>
       <text class="about-paragraph" wx:for="{{paragraphs}}" wx:key="*this">{{item}}</text>
     </view>
+    <community-group />
     <view class="donation-grid" wx:if="{{donationCodes.length}}">
       <view class="donation-card" wx:for="{{donationCodes}}" wx:key="image" data-index="{{index}}" bindtap="handleDonationTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
         <image class="donation-code" src="{{item.image}}" mode="widthFix" show-menu-by-longpress="{{true}}" /><text class="donation-label">{{item.label}}</text>

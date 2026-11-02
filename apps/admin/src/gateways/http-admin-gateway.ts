@@ -163,6 +163,9 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   async updateFeedback(feedback: StudentFeedback, input: Pick<StudentFeedback, 'status' | 'response'>) { await this.write('PUT', `/admin/${feedback.kind === 'QUESTION' ? 'question-feedback' : 'course-requests'}/${segment(feedback.id)}`, { ...input, expectedVersion: feedback.version }) }
   getSecuritySettings() { return this.request<SecuritySettings>('GET', '/admin/security-policy') }
   saveSecuritySettings(input: SecuritySettings) { const { version, updatedAt: _at, ...body } = input; return this.write<SecuritySettings>('PUT', '/admin/security-policy', { ...body, expectedVersion: version }) }
+  getCommunityGroup() { return this.request<import('../types/operations').CommunityGroup>('GET', '/admin/community/group') }
+  saveCommunityGroup(input: { expectedVersion: number; image: string; expiresAt: string }) { return this.write<import('../types/operations').CommunityGroup>('PUT', '/admin/community/group', input) }
+  communityGroupImage(version: number) { return `${this.baseUrl}/api/v1/community/group/image?v=${version}` }
   async listOperationLogs(query?: LogQuery) {
     const data = await this.page<{ id: string; createdAt: string; actorAdminId?: string; actorUserId?: string; operation: string; outcome: 'SUCCESS' | 'FAILURE'; reasonCode?: string; requestId: string }>('/admin/audit-logs', query)
     return { ...data, items: data.items.map(row => ({ id: row.id, createdAt: row.createdAt, actor: row.actorAdminId || row.actorUserId || '系统', module: row.operation, content: [row.reasonCode, row.requestId].filter(Boolean).join(' · '), result: row.outcome, ip: '' } satisfies OperationLog)) }

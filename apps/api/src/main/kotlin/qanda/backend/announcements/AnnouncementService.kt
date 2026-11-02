@@ -12,7 +12,7 @@ import java.util.UUID
 @Transactional(timeout=3)
 class AnnouncementService(private val announcements: AnnouncementMapper,private val sql: AnnouncementQueries,private val users: AccountDirectory,private val clock: Clock) {
     fun announcement(row: Announcement,admin: Boolean): AnnouncementView = AnnouncementView(row.id!!,row.title,row.summary,row.body,row.audience,sql.platforms(row.id!!),if(admin) sql.recipients(row.id!!) else emptyList(),
-        if(row.status=="SCHEDULED" && row.publishAt?.isAfter(clock.instant())==false) "PUBLISHED" else row.status,row.publishAt,row.version,row.updatedAt)
+        if(row.status=="SCHEDULED" && row.publishAt?.isAfter(clock.instant())==false) "PUBLISHED" else row.status,row.publishAt,row.version,row.updatedAt,row.pinned,row.showCommunityGroup)
     fun announcements(actor: Actor,p: PageSpec): Page<AnnouncementView> {
         val userId=actor.takeIf { it.kind=="USER" }?.id
         return Page(sql.announcements(userId,actor.clientType,p.offset,p.pageSize).map { announcement(it,actor.kind=="ADMIN") },sql.announcementCount(userId,actor.clientType),p.page,p.pageSize)
@@ -27,6 +27,7 @@ class AnnouncementService(private val announcements: AnnouncementMapper,private 
         val row=id?.let { sql.lockAnnouncement(it) ?: missing() } ?: Announcement().apply { this.id=UUID.randomUUID();createdBy=actor.id }
         if(id!=null) requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version)
         row.title=name(input.title);row.summary=text(input.summary,500);row.body=text(input.body,40000);row.audience=input.audience;row.status=input.status;row.publishAt=input.publishAt;row.updatedAt=clock.instant()
+        row.pinned=input.pinned;row.showCommunityGroup=input.showCommunityGroup
         if(id==null) announcements.insert(row) else { row.version++;sql.updateAnnouncement(row) }
         sql.clearPlatforms(row.id!!);sql.clearRecipients(row.id!!);input.platforms.forEach { sql.addPlatform(row.id!!,it) };input.userIds.forEach { sql.addRecipient(row.id!!,it) }
         return MutationResult(row.id!!,row.version)

@@ -51,6 +51,12 @@ CREATE TABLE security_policy (
  require_number boolean NOT NULL DEFAULT true, require_mixed_case boolean NOT NULL DEFAULT false, version bigint NOT NULL DEFAULT 1 CHECK(version>0), updated_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO security_policy(id) VALUES(1);
+CREATE TABLE community_group (
+ id integer PRIMARY KEY CHECK(id=1), image bytea, expires_at timestamptz,
+ version bigint NOT NULL DEFAULT 1 CHECK(version>0), updated_at timestamptz NOT NULL DEFAULT now(),
+ CHECK((image IS NULL) = (expires_at IS NULL))
+);
+INSERT INTO community_group(id) VALUES(1);
 CREATE TABLE admin_control (id integer PRIMARY KEY CHECK(id=1), bootstrap_completed_at timestamptz);
 INSERT INTO admin_control(id) VALUES(1);
 CREATE TABLE user_session (
@@ -220,7 +226,8 @@ CREATE TABLE course_request (
 CREATE TABLE announcement (
  id uuid PRIMARY KEY, title varchar(120) NOT NULL, summary varchar(500) NOT NULL, body text NOT NULL,
  audience varchar(12) NOT NULL CHECK(audience IN ('ALL','SELECTED')), status varchar(16) NOT NULL CHECK(status IN ('DRAFT','PUBLISHED','SCHEDULED')),
- publish_at timestamptz, version bigint NOT NULL DEFAULT 1 CHECK(version>0), created_by uuid NOT NULL REFERENCES admin_account(id), updated_at timestamptz NOT NULL DEFAULT now(),
+ publish_at timestamptz, pinned boolean NOT NULL DEFAULT false, show_community_group boolean NOT NULL DEFAULT false,
+ version bigint NOT NULL DEFAULT 1 CHECK(version>0), created_by uuid NOT NULL REFERENCES admin_account(id), updated_at timestamptz NOT NULL DEFAULT now(),
  CHECK(status<>'SCHEDULED' OR publish_at IS NOT NULL)
 );
 CREATE TABLE announcement_platform (announcement_id uuid NOT NULL REFERENCES announcement(id), platform varchar(16) NOT NULL CHECK(platform IN ('WEB','MINI_PROGRAM')), PRIMARY KEY(announcement_id,platform));
@@ -308,7 +315,7 @@ CREATE INDEX course_request_user_idx ON course_request(user_id,created_at DESC,i
 CREATE INDEX course_request_major_idx ON course_request(major_id);
 CREATE INDEX course_request_queue_idx ON course_request(status,created_at DESC,id);
 CREATE INDEX announcement_creator_idx ON announcement(created_by);
-CREATE INDEX announcement_display_idx ON announcement(status,publish_at,updated_at DESC,id);
+CREATE INDEX announcement_display_idx ON announcement(pinned DESC,updated_at DESC,id);
 CREATE INDEX announcement_recipient_user_idx ON announcement_recipient(user_id,announcement_id);
 CREATE INDEX user_activity_date_idx ON user_activity(activity_date,platform,user_id);
 CREATE INDEX command_receipt_user_idx ON command_receipt(actor_user_id);

@@ -12,6 +12,7 @@ import { feedbackStatusLabels, courseRequestStatusLabels } from '../../lib/recom
 import { GRADE_OPTIONS, gradeLabel } from '../../types/admin'
 import type { AdminAccount, AdminAccountInput, Announcement, AnnouncementInput, FeedbackStatus, LogQuery, ManagedUser, SecuritySettings, StudentFeedback, UserQuery } from '../../types/operations'
 import { QuestionContentView } from '../questions/question-content-view'
+import { CommunityGroupPreview } from './community-group-page'
 
 export function UsersPage() {
   const gateway = useAdminGateway(), client = useQueryClient()
@@ -77,10 +78,10 @@ export function AnnouncementsPage() {
   const labels = { DRAFT: '草稿', PUBLISHED: '已发布', SCHEDULED: '定时发布' }
   return <section aria-label="公告管理"><Button type="primary" onClick={() => setEditing(null)}>新建公告</Button>{query.error && <ErrorState message={query.error.message} onRetry={() => void query.refetch()} />}
     <Table<Announcement> rowKey="id" data={query.data?.items ?? []} loading={query.isFetching} pagination={{ current: page, pageSize: 20, total: query.data?.total ?? 0, onChange: setPage }} columns={[
-      { title: '标题', dataIndex: 'title' }, { title: '状态', render: (_, row) => labels[row.status] }, { title: '展示端', render: (_, row) => row.platforms.map(p => p === 'WEB' ? 'Web' : '小程序').join('、') }, { title: '发布时间', dataIndex: 'publishAt' },
+      { title: '标题', render: (_, row) => <Space>{row.pinned && <Tag color="blue">置顶</Tag>}{row.title}</Space> }, { title: '状态', render: (_, row) => labels[row.status] }, { title: '展示端', render: (_, row) => row.platforms.map(p => p === 'WEB' ? 'Web' : '小程序').join('、') }, { title: '发布时间', dataIndex: 'publishAt' },
       { title: '操作', render: (_, row) => <Space><Button type="text" onClick={() => setPreview(row)}>预览</Button><Button type="text" onClick={() => setEditing(row)}>编辑</Button><Button type="text" status="danger" onClick={() => Modal.confirm({ title: '删除公告？', content: '该公告将从用户端移除。', okText: '删除', cancelText: '取消', onOk: async () => { try { await gateway.deleteAnnouncement(row.id, row.version); void client.invalidateQueries({ queryKey: ['announcements'] }) } catch (error) { Message.error((error as Error).message); throw error } } })}>删除</Button></Space> },
     ]} />{editing !== undefined && <AnnouncementEditor record={editing ?? undefined} onClose={() => setEditing(undefined)} onSaved={() => { setEditing(undefined); void client.invalidateQueries({ queryKey: ['announcements'] }) }} />}
-    <Modal visible={Boolean(preview)} title={preview?.title} footer={null} onCancel={() => setPreview(undefined)}>{preview && <AnnouncementBody text={preview.body} />}</Modal>
+    <Modal visible={Boolean(preview)} title={preview?.title} footer={null} onCancel={() => setPreview(undefined)}>{preview && <><AnnouncementBody text={preview.body} />{preview.showCommunityGroup && <CommunityGroupPreview />}</>}</Modal>
   </section>
 }
 function AnnouncementEditor({ record, onClose, onSaved }: { record?: Announcement; onClose: () => void; onSaved: () => void }) {
@@ -91,6 +92,8 @@ function AnnouncementEditor({ record, onClose, onSaved }: { record?: Announcemen
     {save.error && <Alert type="error" content={save.error.message} />}<Form form={form} layout="vertical" disabled={save.isPending} initialValues={record ?? { title: '', summary: '', body: '', audience: 'ALL', userIds: [], platforms: ['MINI_PROGRAM', 'WEB'], status: 'DRAFT' }} onSubmit={values => save.mutate(values)}>
       <Form.Item field="title" label="标题" rules={[{ required: true }]}><Input maxLength={80} /></Form.Item><Form.Item field="summary" label="摘要"><Input.TextArea maxLength={500} /></Form.Item>
       <Form.Item field="body" label="Markdown 正文" extra="支持代码块、表格和换行。发布前可在公告列表完整预览。"><Input.TextArea maxLength={40000} autoSize={{ minRows: 8 }} /></Form.Item>
+      <Form.Item field="pinned" label="置顶公告" triggerPropName="checked"><Switch /></Form.Item>
+      <Form.Item field="showCommunityGroup" label="展示交流群二维码" triggerPropName="checked" extra="使用“用户交流群”中维护的当前群码。"><Switch /></Form.Item>
       <Form.Item field="platforms" label="展示端"><Checkbox.Group options={[{ label: '小程序', value: 'MINI_PROGRAM' }, { label: '用户 Web', value: 'WEB' }]} /></Form.Item>
       <Form.Item label="发布范围"><Radio.Group value={audience} onChange={setAudience}><Radio value="ALL">全部学生</Radio><Radio value="SELECTED">指定学生</Radio></Radio.Group></Form.Item>
       {audience === 'SELECTED' && <Form.Item field="userIds" label="指定学生"><ResourceSelect kind="user" multiple placeholder="搜索并选择学生" /></Form.Item>}

@@ -65,6 +65,8 @@ export interface Announcement extends Versioned {
   platforms: LoginPlatform[]
   status: AnnouncementStatus
   publishAt?: string
+  pinned?: boolean
+  showCommunityGroup?: boolean
   updatedAt: string
 }
 export type AnnouncementInput = Omit<Announcement, 'id' | 'updatedAt' | 'version'> & { expectedVersion?: number }
@@ -105,6 +107,8 @@ export interface SecuritySettings extends Versioned {
   requireMixedCase: boolean
   updatedAt?: string
 }
+
+export interface CommunityGroup { version: number; expiresAt: string | null; available: boolean }
 
 export interface OperationLog {
   id: string

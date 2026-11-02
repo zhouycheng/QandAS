@@ -188,7 +188,7 @@ function checkAboutViewModel() {
   }
   const vm = new AboutViewModel({ storage: createMemoryStorage(), repository, version: '1.0.0' })
   const data = vm.load().data
-  assert('关于 - 展示应用版本和完整说明', data.version === '1.0.0' && data.paragraphs.length === 3 && data.paragraphs.join('').includes('是否捐赠都不影响任何功能'))
+  assert('关于 - 展示应用版本和简短功能介绍', data.version === '1.0.0' && data.paragraphs.length === 1 && data.paragraphs[0].includes('课程复习与刷题小程序'))
   assert('关于 - 开发工具默认关闭', !data.playgroundEnabled && vm.openPlayground() === null)
   assert('关于 - 解锁后保留版本和入口', vm.unlockPlayground().data.version === '1.0.0' && vm.load().data.playgroundEnabled)
   assert('关于 - 开发工具沿用原生跳转', vm.openPlayground().command.url === '/page/playground/index')

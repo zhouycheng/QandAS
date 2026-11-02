@@ -1,0 +1,8 @@
+.group-card { margin: 24rpx 0; padding: 24rpx; border: 2rpx solid #eef0f5; border-radius: 20rpx; background: #fff; }
+.group-entry { display: flex; align-items: center; justify-content: space-between; min-height: 88rpx; }
+.group-title { display: block; color: #141820; font-size: 30rpx; font-weight: 600; }
+.group-description { display: block; margin-top: 10rpx; color: #566171; font-size: 24rpx; }
+.group-arrow { margin-left: 16rpx; color: #8b8f99; font-size: 42rpx; }
+.group-qr { display: block; width: 100%; }
+.group-help { display: block; padding: 16rpx 0; color: #566171; font-size: 24rpx; line-height: 1.6; text-align: center; }
+.group-hover { opacity: .65; }

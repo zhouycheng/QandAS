@@ -359,7 +359,7 @@ function answerSession(vm, shouldAnswerWrong) {
     myData.wrongCount === undefined && myData.favoriteCount === undefined,
     `wrong=${myData.wrongCount} favorite=${myData.favoriteCount}`)
   const about = new AboutViewModel({ storage }).load().data
-  assert('关于页 - 展示应用说明', about.paragraphs.length === 3)
+  assert('关于页 - 展示简短应用说明', about.paragraphs.length === 1 && about.paragraphs[0].includes('模拟考试'))
 }
 
 // ---------- 6. 底部主按钮文案（底部只保留上一题 / 下一题） ----------
