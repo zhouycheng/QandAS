@@ -8,7 +8,7 @@ QandA 使用私有仓库、GHCR 和 Docker Compose。`develop` 用于开发，`m
 
 运行目录为 `/srv/qanda`，生产配置为该目录内权限 `600` 的 `production.env`，字段见 `deploy/production.env.example`。数据库、队列、附件、指标分别保存在固定的 `qanda-production-*` Docker 卷中。部署不清理镜像或持久卷。
 
-当前资源限制面向小规模起步：API 堆 256 MiB、worker 堆 192 MiB、monitor 堆 128 MiB。容器总上限约 1.9 GiB；实际容量须依据内存、GC、延迟和同步积压测量。首次部署要求至少 1.5 GiB 可用内存、3 GiB 可用磁盘。
+当前资源限制面向小规模起步：API 堆 256 MiB、worker 堆 192 MiB、monitor 堆 128 MiB；容器分别限制为 448、384、384 MiB，保留 JVM 本地内存空间。全套容器上限合计约 2.1 GiB；实际容量须依据内存、GC、延迟和同步积压测量。首次部署要求至少 1.5 GiB 可用内存、3 GiB 可用磁盘。
 
 ## 首次安装
 

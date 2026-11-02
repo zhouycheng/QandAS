@@ -17,7 +17,7 @@ x-backend: &backend
   volumes: [assets:/var/lib/qanda/assets]
   stop_grace_period: 120s
   restart: unless-stopped
-  mem_limit: 384m
+  mem_limit: 448m
   networks: [data, application]
   healthcheck:
     test: [CMD, curl, --fail, --silent, http://127.0.0.1:9091/actuator/health/readiness]
@@ -47,7 +47,7 @@ services:
       <<: *environment
       BACKEND_ROLE: worker
       BACKEND_WORKER_ENABLED: "true"
-    mem_limit: 320m
+    mem_limit: 384m
   monitor:
     <<: *backend
     networks:
@@ -62,7 +62,7 @@ services:
       BACKEND_DB_POOL_SIZE: 2
       BACKEND_DB_QUERY_TIMEOUT: 3
       BACKEND_DB_SESSION_INIT: SET TIME ZONE 'UTC'; SET ROLE qanda_monitor; SET statement_timeout='3s'
-    mem_limit: 256m
+    mem_limit: 384m
   web:
     image: ${WEB_IMAGE:?digest required}
     environment:

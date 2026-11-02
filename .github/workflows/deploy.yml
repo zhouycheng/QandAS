@@ -77,6 +77,13 @@ jobs:
               -t "${repository}:${GITHUB_SHA}" -f "$dockerfile" \
               --metadata-file "$RUNNER_TEMP/${kind}.json" "$context"
             digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/${kind}.json")
+            docker pull "${repository}@${digest}" >/dev/null
+            anonymous_status=$(curl --fail-with-body --silent --show-error --output "$RUNNER_TEMP/anonymous-${kind}.json" \
+              --write-out '%{http_code}' "https://ghcr.io/token?service=ghcr.io&scope=repository:zhouycheng/qanda-${kind}:pull" || true)
+            case "$anonymous_status" in
+              401|403) ;;
+              *) echo 'The release image must deny anonymous pulls' >&2; exit 1 ;;
+            esac
             echo "${kind}=${repository}@${digest}" >> "$GITHUB_OUTPUT"
           done
   deploy:
