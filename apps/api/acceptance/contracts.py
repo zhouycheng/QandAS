@@ -214,6 +214,8 @@ def self_check(contracts):
     child["id"] = "00000000-0000-4000-8000-000000000002"
     reading = {**common, "type": "READING", "passage": "阅读材料", "subQuestions": [child]}
     good = [single, {**single, "type": "MULTIPLE_CHOICE", "correctAnswer": ["A", "B"]}, {**common, "type": "TRUE_FALSE", "correctValue": False}, {**common, "type": "SHORT_ANSWER", "referenceAnswer": "参考答案", "scoringPoints": []}, fill, reading]
+    good += [{**fill, "contentFormat": "MARKDOWN", "presentation": "CODE_ANALYSIS"},
+             {**common, "type": "SHORT_ANSWER", "referenceAnswer": "参考思路", "contentFormat": "MARKDOWN", "presentation": "CODE_ANALYSIS"}]
     assert all(not contracts.errors(value, question, owner) for value in good)
     bad = [{**single, "type": "UNKNOWN"}, {**single, "correctAnswer": []}, {**single, "correctAnswer": ["A", "A"]},
            {**single, "type": "MULTIPLE_CHOICE"}, {**common, "type": "TRUE_FALSE", "correctValue": None},
@@ -221,6 +223,9 @@ def self_check(contracts):
            {**fill, "blanks": []}, {**fill, "blanks": [{"answers": []}]},
            {**reading, "subQuestions": []}, {**reading, "subQuestions": [{**child, "type": "READING"}]},
            {**common, "type": "SHORT_ANSWER", "referenceAnswer": "参考", "scoringPoints": ["要点"] * 31}]
+    bad += [{**single, "presentation": "CODE_WRITING"}, {**fill, "presentation": "CODE_WRITING"},
+            {**single, "codeLanguage": "python"}, {**single, "contentFormat": "HTML"},
+            {**common, "type": "SHORT_ANSWER", "referenceAnswer": "参考", "presentation": "CODE_WRITING"}]
     assert all(contracts.errors(value, question, owner) for value in bad)
     return 9 + len(bad)
 

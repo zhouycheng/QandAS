@@ -20504,6 +20504,442 @@
         ]
       }
     },
+    "/api/v1/me/email-challenges/{id}/verification": {
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "operationId": "Identity_verifyOwnEmailChallenge_POST",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeVerificationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeVerificationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/me/course-requests": {
       "get": {
         "tags": [
@@ -60359,12 +60795,21 @@
             "format": "int32"
           },
           "accuracy": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         },
         "required": [
-          "accuracy",
           "answered",
           "correct",
           "count",
@@ -60600,6 +61045,28 @@
                 "type": "null"
               }
             ]
+          },
+          "contentFormat": {
+            "type": "string",
+            "enum": [
+              "PLAIN_TEXT",
+              "MARKDOWN"
+            ]
+          },
+          "presentation": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "CONCEPT",
+              "CODE_ANALYSIS",
+              "CODE_WRITING"
+            ]
+          },
+          "codeLanguage": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -60636,6 +61103,13 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "contentFormat": {
+            "type": "string",
+            "enum": [
+              "PLAIN_TEXT",
+              "MARKDOWN"
+            ]
           }
         },
         "required": [
@@ -60835,6 +61309,14 @@
             ],
             "format": "int32",
             "description": "当前年级：1 大一，2 大二，3 大三，4 大四，5 已毕业；省略时保留年级锚点"
+          },
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "账户头像，JPEG 或 PNG data URI；图片不超过 64 KiB、256×256 像素；省略时保留已有头像",
+            "maxLength": 87407
           }
         },
         "required": [
@@ -61093,6 +61575,12 @@
                   "SINGLE_CHOICE"
                 ]
               },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
+                ]
+              },
               "stem": {
                 "type": "string",
                 "maxLength": 10000,
@@ -61129,6 +61617,12 @@
                 "type": "string",
                 "enum": [
                   "MULTIPLE_CHOICE"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
                 ]
               },
               "stem": {
@@ -61169,6 +61663,12 @@
                   "TRUE_FALSE"
                 ]
               },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
+                ]
+              },
               "stem": {
                 "type": "string",
                 "maxLength": 10000,
@@ -61201,6 +61701,14 @@
                 "type": "string",
                 "enum": [
                   "FILL_BLANK"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD",
+                  "CONCEPT",
+                  "CODE_ANALYSIS"
                 ]
               },
               "stem": {
@@ -61242,6 +61750,14 @@
                   "SHORT_ANSWER"
                 ]
               },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD",
+                  "CONCEPT",
+                  "CODE_ANALYSIS"
+                ]
+              },
               "stem": {
                 "type": "string",
                 "maxLength": 10000,
@@ -61277,6 +61793,12 @@
                 "type": "string",
                 "enum": [
                   "READING"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
                 ]
               },
               "passage": {
@@ -61401,6 +61923,24 @@
             "items": {
               "$ref": "#/components/schemas/ReadingChildInput"
             }
+          },
+          "contentFormat": {
+            "type": "string",
+            "enum": [
+              "PLAIN_TEXT",
+              "MARKDOWN"
+            ]
+          },
+          "presentation": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "CONCEPT",
+              "CODE_ANALYSIS"
+            ]
+          },
+          "codeLanguage": {
+            "type": "null"
           }
         },
         "required": [
@@ -61420,6 +61960,12 @@
                 "type": "string",
                 "enum": [
                   "SINGLE_CHOICE"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
                 ]
               },
               "stem": {
@@ -61460,6 +62006,12 @@
                   "MULTIPLE_CHOICE"
                 ]
               },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
+                ]
+              },
               "stem": {
                 "type": "string",
                 "maxLength": 10000,
@@ -61498,6 +62050,12 @@
                   "TRUE_FALSE"
                 ]
               },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD"
+                ]
+              },
               "stem": {
                 "type": "string",
                 "maxLength": 10000,
@@ -61530,6 +62088,14 @@
                 "type": "string",
                 "enum": [
                   "FILL_BLANK"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD",
+                  "CONCEPT",
+                  "CODE_ANALYSIS"
                 ]
               },
               "stem": {
@@ -61569,6 +62135,14 @@
                 "type": "string",
                 "enum": [
                   "SHORT_ANSWER"
+                ]
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "STANDARD",
+                  "CONCEPT",
+                  "CODE_ANALYSIS"
                 ]
               },
               "stem": {
@@ -61665,6 +62239,24 @@
               "type": "string"
             },
             "maxItems": 30
+          },
+          "contentFormat": {
+            "type": "string",
+            "enum": [
+              "PLAIN_TEXT",
+              "MARKDOWN"
+            ]
+          },
+          "presentation": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "CONCEPT",
+              "CODE_ANALYSIS"
+            ]
+          },
+          "codeLanguage": {
+            "type": "null"
           }
         },
         "required": [
@@ -62080,6 +62672,7 @@
               "all",
               "repeat",
               "recent",
+              "subjective",
               "pending",
               "practiced"
             ]
@@ -62107,6 +62700,28 @@
               "AFTER_FINISH",
               "IMMEDIATE"
             ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "order",
+              "practice",
+              "test",
+              "view",
+              null
+            ]
+          },
+          "timeLimitSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "maximum": 86400,
+            "minimum": 1
           }
         },
         "required": [
@@ -62219,6 +62834,28 @@
           },
           "collectionChip": {
             "type": "string"
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "order",
+              "practice",
+              "test",
+              "view",
+              null
+            ]
+          },
+          "timeLimitSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "maximum": 86400,
+            "minimum": 1
           }
         },
         "required": [
@@ -62297,6 +62934,28 @@
               "AFTER_FINISH",
               "IMMEDIATE"
             ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "order",
+              "practice",
+              "test",
+              "view",
+              null
+            ]
+          },
+          "timeLimitSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "maximum": 86400,
+            "minimum": 1
           }
         },
         "required": [
@@ -62663,6 +63322,40 @@
         "required": [
           "expiresAt",
           "id"
+        ]
+      },
+      "ChallengeVerificationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "CHANGE_PASSWORD",
+              "CHANGE_EMAIL_OLD"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$"
+          }
+        },
+        "required": [
+          "code",
+          "purpose"
+        ]
+      },
+      "ChallengeVerificationView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "expiresAt"
         ]
       },
       "CourseRequestInput": {
@@ -63417,6 +64110,17 @@
           },
           "profileComplete": {
             "type": "boolean"
+          },
+          "passwordSet": {
+            "type": "boolean"
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "账户头像，JPEG 或 PNG data URI，图片不超过 64 KiB、256×256 像素",
+            "maxLength": 87407
           }
         },
         "required": [
@@ -63514,6 +64218,12 @@
               "string",
               "null"
             ]
+          },
+          "contentFormat": {
+            "type": "string"
+          },
+          "presentation": {
+            "type": "string"
           }
         },
         "required": [
@@ -63694,7 +64404,10 @@
             "format": "int64"
           },
           "objectiveAccuracy": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "shortAnswerCount": {
@@ -63723,7 +64436,6 @@
           "correctCount",
           "durationSeconds",
           "endDateExclusive",
-          "objectiveAccuracy",
           "practiceCount",
           "selfRatedCorrectCount",
           "selfRatedCount",
@@ -63756,6 +64468,10 @@
             "format": "int64"
           },
           "durationSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAnsweredCount": {
             "type": "integer",
             "format": "int64"
           }
@@ -64154,6 +64870,16 @@
             "items": {
               "$ref": "#/components/schemas/CollectionFacet"
             }
+          },
+          "subjectiveCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subjectiveFacets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectionFacet"
+            }
           }
         },
         "required": [
@@ -64284,6 +65010,12 @@
               "boolean",
               "null"
             ]
+          },
+          "contentFormat": {
+            "type": "string"
+          },
+          "presentation": {
+            "type": "string"
           }
         },
         "required": [

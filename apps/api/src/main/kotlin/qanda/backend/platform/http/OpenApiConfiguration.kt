@@ -79,14 +79,25 @@ class OpenApiConfiguration {
                     val reference=Schema<Any>().`$ref`(property.`$ref`);property.`$ref`=null
                     property.anyOf=listOf(reference,Schema<Any>().types(setOf("null")))
                 } else property.types=(property.types ?: property.type?.let { setOf(it) } ?: emptySet())+"null"
+                if(property.enum!=null) {
+                    val values=property.enum.toList()
+                    property.enum=null
+                    (values+null).forEach { property.addEnumItemObject(it) }
+                }
             }
             for(key in listOf("expectedVersion","expectedContentVersion")) schema.properties?.get(key)?.minimum=java.math.BigDecimal.ONE
             if(clazz.simpleName in setOf("QuestionInput","ReadingChildInput")) {
                 schema.properties.getValue("stem").maxLength=10000
                 schema.properties["assetIds"]?.maxItems=20
                 schema.properties["scoringPoints"]?.maxItems=30
+                schema.properties["codeLanguage"]=Schema<Any>().types(setOf("null"))
                 schema.oneOf=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING").filter { it!="READING" || clazz.simpleName=="QuestionInput" }.map { kind ->
                     val branch=ObjectSchema().addProperty("type",StringSchema()._enum(listOf(kind)))
+                    branch.addProperty("presentation",StringSchema()._enum(when(kind) {
+                        "SHORT_ANSWER" -> listOf("STANDARD","CONCEPT","CODE_ANALYSIS")
+                        "FILL_BLANK" -> listOf("STANDARD","CONCEPT","CODE_ANALYSIS")
+                        else -> listOf("STANDARD")
+                    }))
                     if(kind!="READING") branch.addProperty("stem",StringSchema().minLength(1).maxLength(10000).pattern("\\S"))
                     when(kind) {
                         "SINGLE_CHOICE","MULTIPLE_CHOICE" -> {

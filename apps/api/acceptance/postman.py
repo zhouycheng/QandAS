@@ -13,7 +13,7 @@ def main():
 
     def sample(schema, owner, field=""):
         schema, owner = contracts.resolve(schema, owner)
-        if "allOf" in schema:
+        if "allOf" in schema and "properties" not in schema:
             result = {}
             for item in schema["allOf"]:
                 result.update(sample(item, owner))

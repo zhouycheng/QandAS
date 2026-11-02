@@ -630,6 +630,15 @@
     }
   },
   {
+    "operationId": "Identity_verifyOwnEmailChallenge_POST",
+    "method": "POST",
+    "path": "/api/v1/me/email-challenges/{id}/verification",
+    "body": {
+      "purpose": "CHANGE_PASSWORD",
+      "code": "{{code}}"
+    }
+  },
+  {
     "operationId": "Identity_heartbeat_POST",
     "method": "POST",
     "path": "/api/v1/me/activity/heartbeat",
