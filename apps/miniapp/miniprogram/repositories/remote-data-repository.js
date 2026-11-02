@@ -117,14 +117,17 @@ function previewPracticeScope(storage, scope) {
     return data
   })
 }
-function getScopePreview(storage, key, bankId) {
+function getScopePreview(storage, key, bankIds) {
   const record = storage.get('qandaScopePreview')
-  if (!record || record.data.selectionKey !== key || record.scope.questionBankId !== bankId || record.context !== scopeKey(authRepository.getAuth(storage))) throw new Error('练习配置已更新，请返回题库重新选择')
+  const ids = Array.isArray(bankIds) ? bankIds : [bankIds]
+  const selected = record && (record.scope.questionBankIds || [record.scope.questionBankId])
+  if (!record || record.data.selectionKey !== key || selected.length !== ids.length || ids.some(id => !selected.includes(id)) || record.context !== scopeKey(authRepository.getAuth(storage))) throw new Error('练习配置已更新，请返回题库重新选择')
   return record.data
 }
 function loadChapters(storage, id, options) {
   return resource(storage, 'chapters:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id) + '/chapters', data => { state.chapters = Object.assign({}, state.chapters, { [id]: data }) }, options && options.force)
 }
+function getChapters(storage, id) { bind(storage); return state.chapters[id] || null }
 function refreshProfile(storage, options) {
   return resource(storage, 'profile', {}, TTL.profile, '/me', profile => {
     const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, avatarUrl: profile.avatarUrl || '', email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' })
@@ -181,7 +184,7 @@ function getResourceState(name, query) { return cache.read(queryKey(name, query 
 function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements : [] }
 function getAnnouncementTotal(storage) { bind(storage); return state.announcementTotal }
 function getBankMeta(id) { return state.banks.find(b => b.id === id) || null }
-function invalidateLearning() { ['overview:', 'statistics:', 'days:', 'recent:', 'subjects:', 'banks:', 'collection'].forEach(cache.invalidate) }
+function invalidateLearning() { ['overview:', 'statistics:', 'days:', 'recent:', 'subjects:', 'banks:', 'chapters:', 'collection'].forEach(cache.invalidate) }
 function refresh(storage, kind, options) {
   if (!enabled) return Promise.resolve()
   const user = bind(storage)
@@ -311,4 +314,5 @@ function saveProfile(storage, patch) {
 module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, removeWrongQuestions, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
 
+module.exports.getChapters = getChapters
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadBank, loadChapters, previewPracticeScope, getScopePreview })

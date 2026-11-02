@@ -245,6 +245,7 @@ class PracticeViewModel {
       scope: normalized.scope || '',
       subjectId: normalized.subjectId || '',
       bankId: normalized.bankId || '',
+      bankIds: normalized.bankIds || '',
       count: normalized.count || '',
       seed: normalized.seed || '',
       duration: normalized.durationMinutes || '',
@@ -254,7 +255,7 @@ class PracticeViewModel {
   }
 
   buildSessionConfig(options, mode, durationMinutes) {
-    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'ids', 'title']
+    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'bankIds', 'count', 'seed', 'ids', 'title']
     const config = {}
     const normalizedOptions = options || {}
 
@@ -398,7 +399,7 @@ class PracticeViewModel {
       return null
     }
 
-    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}&mode=practice&ids=${encodeURIComponent(ids.join(','))}` } }
+    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&mode=practice&ids=${encodeURIComponent(ids.join(','))}` } }
 
     this.repository.saveCustomQuiz(this.storage, ids, '错题重练')
 
@@ -676,7 +677,7 @@ class PracticeViewModel {
   }
 
   getSharePathFromOptions(options, quiz) {
-    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'duration']
+    const routeKeys = ['mode', 'feedback', 'scope', 'subjectId', 'bankId', 'bankIds', 'count', 'seed', 'duration']
     const query = routeKeys.reduce((items, key) => {
       if (options && options[key]) {
         items.push(`${key}=${encodeURIComponent(decodeOptionValue(options[key]))}`)

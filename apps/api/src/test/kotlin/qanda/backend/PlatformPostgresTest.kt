@@ -845,6 +845,71 @@ class PlatformPostgresTest {
         assertEquals(0,call("POST","/practice/scope-preview",scope("FAVORITE"),s.token)["availableCount"].asInt())
     }
 
+    @Test fun `multi bank practice validates the whole scope and preserves per bank progress`() {
+        val s=student();val f=fixture();val outside=fixture()
+        val second=id(call("POST","/admin/question-banks",mapOf("subjectId" to f.subject,"name" to "第二题库","description" to "课程练习题库","scopeType" to "ALL")))
+        val q=id(call("POST","/admin/questions",question(second,"SINGLE_CHOICE")))
+        val unpublished=call("GET","/admin/question-banks/$second")
+        call("PUT","/admin/question-banks/$second/publication",mapOf("expectedVersion" to unpublished["version"].asLong(),"status" to "PUBLISHED"))
+        val scope=mapOf("questionBankId" to f.bank,"questionBankIds" to listOf(f.bank,second),"count" to 100,"order" to "SEQUENTIAL")
+        fun preview(input: Map<String,Any> = scope)=call("POST","/practice/scope-preview",input,s.token)
+        var selection=preview()
+        assertEquals(5,selection["selectedCount"].asInt());assertEquals(2,selection["contentVersions"].size())
+        fun body()=mapOf("scope" to scope,"expectedContentVersion" to selection["contentVersion"].asLong(),"expectedContentVersions" to selection["contentVersions"],"deviceId" to UUID.randomUUID(),"mode" to "order")
+        call("POST","/practice/sessions",body()-"expectedContentVersions",s.token,status=422)
+        call("POST","/practice/scope-preview",scope+mapOf("questionBankIds" to listOf(f.bank,f.bank)),s.token,status=422)
+        call("POST","/practice/scope-preview",scope+mapOf("questionBankIds" to listOf(f.bank,outside.bank)),s.token,status=422)
+        call("POST","/practice/scope-preview",scope+mapOf("questionBankIds" to listOf(second)),s.token,status=422)
+        call("POST","/practice/scope-preview",scope+mapOf("questionIds" to listOf(outside.questions.first())),s.token,status=422)
+        call("PUT","/admin/questions/$q",question(second,"SINGLE_CHOICE")+mapOf("stem" to "更新后的第二题库","expectedVersion" to 1))
+        call("POST","/practice/sessions",body(),s.token,status=409)
+        selection=preview()
+        val trial=call("POST","/practice/trial-snapshots",body()-"deviceId",token=null)
+        assertEquals(5,trial["items"].size());assertEquals(2,trial["configuration"]["questionBankIds"].size())
+        val session=call("POST","/practice/sessions",body(),s.token)
+        assertEquals(5,session["items"].size());assertEquals(2,session["configuration"]["questionBankIds"].size())
+        assertEquals(session["configuration"],call("GET","/practice/sessions/${id(session)}",token=s.token)["configuration"])
+        val changed=answers(session).map { item ->
+            val original=session["items"].first { it["itemId"].asText()==item["itemId"] }
+            if(original["question"]["type"].asText()=="SINGLE_CHOICE") item+mapOf("answer" to mapOf("optionKeys" to listOf("B"))) else item
+        }
+        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changed),s.token)
+        assertEquals(5,result["totalCount"].asInt());assertEquals(2,result["objective"]["wrong"].asInt())
+        val progress=call("GET","/question-banks?subjectId=${f.subject}&includeProgress=true",token=s.token)["items"]
+        assertEquals(4,progress.first { it["id"].asText()==f.bank.toString() }["progress"]["answeredCount"].asInt())
+        assertEquals(1,progress.first { it["id"].asText()==second.toString() }["progress"]["answeredCount"].asInt())
+        assertTrue(progress.all { it["progress"]["wrongCount"].asInt()==1 })
+        assertEquals(2,preview(scope+mapOf("selectionKind" to "WRONG"))["selectedCount"].asInt())
+        val single=preview(scope+mapOf("questionBankIds" to listOf(f.bank)))
+        assertEquals(4,single["selectedCount"].asInt())
+        val bank=call("GET","/admin/question-banks/$second")
+        call("PUT","/admin/question-banks/$second/publication",mapOf("expectedVersion" to bank["version"].asLong(),"status" to "DRAFT"))
+        call("POST","/practice/scope-preview",scope,s.token,status=404)
+        assertEquals(5,call("GET","/practice/sessions/${id(session)}/result",token=s.token)["totalCount"].asInt())
+    }
+
+    @Test fun `chapters report isolated progress and practice keeps the selected chapter`() {
+        val s=student();val other=student();val f=fixture()
+        val first=id(call("POST","/admin/question-banks/${f.bank}/chapters",mapOf("name" to "第一章","sortOrder" to 0)))
+        val second=id(call("POST","/admin/question-banks/${f.bank}/chapters",mapOf("name" to "第二章","sortOrder" to 1)))
+        call("PUT","/admin/questions/${f.questions[0]}",question(f.bank,"SINGLE_CHOICE")+mapOf("chapterId" to first,"expectedVersion" to 1))
+        call("PUT","/admin/questions/${f.questions[1]}",question(f.bank,"MULTIPLE_CHOICE")+mapOf("chapterId" to second,"expectedVersion" to 1))
+        assertTrue(call("GET","/question-banks/${f.bank}/chapters",token=null).all { it["progress"].isNull })
+        val bank=call("GET","/question-banks/${f.bank}",token=s.token)
+        val session=call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"chapterIds" to listOf(first),"count" to 10,"order" to "SEQUENTIAL"),"expectedContentVersion" to bank["contentVersion"].asLong(),"deviceId" to UUID.randomUUID()),s.token)
+        assertEquals(1,session["items"].size());assertEquals(f.questions[0].toString(),session["items"].first()["question"]["id"].asText())
+        call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
+        val chapters=call("GET","/question-banks/${f.bank}/chapters",token=s.token)
+        assertEquals(1,chapters.first()["progress"]["answeredCount"].asInt());assertEquals(1,chapters.first()["progress"]["correctCount"].asInt())
+        assertEquals(0,chapters.last()["progress"]["answeredCount"].asInt())
+        assertTrue(call("GET","/question-banks/${f.bank}/chapters",token=other.token).all { it["progress"]["answeredCount"].asInt()==0 })
+        assertTrue(call("GET","/admin/question-banks/${f.bank}/chapters").all { it["progress"].isNull })
+        call("PUT","/admin/questions/${f.questions[0]}",question(f.bank,"SINGLE_CHOICE")+mapOf("chapterId" to first,"expectedVersion" to 2,"status" to "INACTIVE"))
+        val inactive=call("GET","/question-banks/${f.bank}/chapters",token=s.token).first()
+        assertEquals(0,inactive["questionCount"].asInt());assertEquals(0,inactive["progress"]["answeredCount"].asInt())
+        assertEquals(1,call("GET","/admin/question-banks/${f.bank}/chapters").first()["questionCount"].asInt())
+    }
+
     @Test fun `announcements respect recipients platforms and scheduled visibility`() {
         val one=student();val two=student()
         val announcement=id(call("POST","/admin/announcements",mapOf("title" to "定向公告","summary" to "摘要","body" to "正文","audience" to "SELECTED","userIds" to listOf(one.id),"platforms" to listOf("WEB"),"status" to "SCHEDULED","publishAt" to Instant.now().plusSeconds(3600))))

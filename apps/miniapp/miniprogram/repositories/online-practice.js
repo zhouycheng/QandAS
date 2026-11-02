@@ -132,12 +132,15 @@ class OnlinePractice {
       if (!bankId) throw new Error('请选择一个题库开始练习')
       const bank = options.selectionKey && require('./remote-data-repository.js').getBankMeta(bankId) || await this.required('GET', `/question-banks/${bankId}`)
       if (this.identity().userId !== userId) throw new Error('账号已切换，请重新打开练习')
-      const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || bank.questionCount || 20, 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+      const bankIds = options.bankIds ? String(options.bankIds).split(',').filter(Boolean) : [bankId]
+      const scope = { questionBankId: bankId, count: Math.min(Number(options.count) || (bankIds.length > 1 ? 1000 : bank.questionCount || 20), 1000), order: ['practice', 'test'].includes(options.mode) ? 'RANDOM' : 'SEQUENTIAL', selectionKind: options.selectionKind || 'NORMAL', chapterIds: options.chapterId ? [options.chapterId] : [] }
+      if (options.bankIds) scope.questionBankIds = bankIds
       scope.collectionChip = options.collectionChip || 'all'
       if (options.ids) { scope.questionIds = String(options.ids).split(',').filter(Boolean); scope.count = scope.questionIds.length }
-      const preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankId) : null
+      let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankIds) : null
+      if (!preview && bankIds.length > 1) preview = await this.required('POST', '/practice/scope-preview', scope)
       if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-      intent = { routeKey, route: options, key: http.uuid(), title: bank.name, body: { scope, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null, deviceId: this.deviceId() } }
+      intent = { routeKey, route: options, key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null, deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }
@@ -195,6 +198,7 @@ class OnlinePractice {
     if (!config) return snapshot.questionBankId ? { bankId: snapshot.questionBankId } : {}
     return {
       bankId: snapshot.questionBankId,
+      bankIds: (config.questionBankIds || []).join(','),
       mode: config.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : config.order === 'SEQUENTIAL' ? 'order' : 'practice'),
       chapterId: (config.chapterIds || [])[0] || '',
       duration: config.timeLimitSeconds ? String(config.timeLimitSeconds / 60) : '',
@@ -205,7 +209,7 @@ class OnlinePractice {
   }
   remember(snapshot, options) {
     const previous = this.get(snapshot.id)
-    snapshot.title = snapshot.title || previous && previous.title || ''
+    snapshot.title = snapshot.title || previous && previous.title || ((snapshot.configuration && snapshot.configuration.questionBankIds || []).length > 1 ? `${snapshot.configuration.questionBankIds.length} 个题库联合练习` : '')
     snapshot.route = Object.assign({}, this.snapshotRoute(snapshot), previous && previous.route || {}, snapshot.route || {}, options || {})
     snapshot.formatVersion = 1
     this.put(snapshot.id, snapshot)

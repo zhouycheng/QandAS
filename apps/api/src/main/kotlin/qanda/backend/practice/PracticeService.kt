@@ -22,14 +22,17 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
                       private val content: ContentLibrary,
                       private val sql: PracticeQueries,private val system: TransactionLocks,private val clock: Clock,private val json: ObjectMapper,
                       private val ownership: WriteOwnership,private val activity: ActivityEvents) {
-    private fun validateScope(actor: Actor?,scope: ScopeInput): BankReference {
+    private fun validateScope(actor: Actor?,scope: ScopeInput): List<BankReference> {
         if(scope.count !in 1..1000 || scope.order !in setOf("SEQUENTIAL","RANDOM") || scope.selectionKind !in setOf("NORMAL","WRONG","FAVORITE")) invalid("/scope")
         if(actor==null && scope.selectionKind!="NORMAL") forbidden()
         val chips=when(scope.selectionKind) { "WRONG" -> setOf("all","repeat","recent","subjective");"FAVORITE" -> setOf("all","pending","practiced");else -> setOf("all") }
         if(scope.collectionChip !in chips) invalid("/scope/collectionChip")
-        val bank=content.bank(actor,scope.questionBankId)
+        val ids=scope.questionBankIds.ifEmpty { listOf(scope.questionBankId) }
+        if(ids.size>100 || ids.distinct().size!=ids.size || scope.questionBankId !in ids) invalid("/scope/questionBankIds")
+        val banks=ids.map { content.bank(actor,it) }
+        if(banks.map { it.subjectId }.distinct().size!=1) invalid("/scope/questionBankIds","QUESTION_SCOPE_MISMATCH","请选择同一科目下的题库")
         if(scope.chapterIds.size>100 || scope.chapterIds.distinct().size!=scope.chapterIds.size) invalid("/scope/chapterIds")
-        scope.chapterIds.forEach { if(!content.chapterBelongs(it,scope.questionBankId)) invalid("/scope/chapterIds") }
+        scope.chapterIds.forEach { if(banks.none { bank -> content.chapterBelongs(it,bank.id) }) invalid("/scope/chapterIds") }
         if(scope.questionIds.size>1000 || scope.questionIds.distinct().size!=scope.questionIds.size) invalid("/scope/questionIds")
         if(scope.questionIds.isNotEmpty() && sql.eligibleCount(actor?.id,scope)!=scope.questionIds.size.toLong()) invalid("/scope/questionIds","QUESTION_SCOPE_MISMATCH","所选题目不属于当前可练习范围")
         if(scope.selectionKind=="NORMAL" && scope.questionIds.isNotEmpty()) {
@@ -37,11 +40,22 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
                 if(content.readingChildren(parent).any { it.status=="ACTIVE" && it.id !in scope.questionIds }) invalid("/scope/questionIds","READING_GROUP_INCOMPLETE","普通练习请按完整阅读题组选择")
             }
         }
-        return bank
+        return banks
     }
     fun preview(actor: Actor?,scope: ScopeInput): ScopeView {
-        val bank=validateScope(actor,scope);val selected=sql.eligible(actor?.id,scope)
-        return ScopeView(sql.eligibleCount(actor?.id,scope),bank.contentVersion,selected.size,selected.map { it.id!! })
+        val banks=validateScope(actor,scope);val selected=sql.eligible(actor?.id,scope)
+        return ScopeView(sql.eligibleCount(actor?.id,scope),banks.first { it.id==scope.questionBankId }.contentVersion,selected.size,selected.map { it.id!! },banks.associate { it.id to it.contentVersion })
+    }
+    private fun lockScope(actor: Actor?,scope: ScopeInput,expected: Long,versions: Map<UUID,Long>): List<BankReference> {
+        val banks=validateScope(actor,scope)
+        if((banks.size>1 || versions.isNotEmpty()) && versions.keys!=banks.map { it.id }.toSet()) invalid("/expectedContentVersions")
+        val locked=banks.sortedBy { it.id }.map { content.lockBank(it.id) }
+        locked.forEach { bank ->
+            content.bank(actor,bank.id)
+            requireVersion(versions[bank.id] ?: expected,bank.contentVersion)
+        }
+        validateScope(actor,scope)
+        return locked
     }
     private fun grading(id: UUID,q: QuestionView)=OfflineGrading(id,q.correctAnswer,q.correctValue,q.referenceAnswer,q.explanation,q.blanks,q.blankMatch,q.scoringPoints)
     private fun display(q: QuestionView)=q.copy(correctAnswer=null,correctValue=null,referenceAnswer=null,explanation=null,blanks=null,blankMatch=null,scoringPoints=null)
@@ -51,10 +65,8 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
     }
     fun trialSnapshot(input: TrialSnapshotInput): TrialSnapshotView {
         validateConfiguration(input.mode,input.timeLimitSeconds)
-        val bank=validateScope(null,input.scope)
-        val locked=content.lockBank(bank.id!!) ?: missing()
-        content.bank(null,bank.id!!)
-        requireVersion(input.expectedContentVersion,locked.contentVersion)
+        val banks=lockScope(null,input.scope,input.expectedContentVersion,input.expectedContentVersions)
+        val bank=banks.first { it.id==input.scope.questionBankId }
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
         val selected=sql.eligible(null,input.scope)
         if(selected.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
@@ -65,21 +77,19 @@ class PracticeService(private val rows: PracticeSessionMapper,private val itemRo
             PracticeItemView(id,position,if(input.mode=="view") answer else display(answer),null,false,false,null,null)
         }
         return TrialSnapshotView(UUID.randomUUID(),bank.id!!,input.feedback,
-            PracticeConfiguration(input.scope.chapterIds,items.size,input.scope.order,"NORMAL",input.feedback,locked.contentVersion,selected.map { it.id!! },mode=input.mode,timeLimitSeconds=input.timeLimitSeconds),items,grading,clock.instant())
+            PracticeConfiguration(input.scope.chapterIds,items.size,input.scope.order,"NORMAL",input.feedback,bank.contentVersion,selected.map { it.id!! },mode=input.mode,timeLimitSeconds=input.timeLimitSeconds,questionBankIds=banks.map { it.id },contentVersions=banks.associate { it.id to it.contentVersion }),items,grading,clock.instant())
     }
     fun create(actor: Actor,input: CreatePracticeInput): PracticeView {
         validateConfiguration(input.mode,input.timeLimitSeconds)
-        val bank=validateScope(actor,input.scope)
-        system.lock("practice:${actor.id}:${bank.id}")
-        // All content writes hold the bank row, so selection and revision pinning share one boundary.
-        val locked=content.lockBank(bank.id!!) ?: missing()
-        content.bank(actor,bank.id!!)
-        requireVersion(input.expectedContentVersion,locked.contentVersion)
+        system.lock("practice:${actor.id}:${input.scope.questionBankId}")
+        // Lock every selected bank in stable order before pinning question revisions.
+        val banks=lockScope(actor,input.scope,input.expectedContentVersion,input.expectedContentVersions)
+        val bank=banks.first { it.id==input.scope.questionBankId }
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
         val chosen=sql.eligible(actor.id,input.scope)
         if(chosen.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;clientType=actor.clientType;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
-        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,locked.contentVersion,chosen.map { it.id!! },input.scope.collectionChip,input.mode,input.timeLimitSeconds))
+        session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,bank.contentVersion,chosen.map { it.id!! },input.scope.collectionChip,input.mode,input.timeLimitSeconds,banks.map { it.id },banks.associate { it.id to it.contentVersion }))
         session.writerDeviceId=input.deviceId;session.writerToken=UUID.randomUUID()
         rows.insert(session)
         ownership.create(session.id!!,writeState(session))

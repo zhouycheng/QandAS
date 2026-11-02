@@ -66,6 +66,8 @@ function getInitialBankDetailViewData() {
 
     // 右栏章节列表（按当前面板的科目）
     rows: [],
+    chapterGroups: [],
+    showBankTitles: false,
     hiddenRowCount: 0,
     listEmptyText: '这个科目还没有章节',
 
@@ -84,14 +86,16 @@ function getInitialBankDetailViewData() {
     configTitle: '答题配置',
     configSubtitle: '',
     configTargetName: '',
-    sheetChapters: [],
-    sheetChapterId: '',
     sheetMode: DEFAULT_SHEET.mode,
     sheetOrder: DEFAULT_SHEET.order,
     sheetTimed: DEFAULT_SHEET.timed,
     sheetDuration: DEFAULT_SHEET.duration,
     sheetOnlyWrong: DEFAULT_SHEET.onlyWrong,
     sheetWrongCount: 0,
+    sheetBanks: [],
+    sheetAllBanksSelected: false,
+    sheetSomeBanksSelected: false,
+    sheetStartDisabled: false,
     sheetOrderDisabled: false,
     modeOptions: MODE_OPTIONS,
     orderOptions: ORDER_OPTIONS,
@@ -157,10 +161,19 @@ class BankDetailViewModel {
 
   refreshRemote(subjectId, options) {
     if (!this.repository.isRemoteEnabled || !this.repository.isRemoteEnabled()) return Promise.resolve(null)
+    if (subjectId && subjectId !== this.currentSubjectId) this.remotePage = 1
     if (subjectId) this.currentSubjectId = subjectId
     if (options && options.force) { this.remotePage = 1; this.remoteSubjectPage = 1 }
     return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1 }))
-      .then(() => ({ data: this.projectRemote() })).catch(() => ({ data: this.projectRemote() }))
+      .then(async () => {
+        if (this.repository.loadRemoteChapters) {
+          const subjects = this.repository.getSubjectSummaries()
+          const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id
+          const page = this.repository.getRemoteCatalogPage({ subjectId: id, page: this.remotePage || 1 }).data
+          await Promise.allSettled((page && page.items || []).map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)))
+        }
+        return { data: this.projectRemote() }
+      }).catch(() => ({ data: this.projectRemote() }))
   }
 
   projectRemote() {
@@ -178,8 +191,10 @@ class BankDetailViewModel {
     ;['searchKeyword', 'searchActive', 'searchResults', 'searchEmptyText', 'configSheetVisible'].forEach(key => delete data[key])
     const subjectState = this.repository.getRemoteSubjectPage(this.remoteSubjectPage || 1)
     const subjectPage = subjectState.data
+    const chapterStates = Array.from(ids).map(bankId => this.repository.getRemoteResourceState('chapters:' + bankId))
     data.loggedIn = !!this.repository.getAuth(this.storage).token
-    Object.assign(data, { catalogLoading: (current.status === 'loading' || subjectState.status === 'loading') && !ids.size, catalogError: current.error || subjectState.error,
+    Object.assign(data, { catalogLoading: ((current.status === 'loading' || subjectState.status === 'loading') && !ids.size) || (!data.rows?.length && chapterStates.some(state => state.status === 'idle' || state.status === 'loading')),
+      catalogError: current.error || subjectState.error || (chapterStates.find(state => state.error) || {}).error || '',
       catalogHasMore: !!current.data && (this.remotePage || 1) * 20 < current.data.total,
       subjectsHasMore: !!subjectPage && (this.remoteSubjectPage || 1) * 20 < subjectPage.total })
     return data
@@ -347,11 +362,14 @@ class BankDetailViewModel {
     this.currentSubjectId = detail.id
     const progress = this.safeProgress()
     const subjectStats = summarizeSubjectProgress(progress, detail)
-    const allRows = (detail.banks || []).map((bank, index) => {
+    const online = this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()
+    const allRows = (detail.banks || []).flatMap((bank, index) => {
+      if (online && this.repository.getRemoteChapters) return this.buildChapterRows(detail, bank)
       const bankStats = summarizeBankProgress(progress, bank)
       const hasProgress = !!bankStats && bankStats.hasProgress
 
-      return {
+      return [{
+        id: bank.id,
         bankId: bank.id,
         subjectId: detail.id,
         index,
@@ -363,7 +381,7 @@ class BankDetailViewModel {
         progressPercent: bankStats ? bankStats.progressPercent : 0,
         hasProgress,
         isComplete: !!bankStats && bankStats.progressPercent >= 100
-      }
+      }]
     })
     const rows = this.filterRows(allRows)
     const recent = this.resolveRecentSubject(subjects)
@@ -387,6 +405,8 @@ class BankDetailViewModel {
       recentSubjectId: recent ? recent.subjectId : '',
       recentSubjectName: recent ? this.subjectNameOf(subjects, recent.subjectId) : '',
       rows,
+      chapterGroups: this.groupChapterRows(rows),
+      showBankTitles: online && (detail.bankCount > 1 || detail.banks.length > 1),
       hiddenRowCount: allRows.length - rows.length,
       listEmptyText: this.resolveListEmptyText(allRows.length, rows.length),
       filterEnabled: allRows.length > 0,
@@ -397,6 +417,30 @@ class BankDetailViewModel {
       searchEmptyText: '',
       configSheetVisible: false
     }, this.buildSheetData())
+  }
+
+  buildChapterRows(detail, bank) {
+    const chapters = this.repository.getRemoteChapters(this.storage, bank.id)
+    if (!chapters) return []
+    const choices = chapters.filter(chapter => chapter.questionCount > 0)
+    if (!chapters.length || chapters.reduce((count, chapter) => count + chapter.questionCount, 0) < bank.questionCount) {
+      choices.push({ id: '', name: '全部题目', questionCount: bank.questionCount, progress: bank.progress })
+    }
+    return choices.map(chapter => {
+      const stats = summarizeBankProgress({}, chapter)
+      return {
+        id: bank.id + ':' + chapter.id, bankId: bank.id, chapterId: chapter.id, subjectId: detail.id,
+        title: chapter.name,
+        questionCount: chapter.questionCount, metaText: chapterMetaText(stats, stats.hasProgress),
+        answered: stats.answered, progressPercent: stats.progressPercent, hasProgress: stats.hasProgress,
+        isComplete: chapter.questionCount > 0 && stats.answered >= chapter.questionCount
+      }
+    })
+  }
+
+  groupChapterRows(rows) {
+    const detail = this.repository.getSubjectDetail(this.currentSubjectId)
+    return (detail && detail.banks || []).map(bank => ({ id: bank.id, name: bank.name, rows: rows.filter(row => row.bankId === bank.id) })).filter(group => group.rows.length)
   }
 
   /**
@@ -454,6 +498,7 @@ class BankDetailViewModel {
 
       ;(detail.banks || []).forEach((bank, position) => {
         index.push({
+          id: bank.id,
           bankId: bank.id,
           subjectId: detail.id,
           subjectName: detail.name,
@@ -476,15 +521,20 @@ class BankDetailViewModel {
     if (text && this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       this.remoteSearchText = text
       const pageNumber = nextPage || 1
-      return this.repository.loadRemoteBanks(this.storage, { keyword: text, page: pageNumber }).then(() => {
+      return this.repository.loadRemoteBanks(this.storage, { keyword: text, page: pageNumber }).then(async () => {
         if (this.remoteSearchText !== text) return null
         const page = this.repository.getRemoteCatalogPage({ keyword: text, page: pageNumber }).data
         this.remoteSearchPage = pageNumber
-        const rows = (page && page.items || []).map(bank => ({
-          bankId: bank.id, subjectId: bank.subjectId, subjectName: bank.subjectName, title: bank.name, chapterTitle: bank.name, metaText: `${bank.activeQuestionCount} 题`
+        const groups = await Promise.all((page && page.items || []).map(async bank => {
+          await this.repository.loadRemoteChapters(this.storage, bank.id)
+          return this.buildChapterRows({ id: bank.subjectId, banks: [bank] }, Object.assign({}, bank, { questionCount: bank.activeQuestionCount }))
+            .filter(row => `${bank.name}${row.title}`.toLowerCase().includes(text.toLowerCase()))
+            .map(row => Object.assign({}, row, { subjectName: bank.subjectName, bankName: bank.name, chapterTitle: row.title }))
         }))
+        if (this.remoteSearchText !== text) return null
+        const rows = groups.flat()
         this.remoteSearchResults = pageNumber === 1 ? rows : (this.remoteSearchResults || []).concat(rows)
-        return { data: { searchActive: true, searchResults: this.remoteSearchResults, searchHasMore: !!page && page.total > pageNumber * 20, searchEmptyText: page && page.total ? '' : `没有匹配「${text}」的题库` } }
+        return { data: { searchActive: true, searchResults: this.remoteSearchResults, searchHasMore: !!page && page.total > pageNumber * 20, searchEmptyText: this.remoteSearchResults.length ? '' : `没有匹配「${text}」的章节` } }
       })
     }
     this.remoteSearchText = ''
@@ -509,6 +559,7 @@ class BankDetailViewModel {
       })
       .slice(0, 12)
       .map((item) => ({
+        id: item.id,
         bankId: item.bankId,
         subjectId: item.subjectId,
         subjectName: item.subjectName,
@@ -541,6 +592,7 @@ class BankDetailViewModel {
       data: {
         filterUnfinished: this.filterUnfinished,
         rows,
+        chapterGroups: this.groupChapterRows(rows),
         hiddenRowCount: allRows.length - rows.length,
         listEmptyText: this.resolveListEmptyText(allRows.length, rows.length)
       }
@@ -555,7 +607,7 @@ class BankDetailViewModel {
   openConfig(target) {
     const normalized = target || {}
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled() && normalized.type !== 'bank') {
-      return this.loadBankChoices(normalized.subjectId, 1)
+      return this.openRemoteSubjectConfig(normalized.subjectId)
     }
     const detail = this.repository.getSubjectDetail(normalized.subjectId)
     const sheet = Object.assign({}, DEFAULT_SHEET)
@@ -595,14 +647,18 @@ class BankDetailViewModel {
     return this.buildConfigOpenResult()
   }
 
-  openBankConfig(subjectId, bankId) {
+  openBankConfig(subjectId, bankId, chapterId) {
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
       return Promise.all([
         this.repository.loadRemoteBank(this.storage, bankId),
         this.repository.loadRemoteChapters(this.storage, bankId)
       ]).then(([bank, chapters]) => {
+        if (!bank || !chapters) return null
+        if (chapterId && !chapters.some(chapter => chapter.id === chapterId)) return { command: { type: 'toast', title: '章节已更新，请刷新后重试' } }
         const result = this.openConfig({ type: 'bank', subjectId: bank.subjectId, bankId })
+        if (!result || !this.sheetTarget) return null
         this.sheetTarget.chapters = chapters || []
+        this.setSheetChapter(chapterId || '')
         return Object.assign({}, result, { data: Object.assign({}, result.data, this.buildSheetData()) })
       })
     }
@@ -612,7 +668,8 @@ class BankDetailViewModel {
   async restorePendingPractice() {
     const pending = this.storage && this.storage.get('qandaPendingPractice')
     if (!pending || !this.repository.getAuth(this.storage).loggedIn) return null
-    const result = await this.openBankConfig(pending.subjectId, pending.bankId)
+    const result = pending.bankIds ? await this.openSubjectConfig(pending.subjectId) : await this.openBankConfig(pending.subjectId, pending.bankId)
+    if (pending.bankIds && this.sheetTarget && this.sheetTarget.banks) this.sheet.bankIds = String(pending.bankIds).split(',').filter(id => this.sheetTarget.banks.some(bank => bank.id === id))
     if (!result || !this.sheetTarget) return null
     this.sheet.mode = pending.mode === 'test' ? 'test' : pending.mode === 'view' ? 'view' : 'practice'
     this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random'
@@ -628,15 +685,42 @@ class BankDetailViewModel {
     return this.openConfig({ type: 'subject', subjectId })
   }
 
-  async loadBankChoices(subjectId, page) {
-    const result = await this.repository.loadRemoteBanks(this.storage, { subjectId, page })
-    if (!result) return null
-    const banks = result.items.filter(bank => bank.activeQuestionCount > 0)
-    if (result.total === 1 && banks.length === 1) return this.openBankConfig(subjectId, banks[0].id)
-    return { command: { type: 'chooseBank', subjectId, banks, remotePage: page, hasMore: page * result.pageSize < result.total } }
+  async openRemoteSubjectConfig(subjectId) {
+    const banks = []
+    let page = 1, result
+    do {
+      result = await this.repository.loadRemoteBanks(this.storage, { subjectId, page })
+      if (!result) return null
+      result.items.filter(bank => bank.activeQuestionCount > 0).forEach(bank => {
+        if (!banks.some(item => item.id === bank.id)) banks.push(bank)
+      })
+      page += 1
+    } while (result.items.length && (page - 1) * result.pageSize < result.total)
+    if (!banks.length) return { command: { type: 'toast', title: '当前没有可练习题库' } }
+    if (banks.length === 1) return this.openBankConfig(subjectId, banks[0].id)
+    const detail = this.repository.getSubjectDetail(subjectId)
+    if (!detail) return null
+    this.sheetTarget = { type: 'subject', subjectId, name: detail.name, title: detail.name, banks }
+    this.sheet = Object.assign({}, DEFAULT_SHEET, { bankIds: banks.map(bank => bank.id) })
+    return this.buildConfigOpenResult()
+  }
+
+  setSheetBank(bankId) {
+    const banks = this.sheetTarget && this.sheetTarget.banks || []
+    if (!banks.length) return null
+    const selected = this.sheet.bankIds || []
+    if (bankId === 'all') this.sheet.bankIds = selected.length === banks.length ? [] : banks.map(bank => bank.id)
+    else if (banks.some(bank => bank.id === bankId)) this.sheet.bankIds = selected.includes(bankId) ? selected.filter(id => id !== bankId) : selected.concat(bankId)
+    if (!this.wrongCountFor(this.sheetTarget)) this.sheet.onlyWrong = false
+    return { data: this.buildSheetData() }
+  }
+
+  selectedBanks() {
+    return (this.sheetTarget && this.sheetTarget.banks || []).filter(bank => (this.sheet.bankIds || []).includes(bank.id))
   }
 
   buildConfigOpenResult() {
+    this.remoteSearchText = ''
     const subjects = this.repository.getSubjectSummaries()
     const detail = this.repository.getSubjectDetail(this.sheetTarget.subjectId)
 
@@ -719,7 +803,7 @@ class BankDetailViewModel {
         data: Object.assign(this.buildSheetData(), { sheetOnlyWrong: false }),
         command: {
           type: 'toast',
-          title: '这一章还没有错题'
+          title: '当前范围暂无错题'
         }
       }
     }
@@ -734,6 +818,9 @@ class BankDetailViewModel {
   wrongCountFor(target) {
     if (!target) return 0
     if (this.repository.isRemoteEnabled && this.repository.isRemoteEnabled()) {
+      if (target.banks) return this.selectedBanks().reduce((sum, bank) => sum + (bank.progress && bank.progress.wrongCount || 0), 0)
+      const chapter = (target.chapters || []).find(chapter => chapter.id === this.sheet.chapterId)
+      if (chapter) return chapter.progress && chapter.progress.wrongCount || 0
       const detail = this.repository.getSubjectDetail(target.subjectId)
       const scope = target.type === 'bank' ? detail && detail.banks.find(bank => bank.id === target.bankId) : detail
       return scope && scope.progress && scope.progress.wrongCount || 0
@@ -746,17 +833,20 @@ class BankDetailViewModel {
     const wrongCount = this.wrongCountFor(target)
     const isView = this.sheet.mode === 'view'
     const chapter = target && (target.chapters || []).find(item => item.id === this.sheet.chapterId)
-    const count = chapter ? chapter.questionCount : target && target.questionCount
+    const selected = this.selectedBanks()
+    const count = target && target.banks ? selected.reduce((sum, bank) => sum + bank.activeQuestionCount, 0) : chapter ? chapter.questionCount : target && target.questionCount
     const startText = this.sheet.mode === 'test'
       ? '开始测试'
       : (isView ? '开始背题' : '开始答题')
 
     return {
       configTitle: '答题配置',
-      configSubtitle: target ? `${target.title}${chapter ? ' · ' + chapter.name : ''} · ${count} 题` : '',
+      configSubtitle: target ? `${target.title}${target.banks ? ' · 已选 ' + selected.length + ' 个题库' : chapter ? ' · ' + chapter.name : ''} · ${this.sheet.onlyWrong ? wrongCount : count} 题` : '',
+      sheetBanks: (target && target.banks || []).map(bank => ({ id: bank.id, name: bank.name, selected: (this.sheet.bankIds || []).includes(bank.id) })),
+      sheetAllBanksSelected: !!(target && target.banks && selected.length === target.banks.length),
+      sheetSomeBanksSelected: !!(selected.length && target && target.banks && selected.length < target.banks.length),
+      sheetStartDisabled: !!(target && target.banks && !selected.length),
       configTargetName: target ? target.name : '',
-      sheetChapters: target && target.chapters && target.chapters.length ? [{ id: '', name: '全部章节', questionCount: target.questionCount }].concat(target.chapters) : [],
-      sheetChapterId: this.sheet.chapterId || '',
       sheetMode: this.sheet.mode,
       sheetOrder: this.sheet.order,
       sheetTimed: this.sheet.timed,
@@ -846,8 +936,13 @@ class BankDetailViewModel {
     const wrongIds = this.sheet.onlyWrong && !remote ? this.collectWrongIds(target) : []
     const routeMode = this.resolveRouteMode()
     const query = []
-
-    if (target.type === 'bank') {
+    const selected = this.selectedBanks()
+    if (target.banks && !selected.length) return { command: { type: 'toast', title: '请至少选择一个题库' } }
+    if (selected.length > 100) return { command: { type: 'toast', title: '每次最多选择 100 个题库' } }
+    const bankId = selected.length ? selected[0].id : target.bankId
+    if (remote && target.banks) {
+      query.push(`subjectId=${encodeURIComponent(target.subjectId)}`, `bankId=${encodeURIComponent(bankId)}`, `bankIds=${encodeURIComponent(selected.map(bank => bank.id).join(','))}`, `title=${encodeURIComponent(target.title)}`)
+    } else if (target.type === 'bank') {
       query.push(`subjectId=${encodeURIComponent(target.subjectId)}`)
       query.push(`bankId=${encodeURIComponent(target.bankId)}`)
       if (this.sheet.chapterId) query.push(`chapterId=${encodeURIComponent(this.sheet.chapterId)}`)
@@ -887,11 +982,12 @@ class BankDetailViewModel {
       }
     })
 
-    if (remote && target.bankId) {
+    if (remote && bankId) {
       return this.repository.previewRemotePracticeScope(this.storage, {
-        questionBankId: target.bankId,
+        questionBankId: bankId,
+        ...(target.banks ? { questionBankIds: selected.map(bank => bank.id) } : {}),
         chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [],
-        count: this.sheet.onlyWrong ? 1000 : Math.min(target.questionCount || 1000, 1000),
+        count: this.sheet.onlyWrong ? 1000 : Math.min(selected.length ? selected.reduce((sum, bank) => sum + bank.activeQuestionCount, 0) : target.questionCount || 1000, 1000),
         order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
         selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',
         collectionChip: 'all'

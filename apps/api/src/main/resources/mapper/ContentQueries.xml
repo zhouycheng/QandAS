@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.content.ContentQueries">
-  <select id="chapterCounts" resultType="qanda.backend.content.ChapterCount">SELECT chapter_id id,count(*) count FROM question WHERE bank_id=#{bankId} AND NOT is_group AND chapter_id IS NOT NULL<if test="activeOnly"> AND status='ACTIVE'</if> GROUP BY chapter_id</select>
+  <select id="chapterCounts" resultType="qanda.backend.content.ChapterCount">
+    <if test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/> </if>
+    SELECT q.chapter_id id,count(q.id) count,
+      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count</otherwise></choose>
+    FROM question q <if test="userId != null">LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1 </if>
+    WHERE q.bank_id=#{bankId} AND NOT q.is_group AND q.chapter_id IS NOT NULL<if test="activeOnly"> AND q.status='ACTIVE'</if> GROUP BY q.chapter_id
+  </select>
   <sql id="ids"><foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
   <select id="favoriteQuestionIds" resultType="java.util.UUID">SELECT question_id FROM user_favorite WHERE user_id=#{userId} AND question_id IN <include refid="ids"/> ORDER BY question_id</select>
   <select id="bankListFacts" resultType="qanda.backend.content.BankListFacts">

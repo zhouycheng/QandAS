@@ -67,8 +67,13 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     fun chapters(actor: Actor?,bankId: UUID): List<ChapterView> {
         access.bank(actor,bankId)
-        val counts=sql.chapterCounts(bankId,actor?.kind!="ADMIN").associateBy { it.id }
-        return chapters.selectList(QueryWrapper<Chapter>().eq("bank_id",bankId).orderByAsc("sort_order")).map { ChapterView(it.id!!,bankId,it.name,it.sortOrder,it.version,counts[it.id]?.count ?: 0) }
+        val userId=actor?.takeIf { it.kind=="USER" }?.id
+        val counts=sql.chapterCounts(bankId,actor?.kind!="ADMIN",userId).associateBy { it.id }
+        return chapters.selectList(QueryWrapper<Chapter>().eq("bank_id",bankId).orderByAsc("sort_order").orderByAsc("id")).map {
+            val facts=counts[it.id]
+            ChapterView(it.id!!,bankId,it.name,it.sortOrder,it.version,facts?.count ?: 0,
+                userId?.let { BankProgressView(facts?.answeredCount ?: 0,facts?.correctCount ?: 0,facts?.wrongCount ?: 0) })
+        }
     }
     fun saveChapter(actor: Actor,bankId: UUID,id: UUID?,input: ChapterInput): MutationResult {
         access.bank(actor,bankId,true)

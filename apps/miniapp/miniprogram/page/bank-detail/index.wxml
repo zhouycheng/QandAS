@@ -92,9 +92,10 @@
 
           <view
             wx:for="{{searchResults}}"
-            wx:key="bankId"
+            wx:key="id"
             class="search-row"
             data-bank-id="{{item.bankId}}"
+            data-chapter-id="{{item.chapterId}}"
             data-subject-id="{{item.subjectId}}"
             bindtap="handleSearchResultTap"
             hover-class="search-row-hover"
@@ -103,7 +104,7 @@
           >
             <view class="search-row-main">
               <text class="search-row-title">{{item.chapterTitle}}</text>
-              <text class="search-row-sub">{{item.subjectName}} · {{item.metaText}}</text>
+              <text class="search-row-sub">{{item.subjectName}}<text wx:if="{{item.bankName}}"> · {{item.bankName}}</text> · {{item.metaText}}</text>
             </view>
             <text class="search-row-arrow">›</text>
           </view>
@@ -125,7 +126,7 @@
           >
             <view class="stat-top">
               <text class="stat-scope">{{railMode === 'recent' ? '最近在刷 · ' : ''}}{{subject.name}}</text>
-              <text class="stat-more">整科 ›</text>
+              <text class="stat-more">{{showBankTitles ? '题库练习 ›' : '整科 ›'}}</text>
             </view>
             <view class="stat-row" wx:if="{{stats}}">
               <view class="stat-item">
@@ -146,14 +147,17 @@
           </view>
 
           <view class="chapter-list">
-            <bank-list-item
-              wx:for="{{rows}}"
-              wx:key="bankId"
-              bank="{{item}}"
-              bind:open="handleBankOpen"
-            />
+            <view class="chapter-group" wx:for="{{chapterGroups}}" wx:for-item="group" wx:key="id">
+              <text class="bank-group-title" wx:if="{{showBankTitles}}">{{group.name}}</text>
+              <bank-list-item
+                wx:for="{{group.rows}}"
+                wx:key="id"
+                bank="{{item}}"
+                bind:open="handleBankOpen"
+              />
+            </view>
           </view>
-          <view class="load-note" wx:if="{{catalogHasMore}}" bindtap="handleBanksMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">加载更多题库</view>
+          <view class="load-note" wx:if="{{catalogHasMore}}" bindtap="handleBanksMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">加载更多章节</view>
 
           <view class="empty-block" wx:if="{{!rows.length && !catalogLoading && !catalogError}}">
             <text>{{listEmptyText}}</text>
@@ -175,12 +179,18 @@
         <text class="config-sub">{{configSubtitle}}</text>
       </view>
 
-      <view class="config-rows">
-        <scroll-view wx:if="{{sheetChapters.length}}" class="config-chapters" scroll-y>
-          <view class="seg-group">
-            <view wx:for="{{sheetChapters}}" wx:key="id" class="seg-chip {{sheetChapterId === item.id ? 'is-active' : ''}}" data-chapter-id="{{item.id}}" bindtap="handleSheetChapter" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.name}} · {{item.questionCount}} 题</view>
+      <scroll-view class="config-banks" scroll-x enhanced show-scrollbar="{{false}}" wx:if="{{sheetBanks.length}}">
+        <view class="config-bank-list">
+          <view class="seg-chip bank-chip {{sheetAllBanksSelected ? 'is-active' : ''}}" data-id="all" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{sheetAllBanksSelected}}" aria-label="全选题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+            <text class="bank-check">{{sheetAllBanksSelected ? '✓' : sheetSomeBanksSelected ? '−' : ''}}</text>全选
           </view>
-        </scroll-view>
+          <view wx:for="{{sheetBanks}}" wx:key="id" class="seg-chip bank-chip {{item.selected ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{item.selected}}" aria-label="{{item.name}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+            <text class="bank-check">{{item.selected ? '✓' : ''}}</text>{{item.name}}
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="config-rows">
         <view class="config-row">
           <text class="config-label">模式</text>
           <view class="seg-group">
@@ -261,7 +271,7 @@
           hover-stay-time="80"
         >取消</view>
         <view
-          class="config-btn primary"
+          class="config-btn primary {{sheetStartDisabled ? 'is-disabled' : ''}}" aria-disabled="{{sheetStartDisabled}}"
           bindtap="handleConfigConfirm"
           hover-class="btn-flat-hover"
           hover-start-time="0"
