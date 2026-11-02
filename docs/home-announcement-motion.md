@@ -28,7 +28,6 @@ node scripts/preview-home.cjs configured
 
 生成的 `.tmp-preview/home-notice.html` 和 `.tmp-preview/home.html` 分别展示有公告与无公告状态，采用真实 WXSS 和 375 × 812 首页比例。可按压入口并打开、关闭样例弹窗；浏览器预览的弹窗交互使用本地样例，业务链路由小程序自检覆盖。
 
-本轮动态与检查产物保存在 `.tmp-preview/notice-motion-review/`：
 
 - `home-notice.gif`：20fps、3.6 秒完整循环。
 - `extremes.png`：按从左到右、从上到下排列的 0、504、864、1188、1476、1800ms 画面。

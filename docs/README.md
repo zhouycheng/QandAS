@@ -1,24 +1,18 @@
-# QandA 文档索引
+# 项目文档
 
-## 项目文档
-
-- [后端架构与数据库](backend-architecture.md)：模块分层、档案与业务关系、初始化及指标口径。
-- [后端接口进度](backend-progress.md)：当前 117 项接口、Q01 历史计划对照与验收边界。
-- [小程序接口接入台账](miniapp-api-integration.md)：逐接口的用途、页面调用位置、使用状态及缺失入口。
-- [小程序页面加载](miniapp-page-loading.md)：15 个页面的加载矩阵、缓存、原生导航、弹层与实测记录。
-- [小程序联调验收记录](miniapp-integration-verification.md)：同步规则、自动检查、真实 HTTP 和设备验收边界。
-- [Git 工作流](git-workflow.md)：分支、提交、PR 与合并要求。
-- [院级管理设计与实现说明](admin-college-management.md)：学院、专业、入学年级目录及关联保护。
-- [题库工作台设计与实现说明](admin-bank-workbench.md)：课程多题库、多题型维护、展示范围与发布导入流程。
-- [管理端学生平台历史改造说明](admin-student-platform-implementation.md)：原页面、验证记录与当时边界；当前实现见管理端 README。
-
-## 产品需求与架构
-
-- [PRD 索引](prd/README.md)：各端的当前实现状态和需求基线。
-- [微信小程序 MVP](prd/miniapp-mvp.md)：小程序独立 MVP 范围。
-- [用户 Web MVP](prd/web-mvp.md)：未来 Web 端的产品范围；当前没有对应实现。
-- [管理端 MVP](prd/admin-mvp.md)：管理端产品范围。
-- [API MVP](prd/api-mvp.md)：API 目标与接口需求。
-- [学生自主复习平台架构报告](prd/student-platform-architecture.md)：平台定位、业务关系、推荐规则与客户端接入约定。
-
-当前实现状态以各应用 README 和代码为准；API 实现与合同入口见 [apps/api/README.md](../apps/api/README.md)。
+- [产品规则](product-rules.md)
+- [开发与运行](development.md)
+- [前端架构](frontend-architecture.md)
+- [后端架构](backend-architecture.md)
+- [数据库设计](database-design.md)
+- [答题同步与监控](sync-monitoring.md)
+- [小程序页面加载](miniapp-page-loading.md)
+- [接口接入台账](miniapp-api-integration.md)
+- [题型与 Markdown](question-content-and-practice.md)
+- [题库工作台](admin-bank-workbench.md)
+- [院级管理](admin-college-management.md)
+- [题库导入](question-bank-import.md)
+- [用户交流群](community-group.md)
+- [首页公告动效](home-announcement-motion.md)
+- [验收规范](verification.md)
+- [Git 工作流](git-workflow.md)
