@@ -7,6 +7,10 @@ server:
     include-message: never
     include-stacktrace: never
 spring:
+  flyway:
+    enabled: false
+  lifecycle:
+    timeout-per-shutdown-phase: 90s
   application:
     name: qanda-backend
   rabbitmq:
@@ -72,6 +76,13 @@ qanda:
       root: ${BACKEND_FILE_ROOT:${user.home}/.local/share/qanda-backend/assets}
 
 management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,deployment
   server:
     port: ${BACKEND_METRICS_PORT:9091}
   endpoints:

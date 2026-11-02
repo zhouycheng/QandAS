@@ -22,3 +22,5 @@ QandA 是面向课程复习的题库与练习平台，提供微信小程序、�
 | `docs` | 产品及工程规范 |
 
 开发协作遵循 [Git 工作流](docs/git-workflow.md)。
+
+- [生产部署与恢复](docs/deployment.md)

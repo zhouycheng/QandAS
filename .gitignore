@@ -14,3 +14,8 @@ apps/miniapp/.tmp-preview/
 # 小程序本机接口配置
 apps/miniapp/miniprogram/ext.json
 apps/miniapp/miniprogram/runtime.local.js
+
+# Deployment artifacts and local verification
+release/
+__pycache__/
+deploy/production.env

@@ -1,0 +1,127 @@
+name: Production deploy
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy main or roll back the preceding successful release
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+permissions: {}
+concurrency:
+  group: qanda-production
+  cancel-in-progress: false
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the main branch
+        env:
+          SOURCE_REF: ${{ github.ref }}
+        run: test "$SOURCE_REF" = refs/heads/main
+  verify:
+    needs: guard
+    if: inputs.operation == 'deploy'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend: ${{ steps.images.outputs.backend }}
+      web: ${{ steps.images.outputs.web }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verified-release-${{ github.sha }}
+          path: release
+      - name: Verify and stage the tested artifacts
+        run: |
+          cd release
+          sha256sum -c SHA256SUMS
+          test -s backend/qanda-backend-1.0.0.jar
+          test -s web/index.html
+          mkdir -p ../apps/api/target ../apps/admin/dist
+          cp backend/qanda-backend-1.0.0.jar ../apps/api/target/
+          cp -R web/. ../apps/admin/dist/
+      - name: Publish immutable images
+        id: images
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null' EXIT
+          docker buildx create --driver docker-container --use
+          for kind in backend web; do
+            repository="ghcr.io/zhouycheng/qanda-${kind}"
+            if test "$kind" = backend; then
+              context=apps/api
+              dockerfile=apps/api/Dockerfile
+            else
+              context=.
+              dockerfile=deploy/web.Dockerfile
+            fi
+            docker buildx build --platform linux/amd64 --push \
+              --label "org.opencontainers.image.source=https://github.com/zhouycheng/QandA" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --cache-from "type=registry,ref=${repository}:buildcache" \
+              --cache-to "type=registry,ref=${repository}:buildcache,mode=min,ignore-error=true" \
+              -t "${repository}:${GITHUB_SHA}" -f "$dockerfile" \
+              --metadata-file "$RUNNER_TEMP/${kind}.json" "$context"
+            digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/${kind}.json")
+            echo "${kind}=${repository}@${digest}" >> "$GITHUB_OUTPUT"
+          done
+  deploy:
+    needs: [guard, verify, publish]
+    if: always() && needs.guard.result == 'success' && (inputs.operation == 'rollback' || needs.publish.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      packages: read
+    steps:
+      - uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:qanda-ci
+      - name: Start the release on the server
+        env:
+          OPERATION: ${{ inputs.operation }}
+          BACKEND: ${{ needs.publish.outputs.backend }}
+          WEB: ${{ needs.publish.outputs.web }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          TAILSCALE_SERVER: ${{ secrets.TAILSCALE_SERVER }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tailscale ssh "qanda-deploy@${TAILSCALE_SERVER}" "sudo -n /usr/local/sbin/qanda-deployctl ${OPERATION}"
+          import json, os
+          request = {'username': os.environ['GITHUB_ACTOR'], 'token': os.environ['REGISTRY_TOKEN']}
+          if os.environ['OPERATION'] == 'deploy':
+              request['release'] = {'revision': os.environ['GITHUB_SHA'], 'backend': os.environ['BACKEND'], 'web': os.environ['WEB']}
+          print(json.dumps(request))
+          PY
+      - name: Wait for server verification and report the release
+        env:
+          TAILSCALE_SERVER: ${{ secrets.TAILSCALE_SERVER }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            status=$(tailscale ssh "qanda-deploy@${TAILSCALE_SERVER}" 'sudo -n /usr/local/sbin/qanda-deployctl status')
+            phase=$(jq -er '.operation.phase' <<< "$status")
+            case "$phase" in
+              complete) printf '%s\n' "$status" >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
+              failed|rolled-back) printf '%s\n' "$status" >> "$GITHUB_STEP_SUMMARY"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo 'Server operation continues independently; inspect its status before another deployment.' >&2
+          exit 1

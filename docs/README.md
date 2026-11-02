@@ -17,3 +17,5 @@
 - [验收规范](verification.md)
 - [性能检查](performance.md)
 - [Git 工作流](git-workflow.md)
+
+- [生产部署与恢复](deployment.md)

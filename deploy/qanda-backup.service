@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up QandA database, assets and encrypted runtime configuration
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/qanda-backup
+UMask=0077

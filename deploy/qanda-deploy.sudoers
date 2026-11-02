@@ -1,0 +1,1 @@
+qanda-deploy ALL=(root) NOPASSWD: /usr/local/sbin/qanda-deployctl deploy, /usr/local/sbin/qanda-deployctl rollback, /usr/local/sbin/qanda-deployctl status

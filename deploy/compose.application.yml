@@ -1,0 +1,96 @@
+x-backend: &backend
+  image: ${BACKEND_IMAGE:?digest required}
+  env_file: /srv/qanda/production.env
+  environment: &environment
+    BACKEND_MODE: production
+    BACKEND_BIND_ADDRESS: 0.0.0.0
+    BACKEND_DB_URL: ${PRODUCTION_DB_URL:-jdbc:postgresql://qanda-postgres:5432/qanda_backend}
+    BACKEND_RABBIT_HOST: ${PRODUCTION_RABBIT_HOST:-qanda-rabbitmq}
+    BACKEND_PROMETHEUS_URL: http://qanda-prometheus:9090
+    BACKEND_FILE_ROOT: /var/lib/qanda/assets
+    BACKEND_FILES_ENABLED: "true"
+    BACKEND_DOCS_ENABLED: "false"
+    BACKEND_REVISION: ${REVISION:?required}
+    SERVER_FORWARD_HEADERS_STRATEGY: native
+    SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: 172\.29\.71\.10
+    BACKEND_DB_POOL_SIZE: 4
+  volumes: [assets:/var/lib/qanda/assets]
+  stop_grace_period: 120s
+  restart: unless-stopped
+  mem_limit: 384m
+  networks: [data, application]
+  healthcheck:
+    test: [CMD, curl, --fail, --silent, http://127.0.0.1:9091/actuator/health/readiness]
+    interval: 5s
+    timeout: 5s
+    retries: 36
+    start_period: 30s
+services:
+  api:
+    <<: *backend
+    networks:
+      data:
+        aliases: [qanda-api]
+      application: {}
+    entrypoint: [java, -Xmx256m, -Djava.awt.headless=true, -jar, /app/app.jar]
+    environment:
+      <<: *environment
+      BACKEND_ROLE: api
+  worker:
+    <<: *backend
+    networks:
+      data:
+        aliases: [qanda-worker]
+      application: {}
+    entrypoint: [java, -Xmx192m, -Djava.awt.headless=true, -jar, /app/app.jar]
+    environment:
+      <<: *environment
+      BACKEND_ROLE: worker
+      BACKEND_WORKER_ENABLED: "true"
+    mem_limit: 320m
+  monitor:
+    <<: *backend
+    networks:
+      data:
+        aliases: [qanda-monitor]
+      application: {}
+    entrypoint: [java, -Xmx128m, -Djava.awt.headless=true, -jar, /app/app.jar]
+    environment:
+      <<: *environment
+      BACKEND_ROLE: monitor
+      BACKEND_MONITORING_ENABLED: "true"
+      BACKEND_DB_POOL_SIZE: 2
+      BACKEND_DB_QUERY_TIMEOUT: 3
+      BACKEND_DB_SESSION_INIT: SET TIME ZONE 'UTC'; SET ROLE qanda_monitor; SET statement_timeout='3s'
+    mem_limit: 256m
+  web:
+    image: ${WEB_IMAGE:?digest required}
+    environment:
+      QANDA_API_UPSTREAM: ${PRODUCTION_API_UPSTREAM:-http://api:8083}
+      QANDA_MONITOR_UPSTREAM: ${PRODUCTION_MONITOR_UPSTREAM:-http://monitor:8083}
+    volumes: [/srv/qanda/web-assets:/srv/qanda-assets:ro]
+    ports: [127.0.0.1:18083:8080]
+    networks:
+      application:
+        ipv4_address: 172.29.71.10
+    restart: unless-stopped
+    mem_limit: 64m
+  migrate:
+    <<: *backend
+    entrypoint: [java, -Xmx192m, -jar, /app/app.jar]
+    command: [migrate]
+    profiles: [operations]
+    restart: "no"
+    healthcheck: {disable: true}
+networks:
+  data:
+    external: true
+    name: qanda-data
+  application:
+    name: qanda-application
+    ipam:
+      config: [{subnet: 172.29.71.0/24}]
+volumes:
+  assets:
+    external: true
+    name: qanda-production-assets

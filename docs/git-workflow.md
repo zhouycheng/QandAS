@@ -2,34 +2,26 @@
 
 本文档是 QandA 当前项目阶段的 Git 协作规则。开发者手册和 Agent Skill 均以本文档为准。
 
-## 单主干开发
+## 开发与发布分支
 
 ```text
-main → 短期任务分支 → PR → main
+develop → main → 手动运行生产部署 Actions
 ```
 
-main 是唯一日常集成主干。不再使用 develop 作为任务起点或合并中转。
+`develop` 用于日常开发，`main` 保存准备发布的版本并保持默认分支。仓库为私有，按 GitHub Free 配置，不设置分支保护、必需状态检查或部署审批。团队成员可以直接推送或使用 PR 协作；合并前核对差异并运行适用检查。
 
-前期采用轻量协作：
+推送到 `main`、`develop` 和 PR 会运行 CI。生产部署仅由 Actions 的 **Run workflow** 手动触发，且来源必须为 `main`。合并或推送不会部署。
 
-- 所有变更必须通过 PR 合入 main，禁止直接推送、强推或删除 main；管理员同样遵守 PR 要求。
-- 有写入权限的协作者可以合并自己的 PR，不强制要求他人审批或 Code Owner 审核。
-- 分支名称不与 GitHub 用户名绑定，不要求固定的个人分支。
-- 不设置旧 allowed-branch-flow 检查，不要求分支必须始终与 main 最新同步；有冲突时仍须处理冲突。
-- 已有 PR 讨论须处理完毕，合并前自行核对差异并验证本次变更。无需审批不等于无需自检。
-- 当前阶段不配置必需状态检查；仓库已有应用实现，合并门禁应结合 CI 工作流的实际覆盖范围另行决定。
-- 普通短期任务 PR 推荐 squash merge，确认合并成功后删除该任务分支。不要批量删除他人分支。
-
-以上是团队目标规则，实际服务端限制由 GitHub 后台设置执行。文档变更不能代替后台配置，也不能授权绕过尚未调整的保护规则。
+任务分支从最新 `origin/develop` 创建，完成后合入 `develop`。发布时将确认的代码合入 `main`，再手动选择部署；回滚也由同一工作流手动触发。服务器健康检查和失败恢复属于发布流程。
 
 ## 创建和推送任务分支
 
-先确认工作区状态，不要丢弃或覆盖现有改动。再从最新 origin/main 创建分支：
+先确认工作区状态，不要丢弃或覆盖现有改动。再从最新 origin/develop 创建分支：
 
 ```bash
 git status
 git fetch origin --prune
-git switch --no-track -c feat/your-task origin/main
+git switch --no-track -c feat/your-task origin/develop
 ```
 
 推荐名称包括 feat/question-list、fix/session-restore、chore/workspace-bootstrap。推荐格式是 type/description，使用能说明任务的名称；不把命名格式作为 CI 或 Agent 的硬性门禁。
@@ -61,7 +53,7 @@ git push -u origin HEAD
 
 ## Pull Request
 
-PR 目标统一为 main。推荐标题采用 type(scope): 中文描述，正文沿用仓库模板：
+日常 PR 目标为 develop，发布 PR 目标为 main。推荐标题采用 type(scope): 中文描述，正文沿用仓库模板：
 
 ```markdown
 ## Summary

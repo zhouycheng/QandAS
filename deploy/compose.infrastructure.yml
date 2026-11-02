@@ -1,0 +1,61 @@
+name: qanda-infrastructure
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: qanda_backend
+      POSTGRES_USER: qanda_backend
+      POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD:?required}
+      TZ: UTC
+    volumes: [pg:/var/lib/postgresql/data]
+    networks:
+      data:
+        aliases: [qanda-postgres]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U qanda_backend -d qanda_backend]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    mem_limit: 256m
+  rabbitmq:
+    image: rabbitmq:4.2.5-management
+    environment:
+      RABBITMQ_DEFAULT_USER: qanda
+      RABBITMQ_DEFAULT_PASS: ${BACKEND_RABBIT_PASSWORD:?required}
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: +S 2:2
+    volumes:
+      - rabbit:/var/lib/rabbitmq
+      - ./rabbitmq-plugins:/etc/rabbitmq/enabled_plugins:ro
+    networks:
+      data:
+        aliases: [qanda-rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    mem_limit: 384m
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=15d]
+    volumes:
+      - metrics:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./sync-rules.yml:/etc/prometheus/sync-rules.yml:ro
+    networks:
+      data:
+        aliases: [qanda-prometheus]
+    restart: unless-stopped
+    mem_limit: 192m
+networks:
+  data:
+    name: qanda-data
+volumes:
+  pg:
+    name: qanda-production-pg
+  rabbit:
+    name: qanda-production-rabbit
+  metrics:
+    name: qanda-production-metrics
