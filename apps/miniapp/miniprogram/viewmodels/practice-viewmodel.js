@@ -399,7 +399,7 @@ class PracticeViewModel {
       return null
     }
 
-    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&mode=practice&ids=${encodeURIComponent(ids.join(','))}` } }
+    if (this.online || this.trial) return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&mode=practice&ids=${encodeURIComponent(ids.join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } }
 
     this.repository.saveCustomQuiz(this.storage, ids, '错题重练')
 

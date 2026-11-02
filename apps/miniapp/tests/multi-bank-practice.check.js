@@ -47,6 +47,7 @@ async function main() {
   const vm = new PracticeViewModel({ storage: store })
   vm.online = runtime; vm.routeOptions = fresh.route
   assert(vm.createRedoWrongCommand(['qa', 'qb']).command.url.includes('bankIds=a%2Cb'))
+  assert(vm.createRedoWrongCommand(['qa', 'qb']).command.url.includes('selectionKind=WRONG'))
   await runtime.prepare({ bankId: 'a', bankIds: 'a,b', mode: 'test', ids: 'qa,qb' })
   assert(calls.some(call => call.path === '/practice/scope-preview'), '重练无旧预览时重新确认所有题库版本')
   runtime.queue.stop()

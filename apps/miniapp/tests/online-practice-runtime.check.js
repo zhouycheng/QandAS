@@ -255,6 +255,7 @@ async function main() {
   assert.strictEqual(restoredVm.routeOptions.bankId, 'b1')
   assert.strictEqual(restoredVm.routeOptions.duration, '20')
   assert(restoredVm.createRedoWrongCommand(['q1']).command.url.includes('bankId=b1'))
+  assert(restoredVm.createRedoWrongCommand(['q1']).command.url.includes('selectionKind=WRONG'))
   const retriedResult = await restoredVm.retrySubmit()
   assert.strictEqual(retriedResult.submitOk, true, '恢复后的交卷可以通过页面重试完成')
   assert.strictEqual(restoreRuntime.get('s3').status, 'SUBMITTED')
