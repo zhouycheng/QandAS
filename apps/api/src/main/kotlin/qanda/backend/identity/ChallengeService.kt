@@ -10,6 +10,7 @@ import qanda.backend.platform.http.ErrorDetails
 import qanda.backend.platform.security.TransactionLocks
 import qanda.backend.platform.mail.OutboxService
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
@@ -39,7 +40,7 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
         val code=crypto.randomCode()
         val row=EmailChallenge().apply { id=UUID.randomUUID();userId=if(input.purpose=="RESET_PASSWORD") owner?.id else user?.id
             purpose=input.purpose;email=address.display;emailKey=address.key;codeMac=crypto.proofMac(id!!,purpose,code);keyVersion=crypto.activeVersion
-            this.eligible=eligible;credentialVersion=(user?:owner)?.credentialVersion;createdAt=clock.instant();expiresAt=createdAt.plusSeconds(600) }
+            this.eligible=eligible;credentialVersion=(user?:owner)?.credentialVersion;createdAt=clock.instant().truncatedTo(ChronoUnit.MILLIS);expiresAt=createdAt.plusSeconds(600) }
         rows.insert(row)
         if(eligible) outbox.enqueue(row,code)
         return ChallengeView(row.id!!,row.expiresAt)
