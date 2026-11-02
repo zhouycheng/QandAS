@@ -78,6 +78,10 @@ Three counter-intuitive details:
 - Tab captions: 首页 / 题库 / **复盘** / 我的. The third tab's route is still `page/stats/index` (changing
   a tab route means touching `app.json`, deep links and four test files for zero user value) — only the
   product name changed.
+- The center action reads the shared resumable session and observes remote overview changes. A task
+  shows Play / 继续答题 on every tab. Without a task, Home shows a right arrow and Review/My a left
+  arrow, all leading to the bank tab. On the bank tab it shows disabled Play / 选择题库. Keep icon,
+  label, accessibility state, and the click guard synchronized in the component.
 
 ### Layout and visuals
 
@@ -176,7 +180,8 @@ Three counter-intuitive details:
 - Shared layout lives in `miniprogram/styles/list-page.wxss` (same 750/402 scale as the auth pages:
   22px → 41rpx margin, 54px → 101rpx row, 48px → 90rpx button). Each page WXSS only carries deltas.
 - About uses `page/about` with the shared secondary header; it reads the application version, team,
-  description, and donation images without HTTP. Legal agreements use center sheets (`placement="center"`)
+  description, and donation images locally. The shared `community-group` component reads the current
+  managed QR code through the public community API. Legal agreements use center sheets (`placement="center"`)
   through the shared portal. MobX refreshes preserve the open sheet and form drafts.
 - Answer preferences, layout, reminders, and exam countdown have separate pages. Their entry paths
   read local data only. Version and developer tools are in About.
@@ -196,6 +201,11 @@ Three counter-intuitive details:
   it writes is the same string the ViewModel already holds.
 
 ### Home 四宫格 `STUDY_ENTRIES` (recent / mock / wrong / favorite)
+
+- Home recommendations use `/me/recommendations` (three subjects per page, five-minute cache); guests read
+  `/subjects`. Recommendation subject counts may be null: use the nested banks' `activeQuestionCount`.
+  Reaching the page bottom appends the next page, while pull-to-refresh resets pagination.
+  Subject rows pass the ID through `App.setPendingSubjectId` before switching to the bank tab.
 
 - ⚠️ **「模拟考试」是一键开考，不再让用户先去题库选科目**（用户明确要求）。`openMock()` 直接产出
   `scope=subject&mode=test&count&duration&seed` 的跳转；科目取「上次练过的那科」，没练过取题库第一个
@@ -292,9 +302,13 @@ Rewritten against the 2026-10-27 board (章节列表 + 答题配置抽屉). Old 
   beneath the floating tab bar and their last rows can scroll above it.
 - 左栏 = 最近在刷 / 我的错题 / 我的收藏 / 科目… / 导入题库。选中项**白底 + 蓝色左条**（与右侧白面板同色，
   侧边标签页的常见做法），选中文字是深色粗体而不是品牌蓝。
-- Directory rows show server bank summaries; opening practice configuration fetches real chapters
-  on demand. Preserve the selected chapter in scope preview, creation, resume, and repeat practice.
+- The right panel lists real chapters from the current page of banks. One bank renders its chapters
+  directly; multiple banks use each bank name as a section heading. Chapters carry their own progress.
+  Opening a row configures that chapter. Preserve it in scope preview, creation, resume, and repeat practice.
   Force-refreshing the catalog also invalidates chapter caches and removes unavailable banks.
+- Tapping a multi-bank subject's statistics card opens configuration directly. Its horizontal bank chips
+  use independent selection plus Select All; an empty selection disables Start. Scope previews and
+  snapshots retain all selected banks and their content versions, including guest trials and repeats.
 - **抽屉里的开关都是「本次答题」的参数，不写学习偏好**。「解析自动展开 / 答对自动翻页」这类偏好只在
   「我的」页维护 —— 同一个状态两处能改，迟早出现「我明明关了又自己开了」。
 - Online wrong/favorite practice uses server `selectionKind` and `collectionChip`; pagination must preserve the whole matching scope. Local fixtures use explicit question IDs and must not combine `scope=subject` with a custom ID selection.

@@ -8,7 +8,7 @@
 - 页面通过 ViewModel 投影展示字段，Repository 使用 MobX 管理独立资源。目录每页 20 条、错题和收藏每页 5 条，按操作加载；题目正文用于详情和练习。目录及资料缓存 5 分钟、学习摘要和集合列表 30 秒，同账号同查询请求合并。
 - `remote-data-repository.js` 的题目展示映射不等于练习快照；答题使用 `online-practice.js` 的修订快照。答案展示遵守确认状态、反馈模式及交卷状态；题目详情在无对应练习上下文时展示题干和选项。
 - 最近练习首批读取 20 条；后台等待记录独立保留并提供返回入口。
-- 首页只读取学习概览和 1 条公告，公告总数决定动画状态；打开弹窗读取 20 条并支持加载更多，缓存 60 秒。切换账号清理展示缓存并拒收旧账号响应。弹窗通过 root-portal 覆盖底栏，底栏保留并随背景变暗。
+- 首页读取学习概览、1 条公告和首批 3 个推荐科目，向下滚动触底后每次追加 3 个科目，缓存 5 分钟；登录学生使用 `/me/recommendations`，游客使用公开科目列表。加载失败保留已有内容并支持重试，下拉刷新重置分页。学习空间下方的入群卡片独立读取当前群码。公告总数决定动画状态；打开弹窗读取 20 条并支持加载更多，缓存 60 秒。切换账号清理展示缓存并拒收旧账号响应。弹窗通过 root-portal 覆盖底栏，底栏保留并随背景变暗。
 - 同一练习的草稿、在途命令和业务版本分别保存；同步确认前保留本地答案。队列限频与跨端接管规则见本轮实现及测试，接口按当前 v1.0 合同统一调用。
 - 游客通过公开目录浏览已发布、启用的内容，目录省略个人进度。试答使用独立快照接口，本机累计两次，完整快照成功保存后扣次；草稿、结果和额度保存在 `qandaTrialPractice`，账号切换时保留。正式同步仍只处理账号练习。
 
@@ -104,6 +104,8 @@
 | `GET /api/v1/colleges/{id}/majors` | `Catalog_majors_GET` | 专业目录 | 小程序、用户 Web / 公开目录 | 个人资料打开专业选择器、加载更多 | account → AccountViewModel → remote-data-repository.loadMajors → api-transport | 已接入待验收 | 停用分类不供新选择；每页 100；旧资料保留 |
 | `GET /api/v1/files/{id}` | `File_read_GET` | 题目及材料附件 | 各端 / 按文件可见性 | 答题与题目详情中的附件组件 | practice/question-detail → ViewModel → question-assets → http-gateway；question-images → question-assets | 已接入待验收 | 完整快照下载后落盘；PNG 校验、账号隔离、去重与最多 4 个并发；question-assets 自检 |
 | `GET /api/v1/health` | `Health_health_GET` | 健康检查 | 各端 / 公开 | — | — | 基础设施接口；由服务健康检查调用 | 保持状态及版本字段兼容；Controller + OpenAPI |
+| `GET /api/v1/community/group` | `CommunityGroup_publicGroup_GET` | 当前群码配置 | 小程序 / 公开 | 关于页卡片、入群公告 | community-group → CommunityGroupViewModel → community-group-repository | 已接入并通过定向联调 | 版本图片地址、过期隐藏与失败重试 |
+| `GET /api/v1/community/group/image` | `CommunityGroup_image_GET` | 当前有效群码 PNG | 小程序 / 公开 | 群码展示与预览 | community-group → image / wx.previewImage | 已接入并通过定向联调 | 未配置或到期返回 404，响应 no-store |
 | `GET /api/v1/me` | `Identity_me_GET` | 读取账号资料 | 小程序、用户 Web / 学生 | 我的/账号页缓存过期更新；登录后读取 | my/account → MyViewModel/AccountViewModel → remote-data-repository → api-transport；登录 → auth-gateway | 已验收；头像、昵称及邮箱等状态一致 | 5 分钟缓存；可选头像、院校/专业名称；ACCOUNT-04、ACCOUNT-07 至 ACCOUNT-12；资料草稿与账号隔离 |
 | `POST /api/v1/me/activity/heartbeat` | `Identity_heartbeat_POST` | 前台在线与访问活跃 | 小程序、用户 Web / 学生 | 登录成功、App.onShow、前台每 60 秒 | App → activity-heartbeat → api-transport | 已接入待验收 | 学生会话；退后台停发；无离线补传；activity-heartbeat 自检与隔离 PG |
 | `GET /api/v1/me/course-requests` | `Operations_requests_GET` | 缺课需求处理结果 | 小程序、用户 Web / 学生 | 我的 → 反馈记录 → 课程需求分页 | feedback → FeedbackViewModel → feedback-repository.list → api-transport | 已接入待验收 | 每页 20；按用户读取，拒收旧账号响应 |
@@ -124,7 +126,7 @@
 | `POST /api/v1/me/question-feedback` | `Operations_submitFeedback_POST` | 提交题目纠错 | 小程序、用户 Web / 学生 | 答题工具栏、题目详情 → 纠错 | practice/question-detail → ViewModel → feedback-entry → FeedbackViewModel → feedback-repository.submit → api-transport | 已接入待验收 | 携带稳定题目与修订 ID；原内容幂等重试 |
 | `GET /api/v1/me/question-progress` | `Learning_questionProgress_GET` | 逐题最近已判定结果与题库进度 | 小程序、用户 Web / 学生 | — | — | 无入口；页面使用概览、目录进度和集合摘要；后续逐题进度页可接入 | 保留现有合同；静态调用检索及首页请求计数 |
 | `GET /api/v1/me/recent-learning` | `Learning_recent_GET` | 最近练习 | 小程序、用户 Web / 学生 | 点击最近练习；题库最近在刷 | subject-list/bank-detail → 对应 ViewModel → practice-repository → remote-data-repository.refreshRecent → api-transport | 已接入待验收 | 每页 20；30 秒缓存；首页继续答题使用 learning-overview；草稿和等待入口自检 |
-| `GET /api/v1/me/recommendations` | `Discovery_recommendations_GET` | 读取课程推荐 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
+| `GET /api/v1/me/recommendations` | `Discovery_recommendations_GET` | 读取课程推荐 | 小程序、用户 Web / 学生 | 首页推荐科目 | SubjectListViewModel → practice-repository → remote-data-repository | 已接入；每页 3 科、滚动追加、重试、缓存与账号隔离检查通过 | 科目计数取推荐题库实际题数，点击复用待选科目与原生 switchTab |
 | `GET /api/v1/me/sessions` | `Identity_listSessions_GET` | 读取登录会话 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `DELETE /api/v1/me/sessions/{id}` | `Identity_revokeSession_DELETE` | 删除或撤销登录会话 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/statistics` | `Learning_summary_GET` | 个人统计；WEEK/MONTH/ALL | 小程序、用户 Web / 学生 | 复盘进入及切换 WEEK/MONTH/ALL | stats → StatsViewModel → practice-repository → remote-data-repository.refreshStatistics → api-transport | 已接入待验收 | 只取当前范围，按 period 缓存 30 秒；remote-data 自检 |
@@ -150,7 +152,7 @@
 | `POST /api/v1/practice/trial-snapshots` | `Practice_trialSnapshot_POST` | 下载公开题库试答快照 | 小程序、用户 Web / 游客 | 题库配置或模拟考试开始试答 | practice → PracticeViewModel.loadTrial → trial-practice.prepare → http-gateway/api-transport | 已接入待验收 | v1.0 新增只读能力；配置、修订、题序与独立判题数据；四题型、存储失败及 PostgreSQL 游客验收 |
 | `GET /api/v1/question-banks` | `Content_banks_GET` | 已发布题库目录 | 小程序、用户 Web / 学生、游客 | 题库页当前科目/搜索/翻页；模拟练习选择题库 | bank-detail/subject-list → 对应 ViewModel → practice-repository → remote-data-repository.refreshBanks → api-transport | 已接入待验收 | 每页 20；includeProgress 可选，批量计数；5 分钟缓存；SQL 与分页验收 |
 | `GET /api/v1/question-banks/{id}` | `Content_bank_GET` | 获取内容版本和题量 | 小程序、用户 Web / 学生、游客 | 目标题库配置、直达练习及最近练习元数据缺失时 | bank-detail/subject-list/practice → 对应 ViewModel → practice-repository/online-practice → remote-data-repository.loadBank/api-transport | 已接入待验收 | 按 ID 读取元数据；内容版本用于创建校验；保持默认字段行为 |
-| `GET /api/v1/question-banks/{id}/chapters` | `Content_chapters_GET` | 读取题库章节 | 小程序、用户 Web / 学生、游客 | 题库 → 打开答题配置 | bank-detail → BankDetailViewModel → practice-repository.loadRemoteChapters → remote-data-repository.loadChapters → api-transport | 已验收；章节选择与新练习范围对应 | 按需读取；目录强刷失效章节缓存；BANK-02、BANK-06 |
+| `GET /api/v1/question-banks/{id}/chapters` | `Content_chapters_GET` | 读取题库章节与当前学生的章节进度 | 小程序、用户 Web / 学生、游客 | 题库页右侧章节列表，单题库平铺、多题库按名称分组 | bank-detail → BankDetailViewModel → practice-repository.loadRemoteChapters → remote-data-repository.loadChapters → api-transport | 已接入；章节范围与进度隔离通过定向检查 | 游客及管理员 progress 为空；当前页章节按需读取，目录强刷和练习结果使缓存失效 |
 | `GET /api/v1/question-banks/{id}/questions` | `Content_questions_GET` | 读取题目 | 小程序、用户 Web / 学生、游客 | — | — | 无入口；按业务补充入口后接入 | 默认完整响应；可选 view=summary；摘要不取答案/解析/选项，PostgreSQL 验收 |
 | `GET /api/v1/questions` | `Content_search_GET` | 分页搜索题目摘要 | 小程序、用户 Web / 学生、游客 | 首页搜索关键词和加载更多 | subject-list → SubjectListViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 每页 20；view=summary；300 ms 输入合并；迟到结果忽略；remote-data 自检 |
 | `GET /api/v1/questions/{id}` | `Content_question_GET` | 读取题目正文 | 小程序、用户 Web / 学生、游客 | 错题/收藏进入题目详情 | question-detail → QuestionDetailViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
@@ -173,7 +175,7 @@
 | 头像 | 当前账号本地显示；`ProfileInput` 未提供头像字段 | 确认头像文件所有权及资料字段后实现上传与跨端展示 |
 | 邮箱提醒 | 设置为本地偏好；服务端未提供订阅及发送计划接口 | 明确订阅、时区、取消及投递规则后接入 |
 | 自定义考试倒计时、字号及布局 | 本地偏好；答题生效配置随练习快照管理 | 如需多端同步，增加用户偏好合同 |
-| 全科练习 | 多题库时先选择题库，再进入共同配置流程 | 扩展跨题库选题需独立合同和题目归属校验 |
+| 全科练习 | 点击统计卡进入共同配置；多题库横向勾选，支持全选、单选或多选 | 同科目最多 100 个题库，单次最多 1000 题；范围预览和创建校验每个题库的可见性及内容版本 |
 | 错题手动移除 | 云端错题按后端学习结果更新，页面提示复习掌握 | 如需人工归档，增加保留学习历史的状态接口 |
 | 用户上传题库 | 题库页入口关闭，直接导入路由由正式应用阻止 | 独立产品阶段确定所有权与管理流程 |
 | 历史记录 | 现有最近练习入口可继续未完成练习或查看最近已完成结果 | 后台等待练习可从最近练习选择；独立历史列表和筛选入口待补 |
@@ -194,7 +196,7 @@
 
 ## 管理端逐接口调用补充（2026-11-01）
 
-管理端专用接口 71 项，其中页面或登录链实际使用 64 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。管理员统一为超级管理员，可在设置中创建更多同权限账号，维护者分配用于工作归属。此处“已接入待联调”表示已有调用链；本轮真实客户端证据见[三端联调记录](three-client-integration.md)，按已执行的操作分别确认。
+管理端专用接口 73 项，其中页面或登录链实际使用 66 项，7 项暂无入口。所有调用经过 `AdminContentGateway` → `HttpAdminContentGateway`；Mock 按同一方法合同工作。管理员统一为超级管理员，可在设置中创建更多同权限账号，维护者分配用于工作归属。此处“已接入待联调”表示已有调用链；本轮真实客户端证据见[三端联调记录](three-client-integration.md)，按已执行的操作分别确认。
 
 | 方法与路径 | operationId | 管理端入口与调用 | 状态与后续 |
 | --- | --- | --- | --- |
@@ -204,6 +206,8 @@
 | `PUT /api/v1/admin/administrators/{id}` | `Admin_update_PUT` | operations-pages.AdministratorsPage / ResourceSelect → 管理员读取与保存 | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
 | `DELETE /api/v1/admin/administrators/{id}` | `Admin_disable_DELETE` | — | 无入口；管理员编辑页用 PUT 更新停用状态；DELETE 无独立按钮 |
 | `GET /api/v1/admin/announcements` | `Operations_adminAnnouncements_GET` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
+| `GET /api/v1/admin/community/group` | `CommunityGroup_adminGroup_GET` | CommunityGroupPage → getCommunityGroup | 已接入，API 定向检查通过 |
+| `PUT /api/v1/admin/community/group` | `CommunityGroup_save_PUT` | CommunityGroupPage → saveCommunityGroup | 已接入，图片格式、期限、版本冲突、幂等与权限检查通过 |
 | `POST /api/v1/admin/announcements` | `Operations_createAnnouncement_POST` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
 | `PUT /api/v1/admin/announcements/{id}` | `Operations_updateAnnouncement_PUT` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
 | `DELETE /api/v1/admin/announcements/{id}` | `Operations_deleteAnnouncement_DELETE` | operations-pages.AnnouncementsPage → listAnnouncements/saveAnnouncement/deleteAnnouncement | 已接入待联调；分页、版本与幂等检查见独立验收记录 |
@@ -292,3 +296,10 @@
 | `/me/email-challenges`、`verification`、`password`、`email-binding`、`wechat-binding` | 个人资料三个入口已接入；真实邮箱验证、修改密码、更换邮箱、官方微信绑定及重新登录通过 |
 
 最新自动验收覆盖 137 个接口的 1023 次 HTTP 观察；界面验收以具体用例为准。指定真实邮箱注册、修改密码、更换邮箱、官方微信绑定及重新登录已通过；微信真机继续保留待验收状态。
+
+
+## 2026-11-02 联合题库答题范围
+
+`ScopeInput.questionBankId` 保留原单库调用方式；可选的 `questionBankIds` 表示完整所选题库集合，必须包含该主题库，且题库属于同一科目。章节和指定题目必须处于所选集合中。预览返回 `contentVersions`；联合范围创建练习或游客试答时，传入完整的 `expectedContentVersions`，任一题库变化均要求重新确认。
+
+练习配置快照保存所选题库及版本，题目继续绑定原始题库和不可变修订。现有会话写入权、同步、交卷及按题目计算的进度沿用同一流程。小程序续答、再练一遍、错题重练和游客试答保留联合范围。

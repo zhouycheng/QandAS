@@ -43,6 +43,10 @@ PostgreSQL 在全新数据卷首次初始化时执行 `src/main/resources/db/sch
 
 已有数据库从双管理员角色升级时，先执行 `src/main/resources/db/migrations/20261101_super_admin.sql`，再启动新版本；脚本将旧角色统一为 `SUPER_ADMIN`，保留账号状态和凭据，并递增受影响账号的版本。
 
+已有数据库启用用户交流群及公告置顶时，先备份并执行 `src/main/resources/db/migrations/20261102_community_announcements.sql`。群码维护和客户端展示见[用户交流群说明](../../docs/community-group.md)。
+
+已有数据库启用同科目联合题库练习时，先备份并执行 `src/main/resources/db/migrations/20261102_multi_bank_practice.sql`，再更新服务。迁移扩展题目归属校验，保留已有练习和作答记录。
+
 首次创建超级管理员：
 
 ```sh

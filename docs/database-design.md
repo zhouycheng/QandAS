@@ -1,6 +1,6 @@
 # QandA 数据库设计
 
-本文件依据 v1.0 初始化 DDL 和隔离 PostgreSQL 实际导出的元数据整理。当前为 **43 张表、63 项外键**；复合外键按一项关系计算。字段、约束和索引以 `schema.sql` 为准；管理员角色约束已按当前 DDL 更新，待下一轮隔离数据库导出复核。
+本文件依据 v1.0 初始化 DDL 和隔离 PostgreSQL 实际导出的元数据整理。当前为 **44 张表、63 项外键**；复合外键按一项关系计算。字段、约束和索引以 `schema.sql` 为准；管理员角色约束已按当前 DDL 更新，待下一轮隔离数据库导出复核。用户交流群与公告字段已随 2026-11-02 的联调库升级补充。
 
 数据库保存稳定用户、内容修订和业务事实；RabbitMQ 保存等待处理的进度消息。模块归属见[后端架构](backend-architecture.md)，消息与回执协议见[同步与监控](sync-monitoring.md)。
 
@@ -36,6 +36,9 @@ erDiagram
         bytea scope_digest PK
     }
     security_policy {
+        int4 id PK
+    }
+    community_group {
         int4 id PK
     }
     admin_control {
@@ -512,6 +515,20 @@ security_policy_version_check: CHECK ((version > 0))
 ```sql
 CREATE UNIQUE INDEX security_policy_pkey ON public.security_policy USING btree (id);
 ```
+
+#### `community_group`
+
+模块：`platform.files`。用户交流群的当前二维码，与题库资源独立维护。
+
+| 字段 | PostgreSQL 类型 | 可空 | 默认值 | 含义 |
+| --- | --- | --- | --- | --- |
+| `id` | `int4` | 否 | — | 固定为 `1` 的单例配置 |
+| `image` | `bytea` | 是 | — | 经校验、规范化的 PNG 图片 |
+| `expires_at` | `timestamptz` | 是 | — | 图片停止提供的时间，与 `image` 同时为空或有值 |
+| `version` | `int8` | 否 | `1` | 更新并发版本，必须大于零 |
+| `updated_at` | `timestamptz` | 否 | `now()` | 更新时间 |
+
+主键索引为 `community_group_pkey`。初始行不含图片，过期图片不通过公开接口返回。
 
 #### `admin_control`
 
@@ -990,10 +1007,12 @@ CREATE UNIQUE INDEX question_attachment_pkey ON public.question_attachment USING
 | `version` | `int8` | 否 | `1` | 业务并发版本 |
 | `current_index` | `int4` | 否 | `0` | 当前题目位置 |
 | `duration_seconds` | `int4` | 否 | `0` | 学习时长（秒） |
-| `configuration_snapshot` | `text` | 否 | — | 本次生效配置 JSON |
+| `configuration_snapshot` | `text` | 否 | — | 本次生效配置 JSON，包含联合范围的 `questionBankIds` 与 `contentVersions` |
 | `created_at` | `timestamptz` | 否 | `now()` | 创建时间 |
 | `updated_at` | `timestamptz` | 否 | `now()` | 更新时间 |
 | `submitted_at` | `timestamptz` | 是 | — | 正式交卷时间 |
+
+同科目联合练习的 `bank_id` 保留主题库引用，完整范围保存在配置快照。题目插入触发器要求来源题库属于该范围且与主题库同科目；历史单库快照继续按主题库校验。
 
 约束：
 
@@ -1363,6 +1382,8 @@ CREATE INDEX course_request_user_idx ON public.course_request USING btree (user_
 | `audience` | `varchar(12)` | 否 | — | 公告接收范围 |
 | `status` | `varchar(16)` | 否 | — | 业务状态，取值见 CHECK |
 | `publish_at` | `timestamptz` | 是 | — | 公告发布时间 |
+| `pinned` | `bool` | 否 | `false` | 置顶排序，先于更新时间 |
+| `show_community_group` | `bool` | 否 | `false` | 展示管理端维护的当前群二维码 |
 | `version` | `int8` | 否 | `1` | 业务并发版本 |
 | `created_by` | `uuid` | 否 | — | 创建该记录的管理员 |
 | `updated_at` | `timestamptz` | 否 | `now()` | 更新时间 |
@@ -1382,7 +1403,7 @@ announcement_version_check: CHECK ((version > 0))
 
 ```sql
 CREATE INDEX announcement_creator_idx ON public.announcement USING btree (created_by);
-CREATE INDEX announcement_display_idx ON public.announcement USING btree (status, publish_at, updated_at DESC, id);
+CREATE INDEX announcement_display_idx ON public.announcement USING btree (pinned DESC, updated_at DESC, id);
 CREATE UNIQUE INDEX announcement_pkey ON public.announcement USING btree (id);
 ```
 

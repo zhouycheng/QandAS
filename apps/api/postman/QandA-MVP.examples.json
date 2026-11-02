@@ -932,6 +932,34 @@
     "body": null
   },
   {
+    "operationId": "CommunityGroup_adminGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_save_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/community/group",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "image": "示例内容",
+      "expiresAt": "2026-10-28T00:00:00.000Z"
+    }
+  },
+  {
+    "operationId": "CommunityGroup_publicGroup_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group",
+    "body": null
+  },
+  {
+    "operationId": "CommunityGroup_image_GET",
+    "method": "GET",
+    "path": "/api/v1/community/group/image",
+    "body": null
+  },
+  {
     "operationId": "Practice_assess_PUT",
     "method": "PUT",
     "path": "/api/v1/practice/sessions/{id}/items/{itemId}/self-assessment",
