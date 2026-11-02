@@ -6,6 +6,7 @@
     "page/practice/index",
     "page/question-detail/index",
     "page/my/index",
+    "page/about/index",
     "page/login/index",
     "page/register/index",
     "page/forgot-password/index",
@@ -20,6 +21,7 @@
     "page/playground/index"
   ],
   "window": {
+    "navigationStyle": "custom",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "QandA",
     "navigationBarBackgroundColor": "#ffffff",
@@ -27,6 +29,9 @@
     "backgroundColorTop": "#ffffff",
     "backgroundColorBottom": "#ffffff",
     "backgroundTextStyle": "dark"
+  },
+  "usingComponents": {
+    "page-header": "/components/page-header/index"
   },
   "tabBar": {
     "custom": true,

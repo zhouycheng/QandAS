@@ -1,3 +1,5 @@
+<view class="secondary-page">
+<page-header title="Playground" />
 <view class="page pg">
   <view class="hero">
     <text class="hero-title">Playground</text>
@@ -54,4 +56,5 @@
   <view class="footer-note">
     <text>入口：设置 → 关于 → 连点版本号 5 次</text>
   </view>
+</view>
 </view>

@@ -7,15 +7,9 @@ Page(withPageLifecycle({
   data: MyViewModel.getInitialData(),
 
   onLoad() {
-    const app = getApp()
-    const version = app && app.globalData ? app.globalData.version : ''
-
     this.viewModel = new MyViewModel({
       storage: createWxStorageAdapter()
     })
-
-    // 版本号来自全局配置，ViewModel 不依赖 getApp()，由页面注入
-    this.viewModel.setVersion(version)
   },
 
   onShow() {
@@ -83,17 +77,6 @@ Page(withPageLifecycle({
 
   handleSheetClose() {
     this.applyViewModelResult(this.viewModel.closeSheet())
-  },
-
-  handleVersionTap() {
-    const now = Date.now()
-    this.versionTaps = now - (this.versionTappedAt || 0) < 1500 ? (this.versionTaps || 0) + 1 : 1
-    this.versionTappedAt = now
-    if (this.versionTaps === 5) { this.versionTaps = 0; this.applyViewModelResult(this.viewModel.unlockPlayground()) }
-  },
-
-  handlePlaygroundTap() {
-    this.applyViewModelResult(this.viewModel.openPlayground())
   },
 
   applyViewModelResult(result) {

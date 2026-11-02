@@ -1,5 +1,7 @@
 <!-- 邮箱提醒｜设计稿 Figma 781:2043（画板 402x874，系数 750/402 ≈ 1.8657）
      总开关 + 定时复习 + 考试提醒 + 提前提醒，设置即时落盘。 -->
+<view class="secondary-page">
+<page-header title="邮箱提醒" />
 <view class="list-page page-with-bottom-bar">
   <view class="switch-row switch-row-tall">
     <view class="row-main">
@@ -164,3 +166,4 @@
     >添加</view>
   </view>
 </bottom-sheet>
+</view>

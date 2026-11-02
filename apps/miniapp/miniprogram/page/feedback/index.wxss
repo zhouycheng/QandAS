@@ -1,5 +1,8 @@
 page { background: #fff; }
 .feedback-page { padding: 28rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); color: #202d38; }
+.feedback-page.has-footer { padding-bottom: calc(160rpx + env(safe-area-inset-bottom)); }
+.feedback-footer { position: fixed; left: 32rpx; right: 32rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); z-index: 5; }
+.feedback-footer .primary { width: 100%; height: 88rpx; margin: 0; padding: 0; line-height: 88rpx; }
 .tabs { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
 .tab { flex: 1; text-align: center; padding: 20rpx; border-radius: 16rpx; background: #f6f7f9; }
 .selected { color: #2b7ffc; background: #eaf2ff; }
@@ -9,8 +12,10 @@ page { background: #fff; }
 .status, .hint { color: #748091; font-size: 26rpx; }
 .hint { padding: 28rpx 0; }
 .reply { background: #f6f8fb; border-radius: 12rpx; padding: 20rpx; margin-top: 20rpx; white-space: pre-wrap; }
-.form input, .field, textarea { background: #f6f8fb; padding: 24rpx; margin-bottom: 24rpx; border-radius: 16rpx; box-sizing: border-box; width: 100%; }
-textarea { min-height: 240rpx; }
+.course-name-input, .field, .feedback-body { background: #f6f8fb; padding: 24rpx; margin-bottom: 24rpx; border-radius: 16rpx; box-sizing: border-box; width: 100%; font-size: 28rpx; }
+.course-name-input { display: block; height: 88rpx; padding: 0 24rpx; line-height: normal; }
+.feedback-body { min-height: 240rpx; line-height: 1.6; }
+.form-placeholder { color: #8b8f99; }
 .primary { color: #fff; background: #2b7ffc; border-radius: 18rpx; font-size: 30rpx; }
 button::after { border: 0; }
 .pressed { opacity: .78; }

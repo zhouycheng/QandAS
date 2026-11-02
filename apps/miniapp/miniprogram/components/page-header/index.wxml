@@ -1,0 +1,9 @@
+<view class="nav-header" style="padding-top: {{homeStatusBarHeight}}px;">
+  <view class="nav-bar" style="height: {{homeNavigationBarHeight}}px; padding-right: {{homeNavigationRight}}px;">
+    <view class="nav-back" bindtap="goBack" aria-role="button" aria-label="返回" hover-class="nav-back-hover" hover-start-time="0" hover-stay-time="80"><view class="nav-back-icon"></view></view>
+    <view class="nav-caption">
+      <text class="nav-title">{{title}}</text>
+      <text wx:if="{{subtitle}}" class="nav-subtitle">{{subtitle}}</text>
+    </view>
+  </view>
+</view>

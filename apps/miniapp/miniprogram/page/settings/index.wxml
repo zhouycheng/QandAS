@@ -1,3 +1,5 @@
+<view class="secondary-page">
+<page-header title="答题偏好" />
 <view class="page settings-page">
   <view class="section-head"><text class="section-title">答题偏好</text><text class="section-reset" bindtap="handleResetPreferences" hover-class="ghost-flat-hover" hover-start-time="0" hover-stay-time="80">恢复默认</text></view>
   <view class="menu card">
@@ -15,4 +17,5 @@
       <view class="font-preview font-{{fontSize}}"><text class="font-preview-text">{{fontPreviewText}}</text></view>
     </view>
   </view>
+</view>
 </view>

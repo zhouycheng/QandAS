@@ -13,27 +13,6 @@ page { background: #fff; }
   margin-bottom: 15rpx;
 }
 
-/* 「关于」弹层里的信息行 */
-.about-line {
-  display: flex;
-  align-items: center;
-  min-height: 76rpx;
-  border-bottom: 2rpx solid #eef0f5;
-}
-
-.about-label {
-  font-size: 24rpx;
-  line-height: 40rpx;
-  color: #141820;
-}
-
-.about-value {
-  margin-left: auto;
-  font-size: 22rpx;
-  line-height: 40rpx;
-  color: #8b8f99;
-}
-
 .link-hover {
   opacity: 0.72;
 }

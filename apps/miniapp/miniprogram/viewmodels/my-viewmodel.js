@@ -52,24 +52,13 @@ function createGuestAuthView() {
   }
 }
 
-/**
- * 注意：这里不声明 version。版本号由页面从全局配置读取后 setData，
- * 若 ViewModel 也用空值参与 setData，会把页面已写入的版本号覆盖回空白。
- */
 function getInitialMyViewData() {
   return {
     auth: createGuestAuthView(),
     // 学习设置与关于：右侧摘要随偏好 / 提醒设置变化
     learnRows: [],
     links: [],
-    about: {
-      version: '',
-      subjectCount: 0,
-      bankCount: 0,
-      questionCount: 0,
-      playgroundEnabled: false
-    },
-    // 弹层：'' | about | agreement | privacy
+    // 弹层：'' | agreement | privacy
     sheet: '',
     sheetTitle: '',
     sheetBody: ''
@@ -86,7 +75,6 @@ class MyViewModel {
     const normalizedOptions = options || {}
     this.repository = normalizedOptions.repository || practiceRepository
     this.storage = normalizedOptions.storage || createNullStorage()
-    this.version = ''
   }
 
   refreshRemote(options) {
@@ -108,7 +96,6 @@ class MyViewModel {
   }
 
   load() {
-    const stats = this.repository.getCatalogStats()
     const preferences = normalizePreferences(this.repository.getPreferences(this.storage))
     const reminder = this.repository.getReminder(this.storage)
     const auth = this.readAuthView()
@@ -121,19 +108,12 @@ class MyViewModel {
           { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
           { key: 'reminder', title: '邮箱提醒', value: '本机偏好' },
           { key: 'feedback', title: '反馈与处理结果', value: '' },
-          { key: 'about', title: '关于QandA', value: '' }
+          { key: 'about', title: '关于 QandA', value: '' }
         ],
         links: [
           { key: 'agreement', title: '用户协议' },
           { key: 'privacy', title: '隐私政策' }
-        ],
-        about: {
-          version: this.version,
-          subjectCount: stats.subjectCount || 0,
-          bankCount: stats.bankCount || 0,
-          questionCount: stats.questionCount || 0,
-          playgroundEnabled: !!this.repository.isPlaygroundEnabled()
-        }
+        ]
       })
     }
   }
@@ -220,7 +200,7 @@ class MyViewModel {
     }
 
     if (key === 'about') {
-      return this.openSheet('about')
+      return { command: { type: 'navigate', url: '/page/about/index' } }
     }
 
     if (key === 'agreement') {
@@ -235,17 +215,6 @@ class MyViewModel {
   }
 
   openSheet(name) {
-    if (name === 'about') {
-      return {
-        data: {
-          sheet: 'about',
-          sheetTitle: '关于QandA',
-          sheetBody: '',
-          about: this.load().data.about
-        }
-      }
-    }
-
     if (name === 'agreement') {
       return {
         data: {
@@ -269,26 +238,10 @@ class MyViewModel {
     return null
   }
 
-  unlockPlayground() {
-    try { this.repository.setPlaygroundEnabled(this.storage, true); return this.openSheet('about') }
-    catch (error) { return { command: { type: 'toast', title: '设置保存失败，请重试' } } }
-  }
-
   closeSheet() {
     return {
       data: {
         sheet: ''
-      }
-    }
-  }
-
-  /** 版本号由页面注入（来自全局配置），供「关于」弹层显示 */
-  setVersion(version) {
-    this.version = typeof version === 'string' ? version : ''
-
-    return {
-      data: {
-        about: Object.assign({}, this.load().data.about, { version: this.version })
       }
     }
   }
@@ -315,14 +268,6 @@ class MyViewModel {
     }
   }
 
-  openPlayground() {
-    return {
-      command: {
-        type: 'navigate',
-        url: '/page/playground/index'
-      }
-    }
-  }
 }
 
 module.exports = {

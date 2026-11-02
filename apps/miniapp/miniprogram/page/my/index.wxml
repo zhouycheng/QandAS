@@ -86,43 +86,14 @@
   </view>
 </view>
 
-<!-- 关于和协议共用居中弹窗。 -->
+<!-- 协议正文通过共享弹层展示。 -->
 <bottom-sheet
   visible="{{sheet !== ''}}"
   title="{{sheetTitle}}"
   placement="center"
   bind:close="handleSheetClose"
 >
-  <view wx:if="{{sheet === 'about'}}">
-    <view class="about-line">
-      <text class="about-label">版本</text>
-      <text class="about-value" bindtap="handleVersionTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{about.version || '—'}}</text>
-    </view>
-    <view class="about-line">
-      <text class="about-label">题库题量</text>
-      <text class="about-value">{{about.questionCount}} 题</text>
-    </view>
-    <view class="about-line">
-      <text class="about-label">题库覆盖</text>
-      <text class="about-value">{{about.subjectCount}} 个科目 · {{about.bankCount}} 个题库</text>
-    </view>
-    <view class="about-line">
-      <text class="about-label">技术形态</text>
-      <text class="about-value">微信原生小程序</text>
-    </view>
-    <view
-      class="about-line"
-      wx:if="{{about.playgroundEnabled}}"
-      bindtap="handlePlaygroundTap"
-      hover-class="row-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >
-      <text class="about-label">开发者 Playground</text>
-      <view class="chevron"></view>
-    </view>
-  </view>
-  <text class="sheet-text" wx:else>{{sheetBody}}</text>
+  <text class="sheet-text">{{sheetBody}}</text>
 
   <view class="sheet-actions">
     <view
