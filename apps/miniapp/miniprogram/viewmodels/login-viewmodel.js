@@ -1,5 +1,5 @@
 const { AuthFormViewModel } = require('./auth-form-viewmodel.js')
-const { validateLogin } = require('../utils/auth-form.js')
+const { validateLogin, isValidEmail } = require('../utils/auth-form.js')
 const { successCommand } = require('../utils/profile-rules.js')
 
 /**
@@ -12,6 +12,17 @@ const { successCommand } = require('../utils/profile-rules.js')
  * 页面只负责把输入传进来、把 command 执行掉，判断都在这里。
  */
 class LoginViewModel extends AuthFormViewModel {
+  constructor(options) {
+    super(options)
+    const settings = options || {}
+    if (isValidEmail(settings.email)) this.fields.email = settings.email.trim()
+    this.loginNotice = settings.returnReason === 'email-updated' ? '邮箱已更换，请使用新邮箱和原密码重新登录。'
+      : settings.returnReason === 'email-bound' ? '邮箱已绑定，请重新登录，学习记录保留。'
+      : settings.returnReason === 'password-updated' ? '密码已更改，请使用新密码重新登录。' : ''
+  }
+
+  buildData() { return Object.assign(super.buildData(), { loginNotice: this.loginNotice || '' }) }
+
   _validate() {
     return validateLogin(this.fields)
   }

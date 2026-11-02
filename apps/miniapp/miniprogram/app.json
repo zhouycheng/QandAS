@@ -15,6 +15,7 @@
     "page/practice-layout/index",
     "page/exam-countdown/index",
     "page/account/index",
+    "page/account-security/index",
     "page/reminder/index",
     "page/feedback/index",
     "page/import-bank/index",
@@ -31,7 +32,8 @@
     "backgroundTextStyle": "dark"
   },
   "usingComponents": {
-    "page-header": "/components/page-header/index"
+    "page-header": "/components/page-header/index",
+    "password-input": "/components/password-input/index"
   },
   "tabBar": {
     "custom": true,

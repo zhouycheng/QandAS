@@ -356,8 +356,8 @@ function checkStaticContract() {
   assert('页面 - 账号管理页显示脱敏邮箱', accountWxml.indexOf('{{profile.emailMasked') >= 0)
   assert('页面 - 账号管理页可改头像（chooseAvatar）',
     accountWxml.indexOf('open-type="chooseAvatar"') >= 0)
-  assert('页面 - 账号管理页头像转存后再用',
-    accountJs.indexOf('copyFileSync') >= 0 && accountJs.indexOf('USER_DATA_PATH') >= 0)
+  assert('页面 - 账号管理页头像读取为可保存的图片内容',
+    accountJs.includes('compressImage') && accountJs.includes("encoding: 'base64'") && accountJs.includes("setField('avatarUrl', avatar)"))
   assert('页面 - 账号管理页保存入口已定义', accountJs.indexOf('handleSaveTap()') >= 0)
 
   const settingsWxml = readFile('page/settings/index.wxml')

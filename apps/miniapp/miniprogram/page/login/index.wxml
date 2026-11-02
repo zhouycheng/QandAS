@@ -1,4 +1,6 @@
 <!-- 登录页｜设计稿 Figma 763:567（画板 402x874，系数 750/402） -->
+<view class="secondary-page">
+<page-header />
 <view class="auth-page">
   <view class="brand">
     <text class="brand-name">QandA</text>
@@ -6,6 +8,7 @@
   </view>
 
   <text class="page-title">登录</text>
+  <view wx:if="{{loginNotice}}" class="login-notice">{{loginNotice}}</view>
 
   <view class="form login-form">
     <view class="field">
@@ -24,12 +27,10 @@
 
     <view class="field">
       <text class="field-label">密码</text>
-      <input
-        class="field-input {{errorField === 'password' ? 'field-input-error' : ''}}"
-        password
+      <password-input
+        error="{{errorField === 'password'}}"
         value="{{password}}"
         placeholder="请输入密码"
-        placeholder-class="field-ph"
         maxlength="16"
         confirm-type="done"
         bindinput="handlePasswordInput"
@@ -88,4 +89,5 @@
     hover-start-time="0"
     hover-stay-time="80"
   >没有账号？立即注册</text>
+</view>
 </view>

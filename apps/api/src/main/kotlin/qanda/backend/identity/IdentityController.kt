@@ -39,6 +39,9 @@ class IdentityController(private val service: IdentityService,private val sessio
     fun changePassword(@RequestBody input: PasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
         val actor=sessions.student();return commands.run(actor,key,"CHANGE_PASSWORD",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.changePassword(actor,input) }
     }
+    @PostMapping("/me/email-challenges/{id}/verification")
+    fun verifyOwnEmailChallenge(@PathVariable id: UUID,@RequestBody input: ChallengeVerificationInput): ChallengeVerificationView =
+        challenges.verifyOwn(id,input,sessions.student().id)
     @PutMapping("/me/email-binding")
     fun changeEmail(@RequestBody input: EmailInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
         val actor=sessions.student();return commands.run(actor,key,"CHANGE_EMAIL",input,MutationResult::class.java,request.requestId()) {

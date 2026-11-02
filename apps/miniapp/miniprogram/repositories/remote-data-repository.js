@@ -111,7 +111,7 @@ function loadChapters(storage, id) {
 }
 function refreshProfile(storage, options) {
   return resource(storage, 'profile', {}, TTL.profile, '/me', profile => {
-    const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' })
+    const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, avatarUrl: profile.avatarUrl || '', email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' })
     const nextScope = scopeKey(nextAuth)
     if (nextScope !== scope) { reset(); api.cancelReads(); scope = nextScope }
     state.profile = profile

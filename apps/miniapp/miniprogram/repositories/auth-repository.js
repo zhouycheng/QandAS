@@ -48,6 +48,9 @@ function defaultCodeProvider(done) {
   if (typeof wx === 'undefined' || !wx || !wx.login) { done('', '当前环境不支持微信登录'); return }
   wx.login({ timeout: 10000, success: (result) => done(result.code || ''), fail: () => done('', '微信登录失败，请稍后重试') })
 }
+function requestWechatCode() {
+  return new Promise((resolve, reject) => defaultCodeProvider((code, reason) => code ? resolve(code) : reject(new Error(reason || '未取到微信登录凭证'))))
+}
 function call(fn) { return Promise.resolve().then(fn).then((result) => result || { ok: false, reason: '请求失败，请稍后重试' }).catch(() => ({ ok: false, reason: '网络请求失败，请稍后重试' })) }
 function login(storage, options) {
   const settings = options || {}
@@ -115,4 +118,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile }
+module.exports = { AUTH_STORAGE_KEY, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }

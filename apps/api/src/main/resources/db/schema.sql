@@ -12,6 +12,7 @@ CREATE TABLE major (
 );
 CREATE TABLE user_account (
  id uuid PRIMARY KEY, account_code varchar(12) NOT NULL UNIQUE, nickname varchar(40) NOT NULL,
+ avatar text CHECK(avatar IS NULL OR (char_length(avatar) BETWEEN 1 AND 87407 AND avatar ~ '^data:image/(jpeg|png);base64,')),
  email varchar(254), email_key varchar(254) UNIQUE, password_hash varchar(256),
  status varchar(12) NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','DISABLED')),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0),
@@ -33,7 +34,8 @@ CREATE FUNCTION current_grade(grade integer, anchor_year integer, day date) RETU
 $$;
 CREATE TABLE user_wechat (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), app_id varchar(64) NOT NULL, open_id varchar(128) NOT NULL,
- union_id varchar(128), created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(app_id,open_id), UNIQUE(user_id,app_id)
+ union_id varchar(128),
+ created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(app_id,open_id), UNIQUE(user_id,app_id)
 );
 CREATE TABLE admin_account (
  id uuid PRIMARY KEY, username varchar(64) NOT NULL UNIQUE, name varchar(40) NOT NULL, password_hash varchar(256) NOT NULL,

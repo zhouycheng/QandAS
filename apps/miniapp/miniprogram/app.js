@@ -48,7 +48,7 @@ App({
     this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     const runtime = onlinePractice.current()
     if (!runtime) return
-    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
+    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.flushViewClosures().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
     this.watchPendingPractice()
   },
 
@@ -84,6 +84,7 @@ App({
       const runtime = onlinePractice.current()
       if (runtime && runtime.queue) {
         try {
+          await runtime.flushViewClosures()
           const ids = Array.from(new Set(runtime.queue.sessionIds().concat(runtime.waitingIds())))
           const eligible = ids.filter((id) => {
             if (id === runtime.activeId) return false

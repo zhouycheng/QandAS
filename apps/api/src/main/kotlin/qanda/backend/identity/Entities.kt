@@ -10,6 +10,7 @@ class UserAccount {
     var id: UUID? = null
     var accountCode: String = ""
     var nickname: String = ""
+    var avatar: String? = null
     var email: String? = null
     var emailKey: String? = null
     var passwordHash: String? = null

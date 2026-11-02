@@ -20,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
 internal fun invalid(field: String): Nothing = throw ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "请检查请求字段", listOf(FieldError("/$field", "INVALID_FIELD", "字段不符合要求")))
 internal fun conflict(code: String, message: String): Nothing = throw ApiException(HttpStatus.CONFLICT, code, message)
 internal fun unavailable(code: String): Nothing = throw ApiException(HttpStatus.SERVICE_UNAVAILABLE, code, "所需服务暂时不可用")
-internal fun unauthenticated(): Nothing = throw ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请提供有效令牌")
+internal fun unauthenticated(message: String = "登录状态已失效，请重新登录"): Nothing = throw ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", message)
 internal fun invalidProof(): Nothing = throw ApiException(HttpStatus.CONFLICT, "VERIFICATION_FAILED", "验证证明无效或已失效")
 internal fun nickname(value: String): String = value.trim().also {
     if (it.codePointCount(0,it.length) !in 1..40 || it.any { c -> c.code < 32 || c.code == 127 }) invalid("nickname")

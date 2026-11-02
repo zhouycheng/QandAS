@@ -12,8 +12,10 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
     {(user.error || stats.error) && <ErrorState message={(user.error || stats.error)!.message} onRetry={() => { void user.refetch(); void stats.refetch() }} />}
     <Spin loading={user.isPending || stats.isPending}><Descriptions column={1} data={[
       { label: '昵称', value: user.data?.name }, { label: '账号', value: user.data?.account }, { label: '邮箱', value: user.data?.email },
+      { label: '微信绑定', value: user.data?.wechatBound ? '已绑定' : '未绑定' },
+      ...(user.data?.avatarUrl ? [{ label: '头像', value: <img src={user.data.avatarUrl} alt="账户头像" width={48} height={48} style={{ borderRadius: '50%' }} /> }] : []),
       { label: '学院', value: user.data?.collegeName || '未填写' }, { label: '专业', value: user.data?.majorName || '未填写' }, { label: '当前年级', value: gradeLabel(user.data?.grade) },
-      { label: '已提交答题量', value: stats.data?.answeredCount ?? '—' }, { label: '正确题数', value: stats.data?.correctCount ?? '—' }, { label: '学习时长', value: stats.data ? Math.round(stats.data.durationSeconds / 60) + ' 分钟' : '—' },
+      { label: '已提交答题量', value: stats.data?.answeredCount ?? '—' }, { label: '正确题数', value: stats.data?.correctCount ?? '—' }, { label: '学习时长', value: stats.data ? Math.floor(stats.data.durationSeconds / 60) + ' 分钟' : '—' },
     ]} /></Spin>
   </Drawer>
 }

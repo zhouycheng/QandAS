@@ -8,9 +8,12 @@ const TOAST_DELAY = 120
 Page(withPageLifecycle({
   data: LoginViewModel.getInitialData(),
 
-  onLoad() {
+  onLoad(options) {
+    const query = options || {}
+    let email = ''
+    try { email = decodeURIComponent(query.email || '') } catch (error) { email = '' }
     this.viewModel = new LoginViewModel({
-      storage: createWxStorageAdapter()
+      storage: createWxStorageAdapter(), email, returnReason: query.reason
     })
 
     this.applyViewModelResult(this.viewModel.load())

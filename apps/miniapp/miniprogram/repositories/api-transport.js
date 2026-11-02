@@ -79,7 +79,7 @@ function request(method, path, data, options) {
           done({ ok: statusCode >= 200 && statusCode < 300, unavailable: statusCode === 0, statusCode, data: payload,
             code: payload && payload.code || '', reason: statusCode >= 200 && statusCode < 300 ? '' : payload && payload.message || `请求失败（${statusCode}）`,
             requestId: responseHeaders['x-request-id'] || requestId, retryAfter: retryAfter(responseHeaders), headers: responseHeaders })
-          if (statusCode === 401 && token && config.tokenProvider && config.tokenProvider() === token && config.onUnauthorized) {
+          if (statusCode === 401 && (!payload || !payload.code || payload.code === 'UNAUTHENTICATED') && token && config.tokenProvider && config.tokenProvider() === token && config.onUnauthorized) {
             try { config.onUnauthorized(token) } catch (_) { /* The caller still receives the authentication failure. */ }
           }
         },

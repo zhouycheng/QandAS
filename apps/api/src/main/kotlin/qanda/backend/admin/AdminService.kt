@@ -36,7 +36,7 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         if(policy.lockEnabled && attempts.blocked(scope)) throw ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,"LOGIN_LOCKED","账号暂时锁定",details=ErrorDetails(retryAfterSeconds=policy.lockMinutes*60))
         val account=sql.byUsername(key)
         if(!crypto.verifyPassword(input.password,account?.passwordHash) || account?.status!="ACTIVE") {
-            attempts.failure(scope,policy.maxAttempts,policy.lockMinutes,policy.lockEnabled);unauthenticated()
+            attempts.failure(scope,policy.maxAttempts,policy.lockMinutes,policy.lockEnabled);unauthenticated("账号或密码不正确，请检查后重试")
         }
         val current=identity.lockAdmin(account!!.id!!) ?: unauthenticated()
         if(current.status!="ACTIVE" || current.credentialVersion!=account.credentialVersion) unauthenticated()

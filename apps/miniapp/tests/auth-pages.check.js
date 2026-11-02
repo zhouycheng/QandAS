@@ -187,10 +187,10 @@ function checkPages() {
   assert('页面 - 找回密码主按钮', forgotWxml.indexOf('>重置密码<') >= 0)
 
   ;[registerWxml, forgotWxml].forEach((wxml) => {
-    const fields = (wxml.match(/<input\b[^>]*\bpassword\b[^>]*\/>/g) || [])
+    const fields = (wxml.match(/<password-input\b[^>]*\/>/g) || [])
     assert('页面 - 新密码及确认密码输入上限为 16', fields.length === 2 && fields.every(field => /maxlength="16"/.test(field)))
   })
-  assert('页面 - 登录密码输入上限为 16', /<input\b[^>]*\bpassword\b[^>]*maxlength="16"/.test(loginWxml))
+  assert('页面 - 登录密码输入上限为 16', /<password-input\b[^>]*maxlength="16"/.test(loginWxml))
 
   // 认证页不用原生 button：button 自带 after 边框，得靠额外样式清，view 更省事
   ;['page/login/index.wxml', 'page/register/index.wxml', 'page/forgot-password/index.wxml'].forEach((file) => {

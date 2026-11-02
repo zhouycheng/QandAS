@@ -28,9 +28,10 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val college=profile?.majorId?.let { directory.major(it)?.collegeId } ?: profile?.collegeId
         val today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))
         val grade=AcademicGrade.current(profile?.grade,profile?.gradeAcademicYear,today)
-        return UserView(id,user.accountCode,user.nickname,user.email,bindings.selectCount(QueryWrapper<UserWechat>().eq("user_id",id))>0,
+        val binding=bindings.selectList(QueryWrapper<UserWechat>().eq("user_id",id).orderByDesc("created_at").orderByAsc("id").last("LIMIT 1")).firstOrNull()
+        return UserView(id,user.accountCode,user.nickname,user.email,binding!=null,
             college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { directory.college(it)?.name },profile?.majorId?.let { directory.major(it)?.name },
-            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null)
+            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null,user.passwordHash!=null,user.avatar)
     }
     fun register(input: RegistrationInput): MutationResult {
         val password=crypto.prepareStudentPassword(input.password);val display=nickname(input.nickname)
@@ -42,10 +43,10 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     fun login(input: LoginInput): TokenView {
         val address=email(input.email);if(input.clientType !in setOf("WEB","MINI_PROGRAM")) invalid("clientType")
-        val scope="student:${address.key}";if(attempts.blocked(scope)) unauthenticated()
+        val scope="student:${address.key}";if(attempts.blocked(scope)) unauthenticated("尝试次数过多，请稍后再试")
         val user=sql.userByEmail(address.key)
         if(!crypto.verifyStudentPassword(input.password,user?.passwordHash) || user?.status!="ACTIVE") {
-            attempts.failure(scope,5,30,true);unauthenticated()
+            attempts.failure(scope,5,30,true);unauthenticated("邮箱或密码不正确，请检查后重试")
         }
         attempts.clear(scope)
         return issueSession(user!!,input.deviceId,input.clientType)
@@ -90,7 +91,9 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val grade=input.currentGrade ?: previous.grade
         val year=if(input.currentGrade!=null) AcademicGrade.academicYear(LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))) else previous.gradeAcademicYear
         if(major==null || grade==null) qanda.backend.platform.http.invalid("profile","PROFILE_INCOMPLETE","请选择学院、专业和当前年级")
-        user.nickname=nickname(input.nickname);user.version++;user.updatedAt=clock.instant();users.updateById(user)
+        user.nickname=nickname(input.nickname)
+        input.avatar?.let { user.avatar=profileAvatar(it) }
+        user.version++;user.updatedAt=clock.instant();users.updateById(user)
         sql.updateProfile(actor.id,null,input.majorId,grade,year)
         return MutationResult(actor.id,user.version)
     }
@@ -119,7 +122,15 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     fun bindWechat(actor: Actor,input: WechatBindingInput): MutationResult {
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
         val identity=wechat.exchange(input.code)
-        bindings.insert(UserWechat().apply { id=UUID.randomUUID();userId=actor.id;appId=identity.appId;openId=identity.openId;unionId=identity.unionId })
+        val existing=sql.wechat(identity.appId,identity.openId)
+        if(existing?.userId==actor.id) {
+            return MutationResult(actor.id,user.version)
+        }
+        if(existing!=null) conflict("WECHAT_ALREADY_BOUND","此微信已绑定其他账号，请使用原账号登录")
+        if(bindings.selectCount(QueryWrapper<UserWechat>().eq("user_id",actor.id).eq("app_id",identity.appId))>0) conflict("WECHAT_ALREADY_BOUND","当前账号已绑定微信")
+        try {
+            bindings.insert(UserWechat().apply { id=UUID.randomUUID();userId=actor.id;appId=identity.appId;openId=identity.openId;unionId=identity.unionId })
+        } catch(_: org.springframework.dao.DuplicateKeyException) { conflict("WECHAT_ALREADY_BOUND","此微信已被绑定，请刷新账号状态") }
         user.version++;users.updateById(user);return MutationResult(actor.id,user.version)
     }
     fun sessions(actor: Actor): List<SessionView> = sessionRows.selectList(QueryWrapper<UserSession>().eq("user_id",actor.id).isNull("revoked_at").gt("expires_at",clock.instant()).orderByDesc("issued_at"))

@@ -31,11 +31,12 @@ describe('HTTP 管理合同', () => {
     const api = new HttpAdminContentGateway('', vi.fn<typeof fetch>().mockResolvedValue(json([])), () => '')
     await expect(api.listQuestionBanks()).rejects.toThrow('分页响应格式')
   })
-  it('管理员登录只读取会话与当前身份，退出使用真实合同', async () => {
+  it('管理员重新登录不携带过期令牌，身份查询使用新令牌', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ accessToken: 'new', expiresAt: '2027-01-01T00:00:00Z', sessionMinutes: 60 }))
       .mockResolvedValueOnce(json({ id: 'admin', role: 'SUPER_ADMIN' })).mockResolvedValueOnce(json({ id: 'session', version: 1 }))
-    const api = new HttpAdminContentGateway('', fetcher, () => '')
+    const api = new HttpAdminContentGateway('', fetcher, () => 'expired-token')
     expect((await api.loginAdmin('editor', 'password')).sessionMinutes).toBe(60)
+    expect(fetcher.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization')
     expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer new' })
     await api.logoutAdmin()
     expect(fetcher.mock.calls.map(row => row[0])).toEqual(['/api/v1/admin/auth/sessions', '/api/v1/admin/auth/me', '/api/v1/admin/auth/logout'])

@@ -9,6 +9,7 @@ export interface ManagedUser extends Versioned {
   account: string
   email: string
   wechatBound: boolean
+  avatarUrl?: string | null
   collegeId: string
   majorId: string
   grade?: number

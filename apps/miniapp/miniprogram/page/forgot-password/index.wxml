@@ -1,4 +1,6 @@
 <!-- 找回密码｜设计稿 Figma 772:1076（画板 402x874，系数 750/402） -->
+<view class="secondary-page">
+<page-header />
 <view class="auth-page">
   <view class="brand">
     <text class="brand-name">QandA</text>
@@ -45,12 +47,10 @@
 
     <view class="field">
       <text class="field-label">新密码</text>
-      <input
-        class="field-input {{errorField === 'password' ? 'field-input-error' : ''}}"
-        password
+      <password-input
+        error="{{errorField === 'password'}}"
         value="{{password}}"
         placeholder="请设置 8–16 位，包含字母和数字"
-        placeholder-class="field-ph"
         maxlength="16"
         bindinput="handlePasswordInput"
       />
@@ -58,12 +58,10 @@
 
     <view class="field">
       <text class="field-label">确认密码</text>
-      <input
-        class="field-input {{errorField === 'confirm' ? 'field-input-error' : ''}}"
-        password
+      <password-input
+        error="{{errorField === 'confirm'}}"
         value="{{confirm}}"
         placeholder="请再次输入新密码"
-        placeholder-class="field-ph"
         maxlength="16"
         bindinput="handleConfirmInput"
       />
@@ -91,4 +89,5 @@
       hover-stay-time="80"
     >返回登录</text>
   </view>
+</view>
 </view>

@@ -45,16 +45,22 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
         return ChallengeView(row.id!!,row.expiresAt)
     }
 
-    fun verify(id: UUID, submitted: String) {
+    fun verifyOwn(id: UUID, input: ChallengeVerificationInput, actorId: UUID): ChallengeVerificationView {
+        if(input.purpose !in setOf("CHANGE_PASSWORD","CHANGE_EMAIL_OLD")) invalid("purpose")
+        return ChallengeVerificationView(verify(id,input.code,actorId,input.purpose))
+    }
+
+    fun verify(id: UUID, submitted: String, actorId: UUID? = null, purpose: String? = null): java.time.Instant {
         code(submitted)
-        val valid=verification.execute {
-            val row=sql.lockChallenge(id) ?: return@execute false
-            if(row.consumedAt!=null || row.failedAttempts>=5 || !row.expiresAt.isAfter(clock.instant())) return@execute false
+        val expiresAt=verification.execute {
+            val row=sql.lockChallenge(id) ?: return@execute null
+            if(row.consumedAt!=null || row.failedAttempts>=5 || !row.expiresAt.isAfter(clock.instant())) return@execute null
+            if(purpose!=null && (row.purpose!=purpose || row.userId!=actorId || row.credentialVersion!=users.selectById(actorId)?.credentialVersion)) return@execute null
             val matches=crypto.matches(row.codeMac,crypto.proofMac(id,row.purpose,submitted,row.keyVersion))
             if(!matches) sql.failChallenge(id)
-            matches && row.eligible
-        } == true
-        if(!valid) invalidProof()
+            if(matches && row.eligible) row.expiresAt else null
+        }
+        return expiresAt ?: invalidProof()
     }
 
     fun consume(id: UUID, purpose: String, userId: UUID?): EmailChallenge {

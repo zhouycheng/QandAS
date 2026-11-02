@@ -34,7 +34,7 @@ class PlatformSecurity {
                 try {
                     val headers=request.getHeaders("Authorization").toList()
                     if(headers.isNotEmpty()) {
-                        if(headers.size!=1 || !headers[0].startsWith("Bearer ")) throw ApiException(HttpStatus.UNAUTHORIZED,"UNAUTHENTICATED","请提供有效令牌")
+                        if(headers.size!=1 || !headers[0].startsWith("Bearer ")) throw ApiException(HttpStatus.UNAUTHORIZED,"UNAUTHENTICATED","请先登录后再试")
                         val actor=sessions.authenticate(headers[0].substring(7))
                         val read=request.method in setOf("GET","HEAD")
                         val budget=environment.getProperty("qanda.backend.request-limits."+if(read) "read-per-account" else "write-per-account",Int::class.java,if(read) 600 else 120)

@@ -183,6 +183,7 @@ erDiagram
 | `id` | `uuid` | 否 | — | 稳定主键 |
 | `account_code` | `varchar(12)` | 否 | — | 展示用账号标识 |
 | `nickname` | `varchar(40)` | 否 | — | 学生昵称 |
+| `avatar` | `text` | 是 | — | 账户头像，JPEG/PNG data URI；最多 64 KiB、256×256 像素 |
 | `email` | `varchar(254)` | 是 | — | 邮箱地址 |
 | `email_key` | `varchar(254)` | 是 | — | 规范化邮箱匹配键 |
 | `password_hash` | `varchar(256)` | 是 | — | 密码单向散列 |
@@ -196,6 +197,7 @@ erDiagram
 
 ```text
 user_account_account_code_key: UNIQUE (account_code)
+user_account_avatar_check: CHECK (avatar IS NULL OR (char_length(avatar) BETWEEN 1 AND 87407 AND avatar ~ '^data:image/(jpeg|png);base64,'))
 user_account_check: CHECK (((email IS NULL) = (email_key IS NULL)))
 user_account_credential_version_check: CHECK ((credential_version > 0))
 user_account_email_key_check: CHECK (((email_key IS NULL) OR ((email_key)::text = lower((email_key)::text))))

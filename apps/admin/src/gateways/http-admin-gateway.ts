@@ -10,7 +10,7 @@ import { watchSyncStream } from './sync-stream'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
-type WireUser = { id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean }
+type WireUser = { id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean; avatarUrl?: string | null }
 const userView = (u: WireUser): ManagedUser => ({ ...u, name: u.nickname, account: u.accountCode, email: u.email ?? '', collegeId: u.collegeId ?? '', majorId: u.majorId ?? '', grade: u.currentGrade, registeredAt: u.registeredAt, wechatBound: u.wechatBound })
 const segment = encodeURIComponent
 
@@ -28,8 +28,9 @@ export class HttpAdminContentGateway implements AdminContentGateway {
     const raw = body instanceof Blob ? body : body === undefined ? undefined : JSON.stringify(body)
     if (typeof raw === 'string' && new TextEncoder().encode(raw).length > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB，请拆分文件')
     const headers: Record<string, string> = { 'X-Request-Id': crypto.randomUUID() }
-    const token = this.provisionalToken || this.token()
-    const checkIdentity = () => { if (token !== (this.provisionalToken || this.token())) throw new ApiError('账号已切换，请重新操作', 'IDENTITY_CHANGED', 499, headers['X-Request-Id']) }
+    const identity = this.provisionalToken || this.token()
+    const token = path === '/admin/auth/sessions' ? '' : identity
+    const checkIdentity = () => { if (identity !== (this.provisionalToken || this.token())) throw new ApiError('账号已切换，请重新操作', 'IDENTITY_CHANGED', 499, headers['X-Request-Id']) }
     if (token) headers.Authorization = `Bearer ${token}`
     if (raw !== undefined) headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json'
     if (key) headers['Idempotency-Key'] = key
