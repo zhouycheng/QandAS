@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="320" viewBox="0 0 800 320">
+  <rect width="800" height="320" rx="20" fill="#f5f8fc"/>
+  <text x="400" y="52" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#182b49">每周离线备份流程</text>
+  <rect x="55" y="100" width="240" height="140" rx="16" fill="#dbeafe" stroke="#2457a7" stroke-width="3"/>
+  <text x="175" y="160" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#182b49">电脑上的学习笔记</text>
+  <text x="175" y="202" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#334155">原始文件</text>
+  <path d="M320 170 H465 M450 155 L465 170 L450 185" fill="none" stroke="#2457a7" stroke-width="5"/>
+  <text x="395" y="137" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#334155">每周复制</text>
+  <rect x="490" y="100" width="255" height="140" rx="16" fill="#dcfce7" stroke="#238557" stroke-width="3"/>
+  <text x="617" y="160" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#182b49">离线移动硬盘</text>
+  <text x="617" y="202" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#334155">备份副本</text>
+  <text x="400" y="285" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#334155">自编验收材料 · 箭头表示数据复制方向</text>
+</svg>

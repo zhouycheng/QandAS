@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "validate:bank": "node scripts/validate-question-bank.mjs",
     "prebuild": "npm --prefix ../../packages/content-format run build"
   },
   "dependencies": {

@@ -1,0 +1,155 @@
+{
+  "format": "qanda-question-bank",
+  "version": "1.0",
+  "bank": {
+    "name": "表格与含图材料 · 协议示例",
+    "description": "保留完整表格原题，依据实际读取的备份流程图编题。"
+  },
+  "sources": [
+    {
+      "id": "table",
+      "name": "基础题目表",
+      "kind": "spreadsheet",
+      "uri": "table-source.csv"
+    },
+    {
+      "id": "figure",
+      "name": "每周离线备份流程图",
+      "kind": "image",
+      "uri": "assets/backup-flow.png"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "applications",
+      "name": "图表应用"
+    }
+  ],
+  "assets": [
+    {
+      "id": "backup-flow",
+      "path": "assets/backup-flow.png",
+      "sourceRefs": [
+        {
+          "sourceId": "figure",
+          "location": "整图：原始文件、每周复制箭头、备份副本"
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "byte",
+      "chapterId": "applications",
+      "type": "SINGLE_CHOICE",
+      "stem": "一个字节通常包含多少位？",
+      "options": [
+        {
+          "key": "A",
+          "content": "8"
+        },
+        {
+          "key": "B",
+          "content": "16"
+        }
+      ],
+      "correctAnswer": [
+        "A"
+      ],
+      "explanation": "### 结论\n选 A，一个字节通常为 8 位。\n### 核心知识点\n现代计算机中常用的字节由 8 个二进制位组成。\n### 解题过程\nA 符合一个字节的常规定义；B 的 16 位相当于两个这样的字节。\n### 记忆方法\n用 1 B = 8 bit 对照记忆。\n### 易错题型\n混淆表示字节的 B 和表示位的 bit，换算传输速率时遗漏乘除 8。",
+      "provenance": {
+        "origin": "extracted",
+        "sourceRefs": [
+          {
+            "sourceId": "table",
+            "location": "第 2 行，题干、选项 A/B、答案列"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "explanation"
+          ],
+          "note": "保留完整原题的两个选项和答案，生成教学解析。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "digits",
+      "chapterId": "applications",
+      "type": "TRUE_FALSE",
+      "stem": "二进制只使用 0 和 1 两个数码。",
+      "correctValue": true,
+      "explanation": "### 结论\n正确。\n### 核心知识点\n二进制以 2 为基数，使用 0 和 1 表示各位的数码。\n### 解题过程\n数码的可用值是 0 和 1；通过不同位权组合可表示大于 1 的数。\n### 记忆方法\n区分数码的种类和整个数能表示的大小。\n### 易错题型\n误以为二进制只能表示零和一，忽略多位组合。",
+      "provenance": {
+        "origin": "extracted",
+        "sourceRefs": [
+          {
+            "sourceId": "table",
+            "location": "第 3 行，题干和答案列"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "explanation"
+          ],
+          "note": "将表格中的“正确”按协议转换为布尔值，保留原题和结论。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "figure-destination",
+      "chapterId": "applications",
+      "type": "SINGLE_CHOICE",
+      "stem": "根据附图，学习笔记每周被复制到哪个设备？",
+      "assetIds": [
+        "backup-flow"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "content": "离线移动硬盘"
+        },
+        {
+          "key": "B",
+          "content": "键盘"
+        },
+        {
+          "key": "C",
+          "content": "鼠标"
+        },
+        {
+          "key": "D",
+          "content": "显示器"
+        }
+      ],
+      "correctAnswer": [
+        "A"
+      ],
+      "explanation": "### 结论\n选 A，复制到离线移动硬盘。\n### 核心知识点\n流程图中的箭头表示数据传递方向，箭头末端是本次复制的目标。\n### 解题过程\n从左侧电脑笔记沿“每周复制”箭头向右，终点标注离线移动硬盘和备份副本。B、C、D 均不是图中保存副本的设备。\n### 记忆方法\n先读箭头说明，再对照起点和终点标签。\n### 易错题型\n把箭头起点的原始文件位置当成备份目标，或只看图形不读标签。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "figure",
+            "location": "图中央箭头和右侧绿色备份副本区域"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "options",
+            "correctAnswer",
+            "explanation"
+          ],
+          "note": "读取流程图中的箭头与标签后编题，保留原图作为作答依据。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    }
+  ]
+}

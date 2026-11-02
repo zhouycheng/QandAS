@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Button,
-  Input,
   Message,
   Modal,
   Progress,
+  Radio,
   Select,
   Space,
   Table,
@@ -17,27 +17,35 @@ import { useAdminGateway } from '../../gateways/gateway-context'
 import { importBody } from '../../gateways/question-wire'
 import type { ImportQuestionsInput } from '../../types/operations'
 import { refreshWorkbench } from './workbench-data'
-import { parseQuestionFile } from '../../lib/content-rules'
+import { mapImportFile, parseImportFile, type ParsedQuestionFile, type PortableQuestion, type QuestionBankFile } from '../../lib/question-bank-file'
+import { QuestionImages } from '../../components/question-images'
 import { questionTypeLabels } from '../../lib/labels'
 import { answerSummary, countQuestions } from '../../lib/question-content'
-import { questionImportExamples } from '../../lib/question-import-examples'
+import templateUrl from '../../../../../docs/question-bank-import/template.json?url'
+import exampleUrl from '../../../../../docs/question-bank-import/examples/six-types.json?url'
+import codeUrl from '../../../../../docs/question-bank-import/examples/code-content.json?url'
+import schemaUrl from '../../../../../docs/question-bank-import/schema.json?url'
 import { QuestionContentView } from '../questions/question-content-view'
-import type { CreateQuestionInput, QuestionBank, QuestionType } from '../../types/admin'
-interface ImportFile {
+import type { QuestionBank } from '../../types/admin'
+interface ImportFile extends ParsedQuestionFile {
   id: string
   name: string
   progress: number
-  questions: CreateQuestionInput[]
+  bytes: number
+  chapterMap: Record<string, string>
+  assetMap: Record<string, string>
   error?: string
 }
 export function ImportQuestionsModal({
   bank,
   onClose,
   defaultChapterId,
+  onCreateChapter,
 }: {
   bank: QuestionBank
   onClose: () => void
   defaultChapterId?: string
+  onCreateChapter: (name: string) => void
 }) {
   const gateway = useAdminGateway()
   const client = useQueryClient()
@@ -47,9 +55,11 @@ export function ImportQuestionsModal({
   const intent = useRef<{ body: string; input: ImportQuestionsInput; previewed: boolean }>()
   const generation = useRef(0)
   const [files, setFiles] = useState<ImportFile[]>([])
-  const [preview, setPreview] = useState<ImportFile>()
+  const [previewId, setPreviewId] = useState<string>()
+  const [previewStage, setPreviewStage] = useState<'answer' | 'feedback' | 'review'>('review')
+  const preview = files.find(file => file.id === previewId)
+  const [uploads, setUploads] = useState(0)
   const [dragging, setDragging] = useState(false)
-  const [exampleType, setExampleType] = useState<QuestionType>('FILL_BLANK')
   useEffect(
     () => () => {
       generation.current++
@@ -61,11 +71,12 @@ export function ImportQuestionsModal({
       Message.error('一次最多选择 20 个文件')
       return
     }
+    if (files.reduce((sum, file) => sum + file.bytes, 0) + Array.from(incoming).reduce((sum, file) => sum + file.size, 0) > 8 * 1024 * 1024) { Message.error('每批 JSON 文件合计最多 8 MiB'); return }
     const token = generation.current
     const next = Array.from(incoming).map((file) => ({ file, id: crypto.randomUUID() }))
     setFiles((current) => [
       ...current,
-      ...next.map(({ file, id }) => ({ id, name: file.name, progress: 0, questions: [] })),
+      ...next.map(({ file, id }) => ({ id, name: file.name, bytes: file.size, progress: 0, questions: [], chapterMap: {}, assetMap: {} })),
     ])
     for (const { file, id } of next) {
       try {
@@ -73,9 +84,13 @@ export function ImportQuestionsModal({
         if (file.size > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB')
         if (token !== generation.current) return
         setFiles((current) => current.map((f) => (f.id === id ? { ...f, progress: 40 } : f)))
-        const questions = parseQuestionFile(await file.text(), bank.id)
+        const parsed = parseImportFile(await file.text(), bank.id)
+        const chapterMap = Object.fromEntries((parsed.document?.chapters ?? []).flatMap(local => {
+          const matches = chapters.data?.filter(chapter => chapter.name === local.name) ?? []
+          return matches.length === 1 ? [[local.id, matches[0].id]] : []
+        }))
         if (token === generation.current)
-          setFiles((current) => current.map((f) => (f.id === id ? { ...f, progress: 100, questions } : f)))
+          setFiles((current) => current.map((f) => (f.id === id ? { ...f, ...parsed, chapterMap, progress: 100 } : f)))
       } catch (e) {
         if (token === generation.current)
           setFiles((current) =>
@@ -90,7 +105,7 @@ export function ImportQuestionsModal({
   }
   const save = useMutation({
     mutationFn: async () => {
-      const request: ImportQuestionsInput = { questionBankId: bank.id, questions: files.flatMap(f => f.questions).map(q => ({ ...q, chapterId: chapterId ?? q.chapterId })), expectedContentVersion: bank.contentVersion, idempotencyKey: '' }
+      const request: ImportQuestionsInput = { questionBankId: bank.id, questions: files.flatMap(f => mapImportFile(f, f.chapterMap, f.assetMap, chapterId)), expectedContentVersion: bank.contentVersion, idempotencyKey: '' }
       const body = JSON.stringify(importBody(request))
       if (new TextEncoder().encode(body).length > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB，请移除部分文件。')
       if (!intent.current || intent.current.body !== body) intent.current = { body, input: { ...request, idempotencyKey: crypto.randomUUID() }, previewed: false }
@@ -106,12 +121,14 @@ export function ImportQuestionsModal({
     onError: (e) => Message.error(e.message),
   })
   const total = files.reduce((sum, f) => sum + countQuestions(f.questions), 0)
+  const mappingError = files.map(file => { try { mapImportFile(file, file.chapterMap, file.assetMap, chapterId); return '' } catch (error) { return `${file.name} · ${(error as Error).message}` } }).find(Boolean)
   const ready =
     !chapters.isError &&
     !chapters.isLoading &&
     files.length > 0 &&
     files.every((f) => f.progress === 100 && !f.error) &&
-    total <= 3000
+    total <= 3000 && !mappingError && uploads === 0
+  const updateFile = (id: string, patch: Partial<ImportFile>) => setFiles(current => current.map(file => file.id === id ? { ...file, ...patch, chapterMap: { ...file.chapterMap, ...patch.chapterMap }, assetMap: { ...file.assetMap, ...patch.assetMap } } : file))
   const move = (id: string, direction: number) =>
     setFiles((current) => {
       const next = [...current]
@@ -121,7 +138,7 @@ export function ImportQuestionsModal({
       return next
     })
   const cancel = () => {
-    if (save.isPending) return
+    if (save.isPending || uploads) return
     if (!files.length) return onClose()
     Modal.confirm({ title: '放弃本次导入预览？', content: '已选择的文件与预览结果将清空。', okText: '放弃导入', cancelText: '继续检查', onOk: onClose })
   }
@@ -143,7 +160,8 @@ export function ImportQuestionsModal({
         closable={!save.isPending}
       >
         <p>导入到：{bank.name}</p>
-        {save.error && <Alert className="bw-form-error" type="error" content={save.error.message} />}
+        {save.error && <Alert className="bw-form-error" type="error" content={save.error.message} action={<Button onClick={() => { void client.invalidateQueries({ queryKey: ['bank-detail', bank.id] }); void chapters.refetch() }}>刷新题库版本</Button>} />}
+        <Space wrap style={{ marginBottom: 16 }}><a href={templateUrl} download="qanda-template.json">下载空白模板</a><a href={exampleUrl} download="qanda-six-types.json">下载六类题型示例</a><a href={codeUrl} download="qanda-code-content.json">下载代码题示例</a><a href={schemaUrl} download="qanda-schema.json">下载 JSON Schema</a></Space>
         {chapters.isError && (
           <Alert
             type="error"
@@ -240,7 +258,7 @@ export function ImportQuestionsModal({
               width: 210,
               render: (_, f, i) => (
                 <Space size="mini">
-                  <Button type="text" disabled={!f.questions.length} onClick={() => setPreview(f)}>
+                  <Button type="text" disabled={!f.questions.length} onClick={() => setPreviewId(f.id)}>
                     预览
                   </Button>
                   <Button
@@ -261,7 +279,7 @@ export function ImportQuestionsModal({
                     type="text"
                     aria-label={`移除 ${f.name}`}
                     icon={<IconClose />}
-                    disabled={save.isPending}
+                    disabled={save.isPending || uploads > 0}
                     onClick={() => setFiles((current) => current.filter((v) => v.id !== f.id))}
                   />
                 </Space>
@@ -269,6 +287,23 @@ export function ImportQuestionsModal({
             },
           ]}
         />
+        {files.filter(file => file.document).map(file => <section key={file.id} className="import-example">
+          <h3>{file.name} · 章节与图片映射</h3>
+          <p className="muted">文件题库：{file.document!.bank.name}。本次内容写入上方选择的目标题库。</p>
+          {!chapterId && file.document!.chapters.map(chapter => <div className="input-label" key={chapter.id}>
+            <span>{chapter.name}（{chapter.id}）</span><Space style={{ width: '100%' }}>
+              <Select style={{ minWidth: 250 }} aria-label={`${file.name} 章节 ${chapter.id}`} placeholder="选择目标章节" value={file.chapterMap[chapter.id]} disabled={save.isPending}
+                onChange={value => updateFile(file.id, { chapterMap: { ...file.chapterMap, [chapter.id]: value } })}
+                options={(chapters.data ?? []).map(value => ({ label: value.name, value: value.id }))} />
+              <Button disabled={save.isPending} onClick={() => onCreateChapter(chapter.name)}>新建此章节</Button>
+            </Space>
+          </div>)}
+          {file.document!.assets.map(asset => <section key={asset.id} aria-label={`附件映射 ${file.name} ${asset.id}`}>
+            <p>{asset.path}（{asset.id}）</p><QuestionImages bankId={bank.id} maxImages={1} ids={file.assetMap[asset.id] ? [file.assetMap[asset.id]] : []} disabled={save.isPending}
+              onBusyChange={delta => setUploads(count => count + delta)} onChange={ids => updateFile(file.id, { assetMap: { ...file.assetMap, [asset.id]: ids[0] ?? '' } })} />
+          </section>)}
+        </section>)}
+        {mappingError && <Alert type="warning" content={mappingError} style={{ marginTop: 16 }} />}
         <Alert
           style={{ marginTop: 20 }}
           type={total > 3000 ? 'error' : 'info'}
@@ -278,31 +313,23 @@ export function ImportQuestionsModal({
               : '全部文件识别成功后可确认导入；通过上下箭头调整文件顺序。整批校验通过后写入；失败保留文件和原幂等键以便重试。'
           }
         />
-        <details className="import-example">
-          <summary>查看 JSON 示例</summary>
-          <Select aria-label="JSON 示例题型" value={exampleType} onChange={setExampleType} style={{ margin: '16px 0' }} options={Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label }))} />
-          <Input.TextArea
-            readOnly
-            aria-label="JSON 格式示例"
-            value={JSON.stringify({ questions: [questionImportExamples[exampleType]] }, null, 2)}
-            autoSize={{ minRows: 5, maxRows: 12 }}
-          />
-        </details>
       </Modal>
       <Modal
         title={`文件预览：${preview?.name ?? ''}`}
         visible={Boolean(preview)}
-        onCancel={() => setPreview(undefined)}
+        onCancel={() => setPreviewId(undefined)}
         footer={null}
         style={{ width: 760, maxWidth: 'calc(100vw - 32px)' }}
       >
         <p className="muted">共 {countQuestions(preview?.questions ?? [])} 道题，{preview?.questions.length ?? 0} 条记录。展开记录可查看完整题干、阅读材料和答案。</p>
+        {preview?.document && <><p>{preview.document.bank.description}</p><h3>来源清单</h3><ul>{preview.document.sources.map(source => <li key={source.id}>{source.name} · {source.kind}{source.uri ? ` · ${source.uri}` : ''}</li>)}</ul></>}
+        <Radio.Group value={previewStage} onChange={setPreviewStage} options={[{ label: '学生作答', value: 'answer' }, { label: '即时反馈', value: 'feedback' }, { label: '交卷复盘', value: 'review' }]} style={{ marginBottom: 16 }} />
         <Table
           rowKey="previewId"
-          data={preview?.questions.map((q, i) => ({ ...q, previewId: i })) ?? []}
+          data={preview ? mapImportFile(preview, preview.chapterMap, preview.assetMap, chapterId, true).map((q, i) => ({ ...q, previewId: i })) : []}
           pagination={{ pageSize: 5, showTotal: true }}
           scroll={{ x: 650 }}
-          expandedRowRender={(question) => <QuestionContentView question={question} />}
+          expandedRowRender={(question) => <><QuestionContentView question={question} stage={previewStage} />{preview?.document && <ImportProvenance question={preview.document.questions[question.previewId]} document={preview.document} />}</>}
           expandProps={{ icon: ({ expanded, record }) => <button type="button" aria-expanded={expanded} aria-label={`${expanded ? '收起' : '展开'}题目内容 ${record.stem}`}>{expanded ? <IconMinus /> : <IconPlus />}</button> }}
           columns={[
             {
@@ -317,4 +344,14 @@ export function ImportQuestionsModal({
       </Modal>
     </>
   )
+}
+
+function ImportProvenance({ question, document }: { question: PortableQuestion; document: QuestionBankFile }) {
+  const provenance = question.provenance
+  return <section><h4>{question.id} · {provenance.origin === 'extracted' ? '原题提取' : '依据材料编题'}</h4>
+    <ul>{provenance.sourceRefs.map((ref, index) => <li key={index}>{document.sources.find(source => source.id === ref.sourceId)?.name} · {ref.location}</li>)}</ul>
+    <p>AI 参与字段：{provenance.ai.fields.join('、') || '无'}</p><p>{provenance.ai.note}</p>
+    {!!question.assetIds && <p>原文件图片引用：{(question.assetIds as string[]).join('、')}</p>}
+    {question.subQuestions?.map(sub => <ImportProvenance key={sub.id} question={sub} document={document} />)}
+  </section>
 }

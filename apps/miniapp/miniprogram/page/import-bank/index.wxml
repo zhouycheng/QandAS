@@ -1,3 +1,5 @@
+<view class="secondary-page">
+<page-header title="导入题库" />
 <view class="page imp">
   <view class="hero">
     <text class="hero-title">导入题库</text>
@@ -161,4 +163,5 @@
   <view class="footer-note">
     <text>导入的题库存在本机，清缓存会一起清掉；要长期保留请用开发者脚本导入。</text>
   </view>
+</view>
 </view>

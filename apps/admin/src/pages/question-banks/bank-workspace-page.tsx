@@ -91,9 +91,9 @@ export function BankWorkspacePage() {
       <Tabs.TabPane key="scope" title="展示范围"><div className="bw-settings-block"><div className="bw-section-heading"><h2>题库展示范围</h2><Button onClick={() => setSettings('scope')}>调整展示范围</Button></div><p className="muted">学生符合任意一组条件即可展示，修改资料后重新匹配列表。</p><div className="bw-saved-scopes">{scopeLabels(bank, data).map((label) => <div key={label}><IconBook /><span>{label}</span></div>)}</div></div><ScopePreview bank={bank} directory={data} subjects={[course]} /></Tabs.TabPane>
     </Tabs>
     {settings && <BankSettingsDrawer bank={bank} initialTab={settings} onClose={() => setSettings(undefined)} onSaved={() => setSettings(undefined)} />}
-    {importing && <ImportQuestionsModal bank={bank} defaultChapterId={chapterId === 'unassigned' ? undefined : chapterId} onClose={() => setImporting(false)} />}
+    {importing && <ImportQuestionsModal bank={bank} defaultChapterId={chapterId === 'unassigned' ? undefined : chapterId} onClose={() => setImporting(false)} onCreateChapter={(name) => { saveChapter.reset(); setChapterName(name); setChapterEditor(null) }} />}
     {publishing && <PublicationModal bank={bank} onClose={() => setPublishing(false)} />}
-    <Modal className="bw-chapter-editor" title={chapterEditor ? '编辑章节' : '新建章节'} visible={chapterEditor !== undefined} style={{ width: 440, maxWidth: 'calc(100vw - 32px)' }} maskClosable={false}
+    <Modal className="bw-chapter-editor" title={chapterEditor ? '编辑章节' : '新建章节'} visible={chapterEditor !== undefined} style={{ width: 440, maxWidth: 'calc(100vw - 32px)' }} wrapStyle={{ zIndex: 1101 }} maskStyle={{ zIndex: 1100 }} maskClosable={false}
       confirmLoading={saveChapter.isPending} onOk={() => { if (!saveChapter.isPending) saveChapter.mutate() }} onCancel={() => { if (!saveChapter.isPending) setChapterEditor(undefined) }}
       closable={!saveChapter.isPending} cancelButtonProps={{ disabled: saveChapter.isPending }} okText="保存章节" cancelText="取消">
       {saveChapter.error && <Alert type="error" className="bw-form-error" content={saveChapter.error.message} />}

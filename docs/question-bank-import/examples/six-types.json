@@ -1,0 +1,315 @@
+{
+  "format": "qanda-question-bank",
+  "version": "1.0",
+  "bank": {
+    "name": "计算机基础 · 协议示例",
+    "description": "六类内容、七道作答题；配合随附的材料核对来源。"
+  },
+  "sources": [
+    {
+      "id": "notes",
+      "name": "计算机基础练习材料",
+      "kind": "text",
+      "uri": "materials.md"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "basics",
+      "name": "基础知识"
+    }
+  ],
+  "assets": [],
+  "questions": [
+    {
+      "id": "binary",
+      "chapterId": "basics",
+      "type": "SINGLE_CHOICE",
+      "stem": "二进制数 10 对应的十进制数是多少？",
+      "options": [
+        {
+          "key": "A",
+          "content": "2"
+        },
+        {
+          "key": "B",
+          "content": "1"
+        },
+        {
+          "key": "C",
+          "content": "10"
+        },
+        {
+          "key": "D",
+          "content": "0"
+        }
+      ],
+      "correctAnswer": [
+        "A"
+      ],
+      "explanation": "### 结论\n选 A，结果为 2。\n### 核心知识点\n二进制各位权值是 2 的整数次幂。\n### 解题过程\n10₂ = 1×2¹ + 0×2⁰ = 2。B 忽略位权，C 把二进制当十进制，D 忽略高位。\n### 记忆方法\n从右往左，权值依次是 1、2、4、8。\n### 易错题型\n把 10₂ 误读成十进制十；遇到 101₂ 时应逐位求和。",
+      "provenance": {
+        "origin": "extracted",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 1 节：不完整选择题"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "options",
+            "explanation"
+          ],
+          "note": "保留题干、原选项 A/B 和答案；补充 C/D 干扰项，编写教学解析。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "input",
+      "chapterId": "basics",
+      "type": "MULTIPLE_CHOICE",
+      "stem": "下列哪些属于输入设备？",
+      "options": [
+        {
+          "key": "A",
+          "content": "键盘"
+        },
+        {
+          "key": "B",
+          "content": "鼠标"
+        },
+        {
+          "key": "C",
+          "content": "显示器"
+        },
+        {
+          "key": "D",
+          "content": "打印机"
+        }
+      ],
+      "correctAnswer": [
+        "A",
+        "B"
+      ],
+      "explanation": "### 结论\n选 A、B。\n### 核心知识点\n输入设备向计算机传入信息，输出设备向外呈现信息。\n### 解题过程\n键盘传入按键、鼠标传入移动和点击；显示器呈现图像，打印机输出纸面内容。\n### 记忆方法\n站在计算机视角看信息流入还是流出。\n### 易错题型\n触摸屏兼有输入与输出能力，需要根据题目描述判断。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 2 节：设备分类表，第 1–4 行"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "options",
+            "correctAnswer",
+            "explanation"
+          ],
+          "note": "根据表格编题，四个选项均来自表格。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "ram",
+      "chapterId": "basics",
+      "type": "TRUE_FALSE",
+      "stem": "计算机断电后，RAM 中的信息通常会丢失。",
+      "correctValue": true,
+      "explanation": "### 结论\n正确。\n### 核心知识点\nRAM 通常属于易失性存储器，需要供电保持数据。\n### 解题过程\n题目限定 RAM，断电导致其内容丢失；磁盘等非易失性存储与之不同。\n### 记忆方法\n把 RAM 理解为临时工作台，把磁盘理解为长期档案柜。\n### 易错题型\n把所有存储介质都认作断电丢失，或把 RAM 与磁盘混淆。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 3 节：知识讲义，第 1 段"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "correctValue",
+            "explanation"
+          ],
+          "note": "依据讲义中的易失性定义编写判断题。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "cpu",
+      "chapterId": "basics",
+      "type": "FILL_BLANK",
+      "stem": "中央处理器的英文缩写是 {{1}}。",
+      "blanks": [
+        {
+          "answers": [
+            "CPU"
+          ]
+        }
+      ],
+      "blankMatch": {
+        "ignoreCase": true,
+        "trimWhitespace": true
+      },
+      "explanation": "### 结论\n第 1 空填 CPU。\n### 核心知识点\nCPU 是 Central Processing Unit 的缩写，中文为中央处理器。\n### 解题过程\n分别取 Central、Processing、Unit 的首字母，得到 CPU。\n### 记忆方法\n把中文名称与三个英文单词逐一对应。\n### 易错题型\n与 GPU 等缩写混淆；题目若问英文全称，应写完整单词。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 3 节：知识讲义，第 2 段"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "blanks",
+            "explanation"
+          ],
+          "note": "将术语定义转为填空题，允许大小写差异及首尾空格。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "backup",
+      "chapterId": "basics",
+      "type": "SHORT_ANSWER",
+      "stem": "说明数据备份的两个作用。",
+      "referenceAnswer": "在故障或误删后恢复数据；保留历史版本以便恢复到此前状态。",
+      "scoringPoints": [
+        "说明故障或误删后的数据恢复",
+        "说明历史版本的保留与恢复"
+      ],
+      "explanation": "### 结论\n备份用于故障或误删后恢复，也用于保留历史版本。\n### 核心知识点\n备份是在独立位置或版本中保留数据副本。\n### 解题过程\n第一点对应原数据不可用时的恢复；第二点对应原数据被改动后恢复此前版本。能解释这两点即可自评。\n### 记忆方法\n从能找回和能回到过去两个角度组织答案。\n### 易错题型\n只说复制文件而未解释用途；将同步误认为永远保留历史版本。",
+      "provenance": {
+        "origin": "authored",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 3 节：知识讲义，第 3 段"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem",
+            "referenceAnswer",
+            "scoringPoints",
+            "explanation"
+          ],
+          "note": "把讲义的两项作用转换为简答题和自评要点。"
+        }
+      },
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    },
+    {
+      "id": "reading",
+      "chapterId": "basics",
+      "type": "READING",
+      "stem": "文件备份案例",
+      "passage": "小林每天将学习笔记保存到电脑，每周再复制到离线移动硬盘。周一误删电脑里的文件后，他从移动硬盘恢复了上周的笔记。",
+      "provenance": {
+        "origin": "extracted",
+        "sourceRefs": [
+          {
+            "sourceId": "notes",
+            "location": "第 4 节：阅读材料"
+          }
+        ],
+        "ai": {
+          "fields": [
+            "stem"
+          ],
+          "note": "保留原材料，为题组拟定标题。"
+        }
+      },
+      "subQuestions": [
+        {
+          "id": "reading-device",
+          "type": "SINGLE_CHOICE",
+          "stem": "小林用哪种介质恢复了笔记？",
+          "options": [
+            {
+              "key": "A",
+              "content": "离线移动硬盘"
+            },
+            {
+              "key": "B",
+              "content": "键盘"
+            },
+            {
+              "key": "C",
+              "content": "鼠标"
+            },
+            {
+              "key": "D",
+              "content": "显示器"
+            }
+          ],
+          "correctAnswer": [
+            "A"
+          ],
+          "explanation": "### 结论\n选 A。\n### 核心知识点\n恢复操作需要读取保存了副本的存储介质。\n### 解题过程\n材料最后一句明确写出从移动硬盘恢复；键盘、鼠标、显示器均未保存该备份。\n### 记忆方法\n先定位恢复动作，再找它对应的数据来源。\n### 易错题型\n把操作工具和保存备份的介质混为一谈。",
+          "provenance": {
+            "origin": "authored",
+            "sourceRefs": [
+              {
+                "sourceId": "notes",
+                "location": "第 4 节：阅读材料，第 2 句"
+              }
+            ],
+            "ai": {
+              "fields": [
+                "stem",
+                "options",
+                "correctAnswer",
+                "explanation"
+              ],
+              "note": "依据材料中的恢复来源编写定位题。"
+            }
+          },
+          "contentFormat": "MARKDOWN",
+          "presentation": "STANDARD"
+        },
+        {
+          "id": "reading-time",
+          "type": "TRUE_FALSE",
+          "stem": "每周备份一定包含误删当天新增的全部内容。",
+          "correctValue": false,
+          "explanation": "### 结论\n错误。\n### 核心知识点\n备份只能恢复备份时已保存的内容。\n### 解题过程\n材料说明恢复的是上周笔记，未说明当天新增内容已备份，因此不能断言全部包含。\n### 记忆方法\n沿时间线比较备份时间和数据新增时间。\n### 易错题型\n看到已经备份就认定任何时刻的数据都能恢复，忽略备份周期。",
+          "provenance": {
+            "origin": "authored",
+            "sourceRefs": [
+              {
+                "sourceId": "notes",
+                "location": "第 4 节：阅读材料，第 1–2 句"
+              }
+            ],
+            "ai": {
+              "fields": [
+                "stem",
+                "correctValue",
+                "explanation"
+              ],
+              "note": "根据每周备份和恢复上周内容推导时间边界。"
+            }
+          },
+          "contentFormat": "MARKDOWN",
+          "presentation": "STANDARD"
+        }
+      ],
+      "contentFormat": "MARKDOWN",
+      "presentation": "STANDARD"
+    }
+  ]
+}
