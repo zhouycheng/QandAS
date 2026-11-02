@@ -24,7 +24,7 @@ QandA 微信小程序面向课程复习与题库练习场景，基于微信原�
 | --- | --- | --- |
 | 主导航 | `subject-list`、`bank-detail`、`stats`、`my` | 首页、题库、复盘和个人中心 |
 | 练习 | `practice`、`question-detail`、`wrong-book` | 答题、题目查看、错题复习与收藏练习 |
-| 账户 | `login`、`register`、`forgot-password`、`account` | 登录、注册、密码重置与账户管理 |
+| 账户 | `login`、`register`、`forgot-password`、`account`、`account-security` | 登录、注册、找回密码、个人资料及账号安全 |
 | 学习设置 | `settings`、`practice-layout`、`reminder`、`exam-countdown` | 独立的答题偏好、拖拽布局、邮箱提醒和考试倒计时 |
 | 内容工具 | `import-bank` | 导入并管理本地题库 |
 | 开发工具 | `playground` | 供开发人员检查练习流程与边界场景 |
@@ -41,6 +41,8 @@ QandA 微信小程序面向课程复习与题库练习场景，基于微信原�
 
 开发场景保留静态题库与显式测试适配器。用户上传题库入口暂时关闭。相关 API 合同见 [apps/api/contracts/openapi.yaml](../api/contracts/openapi.yaml)。
 
+个人资料提供学院、专业与年级下拉选择。账号安全从邮箱、微信、密码三行分别进入：密码先验证当前邮箱再设置新密码；更换邮箱先验证原邮箱再验证新邮箱；微信绑定使用 `wx.login` 凭证。验证码和密码只保留在页面内存，密码或邮箱更新成功后重新登录，学习草稿继续按账号保留。官方微信需配置服务端身份交换参数，独立联调默认使用本地测试身份。
+
 首页封面源素材保存在 `design/home-covers`，由 `scripts/prepare-home-covers.cjs` 生成 `miniprogram/assets/home` 中的运行资源。tabBar、首页四宫格和菜单图标通过脚本生成。修改资源时请保留源素材，并通过对应脚本更新生成文件。
 
 首页公告喇叭由 imagegen 生成，素材规格与提示词见[生成记录](design/home-announcement.md)。首页读取服务端公告，有公告时喇叭持续摇动，点击显示公告正文。
@@ -50,6 +52,8 @@ QandA 微信小程序面向课程复习与题库练习场景，基于微信原�
 使用微信开发者工具导入 `apps/miniapp`，打开工具的服务端口后，在此目录执行：
 
 ```sh
+npm --prefix ../../packages/content-format ci
+npm --prefix ../../packages/content-format run build
 npm ci
 npm run build
 ```
@@ -71,3 +75,5 @@ npm test
 `tests/compile.check.js` 调用微信开发者工具内置编译器检查 WXML 与 WXSS。代码提交前的完整验证要求见本目录的 `AGENTS.md`。
 
 各页面的请求、缓存与验证记录见[页面加载说明](../../docs/miniapp-page-loading.md)。
+
+题型、反馈、计分与 Markdown 规则见[实现说明](../../docs/question-content-and-practice.md)。共享包预打包后进入微信 npm 构建；联调运行中的项目由统一安排执行 npm 重建和真机检查。

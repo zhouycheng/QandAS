@@ -1,6 +1,6 @@
 # 后端接口验收
 
-当前 `1.0.0` 合同包含 136 个操作，聚合入口为 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)，12 个模块合同引用其中的共享模型。合同从运行中的 Controller 和 DTO 导出；实际 HTTP 观察另行验证路径、参数、请求体、状态、响应媒体、全部响应头值和响应体。本轮结果见[同步监控验收记录](../../../docs/sync-monitoring-verification.md)。
+当前 `1.0.0` 合同包含 137 个操作，聚合入口为 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)，12 个模块合同引用其中的共享模型。合同从运行中的 Controller 和 DTO 导出；实际 HTTP 观察另行验证路径、参数、请求体、状态、响应媒体、全部响应头值和响应体。最新结果见[三端联调记录](../../../docs/three-client-integration.md)。
 
 ## Maven 验收
 
@@ -20,6 +20,8 @@ node apps/api/scripts/backend.mjs verify
 学生邮箱注册、登录、找回密码和登录后修改密码使用同一规则：8–16 个 Unicode 码点，至少包含一个英文字母和一个数字；字母大小写均可，允许其他字符和空格，拒绝 NUL 与不完整的代理项。重置或修改密码后，原学生会话失效。管理员密码仍按管理员安全策略校验。
 
 专项检查覆盖长度边界、缺少字母或数字、符号和 Unicode，以及四个接口的成功与拒绝路径。小程序登录、注册和找回密码页面还检查输入长度、提示及前端校验。合同由运行中的 DTO 导出；整体构建后按本页流程重新生成并校验聚合合同与 Postman 样例。
+
+登录后的账号安全页面使用独立流程。`POST /me/email-challenges/{id}/verification` 校验当前用户、用途、凭据版本、错误次数和有效期，返回到期时间；每次实际校验，不缓存成功证明。最终密码或邮箱变更再次验证并消费验证码，原会话失效。邮箱更换验证新旧邮箱，微信绑定校验唯一归属及重复请求；`GET /me` 的可选 `passwordSet` 提供实际密码状态。自动检查覆盖这些写入与拒绝路径，页面最终凭据提交由用户操作后登记。
 
 默认运行证据位于忽略目录 `.backend-runtime/verification/`：
 
@@ -68,4 +70,4 @@ QA_PY=apps/api/.backend-runtime/verification/quality/tools/python/bin/python
 
 导入生成的 [Postman 集合](../postman/QandA-MVP.postman_collection.json)和[本地环境](../postman/QandA-Local.postman_environment.json)。账号、密码、邮箱、验证码和令牌变量为空，由运行者填写；资源 ID、并发字段和当前令牌由响应脚本提取。每个写意图生成幂等键，需要模拟同一意图重试时设置 `commandKey` 为之前的 `lastCommandKey`。请求样例见 [`QandA-MVP.examples.json`](../postman/QandA-MVP.examples.json)。
 
-本次自动化验收使用本地 SMTP 捕获和明确的测试微信身份。浏览器管理端与微信开发者工具的首轮实际操作见[三端联调记录](../../../docs/three-client-integration.md)。真实腾讯云 SES、官方微信、真机及容量压测仍需各自的运行证据。
+自动化验收使用本地 SMTP 捕获和明确的测试微信身份。浏览器管理端与微信开发者工具的实际操作见[三端联调记录](../../../docs/three-client-integration.md)：真实腾讯云 SES 收件、官方微信绑定及重新登录、修改密码和更换邮箱已通过页面核对。头像与昵称通过 `PUT /me/profile` 保存，微信绑定只写入登录身份关联；头像校验真实图片格式、像素及字节上限。真机和容量压测仍单独验收。

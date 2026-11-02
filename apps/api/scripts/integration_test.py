@@ -10,6 +10,22 @@ import integration
 
 
 class IntegrationEnvironmentTest(unittest.TestCase):
+    def test_compose_uses_isolated_config_and_private_ses_without_overriding_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            settings = home / ".config/qanda/tencent-ses.env"
+            settings.parent.mkdir(parents=True)
+            settings.write_text("# private\nTENCENT_SECRET_ID=local-id\nTENCENT_SECRET_KEY=local-key\n")
+            settings.chmod(0o600)
+            with patch.object(integration.Path, "home", return_value=home), patch.dict(integration.os.environ, {"TENCENT_SECRET_ID": "preferred"}, clear=True), patch.object(integration, "PRIVATE", home / "integration"):
+                env = integration.compose_environment()
+                self.assertEqual(str(home / "integration/backend.env"), env["BACKEND_ENV_FILE"])
+                self.assertEqual("preferred", env["TENCENT_SECRET_ID"])
+                self.assertEqual("local-key", env["TENCENT_SECRET_KEY"])
+                settings.chmod(0o644)
+                with self.assertRaises(RuntimeError):
+                    integration.compose_environment()
+
     def test_isolated_credentials_are_private_and_initialization_preserves_them(self):
         with tempfile.TemporaryDirectory() as directory:
             private = Path(directory)

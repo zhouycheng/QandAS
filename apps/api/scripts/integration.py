@@ -22,6 +22,23 @@ CONFIG = PRIVATE / "environment.json"
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
+def compose_environment():
+    env = {**os.environ, "BACKEND_ENV_FILE": str(PRIVATE / "backend.env")}
+    ses = Path.home() / ".config/qanda/tencent-ses.env"
+    if ses.exists():
+        if ses.stat().st_mode & 0o077:
+            raise RuntimeError("SES 私有配置权限须为 600")
+        for line in ses.read_text().splitlines():
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            entry = re.fullmatch(r"(TENCENT_[A-Z0-9_]+)=(.*)", line)
+            if not entry:
+                raise RuntimeError("SES 私有配置格式错误")
+            if entry[2]:
+                env.setdefault(entry[1], entry[2])
+    return env
+
+
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temp = path.with_suffix(path.suffix + ".tmp")
@@ -273,8 +290,8 @@ def main():
     config = configuration()
     if command == "up":
         subprocess.run(["node", str(ROOT / "apps/api/scripts/backend.mjs"), "build"], cwd=ROOT, check=True)
-        subprocess.run(compose(config, "build", "api"), check=True)
-        subprocess.run(compose(config, "up", "-d", "--wait", "--wait-timeout", "180"), check=True)
+        subprocess.run(compose(config, "build", "api"), env=compose_environment(), check=True)
+        subprocess.run(compose(config, "up", "-d", "--wait", "--wait-timeout", "180"), env=compose_environment(), check=True)
     elif command == "bootstrap":
         bootstrap(config)
     elif command == "seed":
@@ -288,7 +305,7 @@ def main():
         subprocess.run(["pnpm", "dev", "--host", "127.0.0.1", "--strictPort"], cwd=ROOT / "apps/admin", env=environment, check=True)
     elif command in ("status", "logs", "stop"):
         args = {"status": ["ps"], "logs": ["logs", "--tail", "80", "api", "worker", "monitor"], "stop": ["stop"]}[command]
-        subprocess.run(compose(config, *args), check=True)
+        subprocess.run(compose(config, *args), env=compose_environment(), check=True)
     else:
         raise RuntimeError("命令：init up bootstrap seed passwords connect admin status logs stop")
 

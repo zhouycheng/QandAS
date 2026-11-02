@@ -10,6 +10,8 @@ Run everything from `apps/miniapp/`.
 
 ```sh
 # 1) Install locked dependencies, build WeChat npm modules, and run self-checks
+npm --prefix ../../packages/content-format ci
+npm --prefix ../../packages/content-format run build
 npm ci
 npm run build
 npm test
@@ -44,8 +46,8 @@ Three counter-intuitive details:
 
 1. Keep dependencies in `apps/miniapp/package.json` with exact versions and a lockfile. Run the official npm build after dependency changes. Native JavaScript remains the runtime language.
 2. Modules loaded with `require` must be **flat files** — WeChat does not compile `<dir>/index.js`.
-3. `require` has no dynamic paths. New question banks must be registered in
-   `utils/question-bank-catalog.js` → `BANK_LOADERS`.
+3. `require` has no dynamic paths. Explicit local fixtures use
+   `utils/question-bank-catalog.js` → `BANK_LOADERS`; production banks come from the API.
 4. Layering: Page (wx APIs only) → ViewModel (returns `{ data, command? }`) → Model/utils (pure).
    Repository is the single data exit point. Pages funnel results through `applyViewModelResult()`.
 5. WXSS limits: no `*` selector; `.p > :nth-child(1)` must be written `.p > view:nth-child(1)`;
@@ -79,8 +81,19 @@ Three counter-intuitive details:
 
 ### Layout and visuals
 
-- Secondary pages use the shared white page and native window backgrounds. Keep contrast on cards
-  and inputs through local surface colors rather than a separate page theme.
+- All pages inherit custom navigation from `app.json`. Secondary pages render the shared
+  `page-header` component with native `wx.navigateBack`; route changes still use native wx APIs.
+  Keep the status inset and capsule clearance inside that component, once per page. Secondary
+  pages use white page and window backgrounds; cards and inputs use local surface colors.
+- Keep `usingComponents: {}` in secondary page JSON even when all components are global.
+  Removing the property caused the shared header to disappear in the actual DevTools runtime.
+- Native avatar buttons use `size="mini"` and explicit equal width/height, padding, and min/max width.
+  Native button sizing otherwise stretches the circular avatar into an ellipse.
+- Normalize nullable DTO strings and image arrays at component call sites: String/Array properties
+  warn on explicit `null` even when defaults exist. The rich-content `blanks` property intentionally
+  uses `type: null`: `null` renders read-only content, while an array enables answer inputs.
+- Isolated component styles must target classes. Use `.code-copy::after` for native button resets;
+  tag selectors such as `.code-bar button::after` are rejected by the actual runtime.
 - **`mode="aspectFill"` requires the image ratio to equal the container ratio**, otherwise edges are
   cropped. The three `assets/home/cover-*.jpg` are cut to the card's 686:320; changing the card height
   means re-running `scripts/prepare-home-covers.cjs`. `tests/home-prototype.check.js` decodes each JPEG
@@ -105,9 +118,12 @@ Three counter-intuitive details:
 
 ### WeChat platform
 
-- `getUserProfile` / `getUserInfo` are deprecated (the self-check fails if any file calls them). Avatar
-  and nickname editing live in `page/account` (`781:2123`): use `<button open-type="chooseAvatar">` +
-  `copyFileSync` into `wx.env.USER_DATA_PATH` (temp paths expire) and `<input type="nickname">`.
+- `getUserProfile` / `getUserInfo` return anonymous profile data in the current verified environment;
+  the self-check rejects production calls. Avatar and nickname editing live in `page/account`:
+  use `<button open-type="chooseAvatar">` and `<input type="nickname">`. Compress avatars to 160px,
+  read the image bytes, then persist the account profile through `/me/profile`; temporary paths expire.
+  WeChat identity binding confirms and writes from the account page. Email/password flows stay in
+  `page/account-security`. Keep pending profile edits while binding and ignore stale avatar callbacks.
 - `project.config.json` → `useMultiFrameRuntime` **must stay `false`**. When true, in-page `bindtap`
   stops working entirely and compilation still succeeds.
 - **Custom components have isolated styles.** Official wording: 「除继承样式外，app.wxss 中的样式、
@@ -142,6 +158,11 @@ Three counter-intuitive details:
   owns it.
 - Inputs are deliberately uncontrolled in the `bindinput` path: the page writes back only
   `errorField` / `submitting`, never `value`, otherwise the cursor jumps to the end on device.
+- Logged-in password/email operations use `page/account-security`. Verify the current email
+  before showing a new-password or replacement-email form; final mutations revalidate and consume
+  proofs. Keep codes and passwords in ViewModel memory only. Password/email changes expire sessions,
+  while learning drafts remain scoped to their original account. WeChat-code errors must not expire
+  a valid student session. See `tests/account-security.check.js`.
 
 ### Settings hub: `page/my` + `page/account` + `page/reminder` (Figma 781:1922 / 781:2123 / 781:2043)
 
@@ -154,8 +175,9 @@ Three counter-intuitive details:
   through `wx.showModal`. Personal-page navigation preserves stored learning data.
 - Shared layout lives in `miniprogram/styles/list-page.wxss` (same 750/402 scale as the auth pages:
   22px → 41rpx margin, 54px → 101rpx row, 48px → 90rpx button). Each page WXSS only carries deltas.
-- About and legal agreements use center sheets (`placement="center"`) through the shared portal.
-  MobX refreshes preserve the open sheet and form drafts.
+- About uses `page/about` with the shared secondary header; it reads the application version, team,
+  description, and donation images without HTTP. Legal agreements use center sheets (`placement="center"`)
+  through the shared portal. MobX refreshes preserve the open sheet and form drafts.
 - Answer preferences, layout, reminders, and exam countdown have separate pages. Their entry paths
   read local data only. Version and developer tools are in About.
 - `moduleOrder` contains exactly `info`, `stem`, `response`, `analysis`, and `tools`. The shared
@@ -220,8 +242,12 @@ prefixed `pra-` (question flow) and `res-` (result page); the old `question-area
   `.pra-footer` for previous/next actions. Use `flex: 1; min-height: 0` for the scrolling band.
   Shared markup lives in `templates/practice-*.wxml`, shared styles in `styles/practice.wxss`.
   Audits expand includes; the WXML compiler receives external WXS files as well.
-- 系统导航标题留空（`index.json` 的 `navigationBarTitleText: ""`），标题由页内 `.pra-head` 画：
-  返回箭头 + 题库名 + `practiceSubtitle`（`MODE_LABELS` + 题数，**不要写死章节名**，题库里没有章节字段）。
+- The shared header displays the bank title and `practiceSubtitle` (mode and actual item count).
+  Chapter selection comes from API metadata and remains part of the saved practice route.
+- Do not put `catchtouchstart` on native textareas: it prevents native focus on real clicks.
+  Swipe handling ignores the input region through the shared gesture utility.
+- Result reference answers, scoring points, self-assessment, and explanation are vertical blocks.
+  Markdown inside numbered rows removes only outer first/last paragraph margins so numbers align.
 - Apply module order with CSS, preserving answers and input nodes. The tools module participates
   in sorting; previous/next actions remain fixed. Answer visibility is independent of module order.
 - Guest trials use `trial-practice.js` and the same `PracticeSession`. Save the complete snapshot
@@ -249,8 +275,8 @@ prefixed `pra-` (question flow) and `res-` (result page); the old `question-area
 - 答题卡按钮是**三态**（对应设计稿三个面板）：还有未答 → 确认结束(红描边) + 继续答题(蓝)；
   已答完且有标记 → 继续答题 + 含标记，前往查看(橙)，确认结束另起一行；已答完无标记 →
   继续答题 + 确认结束(橙实心，交卷是唯一主操作)。改文案/顺序时三态要一起看。
-- `scripts/preview-practice.cjs` renders seven panels: practice, immediate feedback, three answer
-  sheets, results, and layout editing. Its combined styles cannot verify component isolation;
+- `scripts/preview-practice.cjs` renders fifteen panels: practice, immediate feedback, three answer
+  sheets, results, a long title, and eight layout question types. Its combined styles cannot verify component isolation;
   `interaction-audit.check.js` check 7 covers missing component classes.
 
 ### 题库 page (`page/bank-detail`)
@@ -266,9 +292,9 @@ Rewritten against the 2026-10-27 board (章节列表 + 答题配置抽屉). Old 
   beneath the floating tab bar and their last rows can scroll above it.
 - 左栏 = 最近在刷 / 我的错题 / 我的收藏 / 科目… / 导入题库。选中项**白底 + 蓝色左条**（与右侧白面板同色，
   侧边标签页的常见做法），选中文字是深色粗体而不是品牌蓝。
-- 列表**一行一章**：`components/bank-list-item` 现在是一条灰条（`chapter-row`），只显示
-  `第N章：名称` + 右侧 `已做/总数`。题库数据里没有章节字段，`第N章` 是行序号；名称本身已带序号
-  （「第一单元」）时不再叠一层。点一行 = 配这一章的参数。
+- Directory rows show server bank summaries; opening practice configuration fetches real chapters
+  on demand. Preserve the selected chapter in scope preview, creation, resume, and repeat practice.
+  Force-refreshing the catalog also invalidates chapter caches and removes unavailable banks.
 - **抽屉里的开关都是「本次答题」的参数，不写学习偏好**。「解析自动展开 / 答对自动翻页」这类偏好只在
   「我的」页维护 —— 同一个状态两处能改，迟早出现「我明明关了又自己开了」。
 - Online wrong/favorite practice uses server `selectionKind` and `collectionChip`; pagination must preserve the whole matching scope. Local fixtures use explicit question IDs and must not combine `scope=subject` with a custom ID selection.
@@ -311,7 +337,7 @@ Rewritten against the 2026-10-27 board (章节列表 + 答题配置抽屉). Old 
 
 - 一个页面承载两种模式（`type=wrong|favorite`），标题、统计口径、空态、底部按钮全由 `WrongBookViewModel`
   按 `type` 决定；WXML 只有一份。页面**不挂 tabBar**（`navigateTo` 进来的），所以没有 272rpx 让位。
-- 顶部「返回 + 居中标题 + 管理」是页内自绘（`navigationBarTitleText` 留空），和答题页同一套做法。
+- The shared `page-header` provides Back; the content header retains the book title and Manage action.
 - ⚠️ 错题本的「正确率」必须按**本子里这些题**的 `rightCount / (rightCount + wrongCount)` 算。
   直接取全站近 7 天正确率会显示成 80% 这种漂亮数字 —— 一个错题本号称正确率 80%，用户第一眼就不信。
   该口径由 `readBookAccuracy(items)` 提供，`wrong-book-favorite.check.js` 有断言锁死。
@@ -325,7 +351,7 @@ Rewritten against the 2026-10-27 board (章节列表 + 答题配置抽屉). Old 
 | `scripts/prepare-home-covers.cjs` | 早/中/晚 covers: crops the user's originals with one shared window via CDP (quality-controlled JPEG) |
 | `scripts/preview-home.cjs` | Renders the real WXSS at 375px; states `configured\|today\|past\|empty\|modal` |
 | `scripts/preview-home-covers.cjs` | The countdown card × three day-parts side by side (checks nothing jumps) |
-| `scripts/preview-practice.cjs` | 答题页四态并排（答对 / 答错 / 答题卡 / 结果），跑真实 `PracticeViewModel` |
+| `scripts/preview-practice.cjs` | Practice, answer sheets, results, long title, and eight layout types from real ViewModels |
 | `scripts/preview-bank-detail.cjs` | 题库页三态并排（章节列表 / 搜索 / 答题配置），跑真实 `BankDetailViewModel` |
 | `scripts/preview-review.cjs` | Guest review, authenticated review, wrong questions, and favorites from real ViewModels |
 | `scripts/preview-auth.cjs` | Renders login / register / forgot-password side by side at the 402px design width |

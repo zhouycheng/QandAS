@@ -102,6 +102,7 @@ class PlatformPostgresTest {
     @Autowired lateinit var activityMapper: qanda.backend.monitoring.ActivityMapper
     @Autowired lateinit var onlineUsers: qanda.backend.monitoring.OnlineUsers
     @Autowired lateinit var syncHealth: qanda.backend.monitoring.SyncHealth
+    private val evidenceDir=Path.of(System.getenv("QANDA_QUALITY_EVIDENCE_DIR") ?: ".backend-runtime/verification")
     private val http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
     private val exchanges=java.util.concurrent.ConcurrentLinkedQueue<Map<String,Any?>>()
     private lateinit var adminToken: String
@@ -427,6 +428,10 @@ class PlatformPostgresTest {
         assertEquals(1,call("GET","/admin/question-banks/${f.bank}/questions?type=SINGLE_CHOICE&pageSize=1")["total"].asInt())
         assertEquals(3,call("GET","/admin/question-banks/${f.bank}/questions?unassigned=true")["total"].asInt())
         assertTrue(call("GET","/admin/question-banks/${f.bank}/publication-checks").all { it["passed"].asBoolean() })
+        assertEquals(f.bank.toString(),call("GET","/question-banks?keyword=聚合章节",token=s.token)["items"].first()["id"].asText())
+        call("PUT","/admin/questions/${f.questions.first()}",question(f.bank,"SINGLE_CHOICE")+mapOf("chapterId" to chapter,"expectedVersion" to 2,"status" to "INACTIVE"))
+        assertEquals(1,call("GET","/admin/question-banks/${f.bank}/chapters").first()["questionCount"].asInt())
+        assertEquals(0,call("GET","/question-banks/${f.bank}/chapters",token=s.token).first()["questionCount"].asInt())
         assertTrue(call("GET","/admin/dashboard")["publishedBankCount"].asLong()>0)
         val logs=call("GET","/admin/audit-logs?keyword=CREATE_COLLEGE&result=SUCCESS&pageSize=1")
         assertTrue(logs["total"].asLong()>0);assertEquals("SUCCESS",logs["items"].first()["outcome"].asText())
@@ -528,6 +533,64 @@ class PlatformPostgresTest {
         call("POST","/me/activity/heartbeat",token=secondToken,status=401)
     }
 
+    @Test fun `markdown revisions retain drafts and subjective feedback stays unscored`() {
+        val s=student();val f=fixture()
+        val code=question(f.bank,"SHORT_ANSWER")+mapOf("contentFormat" to "MARKDOWN","presentation" to "CODE_ANALYSIS","stem" to "说明 `return a + b` 的作用。","referenceAnswer" to "将两个参数相加，并将结果返回给调用者。","scoringPoints" to listOf("返回计算结果。"))
+        val codeId=id(call("POST","/admin/questions",code))
+        call("POST","/admin/questions",question(f.bank,"SINGLE_CHOICE")+mapOf("presentation" to "CODE_WRITING"),status=422)
+        call("POST","/admin/questions",code+mapOf("presentation" to "CODE_WRITING"),status=422)
+        val fill=mapOf("questionBankId" to f.bank,"type" to "FILL_BLANK","contentFormat" to "MARKDOWN","presentation" to "CODE_ANALYSIS","stem" to "```javascript\nconst answer = {{1}}; // \\{{literal}}\n```","explanation" to "### 结论\n输出 `API`。","blanks" to listOf(mapOf("answers" to listOf("API"))),"blankMatch" to mapOf("ignoreCase" to false,"trimWhitespace" to true))
+        val fillId=id(call("POST","/admin/questions",fill))
+        val bank=call("GET","/question-banks/${f.bank}",token=s.token)
+        fun create(ids: List<UUID>,feedback: String="IMMEDIATE",mode: String="practice")=call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to ids.size,"questionIds" to ids),"expectedContentVersion" to bank["contentVersion"].asLong(),"feedback" to feedback,"mode" to mode,"timeLimitSeconds" to 120,"deviceId" to UUID.randomUUID()),s.token)
+        val session=create(listOf(f.questions[0],codeId,fillId));val sid=id(session);val writer=session["writer"]["writerToken"].asText()
+        assertEquals("practice",session["configuration"]["mode"].asText());assertEquals(120,session["configuration"]["timeLimitSeconds"].asInt())
+        val drafts=session["items"].filter { it["question"]["id"].asText()!=f.questions[0].toString() }.map { item -> mapOf("itemId" to item["itemId"].asText(),"confirmed" to false,"answer" to if(item["question"]["type"].asText()=="SHORT_ANSWER") mapOf("text" to "function add(a, b) {\n  return a + b;\n}") else mapOf("blanks" to listOf(" api "))) }
+        call("PUT","/practice/sessions/$sid/progress-ack",mapOf("expectedVersion" to 1,"writerToken" to writer,"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to drafts),s.token)
+        val saved=call("GET","/practice/sessions/$sid",token=s.token)
+        assertTrue(saved["items"].all { it["question"]["referenceAnswer"].isNull && it["question"]["explanation"].isNull })
+        val codeItem=saved["items"].first { it["question"]["id"].asText()==codeId.toString() }
+        assertEquals("CODE_ANALYSIS",codeItem["question"]["presentation"].asText());assertEquals("MARKDOWN",codeItem["question"]["contentFormat"].asText())
+        call("PUT","/admin/questions/$codeId",code+mapOf("expectedVersion" to 1,"contentFormat" to "PLAIN_TEXT","stem" to "新版题干"))
+        val finish=mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to writer)
+        val result=call("POST","/practice/sessions/$sid/finish",finish,s.token)
+        assertEquals(2,result["answeredCount"].asInt());assertEquals(0,result["objective"]["score"].asInt());assertEquals(1,result["objective"]["wrong"].asInt());assertEquals(1,result["objective"]["unanswered"].asInt())
+        val short=result["items"].first { it["question"]["id"].asText()==codeId.toString() }
+        assertTrue(short["confirmed"].asBoolean());assertEquals("说明 `return a + b` 的作用。",short["question"]["stem"].asText());assertEquals("MARKDOWN",short["question"]["contentFormat"].asText())
+        assertEquals("将两个参数相加，并将结果返回给调用者。",short["question"]["referenceAnswer"].asText())
+        val rated=call("PUT","/practice/sessions/$sid/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to result["version"].asLong(),"assessment" to "WRONG"),s.token)
+        assertEquals(result["objective"],rated["objective"])
+        val wrong=call("GET","/me/wrong-questions",token=s.token);assertEquals(1,wrong["total"].asInt());assertEquals(fillId.toString(),wrong["items"].first()["questionId"].asText())
+        assertEquals(2,call("GET","/me/question-progress",token=s.token)["total"].asInt())
+        val latestBank=call("GET","/question-banks/${f.bank}",token=s.token)
+        val subjective=call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(codeId)),"expectedContentVersion" to latestBank["contentVersion"].asLong(),"feedback" to "IMMEDIATE","deviceId" to UUID.randomUUID()),s.token)
+        val answer=mapOf("itemId" to subjective["items"].first()["itemId"].asText(),"answer" to mapOf("text" to "我的理解"),"confirmed" to true)
+        call("PUT","/practice/sessions/${id(subjective)}/progress-ack",mapOf("expectedVersion" to 1,"writerToken" to subjective["writer"]["writerToken"].asText(),"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to listOf(answer)),s.token)
+        val hidden=call("GET","/practice/sessions/${id(subjective)}",token=s.token)
+        assertTrue(hidden["items"].first()["question"]["referenceAnswer"].isNull)
+        val done=call("POST","/practice/sessions/${id(subjective)}/finish",mapOf("expectedVersion" to 2,"writerToken" to subjective["writer"]["writerToken"].asText(),"durationSeconds" to 0),s.token)
+        assertTrue(done["objective"]["score"].isNull);assertTrue(done["objective"]["accuracy"].isNull)
+        val stats=call("GET","/me/statistics?period=ALL",token=s.token);assertEquals(3,stats["answeredCount"].asInt());assertEquals(1,stats["wrongCount"].asInt());assertEquals(1,stats["selfRatedWrongCount"].asInt())
+        assertEquals(0,done["shortAnswer"]["rated"].asInt());assertEquals(0,done["shortAnswer"]["correct"].asInt());assertEquals(0,done["shortAnswer"]["wrong"].asInt())
+        val selfReview=call("GET","/me/wrong-questions?chip=subjective",token=s.token)
+        assertEquals(1,selfReview["total"].asInt());assertEquals(codeId.toString(),selfReview["items"].first()["questionId"].asText());assertEquals(0,selfReview["items"].first()["wrongCount"].asInt())
+        val summary=call("GET","/me/question-collections/summary?kind=WRONG",token=s.token)
+        assertEquals(1,summary["total"].asInt());assertEquals(1,summary["subjectiveCount"].asInt());assertEquals(1,summary["subjectiveFacets"].size())
+        val scope=call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 10,"selectionKind" to "WRONG","collectionChip" to "subjective"),s.token)
+        assertEquals(1,scope["selectedCount"].asInt());assertEquals(codeId.toString(),scope["selectedQuestionIds"].first().asText())
+        val mastered=call("PUT","/practice/sessions/$sid/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to rated["version"].asLong(),"assessment" to "CORRECT"),s.token)
+        assertEquals(result["objective"],mastered["objective"])
+        assertEquals(0,call("GET","/me/wrong-questions?chip=subjective",token=s.token)["total"].asInt())
+        val studyInput=mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(codeId)),"expectedContentVersion" to latestBank["contentVersion"].asLong(),"feedback" to "AFTER_FINISH","mode" to "view","deviceId" to UUID.randomUUID())
+        val study=call("POST","/practice/sessions",studyInput,s.token)
+        assertFalse(study["items"].first()["question"]["referenceAnswer"].isNull)
+        call("POST","/practice/sessions/${id(study)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to study["writer"]["writerToken"].asText()),s.token,409)
+        val trial=call("POST","/practice/trial-snapshots",studyInput.filterKeys { it!="deviceId" },null)
+        assertFalse(trial["items"].first()["question"]["referenceAnswer"].isNull)
+        assertEquals("view",trial["configuration"]["mode"].asText())
+        call("POST","/practice/sessions",studyInput+mapOf("timeLimitSeconds" to 1),s.token,422)
+    }
+
     @Test fun `reading groups preserve material revisions and fill blanks grade as atomic questions`() {
         val s=student();val f=fixture()
         val fill=mapOf("questionBankId" to f.bank,"type" to "FILL_BLANK","stem" to "协议 {{1}}，方法 {{2}}","explanation" to "网络协议",
@@ -627,7 +690,7 @@ class PlatformPostgresTest {
         val short=result["items"].first { it["question"]["type"].asText()=="SHORT_ANSWER" }
         call("PUT","/practice/sessions/$sessionId/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to result["version"].asLong(),"assessment" to "WRONG"),s.token)
         val stats=call("GET","/me/statistics?period=ALL",token=s.token);assertEquals(1,stats["practiceCount"].asInt());assertEquals(3,stats["correctCount"].asInt());assertEquals(1,stats["selfRatedWrongCount"].asInt())
-        assertEquals(1,call("GET","/me/wrong-questions",token=s.token)["total"].asInt())
+        assertEquals(0,call("GET","/me/wrong-questions",token=s.token)["total"].asInt())
         assertEquals(1,call("GET","/me/wrong-questions/${short["question"]["id"].asText()}/history",token=s.token)["total"].asInt())
         assertEquals(1,call("GET","/me/favorites",token=s.token)["total"].asInt())
         call("DELETE","/me/subjects/${f.subject}",token=s.token)
@@ -872,7 +935,7 @@ class PlatformPostgresTest {
         val report=mapOf("scenario" to "4题练习，30次串行增量保存；与单次完整练习读取比较响应大小", "requests" to 30,"concurrency" to 1,
             "compact" to mapOf("wallMillis" to compactWall,"jvmCpuMillis" to compactCpu,"responseBytes" to bytes,"averageResponseBytes" to bytes/30),
             "fullRead" to mapOf("responseBytes" to fullBytes))
-        val dir=Path.of(".backend-runtime/verification");Files.createDirectories(dir);Files.writeString(dir.resolve("practice-sync-observation.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(report))
+        val dir=evidenceDir;Files.createDirectories(dir);Files.writeString(dir.resolve("practice-sync-observation.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(report))
         assertEquals(31L,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Long::class.java,id))
     }
 
@@ -910,7 +973,7 @@ class PlatformPostgresTest {
         assertEquals(2,call("GET","/questions?keyword=$marker",token=null)["total"].asInt())
         val session=createPractice(s,f)
         val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
-        assertEquals(3,call("GET","/me/question-progress",token=s.token)["total"].asInt())
+        assertEquals(4,call("GET","/me/question-progress",token=s.token)["total"].asInt())
         val short=result["items"].first { it["question"]["type"].asText()=="SHORT_ANSWER" }
         call("PUT","/practice/sessions/${id(session)}/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to result["version"].asLong(),"assessment" to "WRONG"),s.token)
         val progress=call("GET","/me/question-progress?questionBankId=${f.bank}&pageSize=2",token=s.token)
@@ -918,7 +981,7 @@ class PlatformPostgresTest {
         val rest=call("GET","/me/question-progress?questionBankId=${f.bank}&pageSize=2&page=2",token=s.token)
         val all=progress["items"].toList()+rest["items"].toList()
         assertEquals(4,all.map { it["questionId"].asText() }.distinct().size)
-        assertEquals("WRONG",all.first { it["questionId"]==short["question"]["id"] }["outcome"].asText())
+        assertEquals("SELF_RATED",all.first { it["questionId"]==short["question"]["id"] }["outcome"].asText())
         assertTrue(all.all { it["questionBankId"].asText()==f.bank.toString() && it["lastPracticedAt"].isTextual })
         assertEquals(0,call("GET","/me/question-progress",token=another.token)["total"].asInt())
         val again=createPractice(s,f)
@@ -930,7 +993,7 @@ class PlatformPostgresTest {
 
     @Test fun `miniapp runtime uses real HTTP and PostgreSQL for a complete practice`() {
         val s=student();val f=fixture()
-        val report=Path.of(".backend-runtime/verification/miniapp-live.json");Files.createDirectories(report.parent)
+        val report=evidenceDir.resolve("miniapp-live.json");Files.createDirectories(report.parent)
         val builder=ProcessBuilder("node","../miniapp/tests/live-backend.cjs").redirectErrorStream(true).redirectOutput(report.toFile())
         builder.environment().putAll(mapOf("QANDA_TEST_URL" to "http://127.0.0.1:$port","QANDA_TEST_TOKEN" to s.token,"QANDA_TEST_BANK_ID" to f.bank.toString(),"QANDA_TEST_USER_ID" to s.id.toString()))
         val process=builder.start()
@@ -943,6 +1006,7 @@ class PlatformPostgresTest {
         assertEquals(200,response.statusCode(),response.body());val spec=json.readTree(response.body())
         assertEquals("1.0.0",spec["info"]["version"].asText());assertTrue(spec["paths"].has("/api/v1/practice/sessions"));assertTrue(spec["components"]["schemas"].has("QuestionInput"))
         val schemas=spec["components"]["schemas"]
+        assertTrue(schemas["PracticeConfiguration"]["properties"]["mode"]["enum"].any { it.isNull })
         for ((schema,field) in listOf("RegistrationInput" to "password","LoginInput" to "password","ResetPasswordInput" to "newPassword","PasswordInput" to "newPassword")) {
             val property=schemas[schema]["properties"][field]
             assertEquals(8,property["minLength"].asInt());assertEquals(16,property["maxLength"].asInt())
@@ -951,7 +1015,7 @@ class PlatformPostgresTest {
         }
         val operations=spec["paths"].fields().asSequence().flatMap { it.value.fields().asSequence() }.filter { it.key in setOf("get","post","put","patch","delete") }.map { it.value }.toList()
         assertEquals(operations.size,operations.map { it["operationId"].asText() }.distinct().size)
-        val dir=Path.of(".backend-runtime/verification");Files.createDirectories(dir);Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))
+        val dir=evidenceDir;Files.createDirectories(dir);Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))
     }
 
     @Test fun `verification attempt limits survive failed registration transactions`() {
@@ -1001,7 +1065,7 @@ class PlatformPostgresTest {
         val newPassword="NewLearner456"
         call("POST","/auth/password-resets",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"newPassword" to newPassword),null)
         call("GET","/me",token=s.token,status=401)
-        call("POST","/auth/sessions",mapOf("email" to s.email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)
+        assertEquals("邮箱或密码不正确，请检查后重试",call("POST","/auth/sessions",mapOf("email" to s.email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)["message"].asText())
         val login=call("POST","/auth/sessions",mapOf("email" to s.email,"password" to newPassword,"deviceId" to UUID.randomUUID()),null)
         val token=login["accessToken"].asText();val me=call("GET","/me",token=token)
         call("PUT","/admin/users/${s.id}/status",mapOf("expectedVersion" to me["version"].asLong(),"status" to "DISABLED"))
@@ -1164,9 +1228,27 @@ class PlatformPostgresTest {
         val me=call("GET","/me",token=s.token)
         call("PUT","/me/wechat-binding",mapOf("expectedVersion" to me["version"].asLong(),"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)
         assertTrue(call("GET","/me",token=s.token)["wechatBound"].asBoolean())
+        val boundVersion=call("GET","/me",token=s.token)["version"].asLong()
+        assertEquals(boundVersion,call("PUT","/me/wechat-binding",mapOf("expectedVersion" to boundVersion,"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)["version"].asLong())
+        val avatarOutput=java.io.ByteArrayOutputStream()
+        javax.imageio.ImageIO.write(java.awt.image.BufferedImage(160,160,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",avatarOutput)
+        val avatar="data:image/png;base64,"+java.util.Base64.getEncoder().encodeToString(avatarOutput.toByteArray())
+        val profileInput=mapOf("expectedVersion" to boundVersion,"nickname" to "原生选择的微信名","collegeId" to college,"majorId" to major,"currentGrade" to 1,"avatar" to avatar)
+        val profileKey=UUID.randomUUID()
+        val profileSaved=call("PUT","/me/profile",profileInput,s.token,key=profileKey)
+        assertEquals(profileSaved,call("PUT","/me/profile",profileInput,s.token,key=profileKey))
+        val withAvatar=call("GET","/me",token=s.token)
+        assertEquals(avatar,withAvatar["avatarUrl"].asText())
+        assertEquals("原生选择的微信名",withAvatar["nickname"].asText())
+        assertEquals(profileSaved["version"].asLong(),call("PUT","/me/wechat-binding",mapOf("expectedVersion" to profileSaved["version"].asLong(),"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)["version"].asLong())
+        val preserved=call("PUT","/me/profile",mapOf("expectedVersion" to profileSaved["version"].asLong(),"nickname" to "更新昵称","collegeId" to college,"majorId" to major),s.token)
+        assertEquals(avatar,call("GET","/me",token=s.token)["avatarUrl"].asText(),"ordinary profile edits preserve the selected avatar")
+        call("PUT","/me/profile",profileInput+mapOf("expectedVersion" to preserved["version"].asLong(),"avatar" to "https://example.test/avatar.jpg"),s.token,422)
         assertTrue(call("GET","/admin/administrators")["items"].any { it["id"].asText()==platformId.toString() })
         call("GET","/admin/users/${s.id}");call("GET","/admin/users")
         val other=student();val otherSession=call("GET","/me/sessions",token=other.token).first()["id"].asText()
+        assertEquals("WECHAT_ALREADY_BOUND",call("PUT","/me/wechat-binding",mapOf("expectedVersion" to 1,"code" to "local-learner-3:${UUID.randomUUID()}"),other.token,409)["code"].asText())
+        assertFalse(call("GET","/me",token=other.token)["wechatBound"].asBoolean())
         call("DELETE","/me/sessions/$otherSession",token=s.token,status=404)
         call("DELETE","/auth/sessions/current",token=other.token)
         call("GET","/me",token=other.token,status=401)
@@ -1180,23 +1262,38 @@ class PlatformPostgresTest {
         val registration=call("POST","/auth/wechat-registrations",mapOf("registrationToken" to ticket["registrationToken"].asText()),null,201)
         fun wechatToken(): String=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-2:${UUID.randomUUID()}","deviceId" to UUID.randomUUID()),null)["session"]["accessToken"].asText()
         val token=wechatToken();val address="${UUID.randomUUID()}@example.test"
+        assertFalse(call("GET","/me",token=token)["passwordSet"].asBoolean())
         val binding=call("POST","/me/email-challenges",mapOf("purpose" to "BIND_EMAIL","email" to address),token)
         call("PUT","/me/email-binding",mapOf("expectedVersion" to 1,"newChallengeId" to id(binding),"newCode" to code(id(binding))),token)
         call("GET","/me",token=token,status=401)
         val boundToken=wechatToken()
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
         val passwordProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),boundToken)
+        val verifyPath="/me/email-challenges/${id(passwordProof)}/verification"
+        val verifyInput=mapOf("purpose" to "CHANGE_PASSWORD","code" to code(id(passwordProof)))
+        val stranger=student()
+        call("POST",verifyPath,verifyInput,stranger.token,409)
+        call("POST",verifyPath,verifyInput + ("purpose" to "CHANGE_EMAIL_OLD"),boundToken,409)
+        val wrongCode=if(verifyInput["code"]=="000000") "999999" else "000000"
+        call("POST",verifyPath,verifyInput + ("code" to wrongCode),boundToken,409)
+        assertEquals(1,jdbc.queryForObject("SELECT failed_attempts FROM email_challenge WHERE id=?",Int::class.java,id(passwordProof)))
+        assertEquals(passwordProof["expiresAt"],call("POST",verifyPath,verifyInput,boundToken)["expiresAt"])
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM email_challenge WHERE id=? AND consumed_at IS NOT NULL",Int::class.java,id(passwordProof)))
         call("PUT","/me/password",mapOf("expectedVersion" to 2,"challengeId" to id(passwordProof),"code" to code(id(passwordProof)),"newPassword" to studentPassword),boundToken)
+        call("GET","/me",token=boundToken,status=401)
         val login=call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
         val currentToken=login["accessToken"].asText()
+        assertTrue(call("GET","/me",token=currentToken)["passwordSet"].asBoolean())
+        call("POST",verifyPath,verifyInput,currentToken,409)
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
         val oldProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_OLD"),currentToken)
+        call("POST","/me/email-challenges/${id(oldProof)}/verification",mapOf("purpose" to "CHANGE_EMAIL_OLD","code" to code(id(oldProof))),currentToken)
         val replacement="${UUID.randomUUID()}@example.test"
         val newProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_NEW","email" to replacement),currentToken)
         call("PUT","/me/email-binding",mapOf("expectedVersion" to 3,"oldChallengeId" to id(oldProof),"oldCode" to code(id(oldProof)),"newChallengeId" to id(newProof),"newCode" to code(id(newProof))),currentToken)
         val finalLogin=call("POST","/auth/sessions",mapOf("email" to replacement,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
         assertEquals(registration["id"],call("GET","/me",token=finalLogin["accessToken"].asText())["id"])
-        call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)
+        assertEquals("邮箱或密码不正确，请检查后重试",call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)["message"].asText())
     }
 
     @Test fun `packaged commands initialize an empty isolated database and bootstrap through a real terminal`() {
@@ -1211,7 +1308,7 @@ class PlatformPostgresTest {
             try {
                 Files.setPosixFilePermissions(config,java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"))
                 Files.writeString(config,json.writeValueAsString(mapOf("environment" to environment,"java" to Path.of(System.getProperty("java.home"),"bin","java").toString(),"jar" to Path.of("target/qanda-backend-1.0.0.jar").toAbsolutePath().toString())))
-                val report=Path.of(".backend-runtime/verification/bootstrap-cli.json");Files.createDirectories(report.parent)
+                val report=evidenceDir.resolve("bootstrap-cli.json");Files.createDirectories(report.parent)
                 val process=ProcessBuilder("python3","scripts/verify-bootstrap-local.py",config.toString()).redirectErrorStream(true).redirectOutput(report.toFile()).start()
                 if(!process.waitFor(180,java.util.concurrent.TimeUnit.SECONDS)) {
                     process.descendants().forEach { it.destroyForcibly() };process.destroyForcibly()
@@ -1257,16 +1354,21 @@ class PlatformPostgresTest {
         val wrongSummary=call("GET","/me/question-collections/summary?kind=WRONG",token=s.token)
         assertEquals(6,wrongSummary["total"].asInt());assertEquals(6,wrongSummary["wrongCount"].asInt());assertEquals(0,wrongSummary["repeatCount"].asInt())
         val overview=call("GET","/me/learning-overview",token=s.token)
-        assertEquals(6,overview["answeredCount"].asInt());assertEquals(6,overview["wrongCount"].asInt());assertEquals(7,overview["favoriteCount"].asInt())
+        assertEquals(7,overview["answeredCount"].asInt());assertEquals(6,overview["wrongCount"].asInt());assertEquals(7,overview["favoriteCount"].asInt())
         assertEquals(1,overview["practiceCount"].asInt());assertTrue(overview["recentSession"].isNull)
         val progressBanks=call("GET","/question-banks?subjectId=${f.subject}&includeProgress=true",token=s.token)
-        assertEquals(7,progressBanks["items"][0]["activeQuestionCount"].asInt());assertEquals(6,progressBanks["items"][0]["progress"]["answeredCount"].asInt())
+        assertEquals(7,progressBanks["items"][0]["activeQuestionCount"].asInt());assertEquals(7,progressBanks["items"][0]["progress"]["answeredCount"].asInt())
         call("GET","/subjects?includeProgress=true",token=s.token)
         val subject=call("GET","/subjects/${f.subject}?includeProgress=true",token=s.token)
-        assertEquals(7,subject["questionCount"].asInt());assertEquals(1,subject["bankCount"].asInt());assertEquals(6,subject["progress"]["answeredCount"].asInt())
+        assertEquals(7,subject["questionCount"].asInt());assertEquals(1,subject["bankCount"].asInt());assertEquals(7,subject["progress"]["answeredCount"].asInt())
         val after=call("GET","/me/question-collections/summary?kind=FAVORITE",token=s.token)
-        assertEquals(6,after["practicedCount"].asInt());assertEquals(1,after["pendingCount"].asInt())
+        assertEquals(7,after["practicedCount"].asInt());assertEquals(0,after["pendingCount"].asInt())
         val repeat=call("GET","/me/wrong-questions?chip=repeat&pageSize=5",token=s.token);assertEquals(0,repeat["total"].asInt())
+        call("PUT","/admin/questions/${extra.first()}",question(f.bank,"SINGLE_CHOICE")+mapOf("status" to "INACTIVE","expectedVersion" to 1))
+        val reduced=call("GET","/question-banks?subjectId=${f.subject}&includeProgress=true",token=s.token)["items"][0]
+        assertEquals(6,reduced["activeQuestionCount"].asInt());assertEquals(6,reduced["progress"]["answeredCount"].asInt())
+        assertEquals(7,call("GET","/me/learning-overview",token=s.token)["answeredCount"].asInt())
+        assertEquals(7,call("GET","/me/question-collections/summary?kind=FAVORITE",token=s.token)["total"].asInt())
     }
 
     @AfterAll fun exportEvidence() {
@@ -1298,7 +1400,7 @@ class PlatformPostgresTest {
             } ?: return@mapNotNull null
             event+mapOf("operationId" to op.third,"requestBody" to redact(event["requestBody"] as? JsonNode),"responseBody" to redact(event["responseBody"] as? JsonNode),"requestHeaders" to ((event["requestHeaders"] as? Map<*,*>) ?: emptyMap<Any,Any>()).mapValues { (key,value) -> if(key=="X-Practice-Writer") "00000000-0000-0000-0000-000000000001" else value })
         }
-        val dir=Path.of(".backend-runtime/verification");Files.createDirectories(dir)
+        val dir=evidenceDir;Files.createDirectories(dir)
         Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))
         Files.writeString(dir.resolve("http-redacted.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(events))
         val tables=jdbc.queryForList("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",String::class.java).map { table -> mapOf(

@@ -83,9 +83,9 @@ node apps/api/scripts/backend.mjs docker-stop
 
 在私有 `.env.backend` 中设置 `BACKEND_MAIL_ENABLED=true`、`BACKEND_MAIL_TRANSPORT=tencent-ses` 和 `BACKEND_SES_SEND_ENABLED=true`。SES 凭据、地域、已验证发信地址及通用验证码模板 ID 存放在仓库外的 `~/.config/qanda/tencent-ses.env`，权限为 `600`，对应字段为 `TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`、`TENCENT_SES_REGION`、`TENCENT_SES_FROM_EMAIL`、`TENCENT_SES_VERIFICATION_TEMPLATE_ID`。
 
-通过 `node apps/api/scripts/backend.mjs docker-up` 启动时，脚本读取私有 SES 配置，Compose 将所需字段注入 API 容器。修改邮件配置后执行该命令重建容器即可生效。出站记录的 `ACCEPTED` 表示服务商受理，实际收件需结合 SES 投递状态和收件箱确认。
+通过 `node apps/api/scripts/backend.mjs docker-up` 启动时，脚本读取私有 SES 配置，Compose 将所需字段注入 API 和消费者容器。独立联调入口 `python3 apps/api/scripts/integration.py up` 同样读取该文件，并使用联调目录中的 `backend.env`。已有进程环境变量优先，私有配置权限必须为 `600`。修改邮件配置后重建对应容器即可生效。出站记录的 `ACCEPTED` 表示服务商受理，实际收件需结合 SES 投递状态和收件箱确认。
 
-API 容器使用 Compose 指定的公共 DNS 解析 SES 域名，数据库仍通过 Docker 内部服务名访问。排查实发失败时同时检查容器内的域名解析与 HTTPS 连通性。
+API 和消费者容器使用 Compose 指定的公共 DNS 解析 SES 域名，数据库仍通过 Docker 内部服务名访问。邮件由消费者投递，排查实发失败时检查实际投递容器内的域名解析与 HTTPS 连通性。
 
 ## 验证与文档
 

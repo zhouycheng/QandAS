@@ -152,7 +152,7 @@ const myBody = `
       ${row('答题偏好', '即时答案')}
       ${row('自定义布局', '默认布局')}
       ${row('邮箱提醒', '已开启')}
-      ${row('关于QandA', '')}
+      ${row('关于 QandA', '')}
     </div>
     <div class="bottom-btn logout-button">退出登录</div>
     <div class="links">
@@ -163,26 +163,15 @@ const myBody = `
   </div>`
 
 const accountBody = `
-  <div class="nav-bar"><div class="nav-back"></div><span class="nav-title">账号管理</span></div>
+  <div class="nav-bar"><div class="nav-back"></div><span class="nav-title">个人资料</span></div>
   <div class="list-page page-with-bottom-bar">
-    <div class="section">
-      <span class="group-title">个人信息</span>
-      <div class="avatar-row">
-        <div class="profile-avatar avatar-sm"><div class="avatar-icon"></div></div>
-        <span class="avatar-label">头像</span>
-        <div class="link-btn"><span class="info-action">更换头像</span>${chevron}</div>
-      </div>
+      <button class="profile-avatar avatar-button" size="mini" aria-label="更换头像"><div class="avatar-icon"></div></button>
       <div class="field">
         <span class="field-label">昵称</span>
         <input class="field-input" value="curry" />
       </div>
-      <div class="field">
-        <span class="field-label">学院 / 单位</span>
-        <input class="field-input" value="计算机科学与技术学院" />
-      </div>
-    </div>
-    <div class="group">
-      <span class="group-title">账号信息</span>
+      ${[['学院', '计算机科学与技术学院'], ['专业', '软件工程'], ['当前年级', '大二']].map(([label, value]) => `<div class="field profile-selector"><span class="field-label">${label}</span><div class="profile-select"><span class="profile-select-value">${value}</span><div class="profile-select-arrow"></div></div></div>`).join('')}
+      <span class="section-note">每年 9 月自动升一级，大四后为已毕业。你可以随时调整。</span>
       <div class="info-item">
         <span class="info-label">绑定邮箱</span>
         <div class="info-line">
@@ -208,7 +197,6 @@ const accountBody = `
         </div>
       </div>
       <span class="section-note">邮箱用于登录、找回密码与接收提醒。</span>
-    </div>
   </div>
   <div class="bottom-bar"><div class="bottom-btn">保存资料</div></div>`
 

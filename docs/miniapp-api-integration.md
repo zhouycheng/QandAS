@@ -1,6 +1,6 @@
 # 小程序接口接入台账
 
-核对日期：2026-11-01。接口集合取自 `apps/api/contracts/openapi.yaml`；逐项以当前 Controller 和小程序页面调用链核对。表中“已接入待验收”表示代码已有真实页面或生命周期调用，真机验收须结合运行记录确认。仅存在导出函数的能力不计为接入。页面请求预算与缓存规则见[页面加载说明](miniapp-page-loading.md)。
+核对日期：2026-11-02。接口集合取自 `apps/api/contracts/openapi.yaml`；逐项以当前 Controller 和小程序页面调用链核对。表中“已接入待验收”表示代码已有真实页面或生命周期调用；“已验收”注明对应环境与证据，真机单独记录。仅存在导出函数的能力不计为接入。页面请求预算与缓存规则见[页面加载说明](miniapp-page-loading.md)。
 
 ## 调用与数据约定
 
@@ -93,31 +93,32 @@
 | `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | 读取学生账号 | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
 | `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | 更新status | 管理端 / 管理员 | — | — | 其他端专用；管理端接入状态见下表 | 独立管理员令牌；Controller + OpenAPI |
 | `GET /api/v1/announcements` | `Operations_announcements_GET` | 公告摘要与分页正文 | 小程序、用户 Web / 学生 | 首页提示；打开弹窗及加载更多 | subject-list → SubjectListViewModel → practice-repository → remote-data-repository.refreshAnnouncements → api-transport | 已接入待验收 | 首页 1 条，弹窗每页 20；60 秒缓存；remote-data 自检及开发者工具遮罩验收 |
-| `POST /api/v1/auth/email-challenges` | `Identity_requestPublicEmailChallenge_POST` | 验证码挑战 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册/找回密码发送验证码 | register/forgot-password → AuthFormViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `POST /api/v1/auth/email-registrations` | `Identity_registerEmail_POST` | 邮箱注册 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册页提交 | register → RegisterViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `POST /api/v1/auth/email-challenges` | `Identity_requestPublicEmailChallenge_POST` | 验证码挑战 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册/找回密码发送验证码 | register/forgot-password → AuthFormViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已验收；隔离流程及指定真实邮箱实发、收件通过 | 版本及幂等规则；ACCOUNT-01、ACCOUNT-02、ACCOUNT-07；首次 SES 消费者 DNS 失败已修复 |
+| `POST /api/v1/auth/email-registrations` | `Identity_registerEmail_POST` | 邮箱注册 | 小程序、用户 Web / 公开挑战/注册或登录 | 注册页提交 | register → RegisterViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已验收；隔离注册及真实邮箱注册通过 | 版本及幂等规则；ACCOUNT-01、ACCOUNT-07；新密码、协议及最终提交由用户完成 |
 | `POST /api/v1/auth/password-resets` | `Identity_resetPassword_POST` | 重置密码 | 小程序、用户 Web / 公开挑战/注册或登录 | 找回密码页提交 | forgot-password → ForgotPasswordViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `POST /api/v1/auth/sessions` | `Identity_login_POST` | 创建学生会话 | 小程序、用户 Web / 公开挑战/注册或登录 | 登录页输入邮箱密码 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `DELETE /api/v1/auth/sessions/current` | `Identity_logout_DELETE` | 撤销当前会话 | 小程序、用户 Web / 学生 | 我的退出登录 | my → MyViewModel → auth-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `POST /api/v1/auth/sessions` | `Identity_login_POST` | 创建学生会话 | 小程序、用户 Web / 公开挑战/注册或登录 | 登录页输入邮箱密码 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已验收；真实邮箱登录及更换邮箱后重新登录 | 版本及幂等规则；ACCOUNT-07、ACCOUNT-09、ACCOUNT-10 |
+| `DELETE /api/v1/auth/sessions/current` | `Identity_logout_DELETE` | 撤销当前会话 | 小程序、用户 Web / 学生 | 我的退出登录 | my → MyViewModel → auth-repository → api-transport | 已验收；实际退出后微信重新登录通过 | 版本及幂等规则；ACCOUNT-08；退出保留按账号隔离的练习草稿 |
 | `POST /api/v1/auth/wechat-registrations` | `Identity_registerWechat_POST` | 注册微信用户 | 小程序、用户 Web / 公开挑战/注册或登录 | 首次微信登录 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `POST /api/v1/auth/wechat-sessions` | `Identity_wechatLogin_POST` | 微信身份交换 | 小程序、用户 Web / 公开挑战/注册或登录 | 登录页微信登录 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
+| `POST /api/v1/auth/wechat-sessions` | `Identity_wechatLogin_POST` | 微信身份交换 | 小程序、用户 Web / 公开挑战/注册或登录 | 登录页微信登录 | login → LoginViewModel → auth-repository → auth-gateway → http-gateway → api-transport | 已验收；正式提供端及真实微信重新登录通过 | 版本及幂等规则；ACCOUNT-08；绑定后返回原用户 ID，账号及学习数据隔离 |
 | `GET /api/v1/colleges` | `Catalog_colleges_GET` | 学院目录 | 小程序、用户 Web / 公开目录 | 账号页打开院校选择器及加载更多 | account → AccountViewModel → remote-data-repository → api-transport | 已接入待验收 | 每页 100；24 小时缓存；账号页进入不预取；remote-data 自检 |
 | `GET /api/v1/colleges/{id}/majors` | `Catalog_majors_GET` | 专业目录 | 小程序、用户 Web / 公开目录 | 个人资料打开专业选择器、加载更多 | account → AccountViewModel → remote-data-repository.loadMajors → api-transport | 已接入待验收 | 停用分类不供新选择；每页 100；旧资料保留 |
 | `GET /api/v1/files/{id}` | `File_read_GET` | 题目及材料附件 | 各端 / 按文件可见性 | 答题与题目详情中的附件组件 | practice/question-detail → ViewModel → question-assets → http-gateway；question-images → question-assets | 已接入待验收 | 完整快照下载后落盘；PNG 校验、账号隔离、去重与最多 4 个并发；question-assets 自检 |
 | `GET /api/v1/health` | `Health_health_GET` | 健康检查 | 各端 / 公开 | — | — | 基础设施接口；由服务健康检查调用 | 保持状态及版本字段兼容；Controller + OpenAPI |
-| `GET /api/v1/me` | `Identity_me_GET` | 读取账号资料 | 小程序、用户 Web / 学生 | 我的/账号页缓存过期更新；登录后读取 | my/account → MyViewModel/AccountViewModel → remote-data-repository → api-transport；登录 → auth-gateway | 已接入待验收 | 5 分钟缓存；可选院校/专业名称；资料编辑与账号隔离自检 |
+| `GET /api/v1/me` | `Identity_me_GET` | 读取账号资料 | 小程序、用户 Web / 学生 | 我的/账号页缓存过期更新；登录后读取 | my/account → MyViewModel/AccountViewModel → remote-data-repository → api-transport；登录 → auth-gateway | 已验收；头像、昵称及邮箱等状态一致 | 5 分钟缓存；可选头像、院校/专业名称；ACCOUNT-04、ACCOUNT-07 至 ACCOUNT-12；资料草稿与账号隔离 |
 | `POST /api/v1/me/activity/heartbeat` | `Identity_heartbeat_POST` | 前台在线与访问活跃 | 小程序、用户 Web / 学生 | 登录成功、App.onShow、前台每 60 秒 | App → activity-heartbeat → api-transport | 已接入待验收 | 学生会话；退后台停发；无离线补传；activity-heartbeat 自检与隔离 PG |
 | `GET /api/v1/me/course-requests` | `Operations_requests_GET` | 缺课需求处理结果 | 小程序、用户 Web / 学生 | 我的 → 反馈记录 → 课程需求分页 | feedback → FeedbackViewModel → feedback-repository.list → api-transport | 已接入待验收 | 每页 20；按用户读取，拒收旧账号响应 |
 | `POST /api/v1/me/course-requests` | `Operations_requestCourse_POST` | 提交缺课需求 | 小程序、用户 Web / 学生 | 无匹配题库 → 反馈缺少课程 | bank-detail → feedback-entry → feedback → FeedbackViewModel → feedback-repository.submit → api-transport | 已接入待验收 | 原内容幂等重试；提交后查看处理结果；feedback 自检 |
-| `PUT /api/v1/me/email-binding` | `Identity_changeEmail_PUT` | 更新邮箱绑定 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
-| `POST /api/v1/me/email-challenges` | `Identity_requestOwnEmailChallenge_POST` | 创建邮箱验证码挑战 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
+| `PUT /api/v1/me/email-binding` | `Identity_changeEmail_PUT` | 绑定或更换邮箱 | 小程序、用户 Web / 学生 | 个人资料 → 邮箱 → 验证原邮箱 → 新邮箱及验证码 → 确认 | account-security → AccountSecurityViewModel.submit → AccountSecurityRepository.email → http-gateway.changeOwnEmail | 已验收；用户完成更换并使用新邮箱登录原账号 | 验证新旧邮箱；业务版本、幂等、成功后会话失效；ACCOUNT-10、account-security 自检与隔离 PG |
+| `POST /api/v1/me/email-challenges` | `Identity_requestOwnEmailChallenge_POST` | 当前账号的邮箱验证码 | 小程序、用户 Web / 学生 | 个人资料 → 邮箱/密码 → 发送验证码 | account-security → AccountSecurityViewModel.sendCode → AccountSecurityRepository.issue → http-gateway.requestOwnEmailChallenge | 已验收；Mailpit 及真实 SES 身份验证邮件通过 | 用途隔离，成功后启动倒计时，超时原键重试；ACCOUNT-05、ACCOUNT-09 |
+| `POST /api/v1/me/email-challenges/{id}/verification` | `Identity_verifyOwnEmailChallenge_POST` | 验证当前邮箱后进入下一步 | 小程序、用户 Web / 学生 | 密码或更换邮箱页面 → 验证并继续 | account-security → AccountSecurityViewModel.submit → AccountSecurityRepository.verify → http-gateway.verifyOwnEmailChallenge | 已验收；错误码留在原页，正确码进入下一步 | 校验归属、用途、凭据版本、次数、有效期；不消费验证码，最终写入再校验并消费；ACCOUNT-05 |
 | `GET /api/v1/me/favorites` | `Discovery_favorites_GET` | 分页收藏列表、全量集合管理 | 小程序、用户 Web / 学生 | 收藏本筛选/排序/翻页；清空操作逐页读取 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection/clearFavorites → api-transport | 已接入待验收 | 每页 5；来源名称、practiced 可选；30 秒缓存；分页统计 PostgreSQL 验收 |
 | `DELETE /api/v1/me/favorites/{id}` | `Discovery_unfavorite_DELETE` | 取消收藏 | 小程序、用户 Web / 学生 | 答题/详情取消收藏及收藏本管理 | practice/question-detail/wrong-book → 对应 ViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `PUT /api/v1/me/favorites/{id}` | `Discovery_favorite_PUT` | 收藏题目 | 小程序、用户 Web / 学生 | 答题或题目详情收藏 | practice/question-detail → 对应 ViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `GET /api/v1/me/learning-overview` | `Learning_overview_GET` | 学习、目录计数和可续答摘要 | 小程序、用户 Web / 学生 | 首页/复盘刷新；设置复用已有摘要 | subject-list/stats → 对应 ViewModel → practice-repository → remote-data-repository.refreshOverview → api-transport | 已接入待验收 | v1.0 新增能力；30 秒缓存；首页 2 请求自检、PostgreSQL 聚合验收 |
-| `PUT /api/v1/me/password` | `Identity_changePassword_PUT` | 更新密码 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
+| `PUT /api/v1/me/password` | `Identity_changePassword_PUT` | 设置或更改登录密码 | 小程序、用户 Web / 学生 | 个人资料 → 密码 → 验证当前邮箱 → 更改密码 | account-security → AccountSecurityViewModel.submit → AccountSecurityRepository.password → http-gateway.changeOwnPassword | 已验收；用户完成真实邮箱验证和新密码提交，旧会话撤销、新会话建立 | 8–16 位且含字母与数字，业务版本及幂等；成功后撤销原会话，保留学习草稿；ACCOUNT-09 与隔离 PG |
 | `GET /api/v1/me/practice-history` | `Learning_history_GET` | 读取练习历史 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `GET /api/v1/me/practice-history/{id}` | `Learning_record_GET` | 读取练习历史 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `PUT /api/v1/me/profile` | `Identity_updateProfile_PUT` | 保存昵称、学院、专业和当前年级 | 小程序、用户 Web / 学生 | 注册或登录后完善资料；个人资料自由修改 | account → AccountViewModel → remote-data-repository → api-transport | 已接入待验收 | 业务版本；手动年级重设学年；保存后刷新范围并拒收旧响应 |
+| `PUT /api/v1/me/profile` | `Identity_updateProfile_PUT` | 保存头像、昵称、学院、专业和当前年级 | 小程序、用户 Web / 学生 | 注册或登录后完善资料；个人资料自由修改、选择微信头像与昵称 | account → AccountViewModel → remote-data-repository → api-transport | 已验收；账户头像昵称持久保存，专业切换刷新题库范围 | 可选 avatar 为经校验的 JPEG/PNG，64 KiB、最大 256px；省略保留原图；业务版本及范围刷新；ACCOUNT-04、ACCOUNT-07、ACCOUNT-12、BANK-07 |
 | `GET /api/v1/me/question-collections/summary` | `Learning_collectionSummary_GET` | 集合计数、筛选计数与科目/题库分布 | 小程序、用户 Web / 学生 | 错题本/收藏本统计卡及筛选项 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection → api-transport | 已接入待验收 | kind=WRONG 或 FAVORITE；全集合统计，30 秒缓存；7 条集合分页 5+2 的 PostgreSQL 验收 |
 | `GET /api/v1/me/question-feedback` | `Operations_feedback_GET` | 题目纠错处理结果 | 小程序、用户 Web / 学生 | 我的 → 反馈记录 → 题目纠错分页 | feedback → FeedbackViewModel → feedback-repository.list → api-transport | 已接入待验收 | 每页 20；按用户读取，展示管理员回复 |
 | `POST /api/v1/me/question-feedback` | `Operations_submitFeedback_POST` | 提交题目纠错 | 小程序、用户 Web / 学生 | 答题工具栏、题目详情 → 纠错 | practice/question-detail → ViewModel → feedback-entry → FeedbackViewModel → feedback-repository.submit → api-transport | 已接入待验收 | 携带稳定题目与修订 ID；原内容幂等重试 |
@@ -131,13 +132,13 @@
 | `GET /api/v1/me/subjects` | `Discovery_courses_GET` | 读取课程 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `DELETE /api/v1/me/subjects/{id}` | `Discovery_removeCourse_DELETE` | 删除或撤销课程 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `PUT /api/v1/me/subjects/{id}` | `Discovery_saveCourse_PUT` | 更新课程 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
-| `PUT /api/v1/me/wechat-binding` | `Identity_bindWechat_PUT` | 更新微信绑定 | 小程序、用户 Web / 学生 | — | — | 无完整操作入口；账号页提示/找回密码不等于绑定或改密流程，后续补验证码及确认表单 | 保持当前合同；Controller + OpenAPI |
+| `PUT /api/v1/me/wechat-binding` | `Identity_bindWechat_PUT` | 绑定当前微信身份 | 小程序 / 学生 | 个人资料 → 微信绑定 → 确认 | account → AccountViewModel.bindWechat → AccountSecurityRepository → auth-repository.requestWechatCode / http-gateway.bindOwnWechat | 已验收；真实绑定及微信重新登录通过，资料页直接确认由自检覆盖 | wx.login 临时凭证，原键重试，跨账号绑定冲突；身份绑定与账户头像昵称分别保存；绑定后刷新 /me；ACCOUNT-08、ACCOUNT-12 |
 | `GET /api/v1/me/wrong-questions` | `Learning_wrong_GET` | 分页错题列表 | 小程序、用户 Web / 学生 | 错题本筛选/排序/翻页 | wrong-book → WrongBookViewModel → practice-repository → remote-data-repository.refreshCollection → api-transport | 已接入待验收 | 每页 5；chip/sort 可选；30 秒缓存；分页统计 PostgreSQL 验收 |
 | `GET /api/v1/me/wrong-questions/{id}/history` | `Learning_wrongHistory_GET` | 读取历次答题记录 | 小程序、用户 Web / 学生 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
 | `POST /api/v1/practice/scope-preview` | `Practice_preview_POST` | 预览实际选题范围 | 小程序、用户 Web / 学生、游客 | 题库开始、首页模拟考试、错题或收藏重练 | bank-detail/subject-list/wrong-book → ViewModel → practice-repository.previewRemotePracticeScope → remote-data-repository → api-transport | 已接入待验收 | 完整题组、实际题数、选题 ID 与内容版本复用于创建；资料变更拒收迟到响应 |
 | `POST /api/v1/practice/sessions` | `Practice_create_POST` | 创建配置及题目快照 | 小程序、用户 Web / 学生 | 题库配置确认/首页模拟练习/错题收藏练习 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | selectionKind/collectionChip 由后端确定完整范围；快照附带收藏 ID；列表 5 条可创建 7 题，PostgreSQL 验收 |
 | `GET /api/v1/practice/sessions/{id}` | `Practice_read_GET` | 读取会话 | 小程序、用户 Web / 学生 | 恢复云端练习 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
-| `POST /api/v1/practice/sessions/{id}/cancel` | `Practice_cancel_POST` | 创建取消练习 | 小程序、用户 Web / 学生 | — | — | 无入口；离开页面保留草稿，显式取消练习入口待补 | 保持当前合同；Controller + OpenAPI |
+| `POST /api/v1/practice/sessions/{id}/cancel` | `Practice_cancel_POST` | 结束背题练习 | 小程序、用户 Web / 学生 | 背题末页返回题库 | practice → PracticeViewModel → practice-repository → online-practice → api-transport | 已验收；背题结束为 CANCELLED，无正式成绩 | 持久保存关闭意图，网络恢复重试原键；PRACTICE-01 |
 | `POST /api/v1/practice/sessions/{id}/finish` | `Practice_finish_POST` | 后端判题与正式结果 | 小程序、用户 Web / 学生 | 交卷及联网后补交 | practice → PracticeViewModel → online-practice → practice-sync-queue/api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `PUT /api/v1/practice/sessions/{id}/items/{itemId}/self-assessment` | `Practice_assess_PUT` | 保存自评结果 | 小程序、用户 Web / 学生 | 简答题自评同步 | practice → PracticeViewModel → online-practice → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
 | `PUT /api/v1/practice/sessions/{id}/progress-ack` | `Practice_progressAck_PUT` | 同步等待落库确认 | 小程序、用户 Web / 学生 | — | — | 无入口；保留原成功即落库合同，当前小程序使用异步命令 | 同一队列，超时原键重试；隔离 PostgreSQL/RabbitMQ 验收 |
@@ -149,7 +150,7 @@
 | `POST /api/v1/practice/trial-snapshots` | `Practice_trialSnapshot_POST` | 下载公开题库试答快照 | 小程序、用户 Web / 游客 | 题库配置或模拟考试开始试答 | practice → PracticeViewModel.loadTrial → trial-practice.prepare → http-gateway/api-transport | 已接入待验收 | v1.0 新增只读能力；配置、修订、题序与独立判题数据；四题型、存储失败及 PostgreSQL 游客验收 |
 | `GET /api/v1/question-banks` | `Content_banks_GET` | 已发布题库目录 | 小程序、用户 Web / 学生、游客 | 题库页当前科目/搜索/翻页；模拟练习选择题库 | bank-detail/subject-list → 对应 ViewModel → practice-repository → remote-data-repository.refreshBanks → api-transport | 已接入待验收 | 每页 20；includeProgress 可选，批量计数；5 分钟缓存；SQL 与分页验收 |
 | `GET /api/v1/question-banks/{id}` | `Content_bank_GET` | 获取内容版本和题量 | 小程序、用户 Web / 学生、游客 | 目标题库配置、直达练习及最近练习元数据缺失时 | bank-detail/subject-list/practice → 对应 ViewModel → practice-repository/online-practice → remote-data-repository.loadBank/api-transport | 已接入待验收 | 按 ID 读取元数据；内容版本用于创建校验；保持默认字段行为 |
-| `GET /api/v1/question-banks/{id}/chapters` | `Content_chapters_GET` | 读取章节 | 小程序、用户 Web / 学生、游客 | — | — | 无入口；按业务补充入口后接入 | 保持当前合同；Controller + OpenAPI |
+| `GET /api/v1/question-banks/{id}/chapters` | `Content_chapters_GET` | 读取题库章节 | 小程序、用户 Web / 学生、游客 | 题库 → 打开答题配置 | bank-detail → BankDetailViewModel → practice-repository.loadRemoteChapters → remote-data-repository.loadChapters → api-transport | 已验收；章节选择与新练习范围对应 | 按需读取；目录强刷失效章节缓存；BANK-02、BANK-06 |
 | `GET /api/v1/question-banks/{id}/questions` | `Content_questions_GET` | 读取题目 | 小程序、用户 Web / 学生、游客 | — | — | 无入口；按业务补充入口后接入 | 默认完整响应；可选 view=summary；摘要不取答案/解析/选项，PostgreSQL 验收 |
 | `GET /api/v1/questions` | `Content_search_GET` | 分页搜索题目摘要 | 小程序、用户 Web / 学生、游客 | 首页搜索关键词和加载更多 | subject-list → SubjectListViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 每页 20；view=summary；300 ms 输入合并；迟到结果忽略；remote-data 自检 |
 | `GET /api/v1/questions/{id}` | `Content_question_GET` | 读取题目正文 | 小程序、用户 Web / 学生、游客 | 错题/收藏进入题目详情 | question-detail → QuestionDetailViewModel → practice-repository → remote-data-repository → api-transport | 已接入待验收 | 版本及幂等规则；页面调用链，定向 Node 自检，待客户端真实业务验收 |
@@ -163,7 +164,7 @@
 | `GET /api/v1/admin/sync/dead-letters/head` | `SyncRecovery_head_GET` | 查看死信元数据 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 只读查看，消息保留；空队列 item=null |
 | `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 受控死信处理 | 管理端 / 平台管理员 | — | — | 其他端专用；管理端接入状态见下表 | 原正文摘要校验，发布确认，幂等审计，已完成重复清理 |
 
-当前合同合计 **136** 项操作。小程序有真实调用入口 **46** 项，状态为“已接入待验收”；管理端专用 **71** 项、无完整小程序入口 **18** 项、基础设施接口 **1** 项。方法、路径及 operationId 的集合逐项对齐合同。正式客户端联调另行验收。
+当前合同合计 **137** 项操作。小程序有真实调用入口 **53** 项；管理端专用 **71** 项、无完整小程序入口 **12** 项、基础设施接口 **1** 项。方法、路径及 operationId 的集合逐项对齐合同。各项页面证据见[三端联调记录](three-client-integration.md)。
 
 ## 小程序能力与接口缺口
 
@@ -285,8 +286,9 @@
 | `/auth/sessions`、`/me`、`/subjects`、`/question-banks` | 小程序真实登录、首页与题库加载；失效后登录引导及重新登录 |
 | `/practice/scope-preview`、`/practice/sessions`、进度命令与回执、`finish`、`result` | 实际答题与正式结果；独立 HTTP 检查排队、幂等、交卷屏障、恢复与简答自评 |
 | `/admin/auth/sessions`、`/admin/auth/me`、`/admin/administrators` 的 GET/POST | 管理端真实登录、管理员列表、创建及新账号独立登录 |
-| `/announcements`、`/admin/announcements` | 已发布样例读取及管理端列表；编辑、撤下界面待逐项复测 |
-| `/me/question-feedback`、`/admin/question-feedback` | HTTP 验证学生提交、管理员处理和处理结果回传；客户端表单待复测 |
-| `/me/activity/heartbeat`、活跃度、排行、在线明细及监控 | 真实小程序心跳与管理端展示；HTTP 覆盖三种排行榜排序和暂停消费者后的 SSE 排队变化 |
+| `/announcements`、`/admin/announcements` | 页面完成发布、修改、撤下；Markdown 公告两端实际渲染通过 |
+| `/me/question-feedback`、`/admin/question-feedback`、缺课需求 | 页面完成学生提交、管理员回复、学生查看结果 |
+| `/me/activity/heartbeat`、活跃度、排行、在线明细及监控 | 页面验证三种排序、四个周期、筛选、在线分页 20+1、跨设备去重、SSE 重连与权限失效；队列暂停及死信恢复通过 |
+| `/me/email-challenges`、`verification`、`password`、`email-binding`、`wechat-binding` | 个人资料三个入口已接入；真实邮箱验证、修改密码、更换邮箱、官方微信绑定及重新登录通过 |
 
-自动验收覆盖 136 个接口的 953 次 HTTP 观察；界面验收以本节具体操作为准。微信真机与其他页面交互继续保留待验收状态。
+最新自动验收覆盖 137 个接口的 1023 次 HTTP 观察；界面验收以具体用例为准。指定真实邮箱注册、修改密码、更换邮箱、官方微信绑定及重新登录已通过；微信真机继续保留待验收状态。

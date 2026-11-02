@@ -35,6 +35,7 @@ services:
   worker:
     image: ${BACKEND_IMAGE:-qanda-backend:dev}
     env_file: ${BACKEND_ENV_FILE:-.env.backend}
+    dns: ["223.5.5.5", "1.1.1.1"]
     environment:
       <<: *backend_environment
       BACKEND_ROLE: worker
