@@ -15,7 +15,7 @@ export function UsersPage() {
   const query = useQuery({ queryKey: ['users', filter], queryFn: () => gateway.listUsers(filter) })
   const save = useMutation({ mutationFn: (row: ManagedUser) => gateway.setUserStatus(row.id, row.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED', row.version), onSuccess: () => { void client.invalidateQueries({ queryKey: ['users'] }); Message.success('账号状态已更新') }, onError: error => Message.error(error.message) })
   const update = (patch: UserQuery) => setFilter({ ...filter, ...patch, page: 1 })
-  return <section aria-label="用户管理"><Space wrap>
+  return <section className="list-page" aria-label="用户管理"><Space className="list-toolbar" wrap>
     <Input.Search aria-label="搜索用户" placeholder="昵称、账号或邮箱" value={filter.keyword} onChange={keyword => update({ keyword })} allowClear />
     <ResourceSelect kind="college" placeholder="全部学院" value={filter.collegeId} onChange={value => update({ collegeId: String(value || '') || undefined, majorId: undefined })} />
     <ResourceSelect kind="major" placeholder="全部专业" collegeId={filter.collegeId} value={filter.majorId} onChange={value => update({ majorId: String(value || '') || undefined })} />

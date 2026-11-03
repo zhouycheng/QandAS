@@ -189,7 +189,7 @@
     display: block;
   }
   .admin-header {
-    padding: 0 14px;
+    padding: 0 16px;
     height: 60px;
   }
   .admin-header .arco-breadcrumb {
@@ -199,7 +199,7 @@
     display: none;
   }
   .admin-content {
-    padding: 22px 14px;
+    padding: 16px;
   }
   .page-title {
     gap: 14px;
@@ -214,11 +214,14 @@
   .page-title > .arco-btn {
     min-width: 90px;
   }
-  .arco-card-body {
-    padding: 18px 14px;
+  .arco-card-size-default > .arco-card-body {
+    padding: 12px 16px 16px;
   }
-  .arco-card-header {
-    padding: 18px 14px 10px;
+  .arco-card-size-default > .arco-card-body:first-child {
+    padding-top: 16px;
+  }
+  .arco-card-size-default > .arco-card-header {
+    padding: 16px 16px 10px;
   }
   .stats-grid {
     gap: 10px;

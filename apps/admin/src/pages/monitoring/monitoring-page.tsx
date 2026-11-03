@@ -37,7 +37,7 @@ export function MonitoringPage() {
     } catch (error) { Message.error(getErrorMessage(error)) }
     finally { setReviewing(false) }
   }
-  return <section aria-label="系统监控">
+  return <section className="page-stack" aria-label="系统监控">
     <Space className="section-gap" wrap><Tag color={stale ? 'orange' : 'green'}>{visible ? statusLabels[status] : '已暂停'}</Tag><span className="muted">采样：{snapshot?.sampledAt ? new Date(snapshot.sampledAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'} · 速率窗口 {snapshot?.windowSeconds ?? 60} 秒</span><Button onClick={() => { setAttempt(a => a + 1); void health.refetch() }}>重新连接</Button></Space>
     {(stale || snapshot?.reason) && <Alert type="warning" content={stale ? '数据已过期，显示最近成功采样；连接恢复后自动更新。' : snapshot?.reason} />}
     <div className="compact-metrics sync-metrics">
@@ -61,7 +61,7 @@ export function MonitoringPage() {
       <p className="muted">上方显示各服务的连接状态，下方可查看请求耗时和失败次数。</p>
     </Card>
     <Card title="接口健康" bordered={false} className="section-gap">
-      <Table rowKey={row => row.method + row.path} data={health.data?.endpoints ?? []} pagination={{ pageSize: 20 }} columns={[
+      <Table scroll={{ x: 760 }} rowKey={row => row.method + row.path} data={health.data?.endpoints ?? []} pagination={{ pageSize: 20 }} columns={[
         { title: '方法', dataIndex: 'method', width: 90 }, { title: '接口', dataIndex: 'path' },
         { title: '请求/秒', render: (_, row) => number(row.requestsPerSecond, 2) }, { title: '服务错误/秒', render: (_, row) => number(row.errorsPerSecond, 2) },
         { title: '95% 请求耗时（秒）', render: (_, row) => number(row.p95Seconds, 3) },

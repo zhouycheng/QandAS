@@ -15,8 +15,8 @@ export function CourseAccessDrawer({ subject, onClose }: { subject: Subject; onC
   return <Drawer visible title={subject.name + ' · 单独开放'} width={680} onCancel={onClose} footer={null}>
     <p>向指定学生开放整门课程，包含以后新增的已发布题库。学生可继续自由修改个人资料。</p>
     {(query.error || course.error || save.error) && <Alert type="error" content={(query.error || course.error || save.error)?.message} action={<Button onClick={() => { void query.refetch(); void course.refetch(); save.reset() }}>刷新重试</Button>} />}
-    <Space><ResourceSelect kind="user" placeholder="选择学生账号" value={userId} onChange={value => setUserId(String(value || ''))} /><Button type="primary" disabled={!userId} loading={save.isPending} onClick={() => save.mutate({ id: userId!, remove: false })}>添加</Button></Space>
-    <Table rowKey="userId" data={query.data?.items ?? []} loading={query.isFetching} pagination={{ current: page, pageSize: 20, total: query.data?.total ?? 0, onChange: setPage }} columns={[
+    <Space className="list-toolbar list-toolbar-separated" wrap><ResourceSelect kind="user" placeholder="选择学生账号" value={userId} onChange={value => setUserId(String(value || ''))} /><Button type="primary" disabled={!userId} loading={save.isPending} onClick={() => save.mutate({ id: userId!, remove: false })}>添加</Button></Space>
+    <Table scroll={{ x: 660 }} rowKey="userId" data={query.data?.items ?? []} loading={query.isFetching} pagination={{ current: page, pageSize: 20, total: query.data?.total ?? 0, onChange: setPage }} columns={[
       { title: '昵称', dataIndex: 'nickname' }, { title: '账号', dataIndex: 'accountCode' }, { title: '开放时间', dataIndex: 'createdAt' }, { title: '操作', render: (_, row) => <Button type="text" status="warning" disabled={save.isPending} onClick={() => save.mutate({ id: row.userId, remove: true })}>撤销开放</Button> },
     ]} />
   </Drawer>
