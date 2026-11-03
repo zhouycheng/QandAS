@@ -8,6 +8,7 @@ import java.time.Instant
 import java.util.UUID
 
 @Mapper interface IdentityMapper {
+    fun testAccountAccess(@Param("id") id: UUID): TestAccountAccess?
     fun userByEmail(@Param("email") email: String): UserAccount?
     fun lockUser(@Param("id") id: UUID): UserAccount?
     fun lockAdmin(@Param("id") id: UUID): AdminAccount?

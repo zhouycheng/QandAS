@@ -18,7 +18,7 @@ import java.util.UUID
 @Transactional
 class AdminService(private val rows: AdminAccountMapper,private val sessionRows: AdminSessionMapper,private val policies: SecurityPolicyMapper,
                    private val sql: AdminQueries,private val identity: IdentityMapper,private val users: UserAccountMapper,
-                   private val identityViews: IdentityService,private val audit: AuditReader,
+                   private val testAccounts: TestAccountService,private val identityViews: IdentityService,private val audit: AuditReader,
                    private val crypto: IdentityCrypto,private val attempts: LoginAttempts,private val clock: Clock) {
     fun view(row: AdminAccount)=AdminView(row.id!!,row.username,row.name,row.role,if(row.status=="INACTIVE") "DISABLED" else row.status,row.version,row.createdAt,row.lastLoginAt)
     fun current(actor: Actor): AdminView = view(rows.selectById(actor.id) ?: missing())
@@ -90,6 +90,10 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
     }
     fun userStatus(id: UUID,input: AccountStatusInput): MutationResult {
         if(input.status !in setOf("ACTIVE","DISABLED")) invalid("/status")
+        if(identity.testAccountAccess(id)!=null) {
+            if(input.status=="ACTIVE") conflict("TEST_ACCOUNT_INACTIVE","测试账号不能重新启用")
+            return testAccounts.disable(id,input.expectedVersion)
+        }
         val row=identity.lockUser(id) ?: missing();requireVersion(input.expectedVersion,row.version)
         row.status=input.status;row.version++;row.credentialVersion++;row.updatedAt=clock.instant();users.updateById(row);identity.revokeUserSessions(id)
         return MutationResult(id,row.version)

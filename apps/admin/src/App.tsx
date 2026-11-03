@@ -21,6 +21,7 @@ const BankWorkspacePage = lazy(() =>
 )
 const ActivityPage = lazy(() => import('./pages/activity/activity-page').then(m => ({ default: m.ActivityPage })))
 const MonitoringPage = lazy(() => import('./pages/monitoring/monitoring-page').then(m => ({ default: m.MonitoringPage })))
+const TestAccountsPage = lazy(() => import('./pages/operations/test-accounts-page').then(m => ({ default: m.TestAccountsPage })))
 const UsersPage = lazy(() => import('./pages/operations/users-page').then(m => ({ default: m.UsersPage })))
 const FeedbackPage = lazy(() => import('./pages/operations/feedback-page').then(m => ({ default: m.FeedbackPage })))
 const AnnouncementsPage = lazy(() => import('./pages/operations/announcements-page').then(m => ({ default: m.AnnouncementsPage })))
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/monitoring" element={<MonitoringPage />} />
           <Route path="/colleges" element={<CollegesPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/test-accounts" element={<TestAccountsPage />} />
           <Route path="/announcements" element={<AnnouncementsPage />} />
           <Route path="/administrators" element={<AdministratorsPage />} />
           <Route path="/security" element={<SecurityPage />} />

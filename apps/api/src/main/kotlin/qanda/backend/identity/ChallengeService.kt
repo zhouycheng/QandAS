@@ -21,12 +21,14 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
 
     fun issue(input: ChallengeInput, actorId: UUID?): ChallengeView {
         val user=actorId?.let { users.selectById(it) ?: unauthenticated() }
+        if(actorId!=null && sql.testAccountAccess(actorId)!=null) fixedTestCredentials()
         val address=when(input.purpose) {
             "REGISTER","RESET_PASSWORD" -> { if(user!=null) invalid("purpose"); email(input.email ?: invalid("email")) }
             "BIND_EMAIL","CHANGE_EMAIL_NEW" -> { if(user==null) unauthenticated();email(input.email ?: invalid("email")) }
             "CHANGE_PASSWORD","CHANGE_EMAIL_OLD" -> email(user?.email ?: invalid("email"))
             else -> invalid("purpose")
         }
+        if(address.key.endsWith("@qanda.invalid")) fixedTestCredentials()
         system.lock("email:${address.key}")
         sql.recentChallenge(address.key)?.let { if(it.plusSeconds(60).isAfter(clock.instant())) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请稍后再发送",details=ErrorDetails(retryAfterSeconds=60)) }
         val owner=sql.userByEmail(address.key)

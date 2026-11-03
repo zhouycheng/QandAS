@@ -4,7 +4,7 @@ import uuid
 from urllib.parse import urlencode
 from contracts import Contracts, ROOT
 
-ALIASES = {"question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "email-registrations": "userId", "wechat-registrations": "userId", "finish": "resultId"}
+ALIASES = {"test-accounts": "testAccountId", "question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "email-registrations": "userId", "wechat-registrations": "userId", "finish": "resultId"}
 
 
 def main():
@@ -27,6 +27,8 @@ def main():
             result = {key: sample(value, owner, key) for key, value in schema.get("properties", {}).items() if key in schema.get("required", [])}
             if "type" in schema.get("properties", {}) and "stem" in schema.get("properties", {}):
                 result.update(type="SINGLE_CHOICE", stem="示例题干", options=[{"key": "A", "content": "选项甲"}, {"key": "B", "content": "选项乙"}], correctAnswer=["A"], explanation="示例解析")
+            if "validDays" in schema.get("properties", {}):
+                result.update(validDays=7, includeInStatistics=False)
             if "selectionKind" in schema.get("properties", {}):
                 result.update(count=1, order="SEQUENTIAL", selectionKind="NORMAL")
             return result

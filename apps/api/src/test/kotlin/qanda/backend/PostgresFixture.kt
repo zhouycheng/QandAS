@@ -44,6 +44,7 @@ abstract class PostgresFixture {
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql"),"/docker-entrypoint-initdb.d/003-profile-setup.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__TestAccounts.sql"),"/docker-entrypoint-initdb.d/004-test-accounts.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
@@ -81,7 +82,7 @@ abstract class PostgresFixture {
             r.add("spring.datasource.url") { postgres.jdbcUrl };r.add("spring.datasource.username") { postgres.username };r.add("spring.datasource.password") { postgres.password }
             r.add("qanda.backend.mode") { "test" };r.add("server.address") { "127.0.0.1" }
             r.add("BACKEND_WECHAT_PROVIDER") { "local" };r.add("BACKEND_COMMAND_DIGEST_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_MAC_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_RATE_KEY") { key }
-            r.add("BACKEND_MAIL_ENCRYPTION_KEYS") { "1:$key" };r.add("qanda.backend.mail.enabled") { true };r.add("qanda.backend.mail.transport") { "local-capture" }
+            r.add("BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS") { "1:$key" };r.add("BACKEND_MAIL_ENCRYPTION_KEYS") { "1:$key" };r.add("qanda.backend.mail.enabled") { true };r.add("qanda.backend.mail.transport") { "local-capture" }
             r.add("qanda.backend.mail.host") { "127.0.0.1" };r.add("qanda.backend.mail.port") { mailpit.getMappedPort(1025) };r.add("qanda.backend.mail.dispatch-enabled") { false }
             r.add("qanda.backend.files.enabled") { true };r.add("qanda.backend.files.root") { assetRoot.toString() }
             r.add("springdoc.api-docs.enabled") { true };r.add("springdoc.swagger-ui.enabled") { true }

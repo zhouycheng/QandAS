@@ -18,7 +18,8 @@ data class UserView(val id: UUID, val accountCode: String, val nickname: String,
                     val collegeId: UUID?, val majorId: UUID?, val currentGrade: Int?, val status: String, val version: Long, val registeredAt: Instant,val collegeName: String?=null,val majorName: String?=null,
                     val academicYear: Int, val profileComplete: Boolean, val passwordSet: Boolean = false,
                     @field:Schema(description="账户头像，JPEG 或 PNG data URI，图片不超过 64 KiB、256×256 像素",maxLength=87407) val avatarUrl: String? = null,
-                    @field:Schema(description="账号已展示过首次学习资料引导") val profileSetupSeen: Boolean = false)
+                    @field:Schema(description="账号已展示过首次学习资料引导") val profileSetupSeen: Boolean = false,
+                    @field:Schema(description="系统生成的学生测试账号") val isTestAccount: Boolean = false)
 data class ProfileInput(val expectedVersion: Long, val nickname: String, val collegeId: UUID? = null, val majorId: UUID? = null,
                         @field:Schema(description="当前年级：1 大一，2 大二，3 大三，4 大四，5 已毕业；省略时保留年级锚点") val currentGrade: Int? = null,
                         @field:Schema(description="账户头像，JPEG 或 PNG data URI；图片不超过 64 KiB、256×256 像素；省略时保留已有头像",maxLength=87407) val avatar: String? = null)

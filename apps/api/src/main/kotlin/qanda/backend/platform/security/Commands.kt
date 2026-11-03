@@ -15,6 +15,9 @@ data class Actor(val id: UUID, val sessionId: UUID, val kind: String, val client
 @Service
 class Commands(private val sql: SystemMapper, private val receipts: CommandReceiptMapper, private val audit: AuditLogMapper,
                private val digests: CommandDigests, private val json: ObjectMapper, private val sessions: Sessions) {
+    fun recordAdminRead(adminId: UUID,operation: String,requestId: UUID) {
+        audit.insert(AuditLog().apply { id=UUID.randomUUID();actorAdminId=adminId;this.operation=operation;this.requestId=requestId })
+    }
     @Transactional
     fun <T: Any> run(actor: Actor?, key: UUID, operation: String, input: Any, resultType: Class<T>, requestId: UUID, work: () -> T): T {
         actor?.let { sessions.checkInTransaction(it) }

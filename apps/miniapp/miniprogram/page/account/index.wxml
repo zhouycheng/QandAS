@@ -54,8 +54,8 @@
       <text class="info-label">绑定邮箱</text>
       <view class="info-line">
         <text class="info-value">{{profile.emailMasked || '未绑定'}}</text>
-        <text class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
-        <view class="chevron"></view>
+        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
+        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
@@ -69,8 +69,8 @@
       <text class="info-label">微信绑定</text>
       <view class="info-line">
         <text class="info-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
-        <text wx:if="{{profile.wechatAction}}" class="info-action">{{profile.wechatAction}}</text>
-        <view wx:if="{{!profile.wechatBound}}" class="chevron"></view>
+        <text wx:if="{{profile.wechatAction && !profile.isTestAccount}}" class="info-action">{{profile.wechatAction}}</text>
+        <view wx:if="{{!profile.wechatBound && !profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
@@ -84,12 +84,12 @@
       <text class="info-label">登录密码</text>
       <view class="info-line">
         <text class="info-value">{{profile.passwordStatus}}</text>
-        <text class="info-action">{{profile.passwordStatus === '已设置' ? '修改' : '设置'}}</text>
-        <view class="chevron"></view>
+        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.passwordStatus === '已设置' ? '修改' : '设置'}}</text>
+        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
-    <text class="section-note">邮箱用于登录、找回密码和验证账号安全操作。</text>
+    <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定邮箱和密码，登录凭据由管理员管理。' : '邮箱用于登录、找回密码和验证账号安全操作。'}}</text>
 </view>
 <view class="bottom-bar">
   <view

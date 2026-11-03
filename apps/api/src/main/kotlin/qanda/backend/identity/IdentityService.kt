@@ -11,6 +11,7 @@ import qanda.backend.platform.http.missing
 import qanda.backend.platform.security.Actor
 import qanda.backend.platform.security.LoginAttempts
 import qanda.backend.platform.events.ActivityEvents
+import java.time.Instant
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -32,7 +33,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val binding=bindings.selectList(QueryWrapper<UserWechat>().eq("user_id",id).orderByDesc("created_at").orderByAsc("id").last("LIMIT 1")).firstOrNull()
         return UserView(id,user.accountCode,user.nickname,user.email,binding!=null,
             college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { directory.college(it)?.name },profile?.majorId?.let { directory.major(it)?.name },
-            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null,user.passwordHash!=null,user.avatar,user.profileSetupSeen || college!=null && profile?.majorId!=null && grade!=null)
+            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null,user.passwordHash!=null,user.avatar,user.profileSetupSeen || college!=null && profile?.majorId!=null && grade!=null,sql.testAccountAccess(id)!=null)
     }
     fun acknowledgeProfileSetup(actor: Actor): MutationResult {
         val user=sql.lockUser(actor.id) ?: unauthenticated()
@@ -78,9 +79,11 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     private fun newUser(display: String)=UserAccount().apply { id=UUID.randomUUID();accountCode=crypto.accountCode();nickname=display;createdAt=clock.instant();updatedAt=createdAt }
     private fun issueSession(user: UserAccount,device: UUID): TokenView {
-        sql.lockUser(user.id!!)?.let { if(it.status!="ACTIVE" || it.credentialVersion!=user.credentialVersion) unauthenticated() }
+        val current=sql.lockUser(user.id!!) ?: unauthenticated()
+        if(current.status!="ACTIVE" || current.credentialVersion!=user.credentialVersion) unauthenticated()
+        val testAccess=sql.testAccountAccess(user.id!!);checkTestAccount(testAccess,clock.instant())
         val token="u_"+crypto.randomToken();val row=UserSession().apply { id=UUID.randomUUID();userId=user.id;tokenDigest=crypto.tokenDigest(token)
-            credentialVersion=user.credentialVersion;deviceId=device;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=issuedAt.plusSeconds(30*86400L) }
+            credentialVersion=user.credentialVersion;deviceId=device;issuedAt=clock.instant();lastSeenAt=issuedAt;expiresAt=minOf(issuedAt.plusSeconds(30*86400L),testAccess?.expiresAt ?: Instant.MAX) }
         sessionRows.insert(row);activity.record(user.id!!)
         return TokenView(token,row.id!!,row.expiresAt)
     }
@@ -106,6 +109,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     }
     fun updateAdminProfile(id: UUID,input: AdminProfileInput): MutationResult {
         val user=sql.lockUser(id) ?: missing();requireVersion(input.expectedVersion,user.version)
+        if(sql.testAccountAccess(id)!=null && (input.email!=user.email || input.accountCode!=user.accountCode)) fixedTestCredentials()
         val accountCode=input.accountCode.trim().uppercase(Locale.ROOT).also { if(!it.matches(Regex("[A-Z0-9_-]{2,12}"))) invalid("accountCode") }
         if(users.selectCount(QueryWrapper<UserAccount>().eq("account_code",accountCode).ne("id",id))>0) conflict("ACCOUNT_CODE_UNAVAILABLE","账号已被使用")
         val address=input.email?.trim()?.takeIf { it.isNotEmpty() }?.let { email(it) }
@@ -144,18 +148,20 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
     fun reset(input: ResetPasswordInput): MutationResult {
         val hash=crypto.prepareStudentPassword(input.newPassword,"newPassword").encoded
         val proof=challengeRows.selectById(input.challengeId) ?: invalidProof();val userId=proof.userId ?: invalidProof()
-        val user=sql.lockUser(userId) ?: invalidProof();if(user.status!="ACTIVE") invalidProof()
+        val user=sql.lockUser(userId) ?: invalidProof();if(sql.testAccountAccess(userId)!=null) fixedTestCredentials();if(user.status!="ACTIVE") invalidProof()
         challenges.consume(input.challengeId,"RESET_PASSWORD",userId)
         sql.updateCredentials(userId,user.email,user.emailKey,hash);sql.revokeUserSessions(userId)
         return MutationResult(userId,user.version+1)
     }
     fun changePassword(actor: Actor,input: PasswordInput): MutationResult {
+        if(sql.testAccountAccess(actor.id)!=null) fixedTestCredentials()
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
         val hash=crypto.prepareStudentPassword(input.newPassword,"newPassword").encoded;challenges.consume(input.challengeId,"CHANGE_PASSWORD",actor.id)
         sql.updateCredentials(actor.id,user.email,user.emailKey,hash);sql.revokeUserSessions(actor.id)
         return MutationResult(actor.id,user.version+1)
     }
     fun changeEmail(actor: Actor,input: EmailInput): MutationResult {
+        if(sql.testAccountAccess(actor.id)!=null) fixedTestCredentials()
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
         if(user.email!=null) challenges.consume(input.oldChallengeId ?: invalid("oldChallengeId"),"CHANGE_EMAIL_OLD",actor.id)
         val proof=challenges.consume(input.newChallengeId,if(user.email==null) "BIND_EMAIL" else "CHANGE_EMAIL_NEW",actor.id)
@@ -164,6 +170,7 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         return MutationResult(actor.id,user.version+1)
     }
     fun bindWechat(actor: Actor,input: WechatBindingInput): MutationResult {
+        if(sql.testAccountAccess(actor.id)!=null) fixedTestCredentials()
         val user=sql.lockUser(actor.id) ?: unauthenticated();requireVersion(input.expectedVersion,user.version)
         val identity=wechat.exchange(input.code)
         val existing=sql.wechat(identity.appId,identity.openId)

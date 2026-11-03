@@ -39,3 +39,5 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 修改代码后运行 `rebuild.mjs`，再执行 `backend.mjs docker-up`。日志使用 `docker-logs`，停止使用 `docker-stop`。健康接口为 `/api/v1/health`，Swagger 为 `/swagger-ui/index.html`，运行时合同为 `/v3/api-docs`。
 
 源素材与图标生成脚本用于维护现有资源；生成目录、运行证据和私有配置遵循 `.gitignore`。提交及 PR 规则见[Git 工作流](git-workflow.md)，验收命令见[验收规范](verification.md)。
+
+测试学生账号的创建、凭据密钥和到期行为见[测试账号管理](test-accounts.md)。

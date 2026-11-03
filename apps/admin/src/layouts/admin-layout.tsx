@@ -20,6 +20,7 @@ const groups = [
       ['/feedback', '学生反馈', 'file'],
       ['/announcements', '公告管理', 'announcement'],
       ['/users', '用户管理', 'users'],
+      ['/test-accounts', '测试账号管理', 'users'],
     ],
   },
   {

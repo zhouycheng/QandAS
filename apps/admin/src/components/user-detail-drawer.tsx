@@ -57,6 +57,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
       </div>}
       {editing && profile ? <>
         {save.error && <Alert type="error" content={save.error.message} />}
+        <Alert className="section-gap" type="warning" content={profile.isTestAccount ? '测试账号的账号和邮箱由系统生成，登录凭据由管理员管理。' : '修改邮箱会使学生现有登录退出；清空邮箱后，学生无法再用邮箱密码登录。'} />
         <Form<UserProfileForm> form={form} layout="vertical" disabled={save.isPending}
           initialValues={{ nickname: profile.name, accountCode: profile.account, email: profile.email, collegeId: profile.collegeId ?? '', majorId: profile.majorId ?? '', currentGrade: profile.grade }}
           onValuesChange={(changed, values) => {
@@ -73,8 +74,8 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
               collegeId: values.collegeId || null, majorId: values.majorId || null, currentGrade: values.currentGrade ?? null })
           }}>
           <Form.Item field="nickname" label="昵称" rules={[{ required: true, message: '请输入昵称' }]}><Input maxLength={40} /></Form.Item>
-          <Form.Item field="accountCode" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input maxLength={12} /></Form.Item>
-          <Form.Item field="email" label="邮箱"><Input type="email" maxLength={254} placeholder="留空表示未绑定邮箱" /></Form.Item>
+          <Form.Item field="accountCode" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input maxLength={12} disabled={profile.isTestAccount} /></Form.Item>
+          <Form.Item field="email" label="邮箱"><Input type="email" disabled={profile.isTestAccount} maxLength={254} placeholder="留空表示未绑定邮箱" /></Form.Item>
           <Form.Item field="collegeId" label="学院"><ResourceSelect kind="college" placeholder="选择学院" /></Form.Item>
           <Form.Item field="majorId" label="专业"><ResourceSelect kind="major" collegeId={collegeId || undefined} disabled={!collegeId} placeholder="选择专业" /></Form.Item>
           <Form.Item field="currentGrade" label="当前年级"><Select options={GRADE_OPTIONS} placeholder="未填写" allowClear /></Form.Item>

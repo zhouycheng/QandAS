@@ -14,7 +14,7 @@ import qanda.backend.platform.persistence.SystemMapper
 class SchemaReadiness {
     @Bean @DependsOn("backendSafety","validateProductionProviders")
     fun databaseReady(sql: SystemMapper,env: org.springframework.core.env.Environment,jdbc: org.springframework.jdbc.core.JdbcTemplate)=InitializingBean {
-        val ready=if(env.getProperty("qanda.backend.role")=="monitor") jdbc.queryForObject("SELECT count(*) FROM monitoring_student WHERE false",Long::class.java)==0L else sql.ready()
+        val ready=if(env.getProperty("qanda.backend.role")=="monitor") jdbc.queryForObject("SELECT count(include_in_statistics) FROM monitoring_student WHERE false",Long::class.java)==0L else sql.ready()
         check(ready) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
     }
 }

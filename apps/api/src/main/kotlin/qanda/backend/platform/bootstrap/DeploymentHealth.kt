@@ -14,7 +14,7 @@ class DeploymentHealth(private val jdbc: JdbcTemplate, private val rabbit: Rabbi
     private val env: Environment, private val listeners: RabbitListenerEndpointRegistry) : HealthIndicator {
     override fun health(): Health = try {
         val monitor = env.getProperty("qanda.backend.role") == "monitor"
-        if (monitor) jdbc.queryForObject("SELECT count(*) FROM monitoring_student WHERE false", Long::class.java)
+        if (monitor) jdbc.queryForObject("SELECT count(include_in_statistics) FROM monitoring_student WHERE false", Long::class.java)
         else {
             check(jdbc.queryForObject("SELECT 1", Int::class.java) == 1)
             check(rabbit.execute { channel -> channel.queueDeclarePassive("qanda.sync.progress").consumerCount } != null)

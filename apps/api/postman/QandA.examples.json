@@ -994,5 +994,34 @@
     "method": "POST",
     "path": "/api/v1/me/profile-setup/acknowledgement",
     "body": null
+  },
+  {
+    "operationId": "TestAccount_disable_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/test-accounts/{id}/status",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}"
+    }
+  },
+  {
+    "operationId": "TestAccount_list_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/test-accounts",
+    "body": null
+  },
+  {
+    "operationId": "TestAccount_create_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/test-accounts",
+    "body": {
+      "validDays": 7,
+      "includeInStatistics": false
+    }
+  },
+  {
+    "operationId": "TestAccount_credentials_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/test-accounts/{id}/credentials",
+    "body": null
   }
 ]

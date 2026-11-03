@@ -24,7 +24,7 @@ class AccountSecurityViewModel {
     async load() {
         try {
             this.profile = await this.repository.load();
-            this.stage = this.profile.email ? 'verify' : this.mode === 'email' ? 'email' : 'need-email';
+            this.stage = this.profile.isTestAccount ? 'test-account' : this.profile.email ? 'verify' : this.mode === 'email' ? 'email' : 'need-email';
             this.loadError = '';
             return this.result();
         }

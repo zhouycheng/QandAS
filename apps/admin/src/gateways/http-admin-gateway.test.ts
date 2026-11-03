@@ -6,6 +6,20 @@ const json = (body: unknown, status = 200, headers?: Record<string, string>) => 
 const page = { items: [], total: 0, page: 1, pageSize: 20 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 describe('HTTP 管理合同', () => {
+  it('测试账号创建与查看凭据使用独立请求，停用携带版本', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ id: 'test-account', status: 'ACTIVE', version: 1 }, 201))
+      .mockResolvedValueOnce(json({ email: 'test@qanda.invalid', password: 'ExampleTest123456' })).mockResolvedValueOnce(json({ id: 'test-account', version: 2 }))
+    const api = new HttpAdminContentGateway('', fetcher, () => 'admin')
+    await api.createTestAccount({ validDays: 7, includeInStatistics: false })
+    await api.getTestAccountCredentials('test-account')
+    await api.disableTestAccount('test-account', 1)
+    expect(fetcher.mock.calls.map(row => row[0])).toEqual(['/api/v1/admin/test-accounts', '/api/v1/admin/test-accounts/test-account/credentials', '/api/v1/admin/test-accounts/test-account/status'])
+    expect(JSON.parse(fetcher.mock.calls[0][1]?.body as string)).toEqual({ validDays: 7, includeInStatistics: false })
+    expect(fetcher.mock.calls[1][1]?.method).toBe('GET')
+    expect(fetcher.mock.calls[1][1]?.headers).not.toHaveProperty('Idempotency-Key')
+    expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toEqual({ expectedVersion: 1 })
+  })
+
   it('默认请求保持浏览器 fetch 的全局上下文', async () => {
     vi.stubGlobal('fetch', function (this: unknown) {
       if (this !== globalThis) throw new TypeError('Illegal invocation')

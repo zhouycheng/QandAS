@@ -25,6 +25,7 @@ class Sessions(private val sql: IdentityMapper, private val users: UserAccountMa
             token.matches(Regex("u_[A-Za-z0-9_-]{43}")) -> {
                 val session=sql.userSession(crypto.tokenDigest(token)) ?: unauthenticated()
                 val user=users.selectById(session.userId) ?: unauthenticated()
+                checkTestAccount(sql.testAccountAccess(user.id!!),now)
                 if(session.revokedAt!=null || !session.expiresAt.isAfter(now) || user.status!="ACTIVE" || session.credentialVersion!=user.credentialVersion) unauthenticated()
                 sql.touchUserSession(session.id!!,now)
                 Actor(user.id!!,session.id!!,"USER","MINI_PROGRAM")
@@ -44,6 +45,7 @@ class Sessions(private val sql: IdentityMapper, private val users: UserAccountMa
         val now=clock.instant()
         if(actor.kind=="USER") {
             val user=sql.lockUser(actor.id) ?: unauthenticated();val session=sql.lockUserSession(actor.sessionId) ?: unauthenticated()
+            checkTestAccount(sql.testAccountAccess(actor.id),now)
             if(user.status!="ACTIVE" || session.userId!=actor.id || session.revokedAt!=null || !session.expiresAt.isAfter(now) || session.credentialVersion!=user.credentialVersion) unauthenticated()
         } else {
             val admin=sql.lockAdmin(actor.id) ?: unauthenticated();val session=sql.lockAdminSession(actor.sessionId) ?: unauthenticated()

@@ -1,3 +1,4 @@
+import type { TestAccount, TestAccountInput, TestAccountCredentials, TestAccountQuery } from '../types/operations'
 import type { AdminContentGateway } from './admin-content-gateway'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
 import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, SubjectAccess, UpdateManagedUserInput, UserQuery, UserStatus } from '../types/operations'
@@ -10,6 +11,7 @@ import { watchSyncStream } from './sync-stream'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
+type WireUser = { isTestAccount?: boolean; id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean; avatarUrl?: string | null }
 const userView = (u: WireUser): ManagedUser => ({ ...u, name: u.nickname, account: u.accountCode, email: u.email ?? '', collegeId: u.collegeId ?? '', majorId: u.majorId ?? '', grade: u.currentGrade, registeredAt: u.registeredAt, wechatBound: u.wechatBound })
 const segment = encodeURIComponent
 
@@ -141,6 +143,10 @@ export class HttpAdminContentGateway implements AdminContentGateway {
       onStatus(status)
     })
   }
+  listTestAccounts(query: TestAccountQuery) { return this.page<TestAccount>('/admin/test-accounts', query) }
+  createTestAccount(input: TestAccountInput) { return this.write<TestAccount>('POST', '/admin/test-accounts', input) }
+  getTestAccountCredentials(id: string) { return this.request<TestAccountCredentials>('GET', `/admin/test-accounts/${segment(id)}/credentials`) }
+  async disableTestAccount(id: string, expectedVersion: number) { await this.write('PUT', `/admin/test-accounts/${segment(id)}/status`, { expectedVersion }) }
   async listUsers(query?: UserQuery) { const result = await this.page<WireUser>('/admin/users', query); return { ...result, items: result.items.map(userView) } }
   async getUser(id: string) { return userView(await this.request<WireUser>('GET', '/admin/users/' + segment(id))) }
   async updateUserProfile(id: string, input: UpdateManagedUserInput) { await this.write('PUT', '/admin/users/' + segment(id), input) }

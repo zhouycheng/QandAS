@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.identity.IdentityMapper">
+  <select id="testAccountAccess" resultType="qanda.backend.identity.TestAccountAccess">SELECT expires_at,disabled_at FROM test_account WHERE user_id=#{id}</select>
   <select id="userByEmail" resultType="qanda.backend.identity.UserAccount">SELECT * FROM user_account WHERE email_key=#{email}</select>
   <select id="lockUser" resultType="qanda.backend.identity.UserAccount">SELECT * FROM user_account WHERE id=#{id} FOR UPDATE</select>
   <select id="lockAdmin" resultType="qanda.backend.admin.AdminAccount">SELECT * FROM admin_account WHERE id=#{id} FOR UPDATE</select>

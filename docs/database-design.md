@@ -593,3 +593,7 @@ V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张�
 | `user_id` | `uuid NOT NULL REFERENCES user_account(id)` |
 | `occurred_at` | `timestamptz NOT NULL` |
 | `processed_at` | `timestamptz` |
+
+## 测试账号
+
+V3 新增与 `user_account` 一对一的 `test_account`，记录有效期、运营统计设置、创建管理员、停用信息及密码加密材料。统计通过 `account_in_statistics` 统一判断，监控视图只提供统计及生命周期所需字段。详见[测试账号管理](test-accounts.md)。

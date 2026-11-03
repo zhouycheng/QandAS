@@ -4,6 +4,7 @@ export type UserStatus = 'ACTIVE' | 'PENDING' | 'DISABLED'
 export type LoginPlatform = 'MINI_PROGRAM'
 
 export interface ManagedUser extends Versioned {
+  isTestAccount?: boolean
   id: string
   name: string
   account: string
@@ -172,3 +173,15 @@ export interface ImportQuestionsInput {
   expectedContentVersion: number
   idempotencyKey: string
 }
+
+export interface TestAccount extends Versioned {
+  id: string
+  email: string
+  createdAt: string
+  expiresAt: string
+  status: 'ACTIVE' | 'DISABLED' | 'EXPIRED'
+  includeInStatistics: boolean
+}
+export interface TestAccountInput { validDays: number; includeInStatistics: boolean }
+export interface TestAccountCredentials { email: string; password: string; expiresAt: string }
+export interface TestAccountQuery extends PageQuery { keyword?: string; status?: TestAccount['status'] }
