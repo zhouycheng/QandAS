@@ -17,6 +17,7 @@ Page(withPageLifecycle({
   },
 
   // tab 页每次切回来都重新汇总，保证练习后的数据即时可见
+  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     if (!this.viewModel) {
       return

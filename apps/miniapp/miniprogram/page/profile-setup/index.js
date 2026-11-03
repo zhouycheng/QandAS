@@ -1,7 +1,7 @@
 const { AccountViewModel } = require('../../viewmodels/account-viewmodel.js')
 const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
-const onboarding = require('../../utils/profile-onboarding.js')
+const onboarding = require('../profile-onboarding.js')
 const navigation = require('../../utils/navigation.js')
 Page(withPageLifecycle({
   data: Object.assign(AccountViewModel.getInitialData(), { loading: true, loadError: '', canContinue: false }),
@@ -14,7 +14,7 @@ Page(withPageLifecycle({
   },
   onShow() { if (this.token && !this.isCurrent()) this.leaveChangedAccount() },
   leaveChangedAccount() { if (!this._pageUnloaded && getCurrentPages().slice(-1)[0] === this) navigation.reLaunch({ url: this.viewModel.readAuth().token ? '/page/subject-list/index' : '/page/login/index' }) },
-  onReady() { if (this.isCurrent()) onboarding.markSeen() },
+  onReady() { if (this.isCurrent()) require('../../repositories/profile-onboarding-repository.js').markSeen() },
   isCurrent() { return !this._pageUnloaded && this.token && this.token === this.viewModel.readAuth().token },
   async handleReload(reason) {
     if (!this.isCurrent()) return

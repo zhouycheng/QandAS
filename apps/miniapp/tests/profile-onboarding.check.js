@@ -14,18 +14,37 @@ global.wx = {
 global.getCurrentPages = () => pages
 global.getApp = () => ({ setPendingSubjectId: id => { pickedSubject = id } })
 const storage = createWxStorageAdapter()
-const onboarding = require('../miniprogram/utils/profile-onboarding.js')
+const onboarding = require('../miniprogram/page/profile-onboarding.js')
+const repository = require('../miniprogram/repositories/profile-onboarding-repository.js')
 const page = { route: 'page/bank-detail/index', data: { subjectId: 'subject' } }
 const identity = (id='one', complete=false, seen=false) => ({ provider: 'email', userId: id, token: id + '-token', nickname: '同学', profile: { profileComplete: complete, profileSetupSeen: seen } })
 const realRefresh = remote.refreshProfile, realRequest = api.request
 api.request = async () => ({ ok: !failAck })
 remote.refreshProfile = async () => { refreshes++; return {} }
 async function run() {
+  const { decide } = require('../miniprogram/utils/profile-onboarding.js')
+  assert.equal(decide(identity(), false, false).type, 'SETUP')
+  assert.equal(decide(identity(), false, true).type, 'REMINDER')
+  assert.equal(decide(identity('ready', true), false, true).type, 'NONE')
+  const noPassword = identity('password', true); noPassword.profile.passwordSet = false
+  assert.equal(decide(noPassword, false, true).type, 'REMINDER')
+  const fs = require('node:fs'), path = require('node:path')
+  const source = name => fs.readFileSync(path.join(__dirname, '../miniprogram', name), 'utf8')
+  assert.doesNotMatch(source('utils/profile-onboarding.js'), /repositories|\bwx\.|navigation|Storage/)
+  for (const name of ['auth-repository', 'remote-data-repository', 'profile-onboarding-repository']) {
+    assert.doesNotMatch(source('repositories/' + name + '.js'), /require\(['"][^'"]*\/page\//)
+  }
+  auth.saveAuth(storage, identity('code')); pages = [page]
+  repository.onLogin(auth.getAuth(storage), true); await onboarding.showPending(page)
+  assert.equal(routes.length, 0, 'email code login presents a dismissible reminder')
+  assert.equal(modals.length, 1); modals[0].success({ confirm: false })
+  assert.equal(records.get('qandaProfileSetup:code').seen, true)
+  modals.length = 0
   auth.saveAuth(storage, identity()); pages = [page]
   onboarding.start(); await onboarding.showPending(page)
   assert.deepEqual(routes, ['/page/profile-setup/index'])
   assert.equal(refreshes, 1); assert.equal(pickedSubject, 'subject')
-  await onboarding.markSeen()
+  await repository.markSeen()
   assert.equal(records.get('qandaProfileSetup:one').pending, true)
   records.set('qandaPendingPractice', { bankId: 'pending-bank' })
   onboarding.finish()
@@ -36,18 +55,18 @@ async function run() {
   assert.equal(modals.length, 1, 'next cold start uses a modal even before acknowledgement sync succeeds')
   modals[0].success({ confirm: false })
   await onboarding.showPending(page); assert.equal(modals.length, 1)
-  await onboarding.syncSeen(auth.getAuth(storage))
-  failAck = false; await onboarding.syncSeen(auth.getAuth(storage))
+  await repository.syncSeen(auth.getAuth(storage))
+  failAck = false; await repository.syncSeen(auth.getAuth(storage))
   assert.equal(records.get('qandaProfileSetup:one').pending, false)
   assert.equal(auth.getAuth(storage).profile.profileSetupSeen, true)
-  onboarding.onLogin(auth.getAuth(storage)); await onboarding.showPending(page)
+  repository.onLogin(auth.getAuth(storage)); await onboarding.showPending(page)
   assert.equal(modals.length, 2)
   modals[1].success({ confirm: true }); assert.equal(routes.at(-1), '/page/account/index')
-  auth.saveAuth(storage, identity('two')); onboarding.onLogin(auth.getAuth(storage))
+  auth.saveAuth(storage, identity('two')); repository.onLogin(auth.getAuth(storage))
   const practice = { route: 'page/practice/index' }; pages = [practice]
   await onboarding.showPending(practice); assert.notEqual(routes.at(-1), '/page/profile-setup/index')
   pages = [page]; await onboarding.showPending(page); assert.equal(routes.at(-1), '/page/profile-setup/index')
-  auth.saveAuth(storage, identity('complete', true)); onboarding.onLogin(auth.getAuth(storage))
+  auth.saveAuth(storage, identity('complete', true)); repository.onLogin(auth.getAuth(storage))
   const count = routes.length; await onboarding.showPending(page); assert.equal(routes.length, count)
   remote.refreshProfile = async () => { throw new Error('offline') }
   auth.saveAuth(storage, identity('offline')); onboarding.start(); await onboarding.showPending(page)
@@ -56,7 +75,7 @@ async function run() {
   remote.refreshProfile = () => new Promise(done => { resolve = done })
   auth.saveAuth(storage, identity('stale')); onboarding.start()
   const stale = onboarding.showPending(page)
-  auth.saveAuth(storage, identity('switched', true)); onboarding.onLogin(auth.getAuth(storage))
+  auth.saveAuth(storage, identity('switched', true)); repository.onLogin(auth.getAuth(storage))
   resolve({}); await stale; await Promise.resolve()
   assert.equal(routes.length, count, 'old account callbacks cannot open a setup page')
   let definition

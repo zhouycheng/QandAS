@@ -1,6 +1,5 @@
 const metrics = require('./loading-metrics.js')
 const { getInitialHomeHeaderData } = require('./home-header.js')
-const onboarding = require('./profile-onboarding.js')
 function headerData() {
   const platform = typeof wx === 'undefined' ? {} : wx
   return getInitialHomeHeaderData(platform.getWindowInfo ? platform.getWindowInfo() : {}, platform.getMenuButtonBoundingClientRect ? platform.getMenuButtonBoundingClientRect() : null)
@@ -37,8 +36,8 @@ function withPageLifecycle(definition) {
       metrics.record(name, { route: this.route || '' })
       const value = definition[name] && definition[name].apply(this, arguments)
       if (name === 'onShow') bindViewModel(this)
-      if (name === 'onReady') this._profileReady = true
-      if ((name === 'onShow' || name === 'onReady') && this._profileReady) onboarding.showPending(this)
+      if (name === 'onReady') this._viewReady = true
+      if ((name === 'onShow' || name === 'onReady') && this._viewReady && definition.onForegroundReady) definition.onForegroundReady.call(this)
       if (name === 'onHide') {
         const patch = {}
         ;['announcementSheetVisible', 'searchVisible', 'configSheetVisible', 'collegePickerVisible', 'majorPickerVisible', 'gradePickerVisible', 'routeLoadingVisible'].forEach(key => { if (this.data[key]) patch[key] = false })

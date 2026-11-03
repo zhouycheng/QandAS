@@ -136,7 +136,7 @@ function refreshProfile(storage, options) {
     if (nextScope !== scope) { reset(); api.cancelReads(); scope = nextScope }
     state.profile = profile
     authRepository.saveAuth(storage, nextAuth)
-    require('../utils/profile-onboarding.js').syncSeen(nextAuth)
+    require('./profile-onboarding-repository.js').syncSeen(nextAuth)
     persistSummary()
   }, options && options.force)
 }

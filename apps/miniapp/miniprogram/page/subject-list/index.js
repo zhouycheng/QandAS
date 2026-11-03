@@ -29,6 +29,7 @@ Page(withPageLifecycle({
     this.setData(getInitialHomeHeaderData(windowInfo, menuButton))
   },
 
+  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     this.isNavigating = false
     this.syncTabBar()

@@ -182,7 +182,7 @@ Page(withPageLifecycle({
    * 否则用户点完登录会停在原地，看起来像没生效。
    */
   finishBack(title) {
-    require('../../utils/profile-onboarding.js').finishAuthentication()
+    require('../profile-onboarding.js').finishAuthentication()
 
     if (title) {
       wx.showToast({
