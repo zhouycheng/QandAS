@@ -15,6 +15,7 @@ CREATE TABLE user_account (
  avatar text CHECK(avatar IS NULL OR (char_length(avatar) BETWEEN 1 AND 87407 AND avatar ~ '^data:image/(jpeg|png);base64,')),
  email varchar(254), email_key varchar(254) UNIQUE, password_hash varchar(256),
  status varchar(12) NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','DISABLED')),
+ profile_setup_seen boolean NOT NULL DEFAULT false,
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0),
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  CHECK((email IS NULL)=(email_key IS NULL)), CHECK(email_key IS NULL OR email_key=lower(email_key))
@@ -44,6 +45,22 @@ CREATE TABLE admin_account (
  credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0), created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(), last_login_at timestamptz
 );
+CREATE TABLE test_account (
+ user_id uuid PRIMARY KEY REFERENCES user_account(id),
+ expires_at timestamptz NOT NULL, include_in_statistics boolean NOT NULL DEFAULT false,
+ created_by uuid NOT NULL REFERENCES admin_account(id), disabled_at timestamptz,
+ disable_reason varchar(12) CHECK(disable_reason IN ('MANUAL','EXPIRED')),
+ password_ciphertext text, password_nonce varchar(24), password_key_version integer,
+ CHECK((disabled_at IS NULL) = (disable_reason IS NULL)),
+ CHECK((password_ciphertext IS NULL) = (password_nonce IS NULL)),
+ CHECK((password_ciphertext IS NULL) = (password_key_version IS NULL))
+);
+CREATE INDEX test_account_expiry_idx ON test_account(expires_at,user_id) WHERE disabled_at IS NULL;
+
+CREATE FUNCTION account_in_statistics(student uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT NOT EXISTS(SELECT 1 FROM test_account WHERE user_id=student AND NOT include_in_statistics)
+$$;
+
 CREATE TABLE security_policy (
  id integer PRIMARY KEY CHECK(id=1), lock_enabled boolean NOT NULL DEFAULT true, max_attempts integer NOT NULL DEFAULT 5 CHECK(max_attempts BETWEEN 3 AND 10),
  lock_minutes integer NOT NULL DEFAULT 30 CHECK(lock_minutes BETWEEN 1 AND 1440), session_minutes integer NOT NULL DEFAULT 30 CHECK(session_minutes BETWEEN 5 AND 1440),
@@ -81,7 +98,7 @@ CREATE TABLE login_attempt (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE email_challenge (
- id uuid PRIMARY KEY, user_id uuid REFERENCES user_account(id), purpose varchar(24) NOT NULL CHECK(purpose IN ('REGISTER','RESET_PASSWORD','BIND_EMAIL','CHANGE_PASSWORD','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW')),
+ id uuid PRIMARY KEY, user_id uuid REFERENCES user_account(id), purpose varchar(24) NOT NULL CHECK(purpose IN ('LOGIN','REGISTER','RESET_PASSWORD','BIND_EMAIL','CHANGE_PASSWORD','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW')),
  email varchar(254) NOT NULL, email_key varchar(254) NOT NULL, code_mac bytea NOT NULL CHECK(octet_length(code_mac)=32), key_version integer NOT NULL,
  eligible boolean NOT NULL, credential_version bigint, failed_attempts integer NOT NULL DEFAULT 0 CHECK(failed_attempts BETWEEN 0 AND 5), created_at timestamptz NOT NULL,
  expires_at timestamptz NOT NULL, consumed_at timestamptz, CHECK(expires_at>created_at)
@@ -135,15 +152,23 @@ CREATE INDEX question_reading_idx ON question(reading_parent_id,reading_order);
 CREATE INDEX question_bank_idx ON question(bank_id,status,created_at,id);
 CREATE INDEX question_chapter_idx ON question(chapter_id);
 CREATE FUNCTION bank_visible(bank uuid, student uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ WITH student_scope AS (
+   SELECT coalesce(m.college_id,p.college_id) college_id,p.major_id,
+          current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) grade
+   FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
+   WHERE u.id=student
+ )
  SELECT EXISTS(SELECT 1 FROM question_bank b JOIN subject s ON s.id=b.subject_id
  WHERE b.id=bank AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'
  AND EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group)
  AND (student IS NULL OR b.scope_type='ALL'
  OR EXISTS(SELECT 1 FROM subject_user_access g WHERE g.subject_id=b.subject_id AND g.user_id=student)
- OR EXISTS(SELECT 1 FROM bank_audience a JOIN user_profile p ON p.user_id=student LEFT JOIN major m ON m.id=p.major_id
- WHERE a.bank_id=b.id AND (a.college_id IS NULL OR a.college_id=coalesce(p.college_id,m.college_id))
- AND (a.major_id IS NULL OR a.major_id=p.major_id)
- AND (a.grade IS NULL OR a.grade=current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date)))))
+ OR EXISTS(SELECT 1 FROM student_scope p WHERE p.college_id IS NULL
+   OR EXISTS(SELECT 1 FROM bank_audience a LEFT JOIN major am ON am.id=a.major_id
+     WHERE a.bank_id=b.id
+     AND (coalesce(am.college_id,a.college_id) IS NULL OR coalesce(am.college_id,a.college_id)=p.college_id)
+     AND (p.major_id IS NULL OR a.major_id IS NULL OR a.major_id=p.major_id)
+     AND (p.major_id IS NULL OR p.grade IS NULL OR a.grade IS NULL OR a.grade=p.grade)))))
 $$;
 CREATE TABLE question_revision (
  id uuid PRIMARY KEY, question_id uuid NOT NULL REFERENCES question(id) DEFERRABLE INITIALLY DEFERRED, revision_number integer NOT NULL CHECK(revision_number>0),
@@ -269,7 +294,8 @@ CREATE INDEX domain_event_pending_idx ON domain_event_outbox(occurred_at,id) WHE
 CREATE VIEW monitoring_student AS
  SELECT u.id user_id,u.account_code,u.nickname,u.status,u.credential_version,u.created_at,
  coalesce(p.college_id,m.college_id) college_id,c.name college_name,p.major_id,m.name major_name,
- current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) current_grade
+ current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) current_grade,
+ account_in_statistics(u.id) include_in_statistics
  FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
  LEFT JOIN college c ON c.id=coalesce(p.college_id,m.college_id);
 CREATE VIEW monitoring_learning AS
@@ -282,9 +308,11 @@ CREATE FUNCTION monitoring_online_at(sample_time timestamptz)
  LANGUAGE sql STABLE AS $$
  SELECT s.id,s.user_id,p.foreground_seen_at
  FROM user_session s JOIN session_presence p ON p.session_id=s.id JOIN user_account u ON u.id=s.user_id
+ LEFT JOIN test_account t ON t.user_id=u.id
  WHERE s.revoked_at IS NULL AND s.expires_at>sample_time AND u.status='ACTIVE' AND s.credential_version=u.credential_version
+ AND (t.user_id IS NULL OR (t.disabled_at IS NULL AND t.expires_at>sample_time))
  AND p.foreground_seen_at>sample_time-interval '120 seconds' AND p.foreground_seen_at<=sample_time
- $$;
+$$;
 CREATE INDEX audit_log_page_idx ON audit_log(created_at DESC,id);
 CREATE INDEX email_challenge_user_idx ON email_challenge(user_id);
 CREATE INDEX question_bank_creator_idx ON question_bank(created_by);

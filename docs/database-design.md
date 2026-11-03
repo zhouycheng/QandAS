@@ -1,6 +1,6 @@
 # 数据库设计
 
-V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张表；后续结构由增量迁移维护。监控权限定义在相邻的 `monitoring-permissions.sql`。应用启动核对结构；开发初始化和生产 Flyway 在基线之后执行 `db/migration/V2__ProfileSetupAndBankVisibility.sql`。V2 增加 `user_account.profile_setup_seen` 并更新 `bank_visible`，资料齐全的存量账号初始化为已完成引导，其余账号首次展示后登记。
+应用版本为 `1.0.0`，数据库使用统一 V1 初始结构。`apps/api/src/main/resources/db/schema.sql` 定义 43 张业务表，`monitoring-permissions.sql` 定义监控权限。账号资料引导、测试账号和邮箱验证码登录均包含在该结构中。开发初始化与生产 `schema-init` 使用同一组 SQL；已有 V1 只做完整性校验。
 
 题目稳定身份与不可变修订分离。练习固定题目和材料修订，正式结果及历史引用由外键、约束和触发器保护。同步命令保存身份、幂等摘要、序号、处理状态及最终回执；一场练习最多一个未完成命令。
 
@@ -37,6 +37,7 @@ V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张�
 
 | 字段或约束 | 定义 |
 | --- | --- |
+| `profile_setup_seen` | `boolean NOT NULL DEFAULT false` |
 | `id` | `uuid PRIMARY KEY` |
 | `account_code` | `varchar(12) NOT NULL UNIQUE` |
 | `nickname` | `varchar(40) NOT NULL` |
@@ -596,7 +597,7 @@ V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张�
 
 ## 测试账号
 
-V3 新增与 `user_account` 一对一的 `test_account`，记录有效期、运营统计设置、创建管理员、停用信息及密码加密材料。统计通过 `account_in_statistics` 统一判断，监控视图只提供统计及生命周期所需字段。详见[测试账号管理](test-accounts.md)。
+`test_account` 与 `user_account` 一对一，记录有效期、运营统计设置、创建管理员、停用信息及密码加密材料。统计通过 `account_in_statistics` 统一判断，监控视图只提供统计及生命周期所需字段。详见[测试账号管理](test-accounts.md)。
 
 
-V4 扩展 `email_challenge.purpose` 的 `LOGIN` 用途，复用验证码和邮件队列完成邮箱验证码登录。Excel 导入使用现有业务表、导入回执与审计表，详见 [Excel 数据管理](excel-import-export.md)。
+`email_challenge.purpose` 支持 `LOGIN` 用途，复用验证码和邮件队列完成邮箱验证码登录。Excel 导入使用现有业务表、导入回执与审计表，详见 [Excel 数据管理](excel-import-export.md)。

@@ -75,10 +75,10 @@ services:
         ipv4_address: 172.29.71.10
     restart: unless-stopped
     mem_limit: 64m
-  migrate:
+  schema-init:
     <<: *backend
     entrypoint: [java, -Xmx192m, -jar, /app/app.jar]
-    command: [migrate]
+    command: [schema-init]
     profiles: [operations]
     restart: "no"
     healthcheck: {disable: true}

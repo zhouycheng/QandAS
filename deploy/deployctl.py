@@ -159,8 +159,8 @@ def apply(request):
         if request['action'] == 'deploy' and node_role() != 'frontend':
             mark('checking-candidate')
             run('/usr/local/lib/qanda/candidate-check.py', release['backend'], release['web'])
-            mark('migrating')
-            compose(release, 'run', '--rm', '--no-deps', 'migrate')
+            mark('initializing')
+            compose(release, 'run', '--rm', '--no-deps', 'schema-init')
         if node_role() != 'backend':
             assets(release)
         mark('starting')

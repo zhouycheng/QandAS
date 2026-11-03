@@ -56,14 +56,14 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             deploy.validate_release({**release(), 'command': 'arbitrary'})
 
-    def test_migration_failure_restores_app_and_keeps_previous_state(self):
+    def test_initialization_failure_restores_app_and_keeps_previous_state(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
              patch.object(deploy, 'preflight'), patch.object(deploy, 'run'), patch.object(deploy, 'assets'), \
              patch.object(deploy, 'health'), patch.object(deploy, 'activate') as activate:
             deploy.atomic(deploy.STATE / 'current.json', release())
             def compose(version, *args):
                 if args[0] == 'run':
-                    raise RuntimeError('migration failed')
+                    raise RuntimeError('initialization failed')
             with patch.object(deploy, 'compose', side_effect=compose) as calls, self.assertRaises(RuntimeError):
                 deploy.apply({'release': release('b'), 'action': 'deploy'})
             activate.assert_called_once_with(release())
