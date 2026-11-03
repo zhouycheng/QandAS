@@ -55,6 +55,14 @@ App({
     if (runtime && runtime.queue) runtime.queue.flushAll().catch(() => {})
   },
 
+  /** 旧二维码、分享卡片或历史入口可能指向已删除页面，统一回到首页。 */
+  onPageNotFound(res) {
+    const path = res && res.path ? res.path : ''
+    console.warn(`[trace] 页面不存在，返回首页：${path}`)
+    if (path === 'page/subject-list/index') return
+    wx.reLaunch({ url: '/page/subject-list/index' })
+  },
+
   syncActivityHeartbeat() {
     if (this.appVisible && this.activityHeartbeat) this.activityHeartbeat.start()
   },

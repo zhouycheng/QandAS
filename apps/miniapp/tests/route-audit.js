@@ -45,6 +45,11 @@ function walk(dir) {
 walk(path.join(MINIPROGRAM, 'page'))
 walk(path.join(MINIPROGRAM, 'viewmodels'))
 
+const appSource = fs.readFileSync(path.join(MINIPROGRAM, 'app.js'), 'utf8')
+if (!/onPageNotFound\s*\(/.test(appSource) || !appSource.includes("wx.reLaunch({ url: '/page/subject-list/index' })")) {
+  problems.push('❌ app.js  缺少无效页面返回首页的 onPageNotFound 兜底')
+}
+
 console.log('=== 页面跳转审计 ===\n')
 console.log(`共 ${found.length} 处跳转`)
 console.log(`app.json pages (${pages.size}): ${[...pages].join(', ')}`)
