@@ -38,7 +38,7 @@ export function CollegesPage() {
         <button className={`directory-all ${!college ? 'active' : ''}`} onClick={() => selectCollege()}>全部学院</button>
         {colleges.data?.items.map(row => <button key={row.id} className={`directory-all ${college?.id === row.id ? 'active' : ''}`} onClick={() => selectCollege(row)}>{row.name}<small>{row.studentCount ?? 0} 人</small></button>)}
         {colleges.error && <ErrorState message={colleges.error.message} onRetry={() => void colleges.refetch()} />}
-        <Space><Button size="small" disabled={collegePage === 1} onClick={() => setCollegePage(p => p - 1)}>上一页</Button><Button size="small" disabled={collegePage * 20 >= (colleges.data?.total ?? 0)} onClick={() => setCollegePage(p => p + 1)}>下一页</Button></Space>
+        <Space className="directory-tree-pagination"><Button size="small" disabled={collegePage === 1} onClick={() => setCollegePage(p => p - 1)}>上一页</Button><Button size="small" disabled={collegePage * 20 >= (colleges.data?.total ?? 0)} onClick={() => setCollegePage(p => p + 1)}>下一页</Button></Space>
       </aside>
       <div className="directory-detail-panel">
         <div className="directory-path"><button onClick={() => selectCollege()}>全校目录</button>{college && <button onClick={() => selectCollege(college)}> / {college.name}</button>}{major && <span> / {major.name}</span>}</div>

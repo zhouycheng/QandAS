@@ -46,6 +46,8 @@
 .directory-tree-panel > .arco-input-group-wrapper { width: calc(100% - 16px); margin: 0 8px 17px; }
 .directory-tree-scroll { flex: 1; min-height: 330px; max-height: 570px; overflow: auto; }
 .directory-all { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: 0; border-radius: 7px; background: transparent; color: #5d6d85; text-align: left; cursor: pointer; }
+.directory-all + .directory-all { margin-top: 4px; }
+.directory-tree-pagination { margin: 12px 8px 0; }
 .directory-all.active { background: #eaf3ff; color: var(--primary); font-weight: 500; }
 .directory-all > svg { font-size: 17px; }
 .directory-all small { margin-left: auto; padding: 1px 6px; border-radius: 4px; background: #e2edfb; color: #6b8fbd; font-size: 11px; }
