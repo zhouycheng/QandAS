@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Instant
 import java.util.UUID
 
-data class ChallengeInput(@field:Schema(allowableValues=["REGISTER","RESET_PASSWORD","BIND_EMAIL","CHANGE_EMAIL_NEW","CHANGE_EMAIL_OLD","CHANGE_PASSWORD"]) val purpose: String, val email: String? = null)
+data class ChallengeInput(@field:Schema(allowableValues=["LOGIN","REGISTER","RESET_PASSWORD","BIND_EMAIL","CHANGE_EMAIL_NEW","CHANGE_EMAIL_OLD","CHANGE_PASSWORD"]) val purpose: String, val email: String? = null)
 data class ChallengeView(val id: UUID, val expiresAt: Instant, val resendAfterSeconds: Int = 60)
 data class ChallengeVerificationInput(@field:Schema(allowableValues=["CHANGE_PASSWORD","CHANGE_EMAIL_OLD"]) val purpose: String, @field:Schema(pattern="^[0-9]{6}$") val code: String)
 data class ChallengeVerificationView(val expiresAt: Instant)
@@ -38,3 +38,5 @@ data class PasswordInput(val expectedVersion: Long, val challengeId: UUID, @fiel
 data class EmailInput(val expectedVersion: Long, val newChallengeId: UUID, @field:Schema(pattern="^[0-9]{6}$") val newCode: String, val oldChallengeId: UUID? = null, @field:Schema(pattern="^[0-9]{6}$") val oldCode: String? = null)
 data class WechatBindingInput(val expectedVersion: Long, val code: String)
 data class HeartbeatView(val receivedAt: Instant,val onlineUntil: Instant)
+
+data class EmailCodeLoginInput(val challengeId: UUID, @field:Schema(pattern="^[0-9]{6}$") val code: String, val deviceId: UUID)

@@ -1,11 +1,35 @@
 [
   {
+    "operationId": "Admin_user_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/users/{id}",
+    "body": null
+  },
+  {
+    "operationId": "Admin_updateUserProfile_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/users/{id}",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "nickname": "示例内容",
+      "accountCode": "STUDENT01"
+    }
+  },
+  {
     "operationId": "Admin_userStatus_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/users/{id}/status",
     "body": {
       "expectedVersion": "{{expectedVersion}}",
       "status": "ACTIVE"
+    }
+  },
+  {
+    "operationId": "TestAccount_disable_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/test-accounts/{id}/status",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}"
     }
   },
   {
@@ -47,6 +71,21 @@
     }
   },
   {
+    "operationId": "TestAccount_list_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/test-accounts",
+    "body": null
+  },
+  {
+    "operationId": "TestAccount_create_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/test-accounts",
+    "body": {
+      "validDays": 7,
+      "includeInStatistics": false
+    }
+  },
+  {
     "operationId": "Admin_login_POST",
     "method": "POST",
     "path": "/api/v1/admin/auth/sessions",
@@ -85,9 +124,9 @@
     "body": null
   },
   {
-    "operationId": "Admin_user_GET",
+    "operationId": "TestAccount_credentials_GET",
     "method": "GET",
-    "path": "/api/v1/admin/users/{id}",
+    "path": "/api/v1/admin/test-accounts/{id}/credentials",
     "body": null
   },
   {
@@ -547,6 +586,54 @@
     "body": null
   },
   {
+    "operationId": "Excel_preview_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/excel/preview",
+    "body": null
+  },
+  {
+    "operationId": "Excel_preview_POST_1",
+    "method": "POST",
+    "path": "/api/v1/admin/users/excel/preview",
+    "body": null
+  },
+  {
+    "operationId": "Excel_import_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/users/excel/imports",
+    "body": null
+  },
+  {
+    "operationId": "Excel_import_POST_1",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/excel/imports",
+    "body": null
+  },
+  {
+    "operationId": "Excel_template_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/users/excel/template",
+    "body": null
+  },
+  {
+    "operationId": "Excel_template_GET_1",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/excel/template",
+    "body": null
+  },
+  {
+    "operationId": "Excel_export_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/users/excel/export",
+    "body": null
+  },
+  {
+    "operationId": "Excel_export_GET_1",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/excel/export",
+    "body": null
+  },
+  {
     "operationId": "Identity_bindWechat_PUT",
     "method": "PUT",
     "path": "/api/v1/me/wechat-binding",
@@ -586,11 +673,17 @@
     }
   },
   {
+    "operationId": "Identity_acknowledgeProfileSetup_POST",
+    "method": "POST",
+    "path": "/api/v1/me/profile-setup/acknowledgement",
+    "body": null
+  },
+  {
     "operationId": "Identity_requestOwnEmailChallenge_POST",
     "method": "POST",
     "path": "/api/v1/me/email-challenges",
     "body": {
-      "purpose": "REGISTER"
+      "purpose": "LOGIN"
     }
   },
   {
@@ -656,11 +749,21 @@
     }
   },
   {
+    "operationId": "Identity_emailCodeLogin_POST",
+    "method": "POST",
+    "path": "/api/v1/auth/email-code-sessions",
+    "body": {
+      "challengeId": "{{challengeId}}",
+      "code": "{{code}}",
+      "deviceId": "{{deviceId}}"
+    }
+  },
+  {
     "operationId": "Identity_requestPublicEmailChallenge_POST",
     "method": "POST",
     "path": "/api/v1/auth/email-challenges",
     "body": {
-      "purpose": "REGISTER"
+      "purpose": "LOGIN"
     }
   },
   {
@@ -977,51 +1080,6 @@
     "operationId": "SyncRecovery_head_GET",
     "method": "GET",
     "path": "/api/v1/admin/sync/dead-letters/head",
-    "body": null
-  },
-  {
-    "operationId": "Admin_updateUserProfile_PUT",
-    "method": "PUT",
-    "path": "/api/v1/admin/users/{id}",
-    "body": {
-      "expectedVersion": "{{expectedVersion}}",
-      "nickname": "示例内容",
-      "accountCode": "STUDENT01"
-    }
-  },
-  {
-    "operationId": "Identity_acknowledgeProfileSetup_POST",
-    "method": "POST",
-    "path": "/api/v1/me/profile-setup/acknowledgement",
-    "body": null
-  },
-  {
-    "operationId": "TestAccount_disable_PUT",
-    "method": "PUT",
-    "path": "/api/v1/admin/test-accounts/{id}/status",
-    "body": {
-      "expectedVersion": "{{expectedVersion}}"
-    }
-  },
-  {
-    "operationId": "TestAccount_list_GET",
-    "method": "GET",
-    "path": "/api/v1/admin/test-accounts",
-    "body": null
-  },
-  {
-    "operationId": "TestAccount_create_POST",
-    "method": "POST",
-    "path": "/api/v1/admin/test-accounts",
-    "body": {
-      "validDays": 7,
-      "includeInStatistics": false
-    }
-  },
-  {
-    "operationId": "TestAccount_credentials_GET",
-    "method": "GET",
-    "path": "/api/v1/admin/test-accounts/{id}/credentials",
     "body": null
   }
 ]

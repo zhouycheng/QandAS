@@ -6,6 +6,9 @@ import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus
 import type { CommunityGroup } from '../types/operations'
 
 export interface AdminContentGateway {
+  downloadExcel(resource: string, action: 'template' | 'export', query?: object): Promise<Blob>
+  previewExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions): Promise<import('../types/excel').ExcelPreview>
+  importExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions): Promise<{ count: number }>
   readonly mode: 'http'
   loginAdmin(username: string, password: string): Promise<AdminLogin>
   currentAdmin(): Promise<AdminAccount>

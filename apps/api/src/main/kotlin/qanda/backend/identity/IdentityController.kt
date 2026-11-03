@@ -21,6 +21,11 @@ class IdentityController(private val service: IdentityService,private val sessio
     fun registerWechat(@RequestBody input: WechatRegistrationInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
         commands.run(null,key,"REGISTER_WECHAT",input,MutationResult::class.java,request.requestId()) { service.registerWechat(input) }
     @PostMapping("/auth/sessions") fun login(@RequestBody input: LoginInput): TokenView = service.login(input)
+    @PostMapping("/auth/email-code-sessions")
+    fun emailCodeLogin(@RequestBody input: EmailCodeLoginInput): TokenView {
+        challenges.verify(input.challengeId,input.code)
+        return service.emailCodeLogin(input)
+    }
     @PostMapping("/auth/wechat-sessions") fun wechatLogin(@RequestBody input: WechatLoginInput): WechatLoginView = service.wechatLogin(input)
     @PostMapping("/auth/password-resets")
     fun resetPassword(@RequestBody input: ResetPasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =

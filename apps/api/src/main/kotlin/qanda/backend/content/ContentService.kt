@@ -115,15 +115,15 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         PublicationCheck("启用题目解析完整",sql.publicationIssues(row.id!!)==0L,"题型、答案和章节归属在保存时校验"),
         PublicationCheck("展示范围已配置",row.scopeType=="ALL" || audiences.selectCount(QueryWrapper<BankAudience>().eq("bank_id",row.id))>0,"根据学生保存的资料匹配")
     )
-    fun validate(input: QuestionInput) {
+    fun validate(input: QuestionInput,validateReferences: Boolean=true) {
         if(input.contentFormat !in setOf("PLAIN_TEXT","MARKDOWN")) invalid("/contentFormat")
         if(input.presentation !in setOf("STANDARD","CONCEPT","CODE_ANALYSIS")) invalid("/presentation")
         if(input.presentation in setOf("CONCEPT","CODE_ANALYSIS") && input.type !in setOf("FILL_BLANK","SHORT_ANSWER")) invalid("/presentation")
         if(input.codeLanguage!=null) invalid("/codeLanguage")
         activeStatus(input.status);if(input.type!="READING" && input.stem.isBlank()) invalid("/stem");safeText(input.stem,10000);safeText(input.explanation,10000)
-        if(input.chapterId!=null && chapters.selectById(input.chapterId)?.bankId!=input.questionBankId) invalid("/chapterId","CHAPTER_BANK_MISMATCH","章节不属于题库")
+        if(validateReferences && input.chapterId!=null && chapters.selectById(input.chapterId)?.bankId!=input.questionBankId) invalid("/chapterId","CHAPTER_BANK_MISMATCH","章节不属于题库")
         if(input.assetIds.size>20 || input.assetIds.distinct().size!=input.assetIds.size) invalid("/assetIds")
-        input.assetIds.forEach { if(files.selectById(it)?.bankId!=input.questionBankId) invalid("/assetIds") }
+        if(validateReferences) input.assetIds.forEach { if(files.selectById(it)?.bankId!=input.questionBankId) invalid("/assetIds") }
         if(input.type!="FILL_BLANK" && input.blanks.isNotEmpty() || input.type!="SHORT_ANSWER" && input.scoringPoints.isNotEmpty() || input.type!="READING" && (input.passage!=null || input.subQuestions.isNotEmpty())) invalid("/type")
         when(input.type) {
             "SINGLE_CHOICE","MULTIPLE_CHOICE" -> {
@@ -133,7 +133,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
                 if(input.type=="SINGLE_CHOICE" && input.correctAnswer.size!=1 || input.type=="MULTIPLE_CHOICE" && input.correctAnswer.size<2 || input.correctValue!=null || input.referenceAnswer!=null) invalid("/correctAnswer")
             }
             "TRUE_FALSE" -> if(input.correctValue==null || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.referenceAnswer!=null) invalid("/correctValue")
-            "SHORT_ANSWER" -> { if(input.referenceAnswer.isNullOrBlank() || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.correctValue!=null) invalid("/referenceAnswer");safeText(input.referenceAnswer,10000) }
+            "SHORT_ANSWER" -> { if(input.referenceAnswer.isNullOrBlank() || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.correctValue!=null) invalid("/referenceAnswer");safeText(input.referenceAnswer,40000) }
             "FILL_BLANK" -> {
                 if(input.blanks.size !in 1..20 || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.correctValue!=null || input.referenceAnswer!=null) invalid("/blanks")
                 input.blanks.forEach { blank ->
@@ -147,7 +147,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
                 if(input.passage.isNullOrBlank() || input.subQuestions.size !in 1..50 || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.correctValue!=null || input.referenceAnswer!=null) invalid("/subQuestions")
                 safeText(input.passage,20000)
                 val ids=input.subQuestions.mapNotNull { it.id };if(ids.distinct().size!=ids.size) invalid("/subQuestions/id")
-                input.subQuestions.forEach { if(it.type=="READING") invalid("/subQuestions/type");validate(it.question(input)) }
+                input.subQuestions.forEach { if(it.type=="READING") invalid("/subQuestions/type");validate(it.question(input),validateReferences) }
             }
             else -> invalid("/type")
         }
@@ -192,9 +192,9 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         sql.bumpBank(input.questionBankId)
         return result
     }
-    private fun writeQuestion(actor: Actor,id: UUID?,input: QuestionInput,parentId: UUID?=null,order: Int=0): MutationResult {
+    private fun writeQuestion(actor: Actor,id: UUID?,input: QuestionInput,parentId: UUID?=null,order: Int=0,allowNew: Boolean=false): MutationResult {
         val existing=id?.let { questions.selectById(it) }
-        if(id!=null && existing==null && parentId==null) missing()
+        if(id!=null && existing==null && parentId==null && !allowNew) missing()
         val row=existing ?: Question().apply { this.id=id ?: UUID.randomUUID();bankId=input.questionBankId;readingParentId=parentId;readingOrder=order;isGroup=input.type=="READING" }
         if(row.bankId!=input.questionBankId) invalid("/questionBankId","IMMUTABLE_PARENT","题目所属题库不可变更")
         if(row.readingParentId!=parentId) invalid("/subQuestions/id","QUESTION_GROUP_MISMATCH","小题所属题组不可变更")
@@ -239,10 +239,14 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         } else emptyList()
         return ImportPreview(issues.isEmpty() && publicationIssues.isEmpty(),count,issues+publicationIssues)
     }
-    fun import(actor: Actor,bankId: UUID,input: ImportInput): ImportView {
+    fun import(actor: Actor,bankId: UUID,input: ImportInput,recordIds: List<UUID>?=null): ImportView {
         val bank=access.bank(actor,bankId,true);requireVersion(input.expectedContentVersion,bank.contentVersion)
         val preview=preview(actor,bankId,input);if(!preview.valid) invalid("/questions","IMPORT_VALIDATION_FAILED","导入校验失败，请先修正预览中的错误")
-        val ids=input.questions.map { writeQuestion(actor,null,it).id }
+        val ids=input.questions.mapIndexed { index,q ->
+            val id=recordIds?.get(index)
+            if(id!=null && questions.selectById(id)!=null) conflict("EXCEL_RECORD_EXISTS","记录已存在")
+            writeQuestion(actor,id,q,allowNew=true).id
+        }
         if(bank.publicationStatus=="PUBLISHED") validatePublication(bank)
         sql.bumpBank(bankId)
         return ImportView(ids,banks.selectById(bankId).contentVersion)

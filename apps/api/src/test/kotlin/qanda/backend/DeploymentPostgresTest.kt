@@ -39,7 +39,7 @@ class DeploymentPostgresTest : PostgresFixture() {
                     statement.execute("INSERT INTO user_profile(user_id,major_id,grade,grade_academic_year) VALUES('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000011',2,2026)")
                 }
             }
-            assertEquals(2,flyway().migrate().migrationsExecuted)
+            assertEquals(3,flyway().migrate().migrationsExecuted)
             java.sql.DriverManager.getConnection(database.jdbcUrl,database.username,database.password).use { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT profile_setup_seen FROM user_account WHERE account_code='COMPLETE'").use { row -> assertTrue(row.next());assertTrue(row.getBoolean(1)) }

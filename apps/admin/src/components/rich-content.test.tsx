@@ -35,5 +35,7 @@ describe('safe content and review preview', () => {
       expect(html).toContain('不计分')
     }
     expect(renderToStaticMarkup(<QuestionContentView question={question} stage="review" />)).toContain('reference-secret')
+    const long = '参'.repeat(39990) + 'END-REFERENCE'
+    expect(renderToStaticMarkup(<QuestionContentView question={{ ...question, referenceAnswer: long }} stage="review" />)).toContain(long)
   })
 })

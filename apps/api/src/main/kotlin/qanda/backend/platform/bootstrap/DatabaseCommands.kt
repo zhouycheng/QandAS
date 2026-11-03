@@ -39,6 +39,7 @@ object DatabaseCommands {
                     statement.execute(ClassPathResource("db/monitoring-permissions.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/migration/V3__TestAccounts.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/migration/V4__EmailCodeLogin.sql").getContentAsString(Charsets.UTF_8))
                 }
                 connection.commit()
             } catch(error: Exception) { connection.rollback();throw error }

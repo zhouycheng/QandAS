@@ -1,3 +1,4 @@
+import { ExcelTransfer } from '../../components/excel-transfer'
 import { useState } from 'react'
 import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Pagination, Space, Table, Tag } from '@arco-design/web-react'
 import { IconBook, IconMore, IconPlus, IconRefresh } from '@arco-design/web-react/icon'
@@ -45,7 +46,7 @@ export function QuestionBanksPage() {
         <Pagination simple size="small" current={coursePage} total={courses.data?.total ?? 0} pageSize={20} onChange={setCoursePage} />
       </aside>
       <div className="bw-bank-panel">
-        <div className="bw-panel-heading"><h2>{course.data?.name ?? '全部题库'}</h2><Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button></div>
+        <div className="bw-panel-heading"><ExcelTransfer resource="question-banks" query={{ subjectId: courseId, keyword, publicationStatus: status }} count={banks.data?.total} onImported={() => refreshWorkbench(client)} /><h2>{course.data?.name ?? '全部题库'}</h2><Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button></div>
         {course.error && <ErrorState message={course.error.message} onRetry={() => void course.refetch()} />}
         <div className="bw-status-filters">{(['ALL', 'DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'] as const).map(value => <button key={value} className={(status ?? 'ALL') === value ? 'active' : ''} aria-pressed={(status ?? 'ALL') === value} onClick={() => { setStatus(value === 'ALL' ? undefined : value); setPage(1) }}>{value === 'ALL' ? '全部' : publicationLabels[value]}</button>)}</div>
         <div className="bw-list-toolbar"><Input.Search aria-label="搜索题库" placeholder="搜索题库名称" value={keyword} onChange={value => { setKeyword(value); setPage(1) }} allowClear /><Button icon={<IconRefresh />} aria-label="刷新题库" loading={banks.isFetching} onClick={() => void banks.refetch()} /></div>

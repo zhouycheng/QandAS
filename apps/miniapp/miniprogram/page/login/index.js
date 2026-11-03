@@ -3,10 +3,11 @@ const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { LoginViewModel } = require('../../viewmodels/login-viewmodel.js')
 const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 // hideLoading 之后立刻 showToast 会被吞掉，留一帧再弹
+const cooldown = require('../../utils/cooldown.js')
 const TOAST_DELAY = 120
 
 Page(withPageLifecycle({
-  data: LoginViewModel.getInitialData(),
+  data: Object.assign(LoginViewModel.getInitialData(), cooldown.getInitialCooldownData()),
 
   onLoad(options) {
     const query = options || {}
@@ -20,6 +21,7 @@ Page(withPageLifecycle({
   },
 
   onShow() {
+    cooldown.resume(this)
     if (this.viewModel) {
       this.applyViewModelResult(this.viewModel.load())
     }
@@ -42,6 +44,11 @@ Page(withPageLifecycle({
     })
   },
 
+  handleCodeInput(e) { this.syncForm(this.viewModel.setField('code', e.detail.value)) },
+  handleModeTap() { this.applyViewModelResult(this.viewModel.toggleMode()) },
+  handleSendCode() { if (this.data.cooldown > 0) return; this.viewModel.sendCode('login').then(result => this.applyViewModelResult(result)) },
+  onHide() { cooldown.stop(this) },
+  onUnload() { cooldown.stop(this); this.cooldownEndAt = 0 },
   handleEmailInput(e) {
     this.syncForm(this.viewModel.setField('email', e.detail.value))
   },
@@ -136,6 +143,7 @@ Page(withPageLifecycle({
       return
     }
 
+    if (command.type === 'cooldown') { cooldown.begin(this, command.seconds); wx.showToast({ title: command.title, icon: 'none' }); return }
     if (command.type === 'toast') {
       wx.showToast({
         title: command.title || '操作完成',

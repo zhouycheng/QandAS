@@ -9,7 +9,7 @@ ALIASES = {"test-accounts": "testAccountId", "question-banks": "questionBankId",
 
 def main():
     contracts = Contracts()
-    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "newPassword": "", "email": "", "code": "", "oldCode": "", "newCode": "", "registrationToken": "", "imageFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
+    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "newPassword": "", "email": "", "code": "", "oldCode": "", "newCode": "", "registrationToken": "", "imageFile": "", "excelFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
 
     def sample(schema, owner, field=""):
         schema, owner = contracts.resolve(schema, owner)
@@ -106,6 +106,8 @@ def main():
                     raw = raw.replace('"{{' + field + '}}"', '{{' + field + '}}')
                 request["body"] = {"mode": "raw", "raw": raw, "options": {"raw": {"language": "json"}}}
                 headers.append({"key": "Content-Type", "value": "application/json"})
+            elif "multipart/form-data" in media:
+                request["body"] = {"mode": "formdata", "formdata": [{"key": "files", "type": "file", "src": "{{excelFile}}"}, {"key": "options", "type": "text", "value": "{}"}]}
             else:
                 headers.append({"key": "Content-Type", "value": "image/png"})
                 request["body"] = {"mode": "file", "file": {"src": "{{imageFile}}"}}

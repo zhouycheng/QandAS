@@ -45,6 +45,7 @@ abstract class PostgresFixture {
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql"),"/docker-entrypoint-initdb.d/003-profile-setup.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__TestAccounts.sql"),"/docker-entrypoint-initdb.d/004-test-accounts.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V4__EmailCodeLogin.sql"),"/docker-entrypoint-initdb.d/005-email-code.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
@@ -204,7 +205,7 @@ abstract class PostgresFixture {
     @AfterAll fun exportEvidence() {
         val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v3/api-docs")).GET().build(),HttpResponse.BodyHandlers.ofString())
         val spec=json.readTree(response.body())
-        val operations=spec["paths"].fields().asSequence().flatMap { route -> route.value.fields().asSequence().filter { it.key in setOf("get","post","put","patch","delete") }.map { method -> Triple(route.key,method.key.uppercase(),method.value["operationId"].asText()) } }.toList()
+        val operations=spec["paths"].fields().asSequence().flatMap { route -> route.value.fields().asSequence().filter { it.key in setOf("get","post","put","patch","delete") }.map { method -> Triple(route.key,method.key.uppercase(),method.value["operationId"].asText()) } }.toList().sortedBy { it.first.count { c -> c=='{' } }
         fun redact(node: JsonNode?): JsonNode? {
             if(node==null) return null
             if(node.isObject) {

@@ -58,6 +58,14 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         attempts.clear(scope)
         return issueSession(user!!,input.deviceId)
     }
+    fun emailCodeLogin(input: EmailCodeLoginInput): TokenView {
+        val row=challengeRows.selectById(input.challengeId) ?: invalidProof()
+        if(row.purpose!="LOGIN" || row.userId==null) invalidProof()
+        val user=users.selectById(row.userId) ?: invalidProof()
+        val proof=challenges.consume(input.challengeId,"LOGIN",user.id)
+        if(user.emailKey!=proof.emailKey || user.status!="ACTIVE") invalidProof()
+        return issueSession(user,input.deviceId)
+    }
     fun wechatLogin(input: WechatLoginInput): WechatLoginView {
         val identity=wechat.exchange(input.code);val binding=sql.wechat(identity.appId,identity.openId)
         if(binding!=null) {

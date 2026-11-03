@@ -1,3 +1,4 @@
+import { ExcelTransfer } from '../../components/excel-transfer'
 import { useEffect, useState } from 'react'
 import { Alert, Button, Dropdown, Input, Menu, Message, Modal, Space, Spin, Tabs, Tag } from '@arco-design/web-react'
 import { IconArrowLeft, IconBook, IconMore, IconPlus } from '@arco-design/web-react/icon'
@@ -64,7 +65,7 @@ export function BankWorkspacePage() {
     Modal.confirm({ title: '删除空章节？', content: `确认删除“${chapter.name}”？`, okText: '确认删除', cancelText: '取消',
       onOk: async () => { try { await gateway.deleteChapter(chapter); if (chapterId === chapter.id) selectChapter(); refresh(); Message.success('空章节已删除') } catch (error) { Message.error((error as Error).message); throw error } } })
   }
-  return <section className="bw-page bw-bank-detail" aria-label="题库内容工作台">
+  return <section className="bw-page bw-bank-detail" aria-label="题库内容工作台"><ExcelTransfer resource="question-banks" bankId={id} onImported={() => refreshWorkbench(client)} />
     <Link className="bw-back" to={`/question-banks?course=${encodeURIComponent(bank.subjectId)}`}><IconArrowLeft /> 返回{course?.name ?? '课程'}题库</Link>
     <div className="bw-detail-hero"><div><div className="bw-location"><IconBook /> {course?.name}</div><PageTitle title={bank.name} description={bank.textbook || '补充教材和版本说明，帮助学生找到合适的复习内容。'} /></div><Space wrap>
       <Dropdown trigger="click" droplist={<Menu onClickMenuItem={(key) => key === 'archive' ? changePublication(true) : setSettings('basic')}><Menu.Item key="settings">题库设置</Menu.Item>{bank.publicationStatus !== 'ARCHIVED' && <Menu.Item key="archive">归档题库</Menu.Item>}</Menu>}><Button icon={<IconMore />} aria-label="更多题库操作" /></Dropdown>

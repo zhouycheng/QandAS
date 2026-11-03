@@ -14,7 +14,7 @@ function key(id) { return 'qandaProfileSetup:' + id }
 function localSeen(storage, id) { try { return storage.get(key(id)) || {} } catch (_) { return {} } }
 function current(identity) { return auth.getAuth(createWxStorageAdapter()).token === identity.token }
 function start() { const identity = auth.getAuth(createWxStorageAdapter()); pending = identity.token ? { identity, force: true } : null }
-function onLogin(identity) { pending = { identity, force: false }; destination = null }
+function onLogin(identity, codeLogin) { pending = { identity, codeLogin: !!codeLogin, force: false }; destination = null }
 function syncSeen(identity) {
   if (!identity.token || !current(identity)) return Promise.resolve()
   const storage = createWxStorageAdapter(), record = localSeen(storage, identity.userId)
@@ -57,14 +57,15 @@ async function showPending(page) {
     if (pending !== event || !current(event.identity) || !visible(page)) return
     const storage = createWxStorageAdapter(), identity = auth.getAuth(storage)
     pending = null
-    if (!needsProfile(identity)) return
+    if (!needsProfile(identity) && identity.profile.passwordSet !== false) return
     syncSeen(identity)
-    if (!identity.profile.profileSetupSeen && !localSeen(storage, identity.userId).seen) {
+    if (!event.codeLogin && !identity.profile.profileSetupSeen && !localSeen(storage, identity.userId).seen) {
       destination = { url: '/' + page.route, userId: identity.userId }
       if (page.route === 'page/bank-detail/index' && page.data.subjectId) getApp().setPendingSubjectId(page.data.subjectId)
       navigation.reLaunch({ url: '/page/profile-setup/index' })
     } else {
-      wx.showModal({ title: '完善学习资料', content: '填写学院、专业和年级，可以为你匹配更合适的题库。', confirmText: '去填写', cancelText: '稍后再说', success: result => {
+      if (event.codeLogin && needsProfile(identity)) markSeen()
+      wx.showModal({ title: '完善账号资料', content: identity.profile.passwordSet === false ? '可在个人资料中补充学习资料，并进入账号安全设置密码。' : '填写学院、专业和年级，可以为你匹配更合适的题库。', confirmText: '去填写', cancelText: '稍后再说', success: result => {
         if (result.confirm && current(identity) && visible(page)) navigation.navigateTo({ url: '/page/account/index' })
       } })
     }

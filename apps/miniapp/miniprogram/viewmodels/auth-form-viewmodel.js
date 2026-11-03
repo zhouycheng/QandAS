@@ -126,7 +126,7 @@ class AuthFormViewModel {
         return this.repository
             .sendAuthCode(this.storage, {
             email: this.fields.email,
-            purpose: purpose === 'reset' ? 'reset' : 'register'
+            purpose: purpose === 'login' ? 'login' : purpose === 'reset' ? 'reset' : 'register'
         })
             .then((outcome) => {
             this.sendingCode = false;

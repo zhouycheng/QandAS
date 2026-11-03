@@ -1,0 +1,102 @@
+package qanda.backend
+
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.*
+import qanda.backend.excel.*
+import java.util.UUID
+import java.io.ByteArrayOutputStream
+
+class ExcelPostgresTest: PostgresFixture() {
+    private fun exported(path: String,kind: String): com.fasterxml.jackson.databind.JsonNode {
+        val response=http.send(java.net.http.HttpRequest.newBuilder(java.net.URI("http://127.0.0.1:$port/api/v1$path")).header("Authorization","Bearer $adminToken").GET().build(),java.net.http.HttpResponse.BodyHandlers.ofByteArray())
+        assertEquals(200,response.statusCode(),String(response.body()).take(200))
+        val bytes=if(response.headers().firstValue("Content-Type").orElse("").contains("zip")) java.util.zip.ZipInputStream(response.body().inputStream()).use { zip ->
+            var entry=zip.nextEntry
+            while(entry!=null && !entry.name.endsWith(".xlsx")) entry=zip.nextEntry
+            assertNotNull(entry);zip.readAllBytes()
+        } else response.body()
+        return ExcelWorkbook.read(bytes,kind)
+    }
+    private fun upload(kind: String,action: String,doc: com.fasterxml.jackson.databind.JsonNode,options: String="{}",token: String?=adminToken): Pair<Int,com.fasterxml.jackson.databind.JsonNode> {
+        val boundary="qanda${UUID.randomUUID()}";val bytes=ByteArrayOutputStream()
+        val books=if(doc.isArray) doc.toList() else listOf(doc)
+        books.forEachIndexed { index,book ->
+            bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"fixture$index.xlsx\"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n".toByteArray())
+            bytes.write(ExcelWorkbook.write(book,kind));bytes.write("\r\n".toByteArray())
+            book.path("assets").forEach { asset ->
+                val png=ByteArrayOutputStream();javax.imageio.ImageIO.write(java.awt.image.BufferedImage(32,32,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",png)
+                bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"${asset["path"].asText()}\"\r\nContent-Type: image/png\r\n\r\n".toByteArray());bytes.write(png.toByteArray());bytes.write("\r\n".toByteArray())
+            }
+        }
+        bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"options\"\r\n\r\n$options\r\n--$boundary--\r\n".toByteArray())
+        val response=raw("POST","/admin/${if(kind=="users") "users" else "question-banks"}/excel/$action",bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary")
+        return response.statusCode() to json.readTree(response.body())
+    }
+    @Test fun `multi file failure rolls back preceding account and receipt writes`() {
+        val address="${UUID.randomUUID()}@example.test"
+        val batch=json.readTree("""[{"fileId":"${UUID.randomUUID()}","users":[{"id":"1","email":"$address","nickname":"第一份"}]},{"fileId":"${UUID.randomUUID()}","users":[{"id":"2","email":"$address","nickname":"第二份"}]}]""")
+        val before=jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java)
+        assertEquals(422,upload("users","imports",batch).first)
+        assertEquals(before,jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java))
+    }
+    @Test fun `attached picture is previewed imported and exported with workbook references`() {
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"图片课程${UUID.randomUUID()}","bank":{"name":"图片题库"},"chapters":[],"assets":[{"id":"image","path":"image.png"}],"questions":[{"id":"q1","type":"TRUE_FALSE","stem":"图示判断","correctValue":false,"assetIds":["image"]}]}""")
+        val options="""{"targets":{"${doc["fileId"].asText()}":{"createSubject":true}}}"""
+        assertTrue(upload("banks","preview",doc,options).second["valid"].asBoolean())
+        val result=upload("banks","imports",doc,options);assertEquals(200,result.first,result.second.toString())
+        val bank=jdbc.queryForObject("SELECT b.id FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE s.name=?",UUID::class.java,doc["subject"].asText())!!
+        val copy=exported("/admin/question-banks/excel/export?bankId=$bank","banks")
+        assertEquals(1,copy["questions"][0]["assetIds"].size());assertEquals(1,copy["assets"].size())
+    }
+    @Test fun `account workbook preview is read only import is idempotent and code login uses isolated proof`() {
+        val address="${UUID.randomUUID()}@example.test"
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","users":[{"id":"s1","email":"$address","nickname":"Excel学生","status":"ACTIVE","registeredAt":"2025-01-01T00:00:00Z"}]}""")
+        val before=jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java)
+        val preview=upload("users","preview",doc);assertEquals(200,preview.first,preview.second.toString());assertTrue(preview.second["valid"].asBoolean(),preview.second.toString())
+        assertEquals(before,jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java))
+        val result=upload("users","imports",doc);assertEquals(200,result.first,result.second.toString())
+        assertEquals(result,upload("users","imports",doc));assertFalse(upload("users","preview",doc).second["valid"].asBoolean())
+        assertEquals(before!!+1,jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java))
+        val exported=exported("/admin/users/excel/export?keyword=$address","users")
+        assertEquals(1,exported["users"].size());assertEquals(address,exported["users"][0]["email"].asText())
+        assertNull(jdbc.queryForObject("SELECT password_hash FROM user_account WHERE email_key=?",String::class.java,address))
+        assertEquals(401,upload("users","imports",doc,token=null).first)
+        val proof=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
+        val payload=mapOf("challengeId" to id(proof),"code" to code(id(proof)),"deviceId" to UUID.randomUUID())
+        val wrong=if(payload["code"]=="000000") "999999" else "000000"
+        call("POST","/auth/email-code-sessions",payload+mapOf("code" to wrong),null,409)
+        val session=call("POST","/auth/email-code-sessions",payload,null)
+        assertEquals(address,call("GET","/me",token=session["accessToken"].asText())["email"].asText())
+        call("POST","/auth/email-code-sessions",payload,null,409)
+        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
+        val reset=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to address),null,201)
+        call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(reset),"code" to code(id(reset)),"deviceId" to UUID.randomUUID()),null,409)
+    }
+    @Test fun `full bank import preserves identical separate records and rollback rejects bad references`() {
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"Excel课程${UUID.randomUUID()}","bank":{"name":"Excel题库"},"chapters":[{"id":"c1","name":"第一章"}],"questions":[{"id":"q1","chapterId":"c1","type":"TRUE_FALSE","stem":"相同内容","correctValue":true},{"id":"q2","chapterId":"c1","type":"TRUE_FALSE","stem":"相同内容","correctValue":true}]}""")
+        val options="""{"targets":{"${doc["fileId"].asText()}":{"createSubject":true}}}"""
+        val preview=upload("banks","preview",doc,options);assertEquals(200,preview.first,preview.second.toString());assertTrue(preview.second["valid"].asBoolean(),preview.second.toString())
+        val imported=upload("banks","imports",doc,options);assertEquals(200,imported.first,imported.second.toString());assertEquals(2,imported.second["count"].asInt())
+        assertEquals(imported,upload("banks","imports",doc,options))
+        val bank=jdbc.queryForObject("SELECT b.id FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE s.name=?",UUID::class.java,doc["subject"].asText())!!
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,bank))
+        assertEquals("DRAFT",jdbc.queryForObject("SELECT publication_status FROM question_bank WHERE id=?",String::class.java,bank))
+        val exported=exported("/admin/question-banks/excel/export?bankId=$bank","banks")
+        assertEquals(2,exported["questions"].size());assertEquals("相同内容",exported["questions"][0]["stem"].asText())
+        val append=doc.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().put("fileId",UUID.randomUUID().toString())
+        val version=call("GET","/admin/question-banks/$bank")["contentVersion"].asLong()
+        val stale="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":${version-1}}}}"""
+        assertFalse(upload("banks","preview",append,stale).second["valid"].asBoolean())
+        assertEquals(422,upload("banks","imports",append,stale).first)
+        val missingVersion="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank"}}}"""
+        assertEquals(422,upload("banks","imports",append,missingVersion).first)
+        val target="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":$version}}}"""
+        assertEquals(200,upload("banks","imports",append,target).first)
+        assertEquals(4,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,bank))
+        val bad=doc.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().put("fileId",UUID.randomUUID().toString()).put("subject","坏引用${UUID.randomUUID()}")
+        (bad["questions"][1] as com.fasterxml.jackson.databind.node.ObjectNode).put("chapterId","missing")
+        val count=jdbc.queryForObject("SELECT count(*) FROM subject",Int::class.java)
+        assertEquals(422,upload("banks","imports",bad,"""{"targets":{"${bad["fileId"].asText()}":{"createSubject":true}}}""").first)
+        assertEquals(count,jdbc.queryForObject("SELECT count(*) FROM subject",Int::class.java))
+    }
+}

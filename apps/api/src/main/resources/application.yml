@@ -50,7 +50,7 @@ spring:
       write-dates-as-timestamps: false
   servlet:
     multipart:
-      max-file-size: 5MB
+      max-file-size: 8MB
       max-request-size: 8MB
 qanda:
   backend:

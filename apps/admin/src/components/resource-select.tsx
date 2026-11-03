@@ -5,7 +5,7 @@ import { useAdminGateway } from '../gateways/gateway-context'
 import { getAdminSession } from '../lib/auth'
 
 export function ResourceSelect({ kind, collegeId, value, onChange, multiple, disabled, placeholder, initialOptions = [] }: {
-  kind: 'college' | 'major' | 'subject' | 'user' | 'admin'; collegeId?: string
+  kind: 'college' | 'major' | 'subject' | 'bank' | 'user' | 'admin'; collegeId?: string
   value?: string | string[]; onChange?: (value: string | string[]) => void
   multiple?: boolean; disabled?: boolean; placeholder: string; initialOptions?: { value: string; label: string }[]
 }) {
@@ -14,7 +14,7 @@ export function ResourceSelect({ kind, collegeId, value, onChange, multiple, dis
   const [keyword, setKeyword] = useState('')
   const selected = (Array.isArray(value) ? value : value ? [value] : []).filter(id => !initialOptions.some(option => option.value === id))
   const selectedQueries = useQueries({ queries: selected.map(id => ({ queryKey: ['resource-label', getAdminSession()?.id, kind, id], staleTime: 300000, queryFn: async () => {
-    const item = kind === 'college' ? await gateway.getCollege(id) : kind === 'major' ? await gateway.getMajor(id) : kind === 'subject' ? await gateway.getSubject(id) : kind === 'admin' ? await gateway.getAdminAccount(id) : await gateway.getUser(id)
+    const item = kind === 'bank' ? await gateway.getQuestionBank(id) : kind === 'college' ? await gateway.getCollege(id) : kind === 'major' ? await gateway.getMajor(id) : kind === 'subject' ? await gateway.getSubject(id) : kind === 'admin' ? await gateway.getAdminAccount(id) : await gateway.getUser(id)
     return { value: id, label: item.name }
   } })) })
   const query = useInfiniteQuery({
@@ -24,6 +24,7 @@ export function ResourceSelect({ kind, collegeId, value, onChange, multiple, dis
       const params = { page: pageParam, pageSize: 20, keyword }
       if (kind === 'college') { const data = await gateway.listColleges(params); return { ...data, items: data.items.map(x => ({ value: x.id, label: x.name + (x.status === 'INACTIVE' ? '（已停用）' : '') })) } }
       if (kind === 'major') { const data = await gateway.listMajors({ ...params, collegeId }); return { ...data, items: data.items.map(x => ({ value: x.id, label: x.name + (x.status === 'INACTIVE' ? '（已停用）' : '') })) } }
+      if (kind === 'bank') { const data = await gateway.listQuestionBanks(params); return { ...data, items: data.items.map(x => ({ value: x.id, label: x.name })) } }
       if (kind === 'subject') { const data = await gateway.listSubjects(params); return { ...data, items: data.items.map(x => ({ value: x.id, label: x.name })) } }
       if (kind === 'user') { const data = await gateway.listUsers({ ...params, status: 'ACTIVE' }); return { ...data, items: data.items.map(x => ({ value: x.id, label: x.name + ' · ' + x.account })) } }
       const data = await gateway.listAdminAccounts(params)
