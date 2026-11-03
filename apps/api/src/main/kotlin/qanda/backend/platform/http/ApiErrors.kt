@@ -107,6 +107,12 @@ class ApiExceptionHandler(private val audits: ObjectProvider<AuditFailures>) {
     @ExceptionHandler(org.springframework.web.HttpMediaTypeNotAcceptableException::class)
     fun acceptable(request: HttpServletRequest) = business(ApiException(HttpStatus.NOT_ACCEPTABLE, "NOT_ACCEPTABLE", "暂时无法显示内容，请重新打开"), request)
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException::class)
+    fun uploadSize(request: HttpServletRequest) = business(ApiException(HttpStatus.PAYLOAD_TOO_LARGE,"UPLOAD_TOO_LARGE","上传合计最多 8 MiB，请拆分文件"),request)
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException::class)
+    fun multipart(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST,"INVALID_MULTIPART","上传文件无法识别，请重新选择"),request)
+
     @ExceptionHandler(TypeMismatchException::class, ServletRequestBindingException::class)
     fun parameter(request: HttpServletRequest) = business(ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "提交的信息有误，请检查后重试"), request)
 

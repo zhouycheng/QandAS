@@ -278,6 +278,8 @@ for (const dir of PAGE_DIRS) {
     },
   })
 
+  global.getCurrentPages = () => [inst]
+
   try {
     if (typeof options.onLoad === 'function') options.onLoad.call(inst, {})
     if (typeof options.onShow === 'function') options.onShow.call(inst, {})

@@ -1,4 +1,5 @@
 @import "../../styles/list-page.wxss";
+@import "../../styles/profile-selectors.wxss";
 
 button.avatar-button[size="mini"] {
   display: flex;
@@ -23,16 +24,3 @@ button.avatar-button[size="mini"] {
 .nickname-field .field-input { flex: 1; min-width: 0; width: 0; height: 86rpx; margin: 0; padding: 0; }
 .nickname-wechat-button { flex: none; display: flex; align-items: center; justify-content: flex-end; width: auto; min-width: 0; height: 86rpx; margin: 0 0 0 20rpx; padding: 0; border: 0; border-radius: 0; line-height: 45rpx; font-size: 22rpx; font-weight: 500; color: #466bff; background: transparent; box-shadow: none; }
 .nickname-wechat-button::after { border: none; }
-
-.profile-select-mask { position: fixed; inset: 0; z-index: 40; }
-.profile-selector { position: relative; }
-.profile-selector.is-open { z-index: 41; }
-.profile-select { display: flex; align-items: center; min-height: 88rpx; padding: 0 24rpx; border: 2rpx solid #E4E8F0; border-radius: 16rpx; background: #FFFFFF; }
-.profile-select-value { flex: 1; min-width: 0; font-size: 26rpx; color: #141820; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.profile-select-value.is-placeholder { color: #9AA0A6; }
-.profile-select-arrow { width: 12rpx; height: 12rpx; margin: 0 4rpx 6rpx 20rpx; border-right: 3rpx solid #8B8F99; border-bottom: 3rpx solid #8B8F99; transform: rotate(45deg); }
-.profile-options { position: absolute; left: 0; right: 0; top: calc(100% + 8rpx); max-height: 360rpx; border: 2rpx solid #E4E8F0; border-radius: 16rpx; background: #FFFFFF; box-shadow: 0 10rpx 32rpx rgba(22, 34, 58, .12); animation: profile-options-enter 140ms ease-out; }
-.profile-option, .profile-option-note { padding: 23rpx 24rpx; font-size: 26rpx; line-height: 1.5; color: #141820; }
-.profile-option.is-selected { background: #EFF4FF; color: #2B7FFC; }
-.profile-option-note { color: #8B8F99; }
-@keyframes profile-options-enter { from { opacity: 0; transform: translateY(-8rpx); } to { opacity: 1; transform: translateY(0); } }

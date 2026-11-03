@@ -74,9 +74,9 @@ class AccountViewModel {
         this.majorOptions = [];
         this.securityRepository = normalizedOptions.securityRepository;
     }
-    refreshRemote(subjectId) {
+    refreshRemote(options) {
         const revision = this.editRevision;
-        return this.repository.refreshRemote(this.storage, 'profile').then(() => revision !== this.editRevision ? null : this.loadedEditRevision !== this.editRevision ? { data: { profile: this.readProfile() } } : this.load()).catch((error) => ({ command: { type: 'toast', title: error.message } }));
+        return this.repository.refreshRemote(this.storage, 'profile', options).then(() => revision !== this.editRevision ? null : this.loadedEditRevision !== this.editRevision ? { data: { profile: this.readProfile() } } : this.load()).catch((error) => ({ command: { type: 'toast', title: error.message } }));
     }
     projectRemote() {
         remoteData.getProfile(this.storage);
@@ -177,6 +177,7 @@ class AccountViewModel {
             currentGrade: profile.currentGrade || null, gradeLabel: GRADE_LABELS[profile.currentGrade - 1] || '',
             emailMasked: maskEmail(profile.email === undefined ? view.email : profile.email),
             providerLabel: getProviderLabel(view.provider) || view.accountTag,
+            isTestAccount: !!profile.isTestAccount,
             passwordStatus: profile.passwordSet ? '已设置' : '未设置',
             wechatBound: !!profile.wechatBound,
             wechatStatus: profile.wechatBound ? '已绑定' : '未绑定',
@@ -252,10 +253,11 @@ class AccountViewModel {
             (pending.avatarUrl || '') !== (current.avatarUrl || '') ||
             pending.majorId !== current.majorId || pending.currentGrade !== current.currentGrade || this.gradeEdited);
     }
-    security(mode) { return { command: { type: 'navigate', url: this.readAuth().view.loggedIn ? `${SECURITY_URL}?mode=${mode}` : LOGIN_URL } }; }
+    security(mode) { if (this.readProfile().isTestAccount) return { command: { type: 'toast', title: '测试账号的登录凭据由管理员管理' } }; return { command: { type: 'navigate', url: this.readAuth().view.loggedIn ? `${SECURITY_URL}?mode=${mode}` : LOGIN_URL } }; }
     tapPassword() { return this.security('password'); }
     tapEmail() { return this.security('email'); }
     tapWechat() {
+        if (this.readProfile().isTestAccount) return { command: { type: 'toast', title: '测试账号使用固定登录凭据' } };
         if (!this.readAuth().view.loggedIn)
             return { command: { type: 'navigate', url: LOGIN_URL } };
         if (this.readProfile().wechatBound || this.wechatBinding)
@@ -263,6 +265,7 @@ class AccountViewModel {
         return { command: { type: 'confirm-wechat-binding' } };
     }
     async bindWechat() {
+        if (this.readProfile().isTestAccount) return { command: { type: 'toast', title: '测试账号使用固定登录凭据' } };
         if (this.wechatBinding)
             return null;
         this.wechatBinding = true;

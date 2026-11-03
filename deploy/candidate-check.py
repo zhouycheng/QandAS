@@ -31,7 +31,7 @@ def check(backend, web):
                       'BACKEND_RABBIT_HOST': prefix + '-rabbit', 'BACKEND_RABBIT_USER': 'qanda',
                       'BACKEND_RABBIT_PASSWORD': 'isolated-queue-password', 'BACKEND_WECHAT_PROVIDER': 'local',
                       'BACKEND_IDENTITY_RATE_KEY': key, 'BACKEND_ROLE': 'all', 'BACKEND_WORKER_ENABLED': 'true',
-                      **{f'BACKEND_{kind}_KEYS': '1:' + key for kind in ('COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION')}}
+                      **{f'BACKEND_{kind}_KEYS': '1:' + key for kind in ('COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION', 'TEST_ACCOUNT_ENCRYPTION')}}
             path = Path(temporary) / 'test.env'
             path.write_text(''.join(f'{k}={v}\n' for k, v in values.items()))
             path.chmod(0o600)

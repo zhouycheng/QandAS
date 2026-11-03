@@ -23,6 +23,10 @@ async function main() {
     expire: () => calls.push(['expire'])
   }
   const create = mode => new AccountSecurityViewModel({ mode, repository: repo, now: () => now })
+  const fixed = new AccountSecurityViewModel({ repository: { load: async () => ({ isTestAccount: true, email: 'test@qanda.invalid' }) } })
+  assert.equal((await fixed.load()).data.stage, 'test-account')
+  assert.equal(await fixed.sendCode(), null)
+  assert.equal(await fixed.submit(), null)
   const vm = create('password')
   assert.equal((await vm.load()).data.stage, 'verify')
   assert.equal((await vm.submit()).data.errorField, 'code')

@@ -9,6 +9,6 @@ function scopeKey(auth) {
 }
 function needsProfile(auth) { return !!(auth && auth.token && auth.profile && auth.profile.profileComplete === false) }
 function successCommand(auth, title) {
-  return needsProfile(auth) ? { type: 'navigate', mode: 'redirect', url: '/page/account/index?required=1', title: '请完善个人资料' } : { type: 'back', title }
+  return { type: 'back', title }
 }
 module.exports = { GRADE_LABELS, academicYear, scopeKey, needsProfile, successCommand }

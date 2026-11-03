@@ -21,24 +21,26 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
 
     fun issue(input: ChallengeInput, actorId: UUID?): ChallengeView {
         val user=actorId?.let { users.selectById(it) ?: unauthenticated() }
+        if(actorId!=null && sql.testAccountAccess(actorId)!=null) fixedTestCredentials()
         val address=when(input.purpose) {
-            "REGISTER","RESET_PASSWORD" -> { if(user!=null) invalid("purpose"); email(input.email ?: invalid("email")) }
+            "REGISTER","RESET_PASSWORD","LOGIN" -> { if(user!=null) invalid("purpose"); email(input.email ?: invalid("email")) }
             "BIND_EMAIL","CHANGE_EMAIL_NEW" -> { if(user==null) unauthenticated();email(input.email ?: invalid("email")) }
             "CHANGE_PASSWORD","CHANGE_EMAIL_OLD" -> email(user?.email ?: invalid("email"))
             else -> invalid("purpose")
         }
+        if(address.key.endsWith("@qanda.invalid")) fixedTestCredentials()
         system.lock("email:${address.key}")
         sql.recentChallenge(address.key)?.let { if(it.plusSeconds(60).isAfter(clock.instant())) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请稍后再发送",details=ErrorDetails(retryAfterSeconds=60)) }
         val owner=sql.userByEmail(address.key)
         val eligible=when(input.purpose) {
             "REGISTER" -> owner==null
-            "RESET_PASSWORD" -> owner?.status=="ACTIVE"
+            "RESET_PASSWORD","LOGIN" -> owner?.status=="ACTIVE"
             "BIND_EMAIL" -> owner==null && user?.email==null
             "CHANGE_EMAIL_NEW" -> owner==null
             else -> user?.status=="ACTIVE"
         }
         val code=crypto.randomCode()
-        val row=EmailChallenge().apply { id=UUID.randomUUID();userId=if(input.purpose=="RESET_PASSWORD") owner?.id else user?.id
+        val row=EmailChallenge().apply { id=UUID.randomUUID();userId=if(input.purpose in setOf("RESET_PASSWORD","LOGIN")) owner?.id else user?.id
             purpose=input.purpose;email=address.display;emailKey=address.key;codeMac=crypto.proofMac(id!!,purpose,code);keyVersion=crypto.activeVersion
             this.eligible=eligible;credentialVersion=(user?:owner)?.credentialVersion;createdAt=clock.instant().truncatedTo(ChronoUnit.MILLIS);expiresAt=createdAt.plusSeconds(600) }
         rows.insert(row)

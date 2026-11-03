@@ -41,8 +41,11 @@ abstract class PostgresFixture {
         protected val queueNetwork=org.testcontainers.containers.Network.newNetwork()
         @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/schema.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/z-monitoring-permissions.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/001-schema.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql"),"/docker-entrypoint-initdb.d/003-profile-setup.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__TestAccounts.sql"),"/docker-entrypoint-initdb.d/004-test-accounts.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V4__EmailCodeLogin.sql"),"/docker-entrypoint-initdb.d/005-email-code.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
@@ -80,7 +83,7 @@ abstract class PostgresFixture {
             r.add("spring.datasource.url") { postgres.jdbcUrl };r.add("spring.datasource.username") { postgres.username };r.add("spring.datasource.password") { postgres.password }
             r.add("qanda.backend.mode") { "test" };r.add("server.address") { "127.0.0.1" }
             r.add("BACKEND_WECHAT_PROVIDER") { "local" };r.add("BACKEND_COMMAND_DIGEST_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_MAC_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_RATE_KEY") { key }
-            r.add("BACKEND_MAIL_ENCRYPTION_KEYS") { "1:$key" };r.add("qanda.backend.mail.enabled") { true };r.add("qanda.backend.mail.transport") { "local-capture" }
+            r.add("BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS") { "1:$key" };r.add("BACKEND_MAIL_ENCRYPTION_KEYS") { "1:$key" };r.add("qanda.backend.mail.enabled") { true };r.add("qanda.backend.mail.transport") { "local-capture" }
             r.add("qanda.backend.mail.host") { "127.0.0.1" };r.add("qanda.backend.mail.port") { mailpit.getMappedPort(1025) };r.add("qanda.backend.mail.dispatch-enabled") { false }
             r.add("qanda.backend.files.enabled") { true };r.add("qanda.backend.files.root") { assetRoot.toString() }
             r.add("springdoc.api-docs.enabled") { true };r.add("springdoc.swagger-ui.enabled") { true }
@@ -202,7 +205,7 @@ abstract class PostgresFixture {
     @AfterAll fun exportEvidence() {
         val response=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v3/api-docs")).GET().build(),HttpResponse.BodyHandlers.ofString())
         val spec=json.readTree(response.body())
-        val operations=spec["paths"].fields().asSequence().flatMap { route -> route.value.fields().asSequence().filter { it.key in setOf("get","post","put","patch","delete") }.map { method -> Triple(route.key,method.key.uppercase(),method.value["operationId"].asText()) } }.toList()
+        val operations=spec["paths"].fields().asSequence().flatMap { route -> route.value.fields().asSequence().filter { it.key in setOf("get","post","put","patch","delete") }.map { method -> Triple(route.key,method.key.uppercase(),method.value["operationId"].asText()) } }.toList().sortedBy { it.first.count { c -> c=='{' } }
         fun redact(node: JsonNode?): JsonNode? {
             if(node==null) return null
             if(node.isObject) {

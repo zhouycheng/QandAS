@@ -55,7 +55,7 @@ function validateContent(input: QuestionContent, allowReading = true): QuestionC
     return { ...base, blanks, blankMatch }
   }
   if (input.type === 'SHORT_ANSWER') {
-    const referenceAnswer = boundedText(input.referenceAnswer, '参考答案', 10000)
+    const referenceAnswer = boundedText(input.referenceAnswer, '参考答案', 40000)
     if (input.scoringPoints && (!Array.isArray(input.scoringPoints) || input.scoringPoints.length > 30)) throw new Error('简答题最多 30 条评分要点。')
     const scoringPoints = (input.scoringPoints ?? []).map((point) => boundedText(point, '评分要点', 1000))
     return { ...base, referenceAnswer, scoringPoints }

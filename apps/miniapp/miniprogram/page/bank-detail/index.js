@@ -17,6 +17,7 @@ Page(withPageLifecycle({
     })
   },
 
+  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     this.isOpeningPractice = false
     this.syncTabBar()

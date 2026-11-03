@@ -4,12 +4,12 @@ import uuid
 from urllib.parse import urlencode
 from contracts import Contracts, ROOT
 
-ALIASES = {"question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "email-registrations": "userId", "wechat-registrations": "userId", "finish": "resultId"}
+ALIASES = {"test-accounts": "testAccountId", "question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "email-registrations": "userId", "wechat-registrations": "userId", "finish": "resultId"}
 
 
 def main():
     contracts = Contracts()
-    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "newPassword": "", "email": "", "code": "", "oldCode": "", "newCode": "", "registrationToken": "", "imageFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
+    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "newPassword": "", "email": "", "code": "", "oldCode": "", "newCode": "", "registrationToken": "", "imageFile": "", "excelFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
 
     def sample(schema, owner, field=""):
         schema, owner = contracts.resolve(schema, owner)
@@ -27,6 +27,8 @@ def main():
             result = {key: sample(value, owner, key) for key, value in schema.get("properties", {}).items() if key in schema.get("required", [])}
             if "type" in schema.get("properties", {}) and "stem" in schema.get("properties", {}):
                 result.update(type="SINGLE_CHOICE", stem="示例题干", options=[{"key": "A", "content": "选项甲"}, {"key": "B", "content": "选项乙"}], correctAnswer=["A"], explanation="示例解析")
+            if "validDays" in schema.get("properties", {}):
+                result.update(validDays=7, includeInStatistics=False)
             if "selectionKind" in schema.get("properties", {}):
                 result.update(count=1, order="SEQUENTIAL", selectionKind="NORMAL")
             return result
@@ -44,7 +46,7 @@ def main():
             return "2026-10-28T00:00:00.000Z"
         if schema.get("format") == "date":
             return "2026-10-29" if field == "endDateExclusive" else "2026-10-28"
-        return {"scopeType": "ALL", "status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "AFTER_FINISH", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "REGISTER", "email": "student@example.test", "password": "Example12345", "newPassword": "NewExample12345", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator"}.get(field, "示例内容")
+        return {"scopeType": "ALL", "status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "AFTER_FINISH", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "REGISTER", "email": "student@example.test", "password": "Example12345", "newPassword": "NewExample12345", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator", "accountCode": "STUDENT01"}.get(field, "示例内容")
 
     def template(value, field=""):
         if isinstance(value, dict):
@@ -104,6 +106,8 @@ def main():
                     raw = raw.replace('"{{' + field + '}}"', '{{' + field + '}}')
                 request["body"] = {"mode": "raw", "raw": raw, "options": {"raw": {"language": "json"}}}
                 headers.append({"key": "Content-Type", "value": "application/json"})
+            elif "multipart/form-data" in media:
+                request["body"] = {"mode": "formdata", "formdata": [{"key": "files", "type": "file", "src": "{{excelFile}}"}, {"key": "options", "type": "text", "value": "{}"}]}
             else:
                 headers.append({"key": "Content-Type", "value": "image/png"})
                 request["body"] = {"mode": "file", "file": {"src": "{{imageFile}}"}}

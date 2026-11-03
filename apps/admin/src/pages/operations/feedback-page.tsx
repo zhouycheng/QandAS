@@ -16,11 +16,11 @@ export function FeedbackPage() {
   const [editing, setEditing] = useState<StudentFeedback>()
   const query = useQuery({ queryKey: ['feedback', kind, status, page], queryFn: () => gateway.listFeedback({ kind, status, page }) })
   const labels = kind === 'QUESTION' ? feedbackStatusLabels : courseRequestStatusLabels
-  return <section aria-label="学生反馈"><Space wrap>
+  return <section className="list-page" aria-label="学生反馈"><Space className="list-toolbar" wrap>
     <Radio.Group type="button" value={kind} onChange={value => { setParams({ kind: value }); setPage(1) }}><Radio value="QUESTION">题目纠错</Radio><Radio value="COURSE_REQUEST">缺课需求</Radio></Radio.Group>
     <Select style={{ width: 150 }} aria-label="处理状态" placeholder="全部状态" value={status} allowClear options={Object.entries(labels).map(([value, label]) => ({ value, label }))} onChange={value => { setStatus(value); setPage(1) }} />
   </Space>{query.error && <ErrorState message={query.error.message} onRetry={() => void query.refetch()} />}
-    <Table<StudentFeedback> rowKey="id" data={query.data?.items ?? []} loading={query.isFetching} pagination={{ current: page, pageSize: 20, total: query.data?.total ?? 0, onChange: setPage }} columns={[
+    <Table<StudentFeedback> scroll={{ x: 760 }} rowKey="id" data={query.data?.items ?? []} loading={query.isFetching} pagination={{ current: page, pageSize: 20, total: query.data?.total ?? 0, onChange: setPage }} columns={[
       { title: '题目 / 课程', dataIndex: 'title', ellipsis: true }, { title: '反馈内容', dataIndex: 'body', ellipsis: true }, { title: '状态', render: (_, row) => <Tag>{labels[row.status]}</Tag> }, { title: '提交时间', dataIndex: 'createdAt' }, { title: '操作', render: (_, row) => <Button type="text" onClick={() => setEditing(row)}>查看并处理</Button> },
     ]} />{editing && <FeedbackEditor record={editing} onClose={() => setEditing(undefined)} onSaved={() => { setEditing(undefined); void client.invalidateQueries({ queryKey: ['feedback'] }); void client.invalidateQueries({ queryKey: ['dashboard-summary'] }) }} />}
   </section>

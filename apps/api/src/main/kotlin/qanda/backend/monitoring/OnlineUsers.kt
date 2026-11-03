@@ -24,7 +24,7 @@ class OnlineUsers(private val jdbc: NamedParameterJdbcTemplate,private val clock
         if((keyword?.length ?: 0)>100) invalid("/keyword")
         val now=clock.instant()
         val parameters=mutableMapOf<String,Any?>("now" to Timestamp.from(now),"offset" to page.offset,"limit" to page.pageSize)
-        val conditions=mutableListOf("true")
+        val conditions=mutableListOf("u.include_in_statistics")
         listOf("collegeId" to collegeId,"majorId" to majorId,"grade" to grade).forEach { (key,value) ->
             if(value!=null) { parameters[key]=value;conditions+=when(key) { "collegeId" -> "u.college_id=:collegeId";"majorId" -> "u.major_id=:majorId";else -> "u.current_grade=:grade" } }
         }

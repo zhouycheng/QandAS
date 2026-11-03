@@ -1,4 +1,6 @@
 
+.question-images { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+
 .directory-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -44,6 +46,8 @@
 .directory-tree-panel > .arco-input-group-wrapper { width: calc(100% - 16px); margin: 0 8px 17px; }
 .directory-tree-scroll { flex: 1; min-height: 330px; max-height: 570px; overflow: auto; }
 .directory-all { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: 0; border-radius: 7px; background: transparent; color: #5d6d85; text-align: left; cursor: pointer; }
+.directory-all + .directory-all { margin-top: 4px; }
+.directory-tree-pagination { margin: 12px 8px 0; }
 .directory-all.active { background: #eaf3ff; color: var(--primary); font-weight: 500; }
 .directory-all > svg { font-size: 17px; }
 .directory-all small { margin-left: auto; padding: 1px 6px; border-radius: 4px; background: #e2edfb; color: #6b8fbd; font-size: 11px; }
@@ -85,7 +89,6 @@
 .directory-detail-panel .arco-table-th { background: #f6f8fc; font-size: 12px; color: #8290a6; font-weight: 400; }
 .directory-detail-panel .arco-table-td { border-color: #eff3f8; }
 .activity-page .arco-table-th { white-space: nowrap; }
-.activity-page .arco-table-th, .activity-page .arco-table-td { padding: 12px; }
 .directory-entity { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 6px 0; max-width: 100%; border: 0; background: transparent; color: #344f72; text-align: left; cursor: pointer; }
 .directory-entity:hover strong { color: var(--primary); }
 .directory-entity > span:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 6px; }

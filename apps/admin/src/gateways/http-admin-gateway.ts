@@ -1,6 +1,7 @@
+import type { TestAccount, TestAccountInput, TestAccountCredentials, TestAccountQuery } from '../types/operations'
 import type { AdminContentGateway } from './admin-content-gateway'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, SubjectAccess, UserQuery, UserStatus } from '../types/operations'
+import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, SubjectAccess, UpdateManagedUserInput, UserQuery, UserStatus } from '../types/operations'
 import { getAdminSession, logout } from '../lib/auth'
 import { importBody, questionFromWire, questionToWire } from './question-wire'
 import { countQuestions } from '../lib/question-content'
@@ -10,7 +11,7 @@ import { watchSyncStream } from './sync-stream'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
-type WireUser = { id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean; avatarUrl?: string | null }
+type WireUser = { isTestAccount?: boolean; id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean; avatarUrl?: string | null }
 const userView = (u: WireUser): ManagedUser => ({ ...u, name: u.nickname, account: u.accountCode, email: u.email ?? '', collegeId: u.collegeId ?? '', majorId: u.majorId ?? '', grade: u.currentGrade, registeredAt: u.registeredAt, wechatBound: u.wechatBound })
 const segment = encodeURIComponent
 
@@ -25,14 +26,14 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   private async request<T>(method: string, path: string, body?: unknown, query?: object, key?: string, binary = false): Promise<T> {
     const params = new URLSearchParams()
     Object.entries(query ?? {}).forEach(([name, value]) => { if (value !== undefined && value !== null && value !== '') params.set(name, String(value)) })
-    const raw = body instanceof Blob ? body : body === undefined ? undefined : JSON.stringify(body)
+    const raw = body instanceof Blob || body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body)
     if (typeof raw === 'string' && new TextEncoder().encode(raw).length > 8 * 1024 * 1024) throw new Error('每批请求最多 8 MiB，请拆分文件')
     const headers: Record<string, string> = { 'X-Request-Id': crypto.randomUUID() }
     const identity = this.provisionalToken || this.token()
     const token = path === '/admin/auth/sessions' ? '' : identity
     const checkIdentity = () => { if (identity !== (this.provisionalToken || this.token())) throw new ApiError('账号已切换，请重新操作', 'IDENTITY_CHANGED', 499, headers['X-Request-Id']) }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (raw !== undefined) headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json'
+    if (raw !== undefined && !(body instanceof FormData)) headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json'
     if (key) headers['Idempotency-Key'] = key
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
@@ -76,6 +77,10 @@ export class HttpAdminContentGateway implements AdminContentGateway {
       throw error
     }
   }
+  downloadExcel(resource: string, action: 'template' | 'export', query?: object) { return this.request<Blob>('GET', `/${'admin'}/${resource}/excel/${action}`, undefined, query, undefined, true) }
+  private excelBody(files: File[], options: import('../types/excel').ExcelOptions) { const form = new FormData(); files.forEach(file => form.append('files', file)); form.append('options', JSON.stringify(options)); return form }
+  previewExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions) { return this.request<import('../types/excel').ExcelPreview>('POST', `/admin/${resource}/excel/preview`, this.excelBody(files, options)) }
+  importExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions) { return this.request<{ count: number }>('POST', `/admin/${resource}/excel/imports`, this.excelBody(files, options)) }
   async loginAdmin(username: string, password: string): Promise<AdminLogin> {
     const session = await this.request<{ accessToken: string; expiresAt: string; sessionMinutes: number }>('POST', '/admin/auth/sessions', { username, password, deviceId: crypto.randomUUID() })
     this.provisionalToken = session.accessToken
@@ -142,8 +147,13 @@ export class HttpAdminContentGateway implements AdminContentGateway {
       onStatus(status)
     })
   }
+  listTestAccounts(query: TestAccountQuery) { return this.page<TestAccount>('/admin/test-accounts', query) }
+  createTestAccount(input: TestAccountInput) { return this.write<TestAccount>('POST', '/admin/test-accounts', input) }
+  getTestAccountCredentials(id: string) { return this.request<TestAccountCredentials>('GET', `/admin/test-accounts/${segment(id)}/credentials`) }
+  async disableTestAccount(id: string, expectedVersion: number) { await this.write('PUT', `/admin/test-accounts/${segment(id)}/status`, { expectedVersion }) }
   async listUsers(query?: UserQuery) { const result = await this.page<WireUser>('/admin/users', query); return { ...result, items: result.items.map(userView) } }
   async getUser(id: string) { return userView(await this.request<WireUser>('GET', '/admin/users/' + segment(id))) }
+  async updateUserProfile(id: string, input: UpdateManagedUserInput) { await this.write('PUT', '/admin/users/' + segment(id), input) }
   getUserStatistics(id: string) { return this.request<{ answeredCount: number; correctCount: number; durationSeconds: number }>('GET', `/admin/students/${segment(id)}/statistics`, undefined, { period: 'ALL' }) }
   async setUserStatus(id: string, status: UserStatus, expectedVersion: number) { await this.write('PUT', `/admin/users/${segment(id)}/status`, { status, expectedVersion }) }
   listAdminAccounts(query?: PageQuery) { return this.page<AdminAccount>('/admin/administrators', query) }

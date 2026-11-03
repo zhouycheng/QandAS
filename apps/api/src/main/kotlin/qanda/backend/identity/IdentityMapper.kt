@@ -8,6 +8,7 @@ import java.time.Instant
 import java.util.UUID
 
 @Mapper interface IdentityMapper {
+    fun testAccountAccess(@Param("id") id: UUID): TestAccountAccess?
     fun userByEmail(@Param("email") email: String): UserAccount?
     fun lockUser(@Param("id") id: UUID): UserAccount?
     fun lockAdmin(@Param("id") id: UUID): AdminAccount?
@@ -28,6 +29,8 @@ import java.util.UUID
     fun wechat(@Param("appId") appId: String, @Param("openId") openId: String): UserWechat?
     fun lockTicket(@Param("digest") digest: ByteArray): WechatTicket?
     fun consumeTicket(@Param("id") id: UUID)
+    fun markProfileSetupSeen(@Param("id") id: UUID)
     fun updateProfile(@Param("userId") userId: UUID, @Param("collegeId") collegeId: UUID?, @Param("majorId") majorId: UUID?, @Param("grade") grade: Int?, @Param("year") year: Int?)
     fun updateCredentials(@Param("id") id: UUID,@Param("email") email: String?,@Param("emailKey") emailKey: String?,@Param("password") password: String?)
+    fun updateAdminUser(@Param("id") id: UUID,@Param("accountCode") accountCode: String,@Param("nickname") nickname: String,@Param("email") email: String?,@Param("emailKey") emailKey: String?,@Param("version") version: Long,@Param("credentialVersion") credentialVersion: Long,@Param("updatedAt") updatedAt: Instant)
 }

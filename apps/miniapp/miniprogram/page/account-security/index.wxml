@@ -5,6 +5,7 @@
       <text>{{loadError || '正在读取账号信息…'}}</text>
       <button wx:if="{{loadError}}" class="btn btn-primary" bindtap="handleRetry" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">重新读取</button>
     </view>
+    <view wx:elif="{{stage === 'test-account'}}" class="security-status"><text>测试账号的登录凭据由管理员管理。</text></view>
     <view wx:elif="{{stage === 'need-email'}}" class="security-status">
       <text>设置密码前，请先绑定并验证邮箱。</text>
       <button class="btn btn-primary" bindtap="handleBindEmail" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">绑定邮箱</button>

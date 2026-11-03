@@ -21,11 +21,20 @@ class IdentityController(private val service: IdentityService,private val sessio
     fun registerWechat(@RequestBody input: WechatRegistrationInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
         commands.run(null,key,"REGISTER_WECHAT",input,MutationResult::class.java,request.requestId()) { service.registerWechat(input) }
     @PostMapping("/auth/sessions") fun login(@RequestBody input: LoginInput): TokenView = service.login(input)
+    @PostMapping("/auth/email-code-sessions")
+    fun emailCodeLogin(@RequestBody input: EmailCodeLoginInput): TokenView {
+        challenges.verify(input.challengeId,input.code)
+        return service.emailCodeLogin(input)
+    }
     @PostMapping("/auth/wechat-sessions") fun wechatLogin(@RequestBody input: WechatLoginInput): WechatLoginView = service.wechatLogin(input)
     @PostMapping("/auth/password-resets")
     fun resetPassword(@RequestBody input: ResetPasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
         commands.run(null,key,"RESET_PASSWORD",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.reset(input) }
     @GetMapping("/me") fun me(): UserView = service.view(sessions.student().id)
+    @PostMapping("/me/profile-setup/acknowledgement")
+    fun acknowledgeProfileSetup(@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
+        val actor=sessions.student();return commands.run(actor,key,"ACK_PROFILE_SETUP",emptyMap<String,String>(),MutationResult::class.java,request.requestId()) { service.acknowledgeProfileSetup(actor) }
+    }
     @PostMapping("/me/activity/heartbeat") fun heartbeat(): HeartbeatView = service.heartbeat(sessions.student())
     @PutMapping("/me/profile")
     fun updateProfile(@RequestBody input: ProfileInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {

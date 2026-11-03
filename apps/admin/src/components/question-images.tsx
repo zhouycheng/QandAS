@@ -30,12 +30,12 @@ export function QuestionImages({ ids = [], bankId, onChange, disabled, onBusyCha
     catch (error) { if (generation.current === epoch) setError((error as Error).message) }
     finally { setUploading(false); onBusyChange?.(-1); if (input.current) input.current.value = '' }
   }
-  return <Space direction="vertical" style={{ width: '100%' }}>
+  return <div className="question-images">
     {error && <Alert type="error" content={error} />}
-    <Space wrap>{ids.map((id, index) => <Space direction="vertical" key={id}>
+    {ids.length > 0 && <Space wrap>{ids.map((id, index) => <Space direction="vertical" key={id}>
       {urls[id] ? <Image width={120} src={urls[id]} alt={`题目附件 ${index + 1}`} /> : <span>图片 {index + 1}</span>}
       {onChange && <Button size="mini" status="danger" disabled={disabled || uploading} onClick={() => onChange(ids.filter(value => value !== id))}>移除图片 {index + 1}</Button>}
-    </Space>)}</Space>
+    </Space>)}</Space>}
     {onChange && <><input ref={input} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => void upload(event.target.files?.[0])} /><Button disabled={disabled || !bankId || ids.length >= maxImages} loading={uploading} onClick={() => input.current?.click()}>添加图片附件</Button></>}
-  </Space>
+  </div>
 }

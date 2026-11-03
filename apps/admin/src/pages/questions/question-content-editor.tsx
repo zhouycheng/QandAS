@@ -101,7 +101,7 @@ export function QuestionContentEditor({ value, onChange, disabled, lockType, pre
     </>}
     {q.type === 'SHORT_ANSWER' && <>
       <Alert type="info" className="bw-form-error" content="本题不计分。交卷后展示参考内容，可标记掌握或待复习。" />
-      <Form.Item label={label(q.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路')} required><Input.TextArea aria-label={label(q.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路')} disabled={disabled} value={q.referenceAnswer ?? ''} onChange={(referenceAnswer) => change({ referenceAnswer })} placeholder="填写完整的参考作答" maxLength={10000} showWordLimit autoSize={{ minRows: 4, maxRows: 10 }} /></Form.Item>
+      <Form.Item label={label(q.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路')} required><Input.TextArea aria-label={label(q.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路')} disabled={disabled} value={q.referenceAnswer ?? ''} onChange={(referenceAnswer) => change({ referenceAnswer })} placeholder="填写完整的参考作答" maxLength={40000} showWordLimit autoSize={{ minRows: 4, maxRows: 10 }} /></Form.Item>
       <Form.Item label={label('参考要点')} extra="选填，每条支持 Markdown，最多 1000 字，共 30 条。">
         <Space direction="vertical" style={{ width: '100%' }}>
           {(q.scoringPoints || []).map((point, index) => <div className="option-row" key={index}>

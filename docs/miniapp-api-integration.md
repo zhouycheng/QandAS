@@ -1,6 +1,6 @@
 # 接口台账
 
-合同版本为 **1.0.0**，当前包含 **121 项操作**。路径、参数、权限与响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供本地请求入口。
+合同版本为 **1.0.0**，当前包含 **122 项操作**。路径、参数、权限与响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供本地请求入口。
 
 ## 调用边界
 
@@ -28,6 +28,7 @@
 | `PUT /api/v1/admin/security-policy` | `Admin_policy_PUT` | 管理员 |
 | `GET /api/v1/admin/users` | `Admin_users_GET` | 管理员 |
 | `GET /api/v1/admin/users/{id}` | `Admin_user_GET` | 管理员 |
+| `PUT /api/v1/admin/users/{id}` | `Admin_updateUserProfile_PUT` | 管理员 |
 | `PUT /api/v1/admin/users/{id}/status` | `Admin_userStatus_PUT` | 管理员 |
 
 ### announcements
@@ -192,3 +193,9 @@
 | `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 管理员 |
 | `POST /api/v1/practice/sessions/{id}/progress-commands` | `ProgressCommand_submit_POST` | 学生 |
 | `GET /api/v1/practice/sessions/{id}/progress-commands/{commandId}` | `ProgressCommand_read_GET` | 学生 |
+
+## 学习资料引导
+
+`GET /me` 的 `profileComplete` 判断学院、专业和当前年级是否齐全，`profileSetupSeen` 表示账号已展示过首次引导。首次页面实际显示后调用 `POST /me/profile-setup/acknowledgement`，使用幂等键登记；失败记录按账号留在本机，后续读取资料时补记。登记不推进资料版本，也不撤销登录会话。
+
+邮箱注册、邮箱登录和微信登录共用首次引导。保存使用 `PUT /me/profile`，跳过保留已保存资料。后续冷启动或重新登录在业务 Tab 弹窗提醒，确认后进入普通个人资料页。

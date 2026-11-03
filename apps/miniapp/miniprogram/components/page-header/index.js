@@ -4,6 +4,7 @@ const navigation = require('../../utils/navigation.js')
 Component({
   properties: {
     title: { type: String, value: '' },
+    showBack: { type: Boolean, value: true },
     subtitle: { type: String, value: '' }
   },
   data: getInitialHomeHeaderData(),

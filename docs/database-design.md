@@ -1,6 +1,6 @@
 # 数据库设计
 
-当前初始化定义为 `apps/api/src/main/resources/db/schema.sql`，共 42 张表。监控权限定义在相邻的 `monitoring-permissions.sql`。应用启动核对结构，开发数据库从完整定义初始化。
+V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张表；后续结构由增量迁移维护。监控权限定义在相邻的 `monitoring-permissions.sql`。应用启动核对结构；开发初始化和生产 Flyway 在基线之后执行 `db/migration/V2__ProfileSetupAndBankVisibility.sql`。V2 增加 `user_account.profile_setup_seen` 并更新 `bank_visible`，资料齐全的存量账号初始化为已完成引导，其余账号首次展示后登记。
 
 题目稳定身份与不可变修订分离。练习固定题目和材料修订，正式结果及历史引用由外键、约束和触发器保护。同步命令保存身份、幂等摘要、序号、处理状态及最终回执；一场练习最多一个未完成命令。
 
@@ -170,7 +170,7 @@
 | --- | --- |
 | `id` | `uuid PRIMARY KEY` |
 | `user_id` | `uuid REFERENCES user_account(id)` |
-| `purpose` | `varchar(24) NOT NULL CHECK(purpose IN ('REGISTER','RESET_PASSWORD','BIND_EMAIL','CHANGE_PASSWORD','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW'))` |
+| `purpose` | `varchar(24) NOT NULL CHECK(purpose IN ('LOGIN','REGISTER','RESET_PASSWORD','BIND_EMAIL','CHANGE_PASSWORD','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW'))` |
 | `email` | `varchar(254) NOT NULL` |
 | `email_key` | `varchar(254) NOT NULL` |
 | `code_mac` | `bytea NOT NULL CHECK(octet_length(code_mac)=32)` |
@@ -593,3 +593,10 @@
 | `user_id` | `uuid NOT NULL REFERENCES user_account(id)` |
 | `occurred_at` | `timestamptz NOT NULL` |
 | `processed_at` | `timestamptz` |
+
+## 测试账号
+
+V3 新增与 `user_account` 一对一的 `test_account`，记录有效期、运营统计设置、创建管理员、停用信息及密码加密材料。统计通过 `account_in_statistics` 统一判断，监控视图只提供统计及生命周期所需字段。详见[测试账号管理](test-accounts.md)。
+
+
+V4 扩展 `email_challenge.purpose` 的 `LOGIN` 用途，复用验证码和邮件队列完成邮箱验证码登录。Excel 导入使用现有业务表、导入回执与审计表，详见 [Excel 数据管理](excel-import-export.md)。

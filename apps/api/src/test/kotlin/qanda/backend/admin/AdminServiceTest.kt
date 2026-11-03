@@ -19,7 +19,7 @@ class AdminServiceTest {
     private val identity=mock(IdentityMapper::class.java)
     private val crypto=mock(IdentityCrypto::class.java)
     private val service=AdminService(accounts,sessions,policies,queries,identity,mock(UserAccountMapper::class.java),
-        mock(IdentityService::class.java),mock(AuditReader::class.java),crypto,mock(LoginAttempts::class.java),Clock.systemUTC())
+        mock(TestAccountService::class.java),mock(IdentityService::class.java),mock(AuditReader::class.java),crypto,mock(LoginAttempts::class.java),Clock.systemUTC())
 
     private fun account()=AdminAccount().apply { id=UUID.randomUUID();username="admin_test";name="管理员";passwordHash="old-hash" }
 

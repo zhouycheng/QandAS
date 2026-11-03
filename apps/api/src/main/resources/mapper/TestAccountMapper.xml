@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="qanda.backend.identity.TestAccountMapper">
+  <sql id="filter">FROM test_account t JOIN user_account u ON u.id=t.user_id
+    <where>
+      <if test="keyword != null">AND (u.email_key ILIKE '%'||#{keyword}||'%' OR u.account_code ILIKE '%'||#{keyword}||'%')</if>
+      <if test="status == 'ACTIVE'">AND t.disabled_at IS NULL AND t.expires_at &gt; #{now} AND u.status='ACTIVE'</if>
+      <if test="status == 'DISABLED'">AND (t.disable_reason='MANUAL' OR (t.disabled_at IS NULL AND u.status!='ACTIVE' AND t.expires_at &gt; #{now}))</if>
+      <if test="status == 'EXPIRED'">AND (t.disable_reason='EXPIRED' OR (t.disabled_at IS NULL AND t.expires_at &lt;= #{now}))</if>
+    </where>
+  </sql>
+  <select id="page" resultType="qanda.backend.identity.TestAccountView">
+    SELECT u.id,u.email,u.created_at,t.expires_at,
+    CASE WHEN t.disable_reason='MANUAL' THEN 'DISABLED' WHEN t.expires_at &lt;= #{now} THEN 'EXPIRED' WHEN u.status!='ACTIVE' THEN 'DISABLED' ELSE 'ACTIVE' END status,t.include_in_statistics,u.version
+    <include refid="filter"/> ORDER BY u.created_at DESC,u.id LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">SELECT count(*) <include refid="filter"/></select>
+  <update id="disable">UPDATE test_account SET disabled_at=#{now},disable_reason=#{reason},password_ciphertext=NULL,password_nonce=NULL,password_key_version=NULL WHERE user_id=#{id} AND disabled_at IS NULL</update>
+  <select id="due" resultType="java.util.UUID">SELECT user_id FROM test_account WHERE disabled_at IS NULL AND expires_at &lt;= #{now} ORDER BY expires_at,user_id LIMIT 100</select>
+</mapper>

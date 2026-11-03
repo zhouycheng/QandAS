@@ -39,8 +39,8 @@ describe('新增题型的录入与导入边界', () => {
   })
 
   it('编辑与导入采用后端的文本、附件和选项边界', () => {
-    const question = { ...input(examples.SHORT_ANSWER), stem: '题'.repeat(10000), explanation: '解'.repeat(10000), referenceAnswer: '答'.repeat(10000), scoringPoints: ['点'.repeat(1000)] }
-    expect(validateQuestion(question).referenceAnswer).toHaveLength(10000)
+    const question = { ...input(examples.SHORT_ANSWER), stem: '题'.repeat(10000), explanation: '解'.repeat(10000), referenceAnswer: '答'.repeat(40000), scoringPoints: ['点'.repeat(1000)] }
+    expect(validateQuestion(question).referenceAnswer).toHaveLength(40000)
     expect(() => validateQuestion({ ...question, stem: question.stem + '题' })).toThrow('10000')
     expect(() => validateQuestion({ ...question, explanation: '\u0000' })).toThrow('无效字符')
     expect(() => validateQuestion({ ...question, assetIds: ['same', 'same'] })).toThrow('不能为空或重复')

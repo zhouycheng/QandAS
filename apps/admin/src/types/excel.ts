@@ -1,0 +1,3 @@
+export type ExcelTarget = { bankId?: string; subjectId?: string; createSubject?: boolean; expectedContentVersion?: number; chapterMap?: Record<string, string> }
+export type ExcelOptions = { targets: Record<string, ExcelTarget> }
+export type ExcelPreview = { valid: boolean; count: number; files: { name: string; fileId: string; count: number; types?: Record<string, number>; samples?: { accountCode: string; email: string; nickname: string; status: string; registeredAt: string }[]; subject: string; bank: string; expectedContentVersion?: number; chapters?: { id: string; name: string }[] }[]; issues: { file: string; sheet: string; row: number; column: string; message: string }[] }

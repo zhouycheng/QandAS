@@ -38,7 +38,7 @@ export function CollegesPage() {
         <button className={`directory-all ${!college ? 'active' : ''}`} onClick={() => selectCollege()}>全部学院</button>
         {colleges.data?.items.map(row => <button key={row.id} className={`directory-all ${college?.id === row.id ? 'active' : ''}`} onClick={() => selectCollege(row)}>{row.name}<small>{row.studentCount ?? 0} 人</small></button>)}
         {colleges.error && <ErrorState message={colleges.error.message} onRetry={() => void colleges.refetch()} />}
-        <Space><Button size="small" disabled={collegePage === 1} onClick={() => setCollegePage(p => p - 1)}>上一页</Button><Button size="small" disabled={collegePage * 20 >= (colleges.data?.total ?? 0)} onClick={() => setCollegePage(p => p + 1)}>下一页</Button></Space>
+        <Space className="directory-tree-pagination"><Button size="small" disabled={collegePage === 1} onClick={() => setCollegePage(p => p - 1)}>上一页</Button><Button size="small" disabled={collegePage * 20 >= (colleges.data?.total ?? 0)} onClick={() => setCollegePage(p => p + 1)}>下一页</Button></Space>
       </aside>
       <div className="directory-detail-panel">
         <div className="directory-path"><button onClick={() => selectCollege()}>全校目录</button>{college && <button onClick={() => selectCollege(college)}> / {college.name}</button>}{major && <span> / {major.name}</span>}</div>
@@ -49,9 +49,9 @@ export function CollegesPage() {
           <Button icon={<IconRefresh />} aria-label="刷新" loading={current.isFetching} onClick={refresh} />
         </div>
         {current.error && <ErrorState message={current.error.message} onRetry={() => void current.refetch()} />}
-        {major ? <Table<ManagedUser> rowKey="id" data={students.data?.items ?? []} loading={students.isFetching} pagination={pagination} columns={[
+        {major ? <Table<ManagedUser> scroll={{ x: 760 }} rowKey="id" data={students.data?.items ?? []} loading={students.isFetching} pagination={pagination} columns={[
           { title: '昵称', dataIndex: 'name' }, { title: '账号', dataIndex: 'account' }, { title: '年级', render: (_, row) => gradeLabel(row.grade) }, { title: '状态', render: (_, row) => row.status === 'ACTIVE' ? '正常' : row.status === 'DISABLED' ? '停用' : '待激活' },
-        ]} /> : <Table<College | Major> rowKey="id" data={(college ? majors.data?.items : colleges.data?.items) ?? []} loading={current.isFetching} pagination={pagination} border={false} columns={[
+        ]} /> : <Table<College | Major> scroll={{ x: 760 }} rowKey="id" data={(college ? majors.data?.items : colleges.data?.items) ?? []} loading={current.isFetching} pagination={pagination} border={false} columns={[
           { title: '名称', render: (_, row) => <button className="directory-entity" onClick={() => { if ('collegeId' in row) { setMajor(row); setPage(1); setKeyword('') } else selectCollege(row) }}><span><strong>{row.name}</strong><small>{row.code}</small></span></button> },
           { title: '学生人数', dataIndex: 'studentCount' },
           { title: '可选状态', render: (_, row) => <Tag color={row.status === 'ACTIVE' ? 'green' : 'gray'}>{row.status === 'ACTIVE' ? '启用' : '停用'}</Tag> },

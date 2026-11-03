@@ -156,7 +156,7 @@ class ContentPostgresTest : PostgresFixture() {
         val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "范围专业","code" to "SCOPE")))
         val fixture=fixture(listOf(mapOf("majorId" to major,"grade" to 2)))
         call("GET","/question-banks/${fixture.bank}",token=null)
-        call("GET","/questions/${fixture.questions.first()}",token=student.token,status=404)
+        call("GET","/questions/${fixture.questions.first()}",token=student.token)
         val initial=call("GET","/me",token=student.token)
         assertFalse(initial["profileComplete"].asBoolean())
         call("PUT","/me/profile",mapOf("expectedVersion" to initial["version"].asLong(),"nickname" to "范围学生","collegeId" to college,"majorId" to major,"currentGrade" to 2),student.token)

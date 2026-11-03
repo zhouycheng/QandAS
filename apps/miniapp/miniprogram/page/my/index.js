@@ -12,6 +12,7 @@ Page(withPageLifecycle({
     })
   },
 
+  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     if (!this.viewModel) {
       return

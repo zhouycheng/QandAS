@@ -30,7 +30,7 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 私有配置保存在 `apps/api/.env.backend`，权限为 `600`。首管命令通过终端读取账号和密码。API、worker、monitor、PostgreSQL、RabbitMQ、Prometheus 和本地邮件捕获由 Compose 管理；gateway 提供统一入口。
 
-普通重建保留数据卷。数据库初始化使用完整 `schema.sql` 和监控权限脚本，启动时核对结构。需要重建开发数据时，先停止业务进程，重置该环境的数据库、关联队列及客户端账号缓存和草稿，再启动相同代码版本。学习偏好、布局和游客试答额度独立保留。数据库命令的运行模式、名称和本机地址保护继续有效。
+普通重建保留数据卷。数据库初始化依次执行 V1 的 `schema.sql`、监控权限脚本和后续增量迁移，启动时核对结构。本次学习资料与可见范围规则由 V2 提供。已有开发库可在备份后通过本机数据库管理入口执行同一 V2 SQL；生产由 Flyway 增量迁移，V1 基线保持原校验内容。需要重建开发数据时，先停止业务进程，重置该环境的数据库、关联队列及客户端账号缓存和草稿，再启动相同代码版本。学习偏好、布局和游客试答额度独立保留。数据库命令的运行模式、名称和本机地址保护继续有效。
 
 官方微信和真实邮件采用仓库外的私有提供端配置。自动检查使用测试身份和本地邮件捕获。腾讯云 SES 私有配置位于 `~/.config/qanda/tencent-ses.env`，权限为 `600`，仅由明确的实发操作使用。
 
@@ -39,3 +39,5 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 修改代码后运行 `rebuild.mjs`，再执行 `backend.mjs docker-up`。日志使用 `docker-logs`，停止使用 `docker-stop`。健康接口为 `/api/v1/health`，Swagger 为 `/swagger-ui/index.html`，运行时合同为 `/v3/api-docs`。
 
 源素材与图标生成脚本用于维护现有资源；生成目录、运行证据和私有配置遵循 `.gitignore`。提交及 PR 规则见[Git 工作流](git-workflow.md)，验收命令见[验收规范](verification.md)。
+
+测试学生账号的创建、凭据密钥和到期行为见[测试账号管理](test-accounts.md)。

@@ -12,6 +12,7 @@ async function identity(response) {
   return { ok: true, userId: me.data.id, token, email: me.data.email || '', nickname: me.data.nickname, avatarUrl: me.data.avatarUrl || '', version: me.data.version, profile: me.data }
 }
 function login(code, options) { return request('POST', '/auth/wechat-sessions', { code, deviceId: options && options.deviceId || uuid() }, { token: '' }).then(identity) }
+function loginByCode(input) { return request('POST', '/auth/email-code-sessions', input, { token: '' }).then(identity) }
 function registerWechat(input) { return request('POST', '/auth/wechat-registrations', { registrationToken: input.registrationToken, nickname: input.nickname || 'Q友' }, { token: '', idempotencyKey: input.idempotencyKey || uuid() }) }
 function loginByEmail(email, password, options) { return request('POST', '/auth/sessions', { email, password, deviceId: options && options.deviceId || uuid() }, { token: '' }).then(identity) }
 async function register(input) {
@@ -19,7 +20,7 @@ async function register(input) {
   return response.ok ? loginByEmail(input.email, input.password, input) : response
 }
 async function sendCode(input) {
-  const response = await request('POST', '/auth/email-challenges', { email: input.email, purpose: input.purpose === 'reset' ? 'RESET_PASSWORD' : 'REGISTER' }, { token: '', idempotencyKey: input.idempotencyKey || uuid() })
+  const response = await request('POST', '/auth/email-challenges', { email: input.email, purpose: input.purpose === 'login' ? 'LOGIN' : input.purpose === 'reset' ? 'RESET_PASSWORD' : 'REGISTER' }, { token: '', idempotencyKey: input.idempotencyKey || uuid() })
   return response.ok ? Object.assign({}, response, { challengeId: response.data.id, expiresAt: response.data.expiresAt, cooldown: response.data.resendAfterSeconds }) : response
 }
 function resetPassword(input) { return request('POST', '/auth/password-resets', { challengeId: input.challengeId, code: input.code, newPassword: input.password }, { token: '', idempotencyKey: input.idempotencyKey || uuid() }) }
@@ -38,6 +39,7 @@ module.exports = {
   isConfigured,
   login,
   loginByEmail,
+  loginByCode,
   name: 'http',
   register,
   registerWechat,

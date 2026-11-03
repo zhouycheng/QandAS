@@ -1,3 +1,4 @@
+<import src="../../templates/profile-selectors.wxml" />
 <view class="secondary-page">
 <page-header title="个人资料" />
 <view class="profile-select-mask" wx:if="{{collegePickerVisible || majorPickerVisible || gradePickerVisible}}" catchtap="handlePickersClose"></view>
@@ -42,35 +43,7 @@
       </view>
     </view>
 
-    <view class="field profile-selector {{collegePickerVisible ? 'is-open' : ''}}">
-      <text class="field-label">学院</text>
-      <view class="profile-select" role="button" aria-label="选择学院" bindtap="handleCollegeToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.college ? '' : 'is-placeholder'}}">{{draft.college || '请选择学院'}}</text><view class="profile-select-arrow"></view></view>
-      <scroll-view class="profile-options" wx:if="{{collegePickerVisible}}" scroll-y>
-        <view class="profile-option {{item.name === draft.college ? 'is-selected' : ''}}" wx:for="{{collegeOptions}}" wx:key="id" data-index="{{index}}" bindtap="handleCollegePick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item.name}}</view>
-        <view class="profile-option-note" wx:if="{{collegeLoading}}">正在读取学院…</view>
-        <view class="profile-option" wx:if="{{collegeError}}" bindtap="handleCollegeOpen" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{collegeError}} · 点击重试</view>
-        <view class="profile-option" wx:if="{{collegeHasMore && !collegeLoading}}" bindtap="handleCollegeMore" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">加载更多学院</view>
-      </scroll-view>
-    </view>
-    <view class="field profile-selector {{majorPickerVisible ? 'is-open' : ''}}">
-      <text class="field-label">专业</text>
-      <view class="profile-select" role="button" aria-label="选择专业" bindtap="handleMajorToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.major ? '' : 'is-placeholder'}}">{{draft.major || '请选择专业'}}</text><view class="profile-select-arrow"></view></view>
-      <scroll-view class="profile-options" wx:if="{{majorPickerVisible}}" scroll-y>
-        <view class="profile-option {{item.name === draft.major ? 'is-selected' : ''}}" wx:for="{{majorOptions}}" wx:key="id" data-index="{{index}}" bindtap="handleMajorPick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item.name}}</view>
-        <view class="profile-option-note" wx:if="{{majorLoading}}">正在读取专业…</view>
-        <view class="profile-option-note" wx:if="{{!majorLoading && !majorError && !majorOptions.length}}">该学院暂无可选专业</view>
-        <view class="profile-option" wx:if="{{majorError}}" bindtap="handleMajorOpen" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{majorError}} · 点击重试</view>
-        <view class="profile-option" wx:if="{{majorHasMore && !majorLoading}}" bindtap="handleMajorMore" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">加载更多专业</view>
-      </scroll-view>
-    </view>
-    <view class="field profile-selector {{gradePickerVisible ? 'is-open' : ''}}">
-      <text class="field-label">当前年级</text>
-      <view class="profile-select" role="button" aria-label="选择年级" bindtap="handleGradeToggle" hover-class="row-hover" hover-start-time="0" hover-stay-time="80"><text class="profile-select-value {{draft.gradeLabel ? '' : 'is-placeholder'}}">{{draft.gradeLabel || '请选择年级'}}</text><view class="profile-select-arrow"></view></view>
-      <scroll-view class="profile-options" wx:if="{{gradePickerVisible}}" scroll-y>
-        <view class="profile-option {{item === draft.gradeLabel ? 'is-selected' : ''}}" wx:for="{{gradeLabels}}" wx:key="*this" data-index="{{index}}" bindtap="handleGradePick" hover-class="row-hover" hover-start-time="0" hover-stay-time="80">{{item}}</view>
-      </scroll-view>
-    </view>
-    <text class="section-note">每年 9 月自动升一级，大四后为已毕业。你可以随时调整。</text>
+    <template is="profile-selectors" data="{{draft, collegePickerVisible, collegeOptions, collegeLoading, collegeError, collegeHasMore, majorPickerVisible, majorOptions, majorLoading, majorError, majorHasMore, gradePickerVisible, gradeLabels}}" />
     <view
       class="info-item"
       bindtap="handleEmailTap"
@@ -81,8 +54,8 @@
       <text class="info-label">绑定邮箱</text>
       <view class="info-line">
         <text class="info-value">{{profile.emailMasked || '未绑定'}}</text>
-        <text class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
-        <view class="chevron"></view>
+        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
+        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
@@ -96,8 +69,8 @@
       <text class="info-label">微信绑定</text>
       <view class="info-line">
         <text class="info-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
-        <text wx:if="{{profile.wechatAction}}" class="info-action">{{profile.wechatAction}}</text>
-        <view wx:if="{{!profile.wechatBound}}" class="chevron"></view>
+        <text wx:if="{{profile.wechatAction && !profile.isTestAccount}}" class="info-action">{{profile.wechatAction}}</text>
+        <view wx:if="{{!profile.wechatBound && !profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
@@ -111,12 +84,12 @@
       <text class="info-label">登录密码</text>
       <view class="info-line">
         <text class="info-value">{{profile.passwordStatus}}</text>
-        <text class="info-action">{{profile.passwordStatus === '已设置' ? '修改' : '设置'}}</text>
-        <view class="chevron"></view>
+        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.passwordStatus === '已设置' ? '修改' : '设置'}}</text>
+        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
       </view>
     </view>
 
-    <text class="section-note">邮箱用于登录、找回密码和验证账号安全操作。</text>
+    <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定邮箱和密码，登录凭据由管理员管理。' : '邮箱用于登录、找回密码和验证账号安全操作。'}}</text>
 </view>
 <view class="bottom-bar">
   <view

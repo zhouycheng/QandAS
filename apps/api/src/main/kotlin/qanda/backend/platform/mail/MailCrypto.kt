@@ -15,7 +15,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-internal val IDENTITY_MAIL_TEMPLATES = setOf("REGISTER", "RESET_PASSWORD", "BIND_EMAIL", "CHANGE_PASSWORD", "CHANGE_EMAIL_OLD", "CHANGE_EMAIL_NEW").map { "IDENTITY_$it" }.toSet()
+internal val IDENTITY_MAIL_TEMPLATES = setOf("LOGIN", "REGISTER", "RESET_PASSWORD", "BIND_EMAIL", "CHANGE_PASSWORD", "CHANGE_EMAIL_OLD", "CHANGE_EMAIL_NEW").map { "IDENTITY_$it" }.toSet()
 internal fun mailUnavailable(code: String = "MAIL_UNAVAILABLE"): Nothing = throw ApiException(HttpStatus.SERVICE_UNAVAILABLE, code, "邮件服务暂时不可用")
 internal class MailMaterial(val recipient: String, val code: String, val expiresAt: Instant, val templateCode: String) {
     override fun toString() = "MailMaterial([REDACTED])"

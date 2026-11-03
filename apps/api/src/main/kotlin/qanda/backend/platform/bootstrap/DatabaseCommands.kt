@@ -37,6 +37,9 @@ object DatabaseCommands {
                     else statement.executeQuery("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").use { result -> result.next();require(result.getInt(1)==0) { "数据库包含现有表，请显式使用db-reset重建开发库" } }
                     statement.execute(ClassPathResource("db/schema.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/monitoring-permissions.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/migration/V3__TestAccounts.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/migration/V4__EmailCodeLogin.sql").getContentAsString(Charsets.UTF_8))
                 }
                 connection.commit()
             } catch(error: Exception) { connection.rollback();throw error }

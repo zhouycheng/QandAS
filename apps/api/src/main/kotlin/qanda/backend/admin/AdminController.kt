@@ -32,6 +32,10 @@ class AdminController(private val service: AdminService,private val sessions: Se
         return service.listUsers(keyword,collegeId,majorId,status,p,grade)
     }
     @GetMapping("/users/{id}") fun user(@PathVariable id: UUID): UserView { sessions.admin();return service.user(id) }
+    @PutMapping("/users/{id}")
+    fun updateUserProfile(@PathVariable id: UUID,@RequestBody input: AdminProfileInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
+        val actor=sessions.admin();return commands.run(actor,key,"UPDATE_USER_PROFILE:$id",input,MutationResult::class.java,request.requestId()) { service.updateUserProfile(id,input) }
+    }
     @PutMapping("/users/{id}/status")
     fun userStatus(@PathVariable id: UUID,@RequestBody input: AccountStatusInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
         val actor=sessions.admin();return commands.run(actor,key,"USER_STATUS:$id",input,MutationResult::class.java,request.requestId()) { service.userStatus(id,input) }

@@ -37,10 +37,10 @@ function notifyIdentity() {
 }
 function settle(storage, remote, provider) {
   if (!remote || !remote.ok || !remote.userId || !remote.token) return failure(storage, remote && remote.reason || '登录信息读取失败，请重新登录')
-  const auth = provider === 'email' ? buildEmailAuth(remote) : buildWechatAuth(remote)
+  const auth = provider !== 'wechat' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, provider, reason: '', auth: saved } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); require('./profile-onboarding-repository.js').onLogin(saved, provider === 'email-code'); return { ok: true, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {
@@ -80,6 +80,7 @@ function loginWithEmail(storage, input) {
   const options = input || {}
   return call(() => authGateway.loginByEmail((options.email || '').trim(), options.password || '', { deviceId: deviceId(storage) })).then((remote) => settle(storage, remote, 'email'))
 }
+function loginWithCode(storage, input) { return call(() => authGateway.loginByCode({ challengeId: challenge(storage, input.email, 'login'), code: input.code, deviceId: deviceId(storage) })).then(remote => settle(storage, remote, 'email-code')) }
 function challenge(storage, email, purpose) {
   const stored = storage.get(CHALLENGE_KEY) || {}
   const value = stored[`${purpose}:${email.trim().toLowerCase()}`]
@@ -95,7 +96,7 @@ function sendCode(storage, input) {
     if (!remote.ok) return Object.assign(failure(storage, remote.reason), { cooldown: 0 })
     try {
       const stored = storage.get(CHALLENGE_KEY) || {}
-      stored[`${options.purpose === 'reset' ? 'reset' : 'register'}:${(options.email || '').trim().toLowerCase()}`] = { challengeId: remote.challengeId, expiresAt: remote.expiresAt }
+      stored[`${options.purpose === 'login' ? 'login' : options.purpose === 'reset' ? 'reset' : 'register'}:${(options.email || '').trim().toLowerCase()}`] = { challengeId: remote.challengeId, expiresAt: remote.expiresAt }
       storage.set(CHALLENGE_KEY, stored)
       return { ok: true, cooldown: remote.cooldown || 60, reason: '' }
     } catch (error) { return { ok: false, cooldown: 0, reason: '验证码状态保存失败，请检查设备存储空间' } }
@@ -117,4 +118,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, deviceId, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }
+module.exports = { AUTH_STORAGE_KEY, deviceId, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, loginWithCode, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }

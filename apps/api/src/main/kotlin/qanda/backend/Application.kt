@@ -12,7 +12,9 @@ import org.springframework.scheduling.annotation.EnableScheduling
 class Application
 
 fun main(args: Array<String>) {
-    if (args.contentEquals(arrayOf("migrate"))) {
+    if (args.firstOrNull()=="excel-pack") {
+        qanda.backend.excel.ExcelOffline.run(args.drop(1).toTypedArray())
+    } else if (args.contentEquals(arrayOf("migrate"))) {
         qanda.backend.platform.bootstrap.ProductionMigration.run()
     } else if (args.firstOrNull() in setOf("bootstrap", "db-init", "db-reset")) {
         qanda.backend.platform.bootstrap.DatabaseCommands.run(args.single())

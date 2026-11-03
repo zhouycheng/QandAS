@@ -17,7 +17,7 @@
   font-size: 12px;
 }
 .section-gap {
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 .back-link {
   display: inline-block;
@@ -58,8 +58,8 @@
 .dashboard-content-grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
-  gap: 22px;
-  margin-bottom: 22px;
+  gap: 24px;
+  margin-bottom: 24px;
 }
 .dashboard-content-grid > *,
 .recommendation-layout > *,

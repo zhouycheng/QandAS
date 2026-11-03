@@ -66,7 +66,7 @@ try {
     let values = readFileSync(join(apiRoot, '.env.backend.example'), 'utf8')
       .replace('BACKEND_DB_PASSWORD=\n', `BACKEND_DB_PASSWORD=${randomBytes(32).toString('base64url')}\n`)
       .replace('BACKEND_RABBIT_PASSWORD=\n', `BACKEND_RABBIT_PASSWORD=${randomBytes(32).toString('base64url')}\n`);
-    for (const name of ['COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION']) {
+    for (const name of ['COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION', 'TEST_ACCOUNT_ENCRYPTION']) {
       values = values.replace(`BACKEND_${name}_KEYS=\n`, `BACKEND_${name}_KEYS=1:${randomBytes(32).toString('base64')}\n`);
     }
     values = values.replace('BACKEND_IDENTITY_RATE_KEY=\n', `BACKEND_IDENTITY_RATE_KEY=${randomBytes(32).toString('base64')}\n`);

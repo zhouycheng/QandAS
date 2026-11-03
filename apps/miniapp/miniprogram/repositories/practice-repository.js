@@ -15,6 +15,7 @@ module.exports = {
   getAuth: authRepository.getAuth,
   login: authRepository.login,
   loginWithEmail: authRepository.loginWithEmail,
+  loginWithCode: authRepository.loginWithCode,
   registerAccount: authRepository.register,
   sendAuthCode: authRepository.sendCode,
   resetPassword: authRepository.resetPassword,

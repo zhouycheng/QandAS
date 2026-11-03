@@ -24,7 +24,7 @@ export function ActivityPage() {
   const trend = useQuery({ queryKey: ['activity', 'trend', filters, trendPeriod], queryFn: () => gateway.getActivity({ ...filters, period: trendPeriod }), enabled: visible, refetchInterval: visible ? 60000 : false, refetchIntervalInBackground: false })
   const rankings = useQuery({ queryKey: ['activity', 'rankings', filters, period, sort, page], queryFn: () => gateway.getRankings({ ...filters, period, sort, page, pageSize: 20 }), enabled: visible, refetchInterval: visible ? 60000 : false, refetchIntervalInBackground: false })
   const failed = cards.error || trend.error || rankings.error
-  return <section className="activity-page" aria-label="活跃度监控">
+  return <section className="activity-page page-stack" aria-label="活跃度监控">
     <Space wrap className="section-gap">
       <ResourceSelect kind="college" placeholder="全部学院" value={filters.collegeId} onChange={value => setFilter({ ...filters, collegeId: String(value || '') || undefined, majorId: undefined })} />
       <ResourceSelect kind="major" collegeId={filters.collegeId} placeholder="全部专业" value={filters.majorId} onChange={value => setFilter({ ...filters, majorId: String(value || '') || undefined })} />
@@ -41,7 +41,7 @@ export function ActivityPage() {
       <p className="muted">趋势更新：{trend.data?.updatedAt ? new Date(trend.data.updatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'}；无活动的日期显示为零。</p>
     </Card>
     <Card title="用户活跃排行榜" bordered={false} className="section-gap">
-      <Space wrap><div className="field-label">统计周期 <Select style={{ width: 140 }} aria-label="统计周期" value={period} onChange={value => { setPeriod(value); setPage(1) }} options={[{ value: 'DAY', label: '今日' }, { value: 'WEEK', label: '近 7 天' }, { value: 'MONTH', label: '近 30 天' }, { value: 'ALL', label: '累计' }]} /></div>
+      <Space wrap className="list-toolbar list-toolbar-separated"><div className="field-label">统计周期 <Select style={{ width: 140 }} aria-label="统计周期" value={period} onChange={value => { setPeriod(value); setPage(1) }} options={[{ value: 'DAY', label: '今日' }, { value: 'WEEK', label: '近 7 天' }, { value: 'MONTH', label: '近 30 天' }, { value: 'ALL', label: '累计' }]} /></div>
         <div className="field-label">排序方式 <Select style={{ width: 160 }} aria-label="排序方式" value={sort} onChange={value => { setSort(value); setPage(1) }} options={[{ value: 'ACTIVE_DAYS', label: '活跃天数' }, { value: 'ANSWERED_COUNT', label: '答题量' }, { value: 'DURATION', label: '学习时长' }]} /></div>
       </Space>
       <Table<RankingRow> rowKey="userId" data={rankings.data?.items ?? []} loading={rankings.isFetching} scroll={{ x: 1300 }} pagination={{ current: page, pageSize: 20, total: rankings.data?.total ?? 0, onChange: setPage, showTotal: true }} columns={[
