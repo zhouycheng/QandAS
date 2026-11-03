@@ -44,7 +44,7 @@ def main():
             return "2026-10-28T00:00:00.000Z"
         if schema.get("format") == "date":
             return "2026-10-29" if field == "endDateExclusive" else "2026-10-28"
-        return {"scopeType": "ALL", "status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "AFTER_FINISH", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "REGISTER", "email": "student@example.test", "password": "Example12345", "newPassword": "NewExample12345", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator"}.get(field, "示例内容")
+        return {"scopeType": "ALL", "status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "AFTER_FINISH", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "REGISTER", "email": "student@example.test", "password": "Example12345", "newPassword": "NewExample12345", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator", "accountCode": "STUDENT01"}.get(field, "示例内容")
 
     def template(value, field=""):
         if isinstance(value, dict):

@@ -14,6 +14,7 @@ import qanda.backend.platform.events.ActivityEvents
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import java.util.UUID
 
 @Service
@@ -31,7 +32,12 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val binding=bindings.selectList(QueryWrapper<UserWechat>().eq("user_id",id).orderByDesc("created_at").orderByAsc("id").last("LIMIT 1")).firstOrNull()
         return UserView(id,user.accountCode,user.nickname,user.email,binding!=null,
             college,profile?.majorId,grade,user.status,user.version,user.createdAt,college?.let { directory.college(it)?.name },profile?.majorId?.let { directory.major(it)?.name },
-            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null,user.passwordHash!=null,user.avatar)
+            AcademicGrade.academicYear(today),college!=null && profile?.majorId!=null && grade!=null,user.passwordHash!=null,user.avatar,user.profileSetupSeen || college!=null && profile?.majorId!=null && grade!=null)
+    }
+    fun acknowledgeProfileSetup(actor: Actor): MutationResult {
+        val user=sql.lockUser(actor.id) ?: unauthenticated()
+        sql.markProfileSetupSeen(actor.id)
+        return MutationResult(actor.id,user.version)
     }
     fun register(input: RegistrationInput): MutationResult {
         val password=crypto.prepareStudentPassword(input.password);val display=nickname(input.nickname)
@@ -91,11 +97,49 @@ class IdentityService(private val users: UserAccountMapper,private val profiles:
         val grade=input.currentGrade ?: previous.grade
         val year=if(input.currentGrade!=null) AcademicGrade.academicYear(LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))) else previous.gradeAcademicYear
         if(major==null || grade==null) qanda.backend.platform.http.invalid("profile","PROFILE_INCOMPLETE","请选择学院、专业和当前年级")
+        user.profileSetupSeen=true
         user.nickname=nickname(input.nickname)
         input.avatar?.let { user.avatar=profileAvatar(it) }
         user.version++;user.updatedAt=clock.instant();users.updateById(user)
         sql.updateProfile(actor.id,null,input.majorId,grade,year)
         return MutationResult(actor.id,user.version)
+    }
+    fun updateAdminProfile(id: UUID,input: AdminProfileInput): MutationResult {
+        val user=sql.lockUser(id) ?: missing();requireVersion(input.expectedVersion,user.version)
+        val accountCode=input.accountCode.trim().uppercase(Locale.ROOT).also { if(!it.matches(Regex("[A-Z0-9_-]{2,12}"))) invalid("accountCode") }
+        if(users.selectCount(QueryWrapper<UserAccount>().eq("account_code",accountCode).ne("id",id))>0) conflict("ACCOUNT_CODE_UNAVAILABLE","账号已被使用")
+        val address=input.email?.trim()?.takeIf { it.isNotEmpty() }?.let { email(it) }
+        if(address!=null && sql.userByEmail(address.key)?.id?.let { it!=id }==true) conflict("EMAIL_UNAVAILABLE","该邮箱已被其他账号使用")
+        if(input.currentGrade!=null && input.currentGrade !in 1..5) invalid("currentGrade")
+        val college=input.collegeId?.let { directory.college(it) ?: invalid("collegeId") }
+        val major=input.majorId?.let { directory.major(it) ?: invalid("majorId") }
+        if(major!=null && major.collegeId!=college?.id) invalid("majorId")
+
+        val profile=profiles.selectById(id)
+        val today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Shanghai")))
+        val currentGrade=AcademicGrade.current(profile?.grade,profile?.gradeAcademicYear,today)
+        val grade=when {
+            input.currentGrade==null -> null
+            input.currentGrade==currentGrade -> profile?.grade
+            else -> input.currentGrade
+        }
+        val gradeYear=when {
+            input.currentGrade==null -> null
+            input.currentGrade==currentGrade -> profile?.gradeAcademicYear
+            else -> AcademicGrade.academicYear(today)
+        }
+        if(profile==null) profiles.insert(UserProfile().apply {
+            userId=id;collegeId=if(major==null) college?.id else null;majorId=major?.id;this.grade=grade;gradeAcademicYear=gradeYear
+        }) else sql.updateProfile(id,if(major==null) college?.id else null,major?.id,grade,gradeYear)
+
+        if(college!=null && major!=null && grade!=null) sql.markProfileSetupSeen(id)
+        val emailChanged=user.emailKey!=address?.key
+        user.accountCode=accountCode;user.nickname=nickname(input.nickname);user.email=address?.display;user.emailKey=address?.key
+        user.version++
+        if(emailChanged) { user.credentialVersion++;sql.revokeUserSessions(id) }
+        user.updatedAt=clock.instant()
+        sql.updateAdminUser(id,user.accountCode,user.nickname,user.email,user.emailKey,user.version,user.credentialVersion,user.updatedAt)
+        return MutationResult(id,user.version)
     }
     fun reset(input: ResetPasswordInput): MutationResult {
         val hash=crypto.prepareStudentPassword(input.newPassword,"newPassword").encoded

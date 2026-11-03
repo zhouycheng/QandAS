@@ -162,9 +162,7 @@ Page(withPageLifecycle({
     }
 
     if (command.type === 'back') {
-      wx.navigateBack({
-        fail: () => this.goLogin()
-      })
+      require('../../utils/profile-onboarding.js').finishAuthentication()
 
       wx.showToast({
         title: command.title || '注册成功',

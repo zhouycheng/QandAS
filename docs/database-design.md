@@ -1,6 +1,6 @@
 # 数据库设计
 
-当前初始化定义为 `apps/api/src/main/resources/db/schema.sql`，共 42 张表。监控权限定义在相邻的 `monitoring-permissions.sql`。应用启动核对结构，开发数据库从完整定义初始化。
+V1 基线定义为 `apps/api/src/main/resources/db/schema.sql`，包含 42 张表；后续结构由增量迁移维护。监控权限定义在相邻的 `monitoring-permissions.sql`。应用启动核对结构；开发初始化和生产 Flyway 在基线之后执行 `db/migration/V2__ProfileSetupAndBankVisibility.sql`。V2 增加 `user_account.profile_setup_seen` 并更新 `bank_visible`，资料齐全的存量账号初始化为已完成引导，其余账号首次展示后登记。
 
 题目稳定身份与不可变修订分离。练习固定题目和材料修订，正式结果及历史引用由外键、约束和触发器保护。同步命令保存身份、幂等摘要、序号、处理状态及最终回执；一场练习最多一个未完成命令。
 

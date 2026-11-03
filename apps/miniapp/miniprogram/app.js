@@ -32,6 +32,7 @@ App({
     remoteData.enable(true)
     remoteData.bind(storage)
     onlinePractice.enable(storage)
+    require('./utils/profile-onboarding.js').start()
     // 点击链路诊断的起点：逻辑层只要启动了，第一行日志就一定会有。
     // 如果控制台连这行都没有，说明 appservice 根本没跑起来，
     // 后面所有的「点了没反应」都不用再从业务代码里找。

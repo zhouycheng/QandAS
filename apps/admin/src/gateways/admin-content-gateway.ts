@@ -1,5 +1,5 @@
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, SubjectAccess, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UserQuery } from '../types/operations'
+import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, SubjectAccess, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UpdateManagedUserInput, UserQuery } from '../types/operations'
 
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
 import type { CommunityGroup } from '../types/operations'
@@ -20,6 +20,7 @@ export interface AdminContentGateway {
   setUserStatus(id: string, status: UserStatus, expectedVersion: number): Promise<void>
   listUsers(query?: UserQuery): Promise<Page<ManagedUser>>
   getUser(id: string): Promise<ManagedUser>
+  updateUserProfile(id: string, input: UpdateManagedUserInput): Promise<void>
   getUserStatistics(id: string): Promise<{ answeredCount: number; correctCount: number; durationSeconds: number }>
   listAdminAccounts(query?: PageQuery): Promise<Page<AdminAccount>>
   saveAdminAccount(id: string | undefined, input: AdminAccountInput): Promise<AdminAccount>

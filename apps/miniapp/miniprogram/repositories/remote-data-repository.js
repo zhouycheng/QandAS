@@ -7,20 +7,21 @@ const cache = createResourceCache()
 const TTL = { catalog: 300000, profile: 300000, learning: 30000, announcements: 60000, colleges: 86400000 }
 let enabled = false
 let owner = ''
+let sessionToken = ''
 let scope = ''
 let activeStorage = null
 function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
-function enable(value) { enabled = value !== false; owner = ''; scope = ''; activeStorage = null; reset() }
+function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
 function isEnabled() { return enabled }
 function bind(storage) {
   activeStorage = storage || activeStorage
   const auth = authRepository.getAuth(activeStorage)
   const id = auth && auth.token && auth.userId || ''
   const nextScope = scopeKey(auth)
-  if (id !== owner) {
-    owner = id; scope = nextScope; reset(); api.cancelReads()
+  if (id !== owner || sessionToken !== (auth.token || '')) {
+    sessionToken = auth.token || ''; owner = id; scope = nextScope; reset(); api.cancelReads()
     const saved = id && activeStorage && activeStorage.get && activeStorage.get('qandaReadCache:' + id)
     if (saved && saved.version === 1) runInAction(() => {
       state.overview = saved.overview || null; state.profile = saved.profile || null
@@ -135,6 +136,7 @@ function refreshProfile(storage, options) {
     if (nextScope !== scope) { reset(); api.cancelReads(); scope = nextScope }
     state.profile = profile
     authRepository.saveAuth(storage, nextAuth)
+    require('../utils/profile-onboarding.js').syncSeen(nextAuth)
     persistSummary()
   }, options && options.force)
 }

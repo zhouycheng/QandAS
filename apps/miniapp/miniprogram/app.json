@@ -17,7 +17,8 @@
     "page/account/index",
     "page/account-security/index",
     "page/reminder/index",
-    "page/feedback/index"
+    "page/feedback/index",
+    "page/profile-setup/index"
   ],
   "window": {
     "navigationStyle": "custom",

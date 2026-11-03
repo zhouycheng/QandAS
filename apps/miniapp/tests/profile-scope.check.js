@@ -8,7 +8,7 @@ const storage = { get: key => data.get(key), set: (key, value) => data.set(key, 
 async function run() {
   assert.equal(rules.academicYear(Date.parse('2026-08-31T15:59:59Z')), 2025)
   assert.equal(rules.academicYear(Date.parse('2026-08-31T16:00:00Z')), 2026)
-  assert.equal(rules.successCommand({ token: 't', profile: { profileComplete: false } }).url, '/page/account/index?required=1')
+  assert.equal(rules.successCommand({ token: 't', profile: { profileComplete: false } }).type, 'back')
   assert.equal(rules.successCommand({ token: 't', profile: { profileComplete: true } }).type, 'back')
   const identity = { provider: 'email', userId: 'u', token: 't', profile: { collegeId: 'c', majorId: 'm', currentGrade: 2, profileComplete: true } }
   auth.saveAuth(storage, identity)
@@ -29,7 +29,7 @@ async function run() {
     assert.notEqual(rules.scopeKey(auth.getAuth(storage)), previous)
     resolve({ ok: true, data: { items: [], page: 1, total: 0 } })
     await assert.rejects(crossing, /范围已变化/)
-    console.log('profile scope: required onboarding, Shanghai academic year and stale search rejection passed')
+    console.log('profile scope: authentication return, Shanghai academic year and stale search rejection passed')
   } finally { api.request = original; Date.now = clock; remote.enable(false) }
 }
 run().catch(error => { console.error(error); process.exitCode = 1 })

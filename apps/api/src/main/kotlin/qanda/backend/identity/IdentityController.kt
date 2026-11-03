@@ -26,6 +26,10 @@ class IdentityController(private val service: IdentityService,private val sessio
     fun resetPassword(@RequestBody input: ResetPasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
         commands.run(null,key,"RESET_PASSWORD",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.reset(input) }
     @GetMapping("/me") fun me(): UserView = service.view(sessions.student().id)
+    @PostMapping("/me/profile-setup/acknowledgement")
+    fun acknowledgeProfileSetup(@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
+        val actor=sessions.student();return commands.run(actor,key,"ACK_PROFILE_SETUP",emptyMap<String,String>(),MutationResult::class.java,request.requestId()) { service.acknowledgeProfileSetup(actor) }
+    }
     @PostMapping("/me/activity/heartbeat") fun heartbeat(): HeartbeatView = service.heartbeat(sessions.student())
     @PutMapping("/me/profile")
     fun updateProfile(@RequestBody input: ProfileInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {

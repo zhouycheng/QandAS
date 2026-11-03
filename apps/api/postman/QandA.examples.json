@@ -978,5 +978,21 @@
     "method": "GET",
     "path": "/api/v1/admin/sync/dead-letters/head",
     "body": null
+  },
+  {
+    "operationId": "Admin_updateUserProfile_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/users/{id}",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "nickname": "示例内容",
+      "accountCode": "STUDENT01"
+    }
+  },
+  {
+    "operationId": "Identity_acknowledgeProfileSetup_POST",
+    "method": "POST",
+    "path": "/api/v1/me/profile-setup/acknowledgement",
+    "body": null
   }
 ]

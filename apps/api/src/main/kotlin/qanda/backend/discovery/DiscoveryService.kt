@@ -35,8 +35,11 @@ class DiscoveryService(private val sql: DiscoveryMapper,private val catalog: Cat
             Recommendation(subjects.getValue(subject),grouped[subject].orEmpty().map { row ->
                 val bank=banks.getValue(row.bankId!!)
                 val reasons=if(bank.scopeType=="ALL") listOf("全校通用") else bank.audiences.filter {
-                    (it.majorId==null || it.majorId==user.majorId) && (it.collegeId==null || it.collegeId==user.collegeId) && (it.grade==null || it.grade==user.currentGrade)
-                }.flatMap { listOfNotNull(if(it.majorId!=null) "符合所选专业" else if(it.collegeId!=null) "符合所选学院" else null,it.grade?.let { "符合当前年级" }) }.distinct().ifEmpty { listOf("课程已向你开放") }
+                    user.collegeId==null || (it.collegeId==null || it.collegeId==user.collegeId) &&
+                        (user.majorId==null || it.majorId==null || it.majorId==user.majorId) &&
+                        (user.majorId==null || user.currentGrade==null || it.grade==null || it.grade==user.currentGrade)
+                }.flatMap { listOfNotNull(if(user.majorId!=null && it.majorId!=null) "符合所选专业" else if(user.collegeId!=null && it.collegeId!=null) "符合所选学院" else null,
+                    if(user.majorId!=null && user.currentGrade!=null && it.grade!=null) "符合当前年级" else null) }.distinct().ifEmpty { listOf(if(user.collegeId==null) "可浏览题库" else "课程已向你开放") }
                 RecommendedBank(bank,reasons)
             })
         }

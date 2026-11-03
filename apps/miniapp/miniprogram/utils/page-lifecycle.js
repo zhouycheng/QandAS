@@ -1,9 +1,6 @@
 const metrics = require('./loading-metrics.js')
 const { getInitialHomeHeaderData } = require('./home-header.js')
-const { needsProfile } = require('./profile-rules.js')
-const { createWxStorageAdapter } = require('./wx-storage.js')
-const authRepository = require('../repositories/auth-repository.js')
-const navigation = require('./navigation.js')
+const onboarding = require('./profile-onboarding.js')
 function headerData() {
   const platform = typeof wx === 'undefined' ? {} : wx
   return getInitialHomeHeaderData(platform.getWindowInfo ? platform.getWindowInfo() : {}, platform.getMenuButtonBoundingClientRect ? platform.getMenuButtonBoundingClientRect() : null)
@@ -38,12 +35,10 @@ function withPageLifecycle(definition) {
       if (name === 'onUnload') this._pageUnloaded = true
       if (name === 'onHide' || name === 'onUnload') stopBinding(this)
       metrics.record(name, { route: this.route || '' })
-      if (name === 'onShow' && this.route && !/^page\/(account|account-security|login|register|forgot-password)\//.test(this.route) && needsProfile(authRepository.getAuth(createWxStorageAdapter()))) {
-        navigation.navigateTo({ url: '/page/account/index?required=1' })
-        return
-      }
       const value = definition[name] && definition[name].apply(this, arguments)
       if (name === 'onShow') bindViewModel(this)
+      if (name === 'onReady') this._profileReady = true
+      if ((name === 'onShow' || name === 'onReady') && this._profileReady) onboarding.showPending(this)
       if (name === 'onHide') {
         const patch = {}
         ;['announcementSheetVisible', 'searchVisible', 'configSheetVisible', 'collegePickerVisible', 'majorPickerVisible', 'gradePickerVisible', 'routeLoadingVisible'].forEach(key => { if (this.data[key]) patch[key] = false })

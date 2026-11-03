@@ -11,6 +11,7 @@ class UserAccount {
     var accountCode: String = ""
     var nickname: String = ""
     var avatar: String? = null
+    var profileSetupSeen: Boolean = false
     var email: String? = null
     var emailKey: String? = null
     var passwordHash: String? = null

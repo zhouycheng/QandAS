@@ -40,7 +40,7 @@ function settle(storage, remote, provider) {
   const auth = provider === 'email' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, provider, reason: '', auth: saved } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); require('../utils/profile-onboarding.js').onLogin(saved); return { ok: true, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {

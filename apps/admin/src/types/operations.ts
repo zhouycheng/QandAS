@@ -22,6 +22,15 @@ export interface ManagedUser extends Versioned {
   preferredHours?: string
   lastActiveAt?: string
 }
+export interface UpdateManagedUserInput {
+  expectedVersion: number
+  nickname: string
+  accountCode: string
+  email: string | null
+  collegeId: string | null
+  majorId: string | null
+  currentGrade: number | null
+}
 export interface UserQuery extends PageQuery {
   keyword?: string
   collegeId?: string

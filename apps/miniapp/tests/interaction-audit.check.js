@@ -61,11 +61,17 @@ const missingHandlers = []
 const usedHoverClasses = new Map() // class -> [files]
 const zeroGuard = []
 
+function scriptWithMixins(file, seen = new Set()) {
+  if (!fs.existsSync(file) || seen.has(file)) return ''
+  seen.add(file)
+  const source = fs.readFileSync(file, 'utf8')
+  return source + [...source.matchAll(/\.\.\.require\(['"]([^'"]+)['"]\)/g)].map(match => scriptWithMixins(path.resolve(path.dirname(file), match[1]), seen)).join('\n')
+}
 for (const f of wxmls) {
   if (rel(f).startsWith('templates/')) continue
-  const src = fs.readFileSync(f, 'utf8').replace(/<include\s+src="([^"]+)"\s*\/>/g, (_, name) => fs.readFileSync(path.resolve(path.dirname(f), name), 'utf8'))
+  const src = fs.readFileSync(f, 'utf8').replace(/<(?:include|import)\s+src="([^"]+)"\s*\/>/g, (_, name) => fs.readFileSync(path.resolve(path.dirname(f), name), 'utf8'))
   const jsPath = f.replace(/\.wxml$/, '.js')
-  const jsSrc = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : ''
+  const jsSrc = scriptWithMixins(jsPath)
 
   // 动态事件绑定：排除 bind:xxx 里被组件 emit 的自定义事件（交由子组件处理）
   const handlers = new Set()
@@ -82,7 +88,7 @@ for (const f of wxmls) {
   // 以及组件 methods 块内的 `foo() {}`（缩进是 4 空格，别再写死 2 空格）
   // ⚠️ 参数表要用 `\([^)\n]*\)` 而不是 `\([^)]*\)`：后者会跨行贪婪吞掉，
   //    让 `Component({ ... handleMaskTap() {` 里的方法名被当成前一个匹配的一部分而漏掉。
-  for (const m of jsSrc.matchAll(/(?:^|[,}])\s*([a-zA-Z_$][\w$]*)\s*\([^)\n]*\)\s*\{/gm)) defined.add(m[1])
+  for (const m of jsSrc.matchAll(/(?:^|[,}])\s*(?:async\s+)?([a-zA-Z_$][\w$]*)\s*\([^)\n]*\)\s*\{/gm)) defined.add(m[1])
   for (const m of jsSrc.matchAll(/([a-zA-Z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:function|\()/g)) defined.add(m[1])
 
   for (const h of handlers) {

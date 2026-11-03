@@ -1,6 +1,6 @@
 import type { AdminContentGateway } from './admin-content-gateway'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, SubjectAccess, UserQuery, UserStatus } from '../types/operations'
+import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, SubjectAccess, UpdateManagedUserInput, UserQuery, UserStatus } from '../types/operations'
 import { getAdminSession, logout } from '../lib/auth'
 import { importBody, questionFromWire, questionToWire } from './question-wire'
 import { countQuestions } from '../lib/question-content'
@@ -10,7 +10,6 @@ import { watchSyncStream } from './sync-stream'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
-type WireUser = { id: string; nickname: string; accountCode: string; version: number; email?: string; collegeId?: string; majorId?: string; collegeName?: string; majorName?: string; currentGrade?: number; status: UserStatus; registeredAt?: string; wechatBound: boolean; avatarUrl?: string | null }
 const userView = (u: WireUser): ManagedUser => ({ ...u, name: u.nickname, account: u.accountCode, email: u.email ?? '', collegeId: u.collegeId ?? '', majorId: u.majorId ?? '', grade: u.currentGrade, registeredAt: u.registeredAt, wechatBound: u.wechatBound })
 const segment = encodeURIComponent
 
@@ -144,6 +143,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   }
   async listUsers(query?: UserQuery) { const result = await this.page<WireUser>('/admin/users', query); return { ...result, items: result.items.map(userView) } }
   async getUser(id: string) { return userView(await this.request<WireUser>('GET', '/admin/users/' + segment(id))) }
+  async updateUserProfile(id: string, input: UpdateManagedUserInput) { await this.write('PUT', '/admin/users/' + segment(id), input) }
   getUserStatistics(id: string) { return this.request<{ answeredCount: number; correctCount: number; durationSeconds: number }>('GET', `/admin/students/${segment(id)}/statistics`, undefined, { period: 'ALL' }) }
   async setUserStatus(id: string, status: UserStatus, expectedVersion: number) { await this.write('PUT', `/admin/users/${segment(id)}/status`, { status, expectedVersion }) }
   listAdminAccounts(query?: PageQuery) { return this.page<AdminAccount>('/admin/administrators', query) }

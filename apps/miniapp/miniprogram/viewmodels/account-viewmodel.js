@@ -74,9 +74,9 @@ class AccountViewModel {
         this.majorOptions = [];
         this.securityRepository = normalizedOptions.securityRepository;
     }
-    refreshRemote(subjectId) {
+    refreshRemote(options) {
         const revision = this.editRevision;
-        return this.repository.refreshRemote(this.storage, 'profile').then(() => revision !== this.editRevision ? null : this.loadedEditRevision !== this.editRevision ? { data: { profile: this.readProfile() } } : this.load()).catch((error) => ({ command: { type: 'toast', title: error.message } }));
+        return this.repository.refreshRemote(this.storage, 'profile', options).then(() => revision !== this.editRevision ? null : this.loadedEditRevision !== this.editRevision ? { data: { profile: this.readProfile() } } : this.load()).catch((error) => ({ command: { type: 'toast', title: error.message } }));
     }
     projectRemote() {
         remoteData.getProfile(this.storage);

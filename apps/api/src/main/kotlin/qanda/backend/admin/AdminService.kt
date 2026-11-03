@@ -94,6 +94,7 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         row.status=input.status;row.version++;row.credentialVersion++;row.updatedAt=clock.instant();users.updateById(row);identity.revokeUserSessions(id)
         return MutationResult(id,row.version)
     }
+    fun updateUserProfile(id: UUID,input: AdminProfileInput): MutationResult = identityViews.updateAdminProfile(id,input)
     fun logout(actor: Actor): MutationResult {
         val session=identity.lockAdminSession(actor.sessionId) ?: missing();session.revokedAt=clock.instant();sessionRows.updateById(session)
         return MutationResult(session.id!!,1)
