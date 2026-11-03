@@ -91,14 +91,12 @@ select {
 .nav-group-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0 16px 7px;
+  margin: 0 16px 8px;
   min-height: 28px;
+  padding-left: 41px;
   color: var(--muted);
-  font-size: 13px;
-}
-.nav-group-title .design-icon {
-  opacity: 1;
+  font-size: 12px;
+  font-weight: 600;
 }
 .nav-link {
   display: flex;
@@ -206,11 +204,7 @@ select {
 .sidebar-collapsed .sidebar-foot {
   display: none;
 }
-.sidebar-collapsed .nav-group-title {
-  font-size: 0;
-  margin: 0;
-  justify-content: center;
-}
+.sidebar-collapsed .nav-group-title { display: none; }
 .sidebar-collapsed .nav-group {
   margin: 10px 8px;
 }

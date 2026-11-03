@@ -11,7 +11,6 @@ import { DesignIcon } from '../components/design-icon'
 const groups = [
   {
     title: '工作台',
-    icon: 'home',
     items: [
       ['/dashboard', '运营概览', 'dashboard'],
       ['/activity', '活跃度监控', 'activity'],
@@ -104,7 +103,7 @@ export function AdminLayout() {
       <nav aria-label="管理导航">
         {groups.map((group) => (
           <div className="nav-group" key={group.title}>
-            <div className="nav-group-title"><DesignIcon name={group.icon} /><span>{group.title}</span></div>
+            <div className="nav-group-title"><span>{group.title}</span></div>
             {group.items.map(([path, label, icon]) => (
               <Link
                 className={`nav-link ${location.pathname === path || location.pathname.startsWith(path + '/') ? 'active' : ''}`}
