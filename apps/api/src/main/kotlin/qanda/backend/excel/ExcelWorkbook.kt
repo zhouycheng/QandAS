@@ -157,7 +157,14 @@ object ExcelWorkbook {
             tables["参考要点"].orEmpty().forEach { referenced(it).withArray("scoringPoints").add(it.path("content").asText()) }
             tables["来源说明"].orEmpty().forEach { referenced(it).set<JsonNode>("provenance",json.readTree(it.path("content").asText())) }
             out.putArray("assets")
-            tables["附件"].orEmpty().forEach { r -> referenced(r).withArray("assetIds").add(r.path("id").asText());out.withArray("assets").add(r) }
+            val assetPaths=mutableMapOf<String,String>()
+            tables["附件"].orEmpty().forEachIndexed { index,r ->
+                val id=r.path("id").asText();val path=r.path("path").asText()
+                if(id.isBlank()) fail("附件",index+2,"附件编号","附件编号必填")
+                val previous=assetPaths.putIfAbsent(id,path)
+                if(previous!=null && previous!=path) fail("附件",index+2,"文件路径","同一附件编号必须使用相同文件路径")
+                referenced(r).withArray("assetIds").add(id);out.withArray("assets").add(r)
+            }
             val roots=out.putArray("questions")
             rows.forEach { r -> val parent=r.path("parent").asText();if(parent.isEmpty()) roots.add(r) else { val owner=questions[parent] ?: error("阅读题组不存在");require(owner.path("type").asText()=="READING" && r.path("type").asText()!="READING" && owner.path("parent").asText().isEmpty()) { "阅读题组关系无效" };owner.withArray("subQuestions").add(r) };r.remove("parent") }
             return out

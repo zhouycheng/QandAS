@@ -48,13 +48,13 @@ class ExcelPostgresTest: PostgresFixture() {
         } else response.body()
         return ExcelWorkbook.read(bytes,kind)
     }
-    private fun upload(kind: String,action: String,doc: com.fasterxml.jackson.databind.JsonNode,options: String="{}",token: String?=adminToken): Pair<Int,com.fasterxml.jackson.databind.JsonNode> {
+    private fun upload(kind: String,action: String,doc: com.fasterxml.jackson.databind.JsonNode,options: String="{}",token: String?=adminToken,edit: (ByteArray)->ByteArray={ it }): Pair<Int,com.fasterxml.jackson.databind.JsonNode> {
         val boundary="qanda${UUID.randomUUID()}";val bytes=ByteArrayOutputStream()
         val books=if(doc.isArray) doc.toList() else listOf(doc)
         books.forEachIndexed { index,book ->
             bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"fixture$index.xlsx\"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n".toByteArray())
-            bytes.write(ExcelWorkbook.write(book,kind));bytes.write("\r\n".toByteArray())
-            book.path("assets").forEach { asset ->
+            bytes.write(edit(ExcelWorkbook.write(book,kind)));bytes.write("\r\n".toByteArray())
+            book.path("assets").distinctBy { it.path("path").asText() }.forEach { asset ->
                 val png=ByteArrayOutputStream();javax.imageio.ImageIO.write(java.awt.image.BufferedImage(32,32,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",png)
                 bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"files\"; filename=\"${asset["path"].asText()}\"\r\nContent-Type: image/png\r\n\r\n".toByteArray());bytes.write(png.toByteArray());bytes.write("\r\n".toByteArray())
             }
@@ -78,6 +78,29 @@ class ExcelPostgresTest: PostgresFixture() {
         val bank=jdbc.queryForObject("SELECT b.id FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE s.name=?",UUID::class.java,doc["subject"].asText())!!
         val copy=exported("/admin/question-banks/excel/export?bankId=$bank","banks")
         assertEquals(1,copy["questions"][0]["assetIds"].size());assertEquals(1,copy["assets"].size())
+    }
+    @Test fun `shared attachment ids keep one image and conflicting paths are rejected without writes`() {
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"共享图片${UUID.randomUUID()}","bank":{"name":"共享题库"},"assets":[{"id":"image","path":"first.png"},{"id":"image","path":"second.png"}],"questions":[{"id":"q1","type":"TRUE_FALSE","stem":"第一题","correctValue":true,"assetIds":["image"]},{"id":"q2","type":"TRUE_FALSE","stem":"第二题","correctValue":false,"assetIds":["image"]}]}""")
+        val options="""{"targets":{"${doc["fileId"].asText()}":{"createSubject":true}}}"""
+        val conflicting: (ByteArray)->ByteArray={ bytes ->
+            org.apache.poi.xssf.usermodel.XSSFWorkbook(bytes.inputStream()).use { book ->
+                book.getSheet("附件").getRow(2).getCell(1).setCellValue("second.png")
+                ByteArrayOutputStream().also { book.write(it) }.toByteArray()
+            }
+        }
+        val before=jdbc.queryForObject("SELECT count(*) FROM subject",Int::class.java)
+        val preview=upload("banks","preview",doc,options,edit=conflicting)
+        assertFalse(preview.second["valid"].asBoolean(),preview.second.toString())
+        assertEquals("附件",preview.second["issues"][0]["sheet"].asText())
+        assertEquals("文件路径",preview.second["issues"][0]["column"].asText())
+        assertEquals(422,upload("banks","imports",doc,options,edit=conflicting).first)
+        assertEquals(before,jdbc.queryForObject("SELECT count(*) FROM subject",Int::class.java))
+        assertTrue(upload("banks","preview",doc,options).second["valid"].asBoolean())
+        val result=upload("banks","imports",doc,options);assertEquals(200,result.first,result.second.toString())
+        val bank=jdbc.queryForObject("SELECT b.id FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE s.name=?",UUID::class.java,doc["subject"].asText())!!
+        val copy=exported("/admin/question-banks/excel/export?bankId=$bank","banks")
+        assertEquals(copy["questions"][0]["assetIds"],copy["questions"][1]["assetIds"])
+        assertEquals(1,copy["assets"].map { it["id"].asText() }.distinct().size)
     }
     @Test fun `account workbook preview is read only import is idempotent and code login uses isolated proof`() {
         val address="${UUID.randomUUID()}@example.test"
