@@ -42,7 +42,7 @@ jobs:
         id: verified
         with:
           path: release/
-          key: verified-release-${{ runner.os }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ needs.verify.outputs.release-cache-key }}
           fail-on-cache-miss: true
       - name: Verify and stage the tested artifacts
         env:
