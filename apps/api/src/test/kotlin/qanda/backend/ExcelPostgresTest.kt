@@ -26,6 +26,23 @@ class ExcelPostgresTest: PostgresFixture() {
         assertEquals(listOf("1","一"),children[3]["blanks"][0]["answers"].map { it.asText() })
         assertEquals(long,children[4]["referenceAnswer"].asText())
     }
+    @Test fun `published bank preview requires explanations for normal and reading questions`() {
+        val f=fixture()
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"课程","bank":{"name":"追加"},"questions":[{"id":"q","type":"TRUE_FALSE","stem":"判断","correctValue":true},{"id":"r","type":"READING","stem":"阅读","passage":"材料","subQuestions":[{"id":"child","type":"TRUE_FALSE","stem":"小题","correctValue":false}]}]}""")
+        val version=call("GET","/admin/question-banks/${f.bank}")["contentVersion"].asLong()
+        val options="""{"targets":{"${doc["fileId"].asText()}":{"bankId":"${f.bank}","expectedContentVersion":$version}}}"""
+        val preview=upload("banks","preview",doc,options)
+        assertFalse(preview.second["valid"].asBoolean(),preview.second.toString())
+        assertEquals(listOf(2,3),preview.second["issues"].map { it["row"].asInt() })
+        assertTrue(preview.second["issues"].all { it["message"].asText().contains("解析") })
+        assertEquals(422,upload("banks","imports",doc,options).first)
+        assertEquals(f.questions.size,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,f.bank))
+        (doc["questions"][0] as com.fasterxml.jackson.databind.node.ObjectNode).put("explanation","普通题解析")
+        (doc["questions"][1]["subQuestions"][0] as com.fasterxml.jackson.databind.node.ObjectNode).put("explanation","小题解析")
+        assertTrue(upload("banks","preview",doc,options).second["valid"].asBoolean())
+        val imported=upload("banks","imports",doc,options);assertEquals(200,imported.first,imported.second.toString())
+        assertEquals(f.questions.size+3,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,f.bank))
+    }
     @Test fun `empty draft bank exports its metadata and chapters`() {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "空题库课程${UUID.randomUUID()}")))
         val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "空白草稿","description" to "保留说明","textbook" to "教材信息")))

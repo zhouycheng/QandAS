@@ -61,9 +61,9 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
                 val t=target(doc,options)
                 try {
                     name(doc.path("bank").path("name").asText());text(doc.path("bank").path("description").asText(),2000)
-                    if(t.bankId!=null) {
-                        val bank=content.bank(actor,t.bankId)
-                        if(t.expectedContentVersion!=null) requireVersion(t.expectedContentVersion,bank.contentVersion)
+                    val existingBank=t.bankId?.let { content.bank(actor,it) }
+                    if(existingBank!=null) {
+                        if(t.expectedContentVersion!=null) requireVersion(t.expectedContentVersion,existingBank.contentVersion)
                     } else {
                         val subject=resolveSubject(doc,t,false)
                         require(t.subjectId!=null || t.createSubject || subject!=null) { "请选择已有课程，或确认创建课程" }
@@ -79,6 +79,7 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
                         require(!q.has("chapterId") || q.path("chapterId").asText() in chapters) { "章节引用不存在" }
                         val qi=question(doc,q,t.bankId ?: id(fileId),emptyMap(),emptyMap(),false)
                         content.validate(qi,false)
+                        if(existingBank?.publicationStatus=="PUBLISHED") content.validatePublishedQuestion(qi)
                         q.path("systemId").asText().takeIf { it.isNotBlank() }?.let { require(!exists("question",UUID.fromString(it))) { "系统记录已存在" } }
                         if(t.bankId!=null) require(!exists("question",id("$fileId:${t.bankId}:${q.path("id").asText()}"))) { "题目记录已存在" }
                     } catch(e: Exception) { issues.add(problem(file.name,"题目",i+2,"题目内容",e)) } }

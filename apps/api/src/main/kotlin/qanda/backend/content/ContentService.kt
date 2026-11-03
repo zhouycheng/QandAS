@@ -228,14 +228,17 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         if(bank.publicationStatus=="PUBLISHED") validatePublication(bank)
         sql.bumpBank(question.bankId!!);return MutationResult(id,question.version+1)
     }
+    fun validatePublishedQuestion(input: QuestionInput) {
+        val incomplete=if(input.type=="READING") input.subQuestions.any { it.explanation.isBlank() } else input.explanation.isBlank()
+        if(input.status=="ACTIVE" && incomplete) invalid("/explanation","PUBLISH_VALIDATION_FAILED","已发布题库的有效题目需要填写解析")
+    }
     fun preview(actor: Actor,bankId: UUID,input: ImportInput): ImportPreview {
         val bank=access.bank(actor,bankId)
         val count=input.questions.sumOf { if(it.type=="READING") it.subQuestions.size else 1 }
         if(input.questions.size !in 1..3000 || count !in 1..3000) invalid("/questions","IMPORT_LIMIT_EXCEEDED","每批最多导入 3000 道实际作答题")
         val issues=input.questions.mapIndexedNotNull { i,q -> try { if(q.questionBankId!=bankId) invalid("/questionBankId");validate(q);null } catch(e: ApiException) { PreviewIssue(i,e.code,e.message) } }
         val publicationIssues=if(bank.publicationStatus=="PUBLISHED") input.questions.mapIndexedNotNull { i,q ->
-            val incomplete=if(q.type=="READING") q.subQuestions.any { it.explanation.isBlank() } else q.explanation.isBlank()
-            if(q.status=="ACTIVE" && incomplete) PreviewIssue(i,"PUBLISH_VALIDATION_FAILED","已发布题库的有效题目需要填写解析") else null
+            try { validatePublishedQuestion(q);null } catch(e: ApiException) { PreviewIssue(i,e.code,e.message) }
         } else emptyList()
         return ImportPreview(issues.isEmpty() && publicationIssues.isEmpty(),count,issues+publicationIssues)
     }
