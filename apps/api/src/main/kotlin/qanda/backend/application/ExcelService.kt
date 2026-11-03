@@ -212,7 +212,7 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
                 doc.set<JsonNode>("assets",json.valueToTree(assetIds.map { mapOf("id" to it,"path" to "assets/$it.png") }))
                 assetIds.forEach { output.add(ExcelFile("assets/$it.png",files.read(actor,it))) }
                 var chunk=mutableListOf<JsonNode>();var count=0;var part=1
-                fun flush() { if(chunk.isNotEmpty()) { doc.put("fileId",UUID.randomUUID().toString());doc.set<JsonNode>("questions",json.valueToTree(chunk));output.add(ExcelFile("题库-${b.id}-${part++}.xlsx",ExcelWorkbook.write(doc,kind)));chunk=mutableListOf();count=0 } }
+                fun flush() { if(chunk.isNotEmpty() || (qs.isEmpty() && part==1)) { doc.put("fileId",UUID.randomUUID().toString());doc.set<JsonNode>("questions",json.valueToTree(chunk));output.add(ExcelFile("题库-${b.id}-${part++}.xlsx",ExcelWorkbook.write(doc,kind)));chunk=mutableListOf();count=0 } }
                 qs.forEach { q -> val c=if(q.path("type").asText()=="READING") q.path("subQuestions").size() else 1;if(count+c>3000 || json.writeValueAsBytes(chunk+q).size>7*1024*1024) flush();chunk.add(q);count+=c };flush()
             }
             if(output.isEmpty()) output.add(ExcelFile("题库.xlsx",template(kind)))

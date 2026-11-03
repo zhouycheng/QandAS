@@ -7,6 +7,18 @@ import java.util.UUID
 import java.io.ByteArrayOutputStream
 
 class ExcelPostgresTest: PostgresFixture() {
+    @Test fun `empty draft bank exports its metadata and chapters`() {
+        val subject=id(call("POST","/admin/subjects",mapOf("name" to "空题库课程${UUID.randomUUID()}")))
+        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "空白草稿","description" to "保留说明","textbook" to "教材信息")))
+        call("POST","/admin/question-banks/$bank/chapters",mapOf("name" to "待补充章节","sortOrder" to 0))
+        for(path in listOf("/admin/question-banks/excel/export?bankId=$bank","/admin/question-banks/excel/export?subjectId=$subject")) {
+            val doc=exported(path,"banks")
+            assertEquals("空白草稿",doc["bank"]["name"].asText())
+            assertEquals("保留说明",doc["bank"]["description"].asText())
+            assertEquals("教材信息",doc["bank"]["textbook"].asText())
+            assertEquals(1,doc["chapters"].size());assertEquals(0,doc["questions"].size())
+        }
+    }
     private fun exported(path: String,kind: String): com.fasterxml.jackson.databind.JsonNode {
         val response=http.send(java.net.http.HttpRequest.newBuilder(java.net.URI("http://127.0.0.1:$port/api/v1$path")).header("Authorization","Bearer $adminToken").GET().build(),java.net.http.HttpResponse.BodyHandlers.ofByteArray())
         assertEquals(200,response.statusCode(),String(response.body()).take(200))
