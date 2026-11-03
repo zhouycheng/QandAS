@@ -7,6 +7,25 @@ import java.util.UUID
 import java.io.ByteArrayOutputStream
 
 class ExcelPostgresTest: PostgresFixture() {
+    @Test fun `reading workbook supports every child type through preview import and export`() {
+        val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"阅读课程${UUID.randomUUID()}","bank":{"name":"阅读题库"},"chapters":[],"questions":[{"id":"reading","type":"READING","stem":"阅读题组","passage":"完整材料","subQuestions":[{"id":"single","type":"SINGLE_CHOICE","stem":"单选","options":[{"key":"A","content":"甲"},{"key":"B","content":"乙"}],"correctAnswer":["A"]},{"id":"multiple","type":"MULTIPLE_CHOICE","stem":"多选","options":[{"key":"A","content":"甲"},{"key":"B","content":"乙"},{"key":"C","content":"丙"}],"correctAnswer":["A","C"]},{"id":"judge","type":"TRUE_FALSE","stem":"判断","correctValue":false},{"id":"blank","type":"FILL_BLANK","stem":"填入 {{1}}","blanks":[{"answers":["1","一"]}],"blankMatch":{"ignoreCase":false,"trimWhitespace":true}},{"id":"short","type":"SHORT_ANSWER","stem":"简答","referenceAnswer":"参考","scoringPoints":["要点"]}]}]}""")
+        val long="长".repeat(40000)
+        (doc["questions"][0]["subQuestions"][4] as com.fasterxml.jackson.databind.node.ObjectNode).put("referenceAnswer",long)
+        val options="""{"targets":{"${doc["fileId"].asText()}":{"createSubject":true}}}"""
+        val preview=upload("banks","preview",doc,options)
+        assertEquals(200,preview.first);assertTrue(preview.second["valid"].asBoolean(),preview.second.toString())
+        assertEquals(5,preview.second["count"].asInt())
+        val imported=upload("banks","imports",doc,options)
+        assertEquals(200,imported.first,imported.second.toString())
+        val bank=jdbc.queryForObject("SELECT b.id FROM question_bank b JOIN subject s ON s.id=b.subject_id WHERE s.name=?",UUID::class.java,doc["subject"].asText())!!
+        val copy=exported("/admin/question-banks/excel/export?bankId=$bank","banks")
+        assertEquals(1,copy["questions"].size());assertEquals(5,copy["questions"][0]["subQuestions"].size())
+        val children=copy["questions"][0]["subQuestions"]
+        assertEquals(listOf("A","C"),children[1]["correctAnswer"].map { it.asText() })
+        assertFalse(children[2]["correctValue"].asBoolean())
+        assertEquals(listOf("1","一"),children[3]["blanks"][0]["answers"].map { it.asText() })
+        assertEquals(long,children[4]["referenceAnswer"].asText())
+    }
     @Test fun `empty draft bank exports its metadata and chapters`() {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "空题库课程${UUID.randomUUID()}")))
         val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "空白草稿","description" to "保留说明","textbook" to "教材信息")))

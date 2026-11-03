@@ -132,9 +132,9 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
         q.path("chapterId").asText().takeIf { it.isNotBlank() }?.let { node.put("chapterId",(chapters[it] ?: id(it)).toString()) }
         node.set<JsonNode>("assetIds",json.valueToTree(q.path("assetIds").map { assets[it.asText()] ?: id(it.asText()) }))
         if(real) node.set<JsonNode>("subQuestions",json.valueToTree(q.path("subQuestions").map { c ->
-            val child=json.valueToTree<ObjectNode>(question(doc,c,bank,chapters,assets,false));child.remove(listOf("questionBankId","chapterId","status","expectedVersion"));child.put("id",id("${doc.path("fileId").asText()}:$bank:${c.path("id").asText()}").toString());child
+            val child=json.valueToTree<ObjectNode>(question(doc,c,bank,chapters,assets,false));child.remove(listOf("questionBankId","chapterId","status","expectedVersion","passage","subQuestions"));child.put("id",id("${doc.path("fileId").asText()}:$bank:${c.path("id").asText()}").toString());child
         })) else node.set<JsonNode>("subQuestions",json.valueToTree(q.path("subQuestions").map { c ->
-            val child=json.valueToTree<ObjectNode>(question(doc,c,bank,chapters,assets,false));child.remove(listOf("questionBankId","chapterId","status","expectedVersion"));child
+            val child=json.valueToTree<ObjectNode>(question(doc,c,bank,chapters,assets,false));child.remove(listOf("questionBankId","chapterId","status","expectedVersion","passage","subQuestions"));child
         }))
         return json.treeToValue(node,QuestionInput::class.java)
     }
