@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ResourceSelect } from './resource-select'
 import { useAdminGateway } from '../gateways/gateway-context'
 import { GRADE_OPTIONS, gradeLabel } from '../types/admin'
-import type { UpdateManagedUserInput } from '../types/operations'
+import type { ManagedUser, UpdateManagedUserInput } from '../types/operations'
 import { ErrorState } from './error-state'
 
 interface UserProfileForm {
@@ -19,6 +19,7 @@ interface UserProfileForm {
 export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const gateway = useAdminGateway(), client = useQueryClient()
   const [form] = Form.useForm<UserProfileForm>()
+  const [editProfile, setEditProfile] = useState<ManagedUser>()
   const [editing, setEditing] = useState(false), [dirty, setDirty] = useState(false), [collegeId, setCollegeId] = useState('')
   const user = useQuery({ queryKey: ['user', id], queryFn: () => gateway.getUser(id) })
   const stats = useQuery({ queryKey: ['user-statistics', id], queryFn: () => gateway.getUserStatistics(id) })
@@ -37,7 +38,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
   }
   const close = () => { if (!save.isPending) confirmDiscard(onClose) }
   const cancelEditing = () => { if (!save.isPending) confirmDiscard(() => { setEditing(false); setDirty(false) }) }
-  const profile = user.data
+  const profile = editing ? editProfile : user.data
   const profileFields = [
     { label: '昵称', value: profile?.name }, { label: '账号', value: profile?.account }, { label: '邮箱', value: profile?.email },
     { label: '微信绑定', value: profile?.wechatBound ? '已绑定' : '未绑定' },
@@ -53,7 +54,7 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
     {(user.error || stats.error) && <ErrorState message={(user.error || stats.error)!.message} onRetry={() => { void user.refetch(); void stats.refetch() }} />}
     <Spin loading={user.isPending || stats.isPending}>
       {profile && !editing && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <Button onClick={() => { setCollegeId(profile.collegeId ?? ''); setDirty(false); save.reset(); setEditing(true) }}>编辑资料</Button>
+        <Button onClick={() => { setEditProfile({ ...profile }); setCollegeId(profile.collegeId ?? ''); setDirty(false); save.reset(); setEditing(true) }}>编辑资料</Button>
       </div>}
       {editing && profile ? <>
         {save.error && <Alert type="error" content={save.error.message} />}
