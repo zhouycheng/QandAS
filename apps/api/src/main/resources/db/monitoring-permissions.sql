@@ -11,3 +11,4 @@ GRANT UPDATE(last_seen_at) ON user_session,admin_session TO qanda_monitor;
 GRANT INSERT ON audit_log TO qanda_monitor;
 GRANT SELECT,INSERT,UPDATE ON user_activity TO qanda_activity_writer;
 GRANT SELECT,UPDATE(processed_at) ON domain_event_outbox TO qanda_activity_writer;
+GRANT SELECT(user_id,expires_at,disabled_at,include_in_statistics) ON test_account TO qanda_monitor;

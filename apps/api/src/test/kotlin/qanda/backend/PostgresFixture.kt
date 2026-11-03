@@ -43,9 +43,6 @@ abstract class PostgresFixture {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__ProfileSetupAndBankVisibility.sql"),"/docker-entrypoint-initdb.d/003-profile-setup.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__TestAccounts.sql"),"/docker-entrypoint-initdb.d/004-test-accounts.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V4__EmailCodeLogin.sql"),"/docker-entrypoint-initdb.d/005-email-code.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {

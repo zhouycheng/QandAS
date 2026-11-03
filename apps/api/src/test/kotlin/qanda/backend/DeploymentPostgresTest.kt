@@ -22,33 +22,24 @@ class DeploymentPostgresTest : PostgresFixture() {
         fail<Unit>("Worker readiness did not recover")
     }
 
-    @Test fun `production migration initializes once and validates the existing baseline`() {
+    @Test fun `production initializes the complete V1 schema once`() {
         PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply { withDatabaseName("qanda_backend") }.use { database ->
             database.start()
             fun flyway() = Flyway.configure().dataSource(database.jdbcUrl, database.username, database.password)
                 .locations("classpath:db/migration").cleanDisabled(true).load()
-            val baseline=Flyway.configure().dataSource(database.jdbcUrl,database.username,database.password)
-                .locations("classpath:db/migration").target("1").cleanDisabled(true).load()
-            assertEquals(1,baseline.migrate().migrationsExecuted)
+            assertEquals(listOf("1"),flyway().info().all().mapNotNull { it.version?.version })
+            assertEquals(1,flyway().migrate().migrationsExecuted)
             java.sql.DriverManager.getConnection(database.jdbcUrl,database.username,database.password).use { connection ->
                 connection.createStatement().use { statement ->
-                    statement.execute("INSERT INTO user_account(id,account_code,nickname) VALUES('00000000-0000-0000-0000-000000000001','MIGRATION','保留用户')")
-                    statement.execute("INSERT INTO college(id,code,name,status) VALUES('00000000-0000-0000-0000-000000000010','MIGRATION','迁移学院','ACTIVE')")
-                    statement.execute("INSERT INTO major(id,college_id,code,name,status) VALUES('00000000-0000-0000-0000-000000000011','00000000-0000-0000-0000-000000000010','M','迁移专业','ACTIVE')")
-                    statement.execute("INSERT INTO user_account(id,account_code,nickname) VALUES('00000000-0000-0000-0000-000000000002','COMPLETE','完整用户')")
-                    statement.execute("INSERT INTO user_profile(user_id,major_id,grade,grade_academic_year) VALUES('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000011',2,2026)")
-                }
-            }
-            assertEquals(3,flyway().migrate().migrationsExecuted)
-            java.sql.DriverManager.getConnection(database.jdbcUrl,database.username,database.password).use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT profile_setup_seen FROM user_account WHERE account_code='COMPLETE'").use { row -> assertTrue(row.next());assertTrue(row.getBoolean(1)) }
-                    statement.executeQuery("SELECT nickname,profile_setup_seen FROM user_account WHERE account_code='MIGRATION'").use { row ->
-                        assertTrue(row.next());assertEquals("保留用户",row.getString(1));assertFalse(row.getBoolean(2))
+                    statement.executeQuery("SELECT profile_setup_seen FROM user_account LIMIT 0").close()
+                    statement.executeQuery("SELECT expires_at FROM test_account LIMIT 0").close()
+                    statement.executeQuery("SELECT include_in_statistics FROM monitoring_student LIMIT 0").close()
+                    statement.executeQuery("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='email_challenge_purpose_check'").use { row ->
+                        assertTrue(row.next());assertTrue(row.getString(1).contains("LOGIN"))
                     }
                 }
             }
-            assertEquals(0, flyway().migrate().migrationsExecuted)
+            assertEquals(0,flyway().migrate().migrationsExecuted)
             assertTrue(flyway().validateWithResult().validationSuccessful)
         }
     }

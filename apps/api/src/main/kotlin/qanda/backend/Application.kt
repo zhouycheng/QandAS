@@ -14,8 +14,8 @@ class Application
 fun main(args: Array<String>) {
     if (args.firstOrNull()=="excel-pack") {
         qanda.backend.excel.ExcelOffline.run(args.drop(1).toTypedArray())
-    } else if (args.contentEquals(arrayOf("migrate"))) {
-        qanda.backend.platform.bootstrap.ProductionMigration.run()
+    } else if (args.contentEquals(arrayOf("schema-init"))) {
+        qanda.backend.platform.bootstrap.ProductionSchema.run()
     } else if (args.firstOrNull() in setOf("bootstrap", "db-init", "db-reset")) {
         qanda.backend.platform.bootstrap.DatabaseCommands.run(args.single())
     } else runApplication<Application>(*args)

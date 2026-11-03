@@ -2,7 +2,7 @@ package qanda.backend.platform.bootstrap
 
 import org.flywaydb.core.Flyway
 
-object ProductionMigration {
+object ProductionSchema {
     fun run() {
         val url = System.getenv("BACKEND_DB_URL") ?: error("BACKEND_DB_URL is required")
         require(url.matches(Regex("jdbc:postgresql://[^/]+/qanda_backend(?:\\?.*)?"))) { "A dedicated qanda_backend database is required" }
