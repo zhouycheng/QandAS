@@ -73,7 +73,7 @@ Page(withPageLifecycle({
     }
   },
 
-  ...require('../../utils/profile-selectors.js'),
+  ...require('../profile-selectors.js'),
 
   handleEmailTap() {
     this.applyViewModelResult(this.viewModel.tapEmail())

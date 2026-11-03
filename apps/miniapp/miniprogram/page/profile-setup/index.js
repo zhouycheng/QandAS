@@ -27,7 +27,7 @@ Page(withPageLifecycle({
       else if (reason !== true && this.viewModel.readAuth().profile.profileComplete) onboarding.finish()
     } finally { if (this.isCurrent()) { this.setData({ loading: false }); this.updateCanContinue() } }
   },
-  ...require('../../utils/profile-selectors.js'),
+  ...require('../profile-selectors.js'),
   updateCanContinue() {
     const draft = this.viewModel.pending || {}
     this.setData({ canContinue: !!(draft.collegeId && draft.majorId && draft.currentGrade >= 1 && draft.currentGrade <= 5 && !this.data.loading && !this.data.loadError && !this.data.saving && !this.busy) })
