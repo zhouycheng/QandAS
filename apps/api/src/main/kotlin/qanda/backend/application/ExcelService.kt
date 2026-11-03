@@ -146,16 +146,22 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
         require(count in 1..3000) { "每批最多 3000 条用户或作答题" }
         // Existing receipts are checked inside the transaction so network retries return the original result.
         var total=0
+        val initialBankVersions=mutableMapOf<UUID,Long>()
         docs.forEach { (file,doc) ->
             val fileId=doc.path("fileId").asText()
             val result=commands.run(actor,id(fileId),"EXCEL_FILE:$kind",mapOf("document" to doc,"target" to target(doc,options)),ExcelResult::class.java,requestId) {
-                val check=preview(actor,kind,input.filter { it===file || !it.name.endsWith(".xlsx",true) },options)
+                val t=target(doc,options)
+                val checkedOptions=if(kind!="users" && t.bankId!=null) {
+                    val bank=access.bank(actor,t.bankId,true)
+                    val initialVersion=initialBankVersions.getOrPut(t.bankId) { bank.contentVersion }
+                    requireVersion(t.expectedContentVersion ?: invalid("/expectedContentVersion"),initialVersion)
+                    options.copy(targets=options.targets+(fileId to t.copy(expectedContentVersion=bank.contentVersion)))
+                } else options
+                val check=preview(actor,kind,input.filter { it===file || !it.name.endsWith(".xlsx",true) },checkedOptions)
                 if(!check.valid) invalid("/files","EXCEL_IMPORT_CONFLICT",check.issues.joinToString("；") { "${it.sheet}!${it.row} ${it.message}" })
                 if(kind=="users") {
                     doc.path("users").forEach { r -> val u=user(doc,r);accounts.insert(u);profiles.insert(profile(r).apply { userId=u.id }) }
                 } else {
-                    val t=target(doc,options)
-                    if(t.bankId!=null) requireVersion(t.expectedContentVersion ?: invalid("/expectedContentVersion"),access.bank(actor,t.bankId,true).contentVersion)
                     val subject=if(t.bankId==null) resolveSubject(doc,t,true) else null
                     val bank=t.bankId ?: content.saveBank(actor,null,BankInput(subject ?: invalid("/subjectId"),doc.path("bank").path("name").asText(),doc.path("bank").path("description").asText(),doc.path("bank").path("textbook").asText())).id
                     val chapters=mutableMapOf<String,UUID>();chapters.putAll(t.chapterMap)

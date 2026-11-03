@@ -87,12 +87,22 @@ class ExcelPostgresTest: PostgresFixture() {
         val version=call("GET","/admin/question-banks/$bank")["contentVersion"].asLong()
         val stale="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":${version-1}}}}"""
         assertFalse(upload("banks","preview",append,stale).second["valid"].asBoolean())
-        assertEquals(422,upload("banks","imports",append,stale).first)
+        assertEquals(409,upload("banks","imports",append,stale).first)
         val missingVersion="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank"}}}"""
         assertEquals(422,upload("banks","imports",append,missingVersion).first)
         val target="""{"targets":{"${append["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":$version}}}"""
         assertEquals(200,upload("banks","imports",append,target).first)
         assertEquals(4,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,bank))
+        val nextVersion=call("GET","/admin/question-banks/$bank")["contentVersion"].asLong()
+        val one=doc.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().put("fileId",UUID.randomUUID().toString())
+        val two=doc.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().put("fileId",UUID.randomUUID().toString())
+        val batch=json.createArrayNode().add(one).add(two)
+        val batchOptions="""{"targets":{"${one["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":$nextVersion},"${two["fileId"].asText()}":{"bankId":"$bank","expectedContentVersion":$nextVersion}}}"""
+        assertTrue(upload("banks","preview",batch,batchOptions).second["valid"].asBoolean())
+        assertEquals(200,upload("banks","imports",batch,batchOptions).first)
+        assertEquals(8,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,bank))
+        assertEquals(200,upload("banks","imports",batch,batchOptions).first)
+        assertEquals(8,jdbc.queryForObject("SELECT count(*) FROM question WHERE bank_id=?",Int::class.java,bank))
         val bad=doc.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().put("fileId",UUID.randomUUID().toString()).put("subject","坏引用${UUID.randomUUID()}")
         (bad["questions"][1] as com.fasterxml.jackson.databind.node.ObjectNode).put("chapterId","missing")
         val count=jdbc.queryForObject("SELECT count(*) FROM subject",Int::class.java)

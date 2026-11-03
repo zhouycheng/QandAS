@@ -29,6 +29,10 @@ object ExcelWorkbook {
         "附件" to linkedMapOf("id" to "附件编号","path" to "文件路径","question" to "题号"),
         "长文本" to linkedMapOf("sheet" to "工作表","record" to "记录编号","field" to "字段","part" to "片段序号","content" to "内容")
     )
+    private fun recordKey(row: ObjectNode,index: Int): String = row.path("id").asText().ifBlank {
+        if(row.has("question") && row.has("key")) "option:${row.path("question").asText()}:${row.path("key").asText()}"
+        else "row:"+row.path("_excelRow").asInt(index+2)
+    }
     private fun fail(sheet: String,row: Int,column: String,message: String): Nothing=throw WorkbookProblem(sheet,row,column,message)
     fun write(document: JsonNode,kind: String): ByteArray {
         val tables=linkedMapOf<String,MutableList<ObjectNode>>()
@@ -55,7 +59,7 @@ object ExcelWorkbook {
             layouts.keys.filter { it!="用户" }.forEach { table(it) }
         }
         val long=table("长文本")
-        tables.toMap().filterKeys { it!="长文本" }.forEach { (name,rows) -> rows.forEach { r -> layouts.getValue(name).keys.forEach { key ->
+        tables.toMap().filterKeys { it!="长文本" }.forEach { (name,rows) -> rows.forEachIndexed { index,r -> layouts.getValue(name).keys.forEach { key ->
             val value=r.path(key).asText("")
             if(value.length>30000 || value.count { it=='\n' }>200) {
                 var start=0;var part=1
@@ -63,7 +67,7 @@ object ExcelWorkbook {
                     var end=minOf(start+30000,value.length);var lines=0
                     for(i in start until end) if(value[i]=='\n' && ++lines>200) { end=i;break }
                     if(end<value.length && Character.isHighSurrogate(value[end-1])) end--
-                    long.add(row("sheet" to name,"record" to r.path("id").asText(),"field" to key,"part" to part++,"content" to value.substring(start,end)))
+                    long.add(row("sheet" to name,"record" to recordKey(r,index),"field" to key,"part" to part++,"content" to value.substring(start,end)))
                     start=end
                 }
                 r.put(key,"")
@@ -107,16 +111,17 @@ object ExcelWorkbook {
                 for(index in 1..sheet.lastRowNum) {
                     val line=sheet.getRow(index) ?: continue;val r=json.createObjectNode()
                     columns.keys.forEachIndexed { c,key -> val cell=line.getCell(c);if(cell!=null && cell.cellType !in setOf(CellType.STRING,CellType.BLANK)) fail(sheet.sheetName,index+1,columns.getValue(key),"请按文本填写，避免编号、日期和答案被自动转换");r.put(key,cell?.stringCellValue ?: "") }
-                    if(r.any { it.asText().isNotEmpty() }) rows.add(r)
+                    if(r.any { it.asText().isNotEmpty() }) { r.put("_excelRow",index+1);rows.add(r) }
                 }
             }
             tables["长文本"].orEmpty().groupBy { Triple(it.path("sheet").asText(),it.path("record").asText(),it.path("field").asText()) }.forEach { (key,parts) ->
-                val target=tables[key.first]?.singleOrNull { it.path("id").asText()==key.second } ?: fail("长文本",2,"记录编号","长文本记录引用不存在或不唯一")
+                val target=tables[key.first]?.withIndex()?.singleOrNull { recordKey(it.value,it.index)==key.second }?.value ?: fail("长文本",2,"记录编号","长文本记录引用不存在或不唯一")
                 require(layouts[key.first]?.containsKey(key.third)==true && target.path(key.third).asText().isEmpty()) { "长文本字段无效或与正文重复" }
                 val ordered=parts.sortedBy { it.path("part").asText().toIntOrNull() ?: 0 }
                 require(ordered.map { it.path("part").asText().toIntOrNull() }==(1..ordered.size).toList()) { "长文本片段必须连续且唯一" }
                 target.put(key.third,ordered.joinToString("") { it.path("content").asText() })
             }
+            tables.values.forEach { rows -> rows.forEach { it.remove("_excelRow") } }
             val out=json.createObjectNode();out.put("fileId",book.getSheet("填写说明")?.getRow(2)?.getCell(0)?.stringCellValue ?: error("缺少文件编号"))
             require(out.path("fileId").asText().matches(Regex("[A-Za-z0-9_.-]{1,80}"))) { "文件编号无效" }
             if(kind=="users") { require(tables.containsKey("用户")) { "缺少用户工作表" };out.set<JsonNode>("users",json.valueToTree(tables.getValue("用户")));return out }
