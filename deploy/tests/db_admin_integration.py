@@ -11,8 +11,6 @@ import uuid
 
 
 def main():
-    if os.geteuid() != 0:
-        raise RuntimeError('Run this isolated CLI check with sudo')
     docker = shutil.which('docker')
     name = 'qanda-import-check-' + uuid.uuid4().hex[:12]
     def command(*args, **kwargs):
@@ -39,7 +37,7 @@ def main():
             fixture.write_bytes(command('exec', name, 'pg_dump', '-U', 'qanda_backend', '-d', 'qanda_backend', '-Fc'))
             sql('DROP SCHEMA public CASCADE; CREATE SCHEMA public')
             source = (Path(__file__).parents[1] / 'db-admin.sh').read_text()
-            # Only paths are redirected. The production SQL, transaction, role and export logic is unchanged.
+            # Paths and the root identity are isolated; Docker is restricted to this disposable container.
             source = source.replace('/var/lib/qanda-deploy', str(root / 'state')).replace('/srv/qanda', str(root / 'config'))
             source = source.replace('/usr/local/sbin/qanda-backup', '/usr/bin/true')
             script = root / 'qanda-db'
@@ -54,6 +52,13 @@ command=a[a.index('postgres')+1:]
 sys.exit(subprocess.run([{docker!r},'exec','-i',{name!r},*command],stdin=sys.stdin.buffer).returncode)
 ''')
             wrapper.chmod(0o755)
+            if not shutil.which('flock'):
+                lock = root / 'bin/flock'
+                lock.write_text('#!/usr/bin/env python3\nimport fcntl,sys\nfcntl.flock(int(sys.argv[-1]), fcntl.LOCK_EX | fcntl.LOCK_NB)\n')
+                lock.chmod(0o755)
+            fake_id = root / 'bin/id'
+            fake_id.write_text('#!/bin/sh\nprintf \"0\\n\"\n')
+            fake_id.chmod(0o755)
             env = {**os.environ, 'PATH': str(root / 'bin') + ':' + os.environ['PATH']}
             def cli(*args, success=True):
                 result = subprocess.run(['bash', str(script), *map(str, args)], env=env, capture_output=True)
@@ -71,8 +76,9 @@ sys.exit(subprocess.run([{docker!r},'exec','-i',{name!r},*command],stdin=sys.std
             failure = root / 'failure.sql'
             failure.write_text('CREATE TABLE rollback_probe(id integer); INSERT INTO rollback_probe VALUES(1); SELECT 1/0;\n')
             cli('sql', failure, success=False)
+            cli('psql', success=False)
             assert sql("SELECT to_regclass('public.rollback_probe') IS NULL") == 't'
-        print('CLI checks passed: empty DB restore, existing DB protection, private export, SQL transaction rollback')
+        print('CLI checks passed: empty DB restore, existing DB protection, private export, write entry rejection')
     finally:
         subprocess.run([docker, 'rm', '-f', '-v', name], capture_output=True)
 
