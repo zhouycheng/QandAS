@@ -7,8 +7,8 @@ const { serializeSession, normalizeSession } = require('../miniprogram/models/pr
 const { contentBlocks } = require('../miniprogram/utils/rich-content.js')
 const { swipeDirection } = require('../miniprogram/utils/question-swipe.js')
 const { normalizePreferences, buildPreferenceView } = require('../miniprogram/utils/preferences.js')
-assert.equal(normalizePreferences(null).showSelfAssessment, true)
-assert.equal(buildPreferenceView({ showSelfAssessment: false }).switches.find(item => item.key === 'showSelfAssessment').value, false)
+assert.equal(normalizePreferences({ showSelfAssessment: false }).showSelfAssessment, undefined)
+assert.equal(buildPreferenceView({ showSelfAssessment: false }).switches.some(item => item.key === 'showSelfAssessment'), false)
 
 function question(type, id) {
   return mapQuestion({ itemId: id, question: { id, type, stem: type === 'FILL_BLANK' ? '{{1}} / {{2}}' : '题干', blankCount: 2, contentFormat: 'MARKDOWN', options: [{ key: 'A', content: '甲' }, { key: 'B', content: '乙' }, { key: 'C', content: '丙' }] } }, {
@@ -20,6 +20,14 @@ function session(types, options) {
   model.reset()
   return model
 }
+
+const judge = { id: 'judge', type: 'TRUE_FALSE', stem: '判断题', correctValue: false }
+const judgeOptions = [{ key: 'true', label: 'A', text: '正确' }, { key: 'false', label: 'B', text: '错误' }]
+assert.deepEqual(mapQuestion({ itemId: 'judge-item', question: judge }).options, judgeOptions)
+assert.deepEqual(require('../miniprogram/repositories/remote-data-repository.js').mapQuestion(judge).options, judgeOptions)
+const judgeSession = new PracticeSession({ quiz: { bankId: 'bank', questions: [mapQuestion({ itemId: 'judge-item', question: judge })] }, mode: 'practice' })
+judgeSession.reset(); judgeSession.selectOption(1)
+assert.equal(judgeSession.getViewData().isCurrentAnswerCorrect, true, 'B 仍按 false 判题')
 
 for (const fixture of require('../../../packages/content-format/fixtures/blank-grading.json')) {
   assert.equal(gradeBlanks({ blanks: [{ answers: fixture.answers }], blankMatch: fixture }, [fixture.value]), fixture.correct, fixture.name)
@@ -79,7 +87,7 @@ const skipped = skippedRating.forceSubmit().data
 assert.equal(skipped.resultItems[0].selfAssessment, '')
 assert.equal(skipped.resultFilterCounts.review, 0)
 assert.deepEqual(skipped.wrongQuestionIds, [])
-assert.equal(skipped.preferences.showSelfAssessment, false)
+assert.equal(skipped.preferences.showSelfAssessment, undefined)
 
 const partial = session(['FILL_BLANK', 'FILL_BLANK'], { feedback: 'AFTER_FINISH' })
 partial.reset(); partial.setBlank(0, 'A')

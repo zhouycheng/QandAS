@@ -6,6 +6,7 @@ async function main() {
   const vm = new BankDetailViewModel({
     storage: {},
     repository: {
+      getPreferences: () => ({}),
       isRemoteEnabled: () => true,
       previewRemotePracticeScope: async (storage, scope) => {
         requestedScope = scope
@@ -17,7 +18,7 @@ async function main() {
   vm.sheet = { mode: 'practice', order: 'order', timed: false, duration: 10, onlyWrong: true }
 
   const result = await vm.confirmConfig({})
-  assert.deepStrictEqual(requestedScope, { questionBankId: 'bank-1', chapterIds: [], count: 1000, order: 'SEQUENTIAL', selectionKind: 'WRONG', collectionChip: 'all' })
+  assert.deepStrictEqual(requestedScope, { questionBankId: 'bank-1', chapterIds: [], count: 20, order: 'SEQUENTIAL', selectionKind: 'WRONG', collectionChip: 'all' })
   assert(result.command.payload.url.includes('selectionKind=WRONG'))
   assert(result.command.payload.url.includes('count=2'))
   assert(!result.command.payload.url.includes('count=20'))

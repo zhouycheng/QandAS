@@ -1,11 +1,12 @@
 @import "../../styles/controls.wxss";
+@import "../../styles/config-icon.wxss";
 /* 章节行：设计稿里题库列表就是一条条灰色圆角条，点一条配这一条的答题参数。
    行高定死（96rpx）而不是靠内边距撑：题库页是长列表，行高一致才好扫读。 */
 
 .chapter-row {
   min-height: 96rpx;
   margin-bottom: 16rpx;
-  padding: 20rpx 24rpx;
+  padding: 0 24rpx;
   display: flex;
   align-items: center;
   border-radius: var(--radius-card);
@@ -23,24 +24,31 @@
 }
 
 .chapter-body {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
   flex: 1;
   min-width: 0;
 }
 
 .chapter-title {
+  flex: 0 1 auto;
+  min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   font-size: var(--font-body);
-  line-height: 1.35;
+  line-height: var(--leading-body);
   color: var(--text-main);
 }
 
 .chapter-meta {
+  display: block;
   flex: none;
-  margin-left: 12rpx;
   font-size: var(--font-caption);
+  line-height: var(--leading-caption);
+  font-weight: 400;
   color: var(--text-sub);
 }
 
@@ -50,9 +58,4 @@
   font-size: var(--font-body);
   line-height: 1;
   color: var(--text-sub);
-}
-
-/* 整章刷完：只把进度数字染绿，不整条变绿 —— 列表里满屏绿条反而看不出重点 */
-.chapter-row.is-done .chapter-meta {
-  color: var(--success);
 }

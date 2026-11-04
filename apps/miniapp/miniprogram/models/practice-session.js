@@ -1,7 +1,7 @@
 const { DEFAULT_PRACTICE_TITLE, DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, formatTimer, getInitialPracticeViewData } = require('./practice-view-data.js')
 const { projectPractice } = require('./practice-presentation.js')
 const { finish, filterResultItems, countResultItems, RESULT_FILTERS, RESULT_FILTER_TEXT } = require('./practice-results.js')
-const { normalizePreferences } = require('../utils/preferences.js')
+const { normalizePreferences, normalizePracticeOptions } = require('../utils/preferences.js')
 const { ranks } = require('../utils/practice-layout.js')
 const { gradeBlanks, blankAnswerText } = require('../utils/fill-blank.js')
 const {
@@ -51,7 +51,7 @@ class PracticeSession {
     const isTestMode = mode === PRACTICE_MODES.TEST
     const durationMinutes = parsePositiveInteger(normalizedOptions.durationMinutes, DEFAULT_TEST_DURATION_MINUTES)
     const durationSeconds = parsePositiveInteger(normalizedOptions.timeLimitSeconds, durationMinutes * 60)
-    const preferences = normalizePreferences(normalizedOptions.preferences)
+    const preferences = Object.assign(normalizePreferences(normalizedOptions.preferences), normalizePracticeOptions(normalizedOptions.config, normalizedOptions.preferences))
     const restored = normalizedOptions.restored || null
     const now = typeof normalizedOptions.now === 'number' ? normalizedOptions.now : Date.now()
 
@@ -63,7 +63,7 @@ class PracticeSession {
       sessionId: (restored && restored.sessionId) || createSessionId(now, normalizedOptions.random),
       subjectId: quiz ? quiz.subjectId : '',
       questionBankId: quiz ? quiz.bankId : '',
-      config: Object.assign({}, normalizedOptions.config, { feedback: normalizedOptions.feedback || (isTestMode ? 'AFTER_FINISH' : 'IMMEDIATE') }),
+      config: Object.assign({}, normalizedOptions.config, normalizePracticeOptions(preferences), { feedback: normalizedOptions.feedback || (isTestMode ? 'AFTER_FINISH' : 'IMMEDIATE') }),
       questionIds: (restored && restored.questionIds) || null,
       questionOrder: (restored && restored.questionOrder) || null,
       createdAt: (restored && restored.createdAt) || now,

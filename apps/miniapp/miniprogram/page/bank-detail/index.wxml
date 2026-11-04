@@ -44,6 +44,7 @@
     <view wx:if="{{filterError}}" class="load-note" bindtap="loadFilters" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{filterError}} · 重试</view>
   </view>
 
+  <view class="mock-selection" wx:if="{{mockSelection}}"><view class="mock-selection-main"><text>选择模拟考章节</text><text class="config-note">点击章节或整科卡片开考 · 45 分钟</text></view><button class="q-button q-button--text" bindtap="handleExitMock" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">退出选择</button></view>
   <view class="catalog-content">
   <view class="catalog-empty" wx:if="{{!catalogLoading && !catalogError && !subject}}">
     <view>当前筛选下暂无公开题库</view>
@@ -113,7 +114,7 @@
               <text class="search-row-title">{{item.chapterTitle}}</text>
               <text class="search-row-sub">{{item.subjectName}}<text wx:if="{{item.bankName}}"> · {{item.bankName}}</text> · {{item.metaText}}</text>
             </view>
-            <text class="search-row-arrow">›</text>
+            <button wx:if="{{!mockSelection}}" class="config-icon" catchtap="handleSearchConfigure" aria-label="配置本次答题" hover-class="config-icon-hover" hover-start-time="0" hover-stay-time="80" data-bank-id="{{item.bankId}}" data-chapter-id="{{item.chapterId}}" data-subject-id="{{item.subjectId}}"><image class="config-icon-image" src="/assets/icons/tiaojie.svg" mode="aspectFit" aria-hidden="true" /></button>
           </view>
 
           <view class="load-note" wx:if="{{searchLoading}}">正在搜索…</view>
@@ -133,7 +134,7 @@
           >
             <view class="stat-top">
               <text class="stat-scope">{{railMode === 'recent' ? '最近在刷 · ' : ''}}{{subject.name}}</text>
-              <text class="stat-more">{{showBankTitles ? '题库练习 ›' : '整科 ›'}}</text>
+              <text class="stat-more">{{mockSelection ? '开始模拟考' : '整科练习'}}</text>
             </view>
             <view class="stat-row" wx:if="{{stats}}">
               <view class="stat-item">
@@ -160,7 +161,9 @@
                 wx:for="{{group.rows}}"
                 wx:key="id"
                 bank="{{item}}"
+                show-config="{{!mockSelection}}"
                 bind:open="handleBankOpen"
+                bind:configure="handleBankConfigure"
               />
             </view>
           </view>
@@ -180,121 +183,32 @@
   </view>
   </view>
 
-  <!-- 答题配置抽屉：参数都是「本次答题」的，不写学习偏好 -->
-  <root-portal enable="{{true}}">
-  <view class="portal-theme config-sheet portal-theme" wx:if="{{configSheetVisible}}">
-    <view class="config-mask" catchtouchmove="noop" catchtap="handleSheetClose"></view>
-    <view class="config-panel">
-      <view class="config-grip"></view>
-
-      <view class="config-head">
-        <text class="config-title">{{configTitle}}</text>
-        <text class="config-sub">{{configSubtitle}}</text>
-      </view>
-
-      <scroll-view class="config-banks" scroll-x enhanced show-scrollbar="{{false}}" wx:if="{{sheetBanks.length}}">
-        <view class="config-bank-list">
-          <view class="seg-chip bank-chip {{sheetAllBanksSelected ? 'is-active' : ''}}" data-id="all" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{sheetAllBanksSelected}}" aria-label="全选题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-            <text class="bank-check">{{sheetAllBanksSelected ? '✓' : sheetSomeBanksSelected ? '−' : ''}}</text>全选
-          </view>
-          <view wx:for="{{sheetBanks}}" wx:key="id" class="seg-chip bank-chip {{item.selected ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{item.selected}}" aria-label="{{item.name}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-            <text class="bank-check">{{item.selected ? '✓' : ''}}</text>{{item.name}}
-          </view>
-        </view>
-      </scroll-view>
-
-      <view class="config-row"><text>{{sheetSummary}}</text><text bindtap="handleAdvancedToggle" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{advancedConfigVisible ? '收起配置' : '更多配置'}}</text></view>
-      <view class="config-rows" wx:if="{{advancedConfigVisible}}">
-        <view class="config-row"><text class="config-label">题量</text><view class="seg-group"><view wx:for="{{countOptions}}" wx:key="value" class="seg-chip {{sheetCount === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetCount" hover-class="chip-flat-hover">{{item.label}}</view></view></view>
-        <view class="config-row">
-          <text class="config-label">模式</text>
-          <view class="seg-group">
-            <view
-              wx:for="{{modeOptions}}"
-              wx:key="value"
-              class="seg-chip {{sheetMode === item.value ? 'is-active' : ''}}"
-              data-value="{{item.value}}"
-              bindtap="handleSheetMode"
-              hover-class="chip-flat-hover"
-              hover-start-time="0"
-              hover-stay-time="80"
-            >{{item.label}}</view>
+  <bottom-sheet visible="{{configSheetVisible}}" title="{{configTitle}}" fixed-footer bind:close="handleSheetClose">
+        <view class="config-body">
+          <text class="config-sub">{{configSubtitle}}</text>
+          <scroll-view class="config-banks" scroll-x wx:if="{{sheetBanks.length}}"><view class="config-bank-list">
+            <view class="seg-chip bank-chip {{sheetAllBanksSelected ? 'is-active' : ''}}" data-id="all" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{sheetAllBanksSelected}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">全选</view>
+            <view class="seg-chip bank-chip {{item.selected ? 'is-active' : ''}}" wx:for="{{sheetBanks}}" wx:key="id" data-id="{{item.id}}" bindtap="handleSheetBank" aria-role="checkbox" aria-checked="{{item.selected}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.selected ? '✓ ' : ''}}{{item.name}}</view>
+          </view></scroll-view>
+          <view class="config-rows">
+            <view class="config-row config-row-stacked" wx:if="{{!mockSelection}}"><text class="config-label">答题模式</text><view class="seg-group">
+              <view wx:for="{{modeOptions}}" wx:key="value" class="seg-chip {{sheetMode === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetMode" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</view>
+            </view></view>
+            <view class="config-row config-row-stacked"><text class="config-label">这次做多少题</text><view class="seg-group config-wrap">
+              <button wx:for="{{countOptions}}" wx:key="value" class="q-button seg-chip {{sheetCount === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" disabled="{{item.disabled}}" bindtap="handleSheetCount" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button>
+            </view><text class="config-note" wx:if="{{sheetLimitHint}}">{{sheetLimitHint}}</text></view>
+            <view wx:if="{{sheetMode !== 'view'}}" class="config-row config-row-stacked"><text class="config-label">答题时间</text><view class="seg-group config-wrap">
+              <view wx:for="{{durationOptions}}" wx:key="value" class="seg-chip {{!sheetDurationCustom && sheetDuration === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetDuration" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</view>
+              <view class="seg-chip {{sheetDurationCustom ? 'is-active' : ''}}" data-value="custom" bindtap="handleSheetDuration" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">自定义</view>
+            </view><input wx:if="{{sheetDurationCustom}}" class="duration-input" type="number" value="{{sheetDuration || ''}}" bindinput="handleCustomDuration" placeholder="1～1440 分钟" aria-label="自定义分钟数" /><text class="config-note" wx:if="{{sheetDurationError}}">{{sheetDurationError}}</text></view>
+            <view class="config-row"><text class="config-label">只答错题</text><view class="config-row-tail"><text class="config-inline-hint" wx:if="{{!sheetWrongCount}}">暂无错题</text><switch checked="{{sheetOnlyWrong}}" color="#2563EB" bindchange="handleSheetOnlyWrong" aria-label="只答错题" /></view></view>
+            <text class="config-note" wx:if="{{sheetScopeLoading}}">正在读取可练习题数…</text>
+            <button class="q-button q-button--text" wx:if="{{sheetScopeError}}" bindtap="refreshSheetScope" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{sheetScopeError}} · 重试</button>
           </view>
         </view>
-
-        <view class="config-row">
-          <text class="config-label">顺序</text>
-          <view class="seg-group">
-            <view
-              wx:for="{{orderOptions}}"
-              wx:key="value"
-              class="seg-chip {{sheetOrder === item.value ? 'is-active' : ''}} {{sheetOrderDisabled ? 'is-muted' : ''}}"
-              data-value="{{item.value}}"
-              bindtap="handleSheetOrder"
-              hover-class="chip-flat-hover"
-              hover-start-time="0"
-              hover-stay-time="80"
-            >{{item.label}}</view>
-          </view>
+        <view slot="footer" class="config-actions">
+          <picker class="config-preset" range="{{sheetPresets}}" range-key="name" value="{{sheetPresetIndex}}" disabled="{{!sheetPresets.length}}" bindchange="handleSheetPreset"><view class="preset-picker" aria-label="选择本次答题预设"><text class="preset-picker-label">{{sheetPresets.length ? '预设：' + sheetPresetName : '暂无模拟考预设'}}</text><image wx:if="{{sheetPresets.length}}" class="preset-picker-arrow" src="/assets/icons/arco-down.svg" mode="aspectFit" aria-hidden="true" /></view></picker>
+          <button class="q-button q-button--primary config-btn" disabled="{{sheetStartDisabled}}" bindtap="handleConfigConfirm" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{sheetStartText}}</button>
         </view>
-
-        <view class="config-row">
-          <text class="config-label">是否限时</text>
-          <switch
-            class="config-switch"
-            checked="{{sheetTimed}}"
-            color="#2563EB"
-            bindchange="handleSheetTimed"
-          />
-        </view>
-
-        <view class="config-row config-row-chips" wx:if="{{sheetTimed}}">
-          <view class="seg-group seg-group-end">
-            <view
-              wx:for="{{durationOptions}}"
-              wx:key="value"
-              class="seg-chip {{sheetDuration === item.value ? 'is-active' : ''}}"
-              data-value="{{item.value}}"
-              bindtap="handleSheetDuration"
-              hover-class="chip-flat-hover"
-              hover-start-time="0"
-              hover-stay-time="80"
-            >{{item.label}}</view>
-          </view>
-        </view>
-
-        <view class="config-row">
-          <text class="config-label">只答错题</text>
-          <view class="config-row-tail">
-            <text class="config-inline-hint" wx:if="{{!sheetWrongCount}}">暂无错题</text>
-            <switch
-              class="config-switch"
-              checked="{{sheetOnlyWrong}}"
-              color="#2563EB"
-              bindchange="handleSheetOnlyWrong"
-            />
-          </view>
-        </view>
-      </view>
-
-      <view class="config-actions">
-        <button
-          class="q-button  config-btn ghost"
-          bindtap="handleSheetClose"
-          hover-class="q-button-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-        >取消</button>
-        <button
-          class="{{sheetStartDisabled ? 'q-button--disabled' : ''}} q-button q-button--primary config-btn primary {{sheetStartDisabled ? 'is-disabled' : ''}}" aria-disabled="{{sheetStartDisabled}}"
-          bindtap="handleConfigConfirm"
-          hover-class="q-button-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-         disabled="{{sheetStartDisabled}}">{{sheetStartText}}</button>
-      </view>
-    </view>
-  </view>
-  </root-portal>
-
+  </bottom-sheet>
 </view>

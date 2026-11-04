@@ -34,7 +34,7 @@ function getInitialPracticeViewData() {
     answerText: '',
     blankInputs: [],
     mode: PRACTICE_MODES.PRACTICE,
-    // 初始即给一份默认偏好：页面首帧就要读 preferences.showOverviewEntry / fontSize，
+    // 初始即给一份默认偏好：页面首帧就要读 preferences.fontSize，
     // 缺了会让答题卡入口闪一下、字号也来不及生效
     preferences: normalizePreferences(null),
     layoutRanks: ranks(),

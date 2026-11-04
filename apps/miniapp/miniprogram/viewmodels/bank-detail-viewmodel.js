@@ -1,11 +1,13 @@
 const practiceRepository = require('../repositories/practice-repository.js');
+const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
+const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
 const CN_NUMBERS = [
     '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
     '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'
 ];
 const MAX_KEYWORD_LENGTH = 20;
-const { DEFAULT_DURATION_MINUTES, MODE_OPTIONS, ORDER_OPTIONS, DURATION_OPTIONS, DEFAULT_SHEET, resolveModeValue, resolveOrderValue, resolveRouteMode, buildPracticeConfig } = require('../models/bank-practice-config.js');
+const { DEFAULT_DURATION_MINUTES, MODE_OPTIONS, DURATION_OPTIONS, DEFAULT_SHEET, resolveModeValue, resolveRouteMode, buildPracticeConfig } = require('../models/bank-practice-config.js');
 function getInitialBankDetailViewData() {
     return {
         subjectId: '',
@@ -33,8 +35,9 @@ function getInitialBankDetailViewData() {
         configSubtitle: '',
         configTargetName: '',
         sheetMode: DEFAULT_SHEET.mode,
-        sheetOrder: DEFAULT_SHEET.order,
-        sheetTimed: DEFAULT_SHEET.timed,
+        sheetModeDescription: MODE_OPTIONS[0].description,
+        sheetAutoShowExplanation: true,
+        sheetAutoNextWhenCorrect: false,
         sheetDuration: DEFAULT_SHEET.duration,
         sheetOnlyWrong: DEFAULT_SHEET.onlyWrong,
         sheetWrongCount: 0,
@@ -42,9 +45,7 @@ function getInitialBankDetailViewData() {
         sheetAllBanksSelected: false,
         sheetSomeBanksSelected: false,
         sheetStartDisabled: false,
-        sheetOrderDisabled: false,
         modeOptions: MODE_OPTIONS,
-        orderOptions: ORDER_OPTIONS,
         durationOptions: DURATION_OPTIONS,
         sheetStartText: '开始答题',
         mode: 'order',
@@ -499,8 +500,9 @@ class BankDetailViewModel {
             return null;
         this.sheet.mode = pending.mode === 'test' ? 'test' : pending.mode === 'view' ? 'view' : 'practice';
         this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random';
-        this.sheet.timed = !!pending.duration || pending.mode === 'test';
-        this.sheet.duration = Number(pending.duration) || DEFAULT_DURATION_MINUTES;
+        this.sheet.duration = Number(pending.duration) || 0;
+        this.sheet.presetId = '';
+        this.sheet.presetName = '自定义';
         this.sheet.onlyWrong = pending.selectionKind === 'WRONG';
         this.setSheetChapter(pending.chapterId || '');
         this.storage.remove('qandaPendingPractice');
@@ -550,6 +552,12 @@ class BankDetailViewModel {
         return (this.sheetTarget && this.sheetTarget.banks || []).filter(bank => (this.sheet.bankIds || []).includes(bank.id));
     }
     buildConfigOpenResult() {
+        if (!this.sheet.presets) {
+            const preferences = this.repository.getPreferences(this.storage);
+            const preset = defaultPreset(preferences);
+            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, order: preferences.practiceOrder, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
+        }
+        if (this.mockSelection) Object.assign(this.sheet, { mode: 'test', count: 'ALL', duration: 45, onlyWrong: false, durationError: '' });
         this.remoteSearchText = '';
         const subjects = this.repository.getSubjectSummaries();
         const detail = this.repository.getSubjectDetail(this.sheetTarget.subjectId);
@@ -564,6 +572,7 @@ class BankDetailViewModel {
         };
     }
     closeConfig() {
+        this.scopeRevision = (this.scopeRevision || 0) + 1;
         this.sheetTarget = null;
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         return {
@@ -572,46 +581,60 @@ class BankDetailViewModel {
             }
         };
     }
+    customSheet() { this.sheet.presetId = ''; this.sheet.presetName = '自定义'; }
     setSheetCount(count) {
-        if (![20, 50, 100, 1000].includes(count)) return null;
-        this.sheet.count = count;
+        if (!validCount(count)) return null;
+        this.sheet.count = count; this.customSheet();
         return { data: this.buildSheetData() };
     }
     setSheetMode(mode) {
-        this.sheet.mode = resolveModeValue(mode);
-        this.sheet.timed = this.sheet.mode === 'test' ? true : this.sheet.timed;
-        return {
-            data: this.buildSheetData()
-        };
+        if (this.mockSelection) return null;
+        this.sheet.mode = resolveModeValue(mode); this.sheet.durationError = ''; this.customSheet();
+        return { data: this.buildSheetData() };
     }
-    setSheetOrder(order) {
-        this.sheet.order = resolveOrderValue(order);
-        return {
-            data: this.buildSheetData()
-        };
+    selectSheetPreset(index) {
+        const preset = (this.sheet.presets || [])[index];
+        if (!preset) return null;
+        Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, durationCustom: false, durationError: '' });
+        return { data: this.buildSheetData() };
     }
     setSheetChapter(id) {
-        if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id)))
-            return null;
+        if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id))) return null;
         this.sheet.chapterId = id || '';
         return { data: this.buildSheetData() };
     }
-    setSheetTimed(timed) {
-        this.sheet.timed = !!timed;
-        this.sheet.duration = this.sheet.duration || DEFAULT_DURATION_MINUTES;
-        return {
-            data: this.buildSheetData()
-        };
-    }
     selectDuration(value) {
-        const duration = Number(value);
-        if (!Number.isFinite(duration) || duration <= 0) {
-            return null;
+        this.customSheet();
+        this.sheet.durationCustom = value === 'custom';
+        if (value !== 'custom') {
+            if (!validDuration(Number(value))) return null;
+            this.sheet.duration = Number(value); this.sheet.durationError = '';
+        } else if (!this.sheet.duration) this.sheet.durationError = '请输入 1～1440 的整数分钟';
+        return { data: this.buildSheetData() };
+    }
+    setCustomDuration(value) {
+        this.sheet.duration = Number(value); this.customSheet();
+        this.sheet.durationError = /^\d+$/.test(value) && validDuration(Number(value)) && Number(value) > 0 ? '' : '请输入 1～1440 的整数分钟';
+        return { data: { sheetDurationError: this.sheet.durationError, sheetStartDisabled: this.buildSheetData().sheetStartDisabled } };
+    }
+    async refreshSheetScope() {
+        const target = this.sheetTarget;
+        if (!target) return null;
+        const selected = this.selectedBanks();
+        if (target.banks && !selected.length) { this.sheet.availableCount = 0; return { data: this.buildSheetData() }; }
+        const revision = this.scopeRevision = (this.scopeRevision || 0) + 1;
+        const bankId = selected.length ? selected[0].id : target.bankId;
+        this.sheet.scopeLoading = true; this.sheet.scopeError = '';
+        try {
+            const preview = await this.repository.previewRemotePracticeScope(this.storage, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], count: 1, completeFirstGroup: !this.sheet.onlyWrong, order: 'SEQUENTIAL', selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' });
+            if (revision !== this.scopeRevision || target !== this.sheetTarget) return null;
+            this.sheet.availableCount = preview.availableCount === undefined ? preview.selectedCount : preview.availableCount;
+        } catch (error) {
+            if (revision !== this.scopeRevision || target !== this.sheetTarget) return null;
+            this.sheet.scopeError = error.message;
         }
-        this.sheet.duration = duration;
-        return {
-            data: this.buildSheetData()
-        };
+        this.sheet.scopeLoading = false;
+        return { data: this.buildSheetData() };
     }
     setSheetOnlyWrong(onlyWrong) {
         const target = this.sheetTarget;
@@ -644,85 +667,32 @@ class BankDetailViewModel {
         return scope && scope.progress && scope.progress.wrongBookCount || 0;
     }
     buildSheetData() {
+        this.sheet.mockSelection = !!this.mockSelection;
         return buildPracticeConfig(this.sheet, this.sheetTarget, this.selectedBanks(), this.wrongCountFor(this.sheetTarget));
     }
     resolveRouteMode() {
         return resolveRouteMode(this.sheet);
     }
-    confirmConfig(currentState) {
-        const state = currentState || {};
-        const target = this.sheetTarget || {
-            type: 'subject',
-            subjectId: state.subjectId || '',
-            bankId: '',
-            name: '',
-            title: '',
-            questionCount: (state.stats && state.stats.total) || 0
-        };
-        const routeMode = this.resolveRouteMode();
-        const query = [];
+    confirmConfig() {
+        const target = this.sheetTarget;
+        if (!target) return null;
         const selected = this.selectedBanks();
-        if (target.banks && !selected.length)
-            return { command: { type: 'toast', title: '请至少选择一个题库' } };
-        if (selected.length > 100)
-            return { command: { type: 'toast', title: '每次最多选择 100 个题库' } };
+        if (target.banks && !selected.length) return { command: { type: 'toast', title: '请至少选择一个题库' } };
+        if (selected.length > 100) return { command: { type: 'toast', title: '每次最多选择 100 个题库' } };
+        if (this.sheet.durationError && this.sheet.mode !== 'view') return { command: { type: 'toast', title: this.sheet.durationError } };
+        return this.createConfiguredPractice(target, selected);
+    }
+    async createConfiguredPractice(target, selected) {
         const bankId = selected.length ? selected[0].id : target.bankId;
-        if (target.banks) {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`, `bankId=${encodeURIComponent(bankId)}`, `bankIds=${encodeURIComponent(selected.map(bank => bank.id).join(','))}`, `title=${encodeURIComponent(target.title)}`);
-        }
-        else if (target.type === 'bank') {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`);
-            query.push(`bankId=${encodeURIComponent(target.bankId)}`);
-            if (this.sheet.chapterId)
-                query.push(`chapterId=${encodeURIComponent(this.sheet.chapterId)}`);
-        }
-        else {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`);
-            query.push('scope=subject');
-        }
-        if (this.sheet.onlyWrong)
-            query.push('selectionKind=WRONG');
-        query.push(`mode=${encodeURIComponent(routeMode)}`);
-        if (this.sheet.timed && routeMode !== 'view') {
-            query.push(`duration=${encodeURIComponent(this.sheet.duration)}`);
-        }
-        query.push(`seed=${Date.now()}`);
-        const buildCommand = (count) => ({
-            data: {
-                configSheetVisible: false
-            },
-            command: {
-                type: 'openRouteWithLoading',
-                payload: {
-                    url: `/page/practice/index?${query.join('&')}`,
-                    title: routeMode === 'test' ? '正在生成试卷' : (routeMode === 'view' ? '正在打开题目' : '正在开始练习'),
-                    description: this.sheet.timed && routeMode !== 'view'
-                        ? `${count} 题 / ${this.sheet.duration} 分钟`
-                        : `${count} 题 · ${target.title || target.name || '全部题目'}`
-                }
-            }
-        });
-        if (bankId) {
-            return this.repository.previewRemotePracticeScope(this.storage, {
-                questionBankId: bankId,
-                ...(target.banks ? { questionBankIds: selected.map(bank => bank.id) } : {}),
-                chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [],
-                count: this.sheet.onlyWrong ? 1000 : (this.sheet.count || 20),
-                ...(!this.sheet.onlyWrong && (this.sheet.count || 20) === 20 ? { completeFirstGroup: true } : {}),
-                order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
-                selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',
-                collectionChip: 'all'
-            }).then(preview => {
-                const availableCount = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000);
-                if (!availableCount)
-                    return { command: { type: 'toast', title: '当前范围没有可练习的题目' } };
-                query.push(`count=${availableCount}`);
-                if (preview.selectionKey)
-                    query.push(`selectionKey=${preview.selectionKey}`);
-                return buildCommand(availableCount);
-            });
-        }
-        return buildCommand(target.questionCount || 0);
+        const preferences = this.repository.getPreferences(this.storage);
+        const route = routeForPreset(this.sheet, preferences);
+        const result = await preparePracticeRoute(this.storage, this.repository, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' }, route);
+        Object.assign(result.route, { subjectId: target.subjectId });
+        if (target.banks) result.route.bankIds = selected.map(b => b.id).join(',');
+        if (this.sheet.chapterId) result.route.chapterId = this.sheet.chapterId;
+        if (this.sheet.onlyWrong) result.route.selectionKind = 'WRONG';
+        this.mockSelection = false;
+        return { data: { configSheetVisible: false, mockSelection: false }, command: { type: 'openRouteWithLoading', payload: { url: '/page/practice/index?' + routeQuery(result.route), title: result.adjusted ? `保留完整阅读题组，实际 ${result.count} 题` : '正在开始答题' } } };
     }
     getShareMessage(subjectId, bankId) {
         const subject = this.repository.getSubjectDetail(subjectId);
@@ -736,5 +706,4 @@ module.exports = {
     BankDetailViewModel,
     DEFAULT_DURATION_MINUTES,
     MODE_OPTIONS,
-    ORDER_OPTIONS
 };

@@ -34,7 +34,9 @@
 .menu { padding: 0; }
 
 .settings-page .menu-row {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
   min-height: 0;
   padding: 14px 0;
 }
@@ -42,12 +44,6 @@
 .menu-main {
   flex: 1;
   min-width: 0;
-  margin-left: 20rpx;
-}
-
-/* 没有图标的那种行（开关行）自己带左边距 */
-.menu-main:first-child {
-  margin-left: 0;
 }
 
 .menu-title {
@@ -57,8 +53,6 @@
 
   font-weight: 400;
 }
-
-.menu-main .menu-title { padding-right: 68px; }
 
 .menu-desc {
   display: block;
@@ -76,9 +70,9 @@
 
 .menu-arrow {
   flex: none;
-  margin-left: 8rpx;
-  color: var(--text-muted);
-  font-size: var(--font-body);
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg);
 }
 
 .menu-tag {
@@ -92,11 +86,9 @@
 }
 
 .menu-switch {
-  position: absolute;
-  top: 50%;
-  right: 0;
+  flex: none;
   margin: 0;
-  transform: translateY(-50%) scale(0.86);
+  transform: scale(0.86);
   transform-origin: center right;
 }
 

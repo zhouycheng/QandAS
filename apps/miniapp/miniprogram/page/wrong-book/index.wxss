@@ -1,54 +1,32 @@
 @import "../../styles/list-page.wxss";
 
-/* 错题本 / 收藏本（设计稿两张画板，402x874，系数 750/402 ≈ 1.8657）
-   页边距沿用 list-page.wxss 的 41rpx，这里维护统计卡、题目卡片与分页。
-   换算：16px 卡内边距 → 30rpx；14px 圆角 → 26rpx；22px 数字 → 41rpx；
-        30px 筛选项高 → 56rpx；46px 底部按钮 → 86rpx。 */
+/* 错题与收藏共用列表结构，正文和底部操作使用同一横向留白。 */
 
 .wb-page {
-  min-height: 100vh;
   background: var(--card);
+  min-height: 0;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
   /* 底部固定按钮（86rpx）+ 说明行 + 呼吸位，再叠安全区 */
   padding-bottom: 200rpx;
   padding-bottom: calc(200rpx + env(safe-area-inset-bottom));
 }
 
-/* ---------- 页头：居中标题 + 管理（返回走系统导航栏，页内不再自绘返回钮） ---------- */
+/* ---------- 收藏管理操作 ---------- */
 
 .wb-head {
   display: flex;
   align-items: center;
-  height: 104rpx;
-  margin: 0 -41rpx;
-  padding: 0 41rpx;
+  justify-content: flex-end;
+  min-height: 44px;
 }
 
-/* 左侧占位：与「管理」同宽，标题才真居中 */
-.wb-head-spacer {
-  flex: none;
-  min-width: 56rpx;
-  height: 56rpx;
-  margin-left: -12rpx;
-}
-
-.wb-title {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-body);
-  line-height: 1.5;
-  font-weight: 600;
-  color: var(--text-main);
-  text-align: center;
-}
-
-/* 「管理」占的位置要和返回按钮一样宽，标题才真居中 */
 .wb-manage {
   flex: none;
   min-width: 56rpx;
-  height: 56rpx;
-  margin-right: -12rpx;
+  margin: 0;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--brand);
   text-align: right;
@@ -102,7 +80,7 @@
 
 .stat-title {
   font-size: var(--font-secondary);
-  line-height: 1.5;
+  line-height: var(--leading-secondary);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -110,7 +88,7 @@
 .stat-hint {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -129,7 +107,7 @@
 .stat-label {
   display: block;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -142,7 +120,7 @@
 
 .stat-num {
   font-size: var(--font-title);
-  line-height: 1.5;
+  line-height: var(--leading-title);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -150,7 +128,7 @@
 .stat-unit {
   margin-left: 3rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -205,7 +183,7 @@
 
 .dist-name {
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
   overflow: hidden;
@@ -216,7 +194,7 @@
 .dist-count {
   margin-left: 6rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -254,14 +232,14 @@
 
 .filter-strong {
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-main);
 }
 
 .filter-weak {
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -343,7 +321,7 @@
   height: 78rpx;
   padding: 0 30rpx;
   font-size: var(--font-secondary);
-  line-height: 1.5;
+  line-height: var(--leading-secondary);
   font-weight: 500;
   color: var(--text-main);
   transition: background-color 100ms ease;
@@ -367,12 +345,15 @@
 
 .chip {
   flex: 1;
-  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
   margin-right: 16rpx;
   border-radius: var(--radius-tag);
   background: var(--brand-soft);
   font-size: var(--font-secondary);
-  line-height: 1.5;
+  line-height: var(--leading-secondary);
   font-weight: 500;
   color: var(--text-sub);
   text-align: center;
@@ -446,7 +427,7 @@
   flex: 1;
   min-width: 0;
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 600;
   color: var(--text-main);
   overflow: hidden;
@@ -466,16 +447,16 @@
 }
 
 /* 管理态的「移除」：红字，比一枚图标更不容易误触 */
-.q-remove {
+.q-top .q-remove {
   flex: none;
   margin-left: 16rpx;
   padding: 0 14rpx;
-  height: 44rpx;
+  min-height: 44px;
   border-radius: var(--radius-tag);
   background: var(--danger-soft);
-  font-size: var(--font-caption);
-  line-height: 1.5;
-  font-weight: 600;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
+  font-weight: 400;
   color: var(--danger);
   transition: opacity 100ms ease;
 }
@@ -488,8 +469,8 @@
 .q-stem {
   margin-top: 8rpx;
   font-size: var(--font-body);
-  line-height: 1.5;
-  font-weight: 500;
+  line-height: var(--leading-body);
+  font-weight: 400;
   color: var(--text-sub);
   overflow: hidden;
   display: -webkit-box;
@@ -509,7 +490,7 @@
   height: 34rpx;
   border-radius: 8rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
 }
 
@@ -531,7 +512,7 @@
 .q-type {
   margin-left: 12rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -539,7 +520,7 @@
 .q-date {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -553,7 +534,7 @@
 .wb-empty-text {
   display: block;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
   text-align: center;
@@ -581,7 +562,7 @@
 .pager-text {
   margin-left: 10rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -590,7 +571,7 @@
   margin-left: auto;
   margin-right: 10rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-sub);
 }
@@ -602,7 +583,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 16rpx 41rpx 20rpx;
+  padding: var(--space-md) var(--space-lg) var(--space-md);
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
   background: var(--card);
   box-shadow: 0 -8rpx 24rpx rgba(20, 24, 32, 0.05);
@@ -616,8 +597,8 @@
   display: block;
   margin-top: 10rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
-  font-weight: 500;
+  line-height: var(--leading-caption);
+  font-weight: 400;
   color: var(--text-sub);
   text-align: center;
 }

@@ -1,7 +1,10 @@
+const { timeLimitSeconds } = require('../utils/practice-presets.js')
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const { createSyncQueue } = require('./practice-sync-queue.js')
 const assets = require('./question-assets.js')
+const { getPreferences } = require('./preference-repository.js')
+const { normalizePracticeOptions } = require('../utils/preferences.js')
 let runtime = null
 
 const { mapQuestion, quiz, restored } = require('../models/practice-snapshot.js')
@@ -68,6 +71,11 @@ class OnlinePractice {
       if (cached.writer && cached.writer.deviceId !== this.deviceId() && cached.status !== 'SUBMITTED') throw new Error('请在创建练习的设备上继续答题')
       const snapshot = await assets.completeSnapshot(this.storage, cached)
       if (auth.getAuth(this.storage).userId !== userId) throw new Error('账号已切换，请重新打开练习')
+      const options = normalizePracticeOptions(snapshot.route, getPreferences(this.storage))
+      if (Object.keys(options).some(key => !snapshot.route || snapshot.route[key] !== options[key])) {
+        snapshot.route = Object.assign({}, snapshot.route, options)
+        this.put(id, snapshot)
+      }
       if (snapshot.status === 'IN_PROGRESS') this.storage.set(`qandaOnlineLast:${userId}`, id)
       return snapshot
     }
@@ -104,7 +112,7 @@ class OnlinePractice {
       let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankIds) : null
       if (!preview && bankIds.length > 1) preview = await this.required('POST', '/practice/scope-preview', scope)
       if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-      intent = { routeKey, route: options, key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null, deviceId: this.deviceId() } }
+      intent = { routeKey, route: Object.assign({}, options, normalizePracticeOptions(null, getPreferences(this.storage))), key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options), deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }
@@ -160,6 +168,7 @@ class OnlinePractice {
     const previous = this.get(snapshot.id)
     snapshot.title = snapshot.title || previous && previous.title || ((snapshot.configuration && snapshot.configuration.questionBankIds || []).length > 1 ? `${snapshot.configuration.questionBankIds.length} 个题库联合练习` : '')
     snapshot.route = Object.assign({}, this.snapshotRoute(snapshot), previous && previous.route || {}, snapshot.route || {}, options || {})
+    Object.assign(snapshot.route, normalizePracticeOptions(snapshot.route, getPreferences(this.storage)))
     snapshot.formatVersion = 1
     this.put(snapshot.id, snapshot)
     this.storage.set(`qandaOnlineLast:${this.userId}`, snapshot.id)

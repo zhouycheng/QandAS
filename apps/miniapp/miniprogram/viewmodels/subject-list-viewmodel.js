@@ -1,3 +1,4 @@
+const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const { summarizeAnswers, summarizeOverallProgress } = require('../utils/practice-progress.js');
 const { TIP_ACTIONS, buildHomeContent } = require('../utils/home-content.js');
@@ -31,14 +32,6 @@ const STUDY_ENTRIES = [
         description: '收藏后随时回顾'
     }
 ];
-/** 一键模拟考试：抽题上限与时长下限（详见 openMock 注释） */
-const MOCK_EXAM_QUESTION_COUNT = 20;
-const MOCK_EXAM_MIN_MINUTES = 10;
-/** 每题 1 分钟，向上取整到 5 分钟倍数，保底下限 */
-function resolveMockDuration(count) {
-    const rounded = Math.ceil(Number(count) / 5) * 5;
-    return Math.max(MOCK_EXAM_MIN_MINUTES, rounded);
-}
 function getInitialSubjectListViewData() {
     return {
         overall: null,
@@ -302,12 +295,10 @@ class SubjectListViewModel {
     }
     async openNewPractice(choice) {
         if (!choice) return this.openBank();
-        const preview = await this.repository.previewRemotePracticeScope(this.storage, { questionBankId: choice.id, count: 20, completeFirstGroup: true, order: 'SEQUENTIAL', selectionKind: 'NORMAL', collectionChip: 'all' });
-        const count = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000);
-        if (!count) return { command: { type: 'toast', title: '当前题库没有可练习的题目' } };
-        const query = [`bankId=${encodeURIComponent(choice.id)}`, 'mode=order', `count=${count}`, `seed=${Date.now()}`];
-        if (preview.selectionKey) query.push(`selectionKey=${encodeURIComponent(preview.selectionKey)}`);
-        return this.openPractice(`/page/practice/index?${query.join('&')}`, choice.name);
+        try {
+            const result = await preparePracticeRoute(this.storage, this.repository, { questionBankId: choice.id, selectionKind: 'NORMAL', collectionChip: 'all' });
+            return this.openPractice('/page/practice/index?' + routeQuery(result.route), choice.name);
+        } catch (error) { return { command: { type: 'toast', title: error.message } }; }
     }
     /** 学习数据卡右上角「详情」→ 统计 tab */
     openStats() {
@@ -416,115 +407,8 @@ class SubjectListViewModel {
             }
         };
     }
-    /**
-     * 模拟考试：一键直接开考，不再让用户先去题库选科目。
-     *
-     * 抽题规则（只此一处，题库页抽屉里用户手动确认的场合不适用）：
-     * - 科目：优先「上次练过的那科」，没练过就取题库第一个科目（与题库 tab 默认选中同源）
-     * - 题量：抽 MOCK_EXAM_QUESTION_COUNT 道，不够就按整科全量
-     * - 时长：每题 1 分钟，向上取整到 5 分钟，保底 MOCK_EXAM_MIN_MINUTES 分钟
-     */
-    openMock(selectedBankId, loaded) {
-        if (!loaded) {
-            if (!selectedBankId)
-                return this.loadRemoteMock();
-            return this.repository.loadRemoteBank(this.storage, selectedBankId).then(() => this.openMock(selectedBankId, true));
-        }
-        const selected = selectedBankId && this.repository.getSubjectSummaries().find(subject => subject.banks.some(bank => bank.id === selectedBankId));
-        const subjectId = selected ? selected.id : this.resolveMockSubjectId();
-        const empty = {
-            command: {
-                type: 'toast',
-                title: '当前没有可练习题库'
-            }
-        };
-        if (!subjectId) {
-            return empty;
-        }
-        const detail = this.repository.getSubjectDetail(subjectId);
-        const banks = detail ? detail.banks.filter((item) => item.questionCount > 0) : [];
-        if (banks.length > 1 && !selectedBankId)
-            return { command: { type: 'chooseBank', banks, subjectId } };
-        const bank = banks.find((item) => item.id === selectedBankId) || banks[0];
-        const total = (bank ? bank.questionCount : 0);
-        if (!total) {
-            return empty;
-        }
-        const build = (count, selectionKey) => {
-            if (!count)
-                return empty;
-            const duration = resolveMockDuration(count);
-            const query = [`subjectId=${encodeURIComponent(subjectId)}`, `bankId=${encodeURIComponent(bank.id)}`, 'mode=test', `count=${count}`, `duration=${duration}`, `seed=${Date.now()}`];
-            if (selectionKey)
-                query.push(`selectionKey=${encodeURIComponent(selectionKey)}`);
-            return { command: { type: 'openRouteWithLoading', payload: { url: `/page/practice/index?${query.join('&')}`, title: '正在生成试卷', description: `${this.getSubjectName(subjectId)} · ${count} 题 / ${duration} 分钟` } } };
-        };
-        const count = Math.min(MOCK_EXAM_QUESTION_COUNT, total);
-        return this.repository.previewRemotePracticeScope(this.storage, { questionBankId: bank.id, count, order: 'RANDOM', selectionKind: 'NORMAL' }).then(preview => build(preview.selectedCount, preview.selectionKey));
-    }
-    async loadRemoteMock() {
-        let subjectPage = 1;
-        let subjectResult = await this.repository.loadRemoteSubjects(this.storage, { page: subjectPage });
-        if (!subjectResult)
-            return { command: { type: 'toast', title: '题库加载失败，请检查网络后重试' } };
-        const preferredSubjectId = this.resolveMockSubjectId();
-        const checkedSubjects = new Set();
-        while (subjectResult) {
-            const subjects = this.repository.getSubjectSummaries();
-            const candidates = [preferredSubjectId].concat(subjects.filter(subject => Number(subject.questionCount) > 0).map(subject => subject.id));
-            for (const subjectId of candidates) {
-                if (!subjectId || checkedSubjects.has(subjectId))
-                    continue;
-                checkedSubjects.add(subjectId);
-                let bankPage = 1;
-                let bankResult = await this.repository.loadRemoteBanks(this.storage, { subjectId, page: bankPage });
-                while (bankResult) {
-                    const bank = bankResult.items.find(item => item.subjectId === subjectId && Number(item.activeQuestionCount === undefined ? item.questionCount : item.activeQuestionCount) > 0);
-                    if (bank) {
-                        await this.repository.loadRemoteBank(this.storage, bank.id);
-                        return this.openMock(bank.id, true);
-                    }
-                    if (bankPage * bankResult.pageSize >= bankResult.total)
-                        break;
-                    bankPage += 1;
-                    bankResult = await this.repository.loadRemoteBanks(this.storage, { subjectId, page: bankPage });
-                }
-                if (!bankResult)
-                    return { command: { type: 'toast', title: '题库加载失败，请检查网络后重试' } };
-            }
-            if (subjectPage * subjectResult.pageSize >= subjectResult.total)
-                break;
-            subjectPage += 1;
-            subjectResult = await this.repository.loadRemoteSubjects(this.storage, { page: subjectPage });
-        }
-        return { command: { type: 'toast', title: '当前没有可练习题库' } };
-    }
-    /** 模拟考试用哪科：上次练过优先，否则题库第一个科目 */
-    resolveMockSubjectId() {
-        const lastPractice = this.buildLastPractice(this.repository.getProgress(this.storage));
-        const meta = lastPractice && lastPractice.scopeKey
-            ? this.repository.getScopeMeta(lastPractice.scopeKey)
-            : null;
-        if (meta && meta.subjectId) {
-            return meta.subjectId;
-        }
-        const subjects = this.repository.getSubjectSummaries();
-        const usable = subjects.find((item) => Number(item.questionCount) > 0);
-        return usable ? usable.id : '';
-    }
-    countSubjectQuestions(subjectId) {
-        try {
-            const quiz = this.repository.getSubjectQuiz(subjectId);
-            return quiz ? Number(quiz.questionCount) || (quiz.questions || []).length : 0;
-        }
-        catch (error) {
-            return 0;
-        }
-    }
-    getSubjectName(subjectId) {
-        const subjects = this.repository.getSubjectSummaries();
-        const subject = subjects.find((item) => item.id === subjectId);
-        return subject ? subject.name : '模拟考试';
+    openMock() {
+        return { command: { type: 'switchTab', url: '/page/bank-detail/index', target: { intent: 'test' } } };
     }
     // ---------- 公告 ----------
     openAnnouncement() {

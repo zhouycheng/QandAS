@@ -21,6 +21,8 @@
   box-sizing: border-box;
   background: var(--card);
   overflow: hidden;
+  min-height: 0;
+  padding: 0;
 }
 
 /* ============ ② 细进度条 ============ */
@@ -70,28 +72,48 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ============ ④ 题目区（唯一滚动段） ============ */
+/* ============ ④ 题目区 ============ */
 
 .pra-body {
   flex: 1;
   min-height: 0;
-  padding: 0 40rpx;
+  padding: 0 var(--space-lg);
   box-sizing: border-box;
 }
 
 .pra-body-pad {
-  height: 48rpx;
+  height: var(--space-lg);
 }
 
 .pra-content {
   display: flex;
   flex-direction: column;
-  padding-top: 20rpx;
+  padding-top: var(--space-md);
 }
+
+/* 答题态使用固定分区；布局编辑保留自然高度和外层拖拽滚动。 */
+.pra-pane { position: relative; min-width: 0; }
+.pra-viewport .pra-body { overflow: hidden; }
+.pra-viewport .pra-content { height: 100%; min-height: 0; gap: var(--space-md); padding-bottom: var(--space-md); }
+.pra-viewport .pra-module { flex: none; margin: 0; min-height: 0; }
+.pra-viewport .pra-pane { overflow: hidden; }
+.pra-viewport .pra-pane-scroll { display: block; height: 100%; }
+.pra-viewport .pra-pane-content { padding-bottom: 18px; min-width: 0; }
+.pra-viewport .pra-material-pane { margin-bottom: var(--space-md); border-radius: var(--radius-tag); background: var(--page-bg); }
+.pra-viewport .pra-material { margin: 0; }
+.pra-viewport .pra-textarea-content { height: 100%; padding-bottom: 0; }
+.pra-viewport .pra-textarea-content textarea { height: 100%; min-height: 0; }
+.pra-viewport .pra-analysis { margin-top: 0; padding-top: 0; border-top: 0; }
+.pra-viewport .pra-analysis-head { flex-wrap: wrap; gap: var(--space-xs); }
+.pra-viewport .pra-explanation.is-open .pra-explanation-text { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.pra-viewport .load-note { flex: none; }
+.pra-keyboard-open .pra-footer { padding-bottom: var(--space-md); }
+.pra-scroll-hint { position: absolute; right: 0; bottom: 0; padding: 0 6px; font-size: var(--font-caption); line-height: 18px; color: var(--text-sub); background: var(--card); pointer-events: none; }
+.pra-material-pane .pra-scroll-hint { background: var(--page-bg); }
 
 .pra-stem {
   order: 2;
-  margin-top: 36rpx;
+  margin-top: 0;
 }
 
 .pra-stem {
@@ -99,7 +121,7 @@
   font-weight: 400;
   line-height: 1.65;
   color: var(--text-main);
-  margin-bottom: 48rpx;
+  margin-bottom: 0;
 }
 
 .pra-options {
@@ -111,9 +133,9 @@
 .pra-option {
   display: flex;
   align-items: center;
-  min-height: 100rpx;
-  padding: 22rpx 26rpx;
-  margin-bottom: 20rpx;
+  min-height: 44px;
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
   box-sizing: border-box;
   background: var(--card);
   border: 2rpx solid var(--page-bg);
@@ -251,13 +273,14 @@
 
 .pra-footer {
   flex: none;
-  padding: 12rpx 40rpx 0;
-  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  padding: var(--space-md) var(--space-lg) calc(var(--space-md) + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
 .pra-tools {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: var(--space-sm);
   align-items: center;
   margin-bottom: 18rpx;
 }
@@ -268,8 +291,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 60rpx;
-  padding: 0 26rpx;
+  min-height: 36px;
+  padding: 0 var(--space-md);
   margin-right: 16rpx;
   background: var(--card);
   border: 2rpx solid var(--page-bg);
@@ -378,8 +401,8 @@
 
 .pra-modal-panel {
   position: relative;
-  width: 600rpx;
-  padding: 44rpx 40rpx 36rpx;
+  width: calc(100% - 64rpx);
+  padding: var(--space-xl) var(--space-lg) var(--space-lg);
   box-sizing: border-box;
   background: var(--card);
   border-radius: var(--radius-card);
@@ -399,10 +422,10 @@
 }
 
 .pra-modal-desc {
-  margin-top: 16rpx;
-  margin-bottom: 36rpx;
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-lg);
   font-size: var(--font-secondary);
-  line-height: 1.6;
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
 }
 
@@ -415,7 +438,7 @@
 .pra-result {
   flex: 1;
   min-height: 0;
-  padding: 24rpx 40rpx 0;
+  padding: var(--space-md) var(--space-lg) 0;
   box-sizing: border-box;
 }
 
@@ -445,9 +468,8 @@
   display: flex;
   align-items: center;
   padding: 34rpx 24rpx;
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand) 100%);
+  background: var(--brand);
   border-radius: var(--radius-card);
-  box-shadow: 0 10rpx 26rpx rgba(70, 107, 255, 0.24);
 }
 
 .res-card-cell {
@@ -461,7 +483,7 @@
   font-size: var(--font-title);
   font-weight: 600;
   color: var(--card);
-  line-height: 1.2;
+  line-height: var(--leading-title);
   font-variant-numeric: tabular-nums;
 }
 
@@ -479,7 +501,7 @@
 
 /* 答题明细 */
 .res-detail {
-  margin-top: 36rpx;
+  margin-top: var(--space-lg);
 }
 
 .res-detail-head {
@@ -676,9 +698,10 @@
 }
 
 .res-empty {
-  padding: 60rpx 0;
+  padding: var(--space-xl) 0;
   text-align: center;
-  font-size: var(--font-caption);
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
 }
 
@@ -769,9 +792,7 @@
   color: var(--text-sub);
 }
 
-.res-scoring-point { display: flex; gap: 12rpx; min-width: 0; }
-.res-point-number { flex: none; color: var(--text-sub); font-size: var(--reading-size, var(--reading-normal)); line-height: 1.65; }
-.res-point-content { display: block; flex: 1; min-width: 0; font-size: var(--reading-size, var(--reading-normal)); }
+.res-scoring-point { display: block; min-width: 0; margin-top: var(--space-sm); color: var(--text-sub); font-size: var(--reading-size, var(--reading-normal)); line-height: 1.65; }
 .res-self-assessment { margin-top: 24rpx; }
 .res-assessment-actions { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 14rpx; }
 .res-assessment-option {      white-space: nowrap; }
@@ -780,12 +801,12 @@
   color: var(--success);
 }
 
-/* ============ ⑩ 字号档位（项目约定：档差 ≥8rpx） ============ */
+/* ============ 阅读字号与内容模块 ============ */
 
 /* 字母圆标是固定尺寸的圆圈，字号变大时圈也得放大，否则字会顶边 */
-.pra-content .pra-meta { padding: 6rpx 0 22rpx; }
-.pra-module { position: relative; }
-.pra-content .pra-tools { padding: 20rpx 0; }
+.pra-content .pra-meta { padding: 0; }
+.pra-module { position: relative; margin-bottom: var(--space-lg); }
+.pra-content .pra-tools { padding: 0; margin: 0; }
 .pra-module textarea { width: 100%; min-height: 180rpx; padding: 20rpx; box-sizing: border-box; background: var(--page-bg); border-radius: var(--radius-tag); }
 .pra-material { margin-bottom: 28rpx; padding: 24rpx; background: var(--page-bg); border-radius: var(--radius-tag); white-space: pre-wrap; }
 .pra-material text { display: block; }

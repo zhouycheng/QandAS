@@ -1,0 +1,22 @@
+@import "../../styles/list-page.wxss";
+@import "../../styles/settings-detail.wxss";
+.presets-scroll { flex: 1; min-height: 0; height: 0; }
+.presets-page { padding-top: 24rpx; }
+.preset-card { padding: var(--space-lg) var(--space-lg) 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); margin-bottom: var(--space-md); }
+.preset-card-main { display: flex; align-items: center; gap: var(--space-sm); }
+.preset-name { min-width: 0; overflow-wrap: anywhere; }
+.preset-default { flex: none; color: var(--brand); font-size: var(--font-caption); }
+.preset-actions { display: flex; justify-content: flex-end; gap: var(--space-lg); margin-top: var(--space-sm); }
+.preset-actions .q-button { flex: none; width: auto; margin: 0; padding-left: 0; padding-right: 0; font-size: var(--font-secondary); }
+.preset-actions .preset-delete { color: var(--danger); }
+.settings-detail.preset-editor { padding: 0; }
+.preset-editor .settings-input { margin-top: var(--space-sm); }
+.preset-choices { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
+.preset-choices .q-button { margin: 0; }
+.preset-choices .q-button.preset-choice { width: auto; }
+.preset-editor-actions { display: flex; gap: var(--space-md); }
+.preset-editor-actions .q-button { flex: 1; }
+.preset-choice.selected { color: var(--card); background: var(--brand); }
+.preset-editor .field-label { margin-top: var(--space-lg); }
+.preset-error { display: block; margin-top: var(--space-sm); color: var(--danger); font-size: var(--font-secondary); }
+.preset-list-error { position: fixed; left: var(--space-lg); right: var(--space-lg); bottom: calc(180rpx + env(safe-area-inset-bottom)); }

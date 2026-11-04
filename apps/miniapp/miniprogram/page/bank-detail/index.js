@@ -33,6 +33,7 @@ Page(withPageLifecycle({
     const app = getApp()
     const target = app && app.consumePendingBankTarget ? app.consumePendingBankTarget()
       : { subjectId: app && app.consumePendingSubjectId ? app.consumePendingSubjectId() : '' }
+    if (target.intent === 'test') { this.viewModel.mockSelection = true; this.setData({ mockSelection: true }) }
     if (target.subjectId || target.bankId) {
       this.routeSubjectId = target.subjectId || ''
       this.routeBankId = target.bankId || ''
@@ -138,7 +139,6 @@ Page(withPageLifecycle({
     } catch (error) { this.setData({ filterToggleEnabled: false, filterToggleRestore: false }) }
   },
 
-  noop() {},
 
   onShareAppMessage() {
     return this.viewModel.getShareMessage(this.data.subjectId, this.routeBankId)
@@ -180,6 +180,11 @@ Page(withPageLifecycle({
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
   handleRetryLoad() { return this.refreshCatalog({ force: true }) },
   onPullDownRefresh() { return this.handleRetryLoad().finally(() => wx.stopPullDownRefresh()) },
+  onHide() {
+    this.viewModel.closeConfig()
+    const pages = getCurrentPages()
+    if (pages.length && pages[pages.length - 1].route !== 'page/bank-detail/index') { this.viewModel.mockSelection = false; this.setData({ mockSelection: false }) }
+  },
   onUnload() { clearTimeout(this.searchTimer) },
 
   /**
@@ -246,60 +251,42 @@ Page(withPageLifecycle({
     } catch (error) { wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
   },
 
-  /** 章节行点击 → 打开这一章的答题配置 */
-  handleBankOpen(e) {
-    const bank = e.detail && e.detail.bank
-    const subjectId = this.data.subjectId
-
-    if (!bank || !bank.bankId) {
-      return
-    }
-
-    this.applyViewModelResult(this.viewModel.openBankConfig(subjectId, bank.bankId, bank.chapterId))
+  async openPracticeTarget(open, configure) {
+    if (this.isOpeningPractice) return
+    this.isOpeningPractice = true
+    wx.showLoading({ title: '正在读取题目', mask: true })
+    try {
+      const result = await open()
+      if (!result || !result.data || !this.viewModel.sheetTarget) return this.applyViewModelResult(result)
+      if (configure && !this.viewModel.mockSelection) {
+        this.applyViewModelResult(result)
+        const pending = this.viewModel.refreshSheetScope()
+        this.setData(this.viewModel.buildSheetData())
+        this.applyViewModelResult(await pending)
+      } else this.applyViewModelResult(await this.viewModel.confirmConfig())
+    } catch (error) { wx.showToast({ title: error.message || '读取失败，请重试', icon: 'none' }) }
+    finally { wx.hideLoading(); this.isOpeningPractice = false }
   },
-
-  /** 搜索结果可能属于别的科目，科目 id 从行数据取，不能用手上的 data.subjectId */
-  handleSearchResultTap(e) {
-    const dataset = e.currentTarget.dataset
-
-    if (!dataset || !dataset.bankId) {
-      return
-    }
-
-    this.applyViewModelResult(this.viewModel.openBankConfig(dataset.subjectId, dataset.bankId, dataset.chapterId))
-  },
-
-  /** 统计卡 = 整科练习的入口（设计稿没有独立按钮，卡片右上角标了「整科」） */
-  handleStatTap() {
-    this.applyViewModelResult(this.viewModel.openSubjectConfig(this.data.subjectId))
-  },
-  handleAdvancedToggle() { this.viewModel.sheet.advanced = !this.viewModel.sheet.advanced; this.setData(this.viewModel.buildSheetData()) },
-  handleSheetCount(event) { this.applyViewModelResult(this.viewModel.setSheetCount(Number(event.currentTarget.dataset.value))) },
+  handleBankOpen(e) { const bank = e.detail.bank; return this.openPracticeTarget(() => this.viewModel.openBankConfig(this.data.subjectId, bank.bankId, bank.chapterId), false) },
+  handleBankConfigure(e) { const bank = e.detail.bank; return this.openPracticeTarget(() => this.viewModel.openBankConfig(this.data.subjectId, bank.bankId, bank.chapterId), true) },
+  handleSearchResultTap(e) { const d = e.currentTarget.dataset; return this.openPracticeTarget(() => this.viewModel.openBankConfig(d.subjectId, d.bankId, d.chapterId), false) },
+  handleSearchConfigure(e) { const d = e.currentTarget.dataset; return this.openPracticeTarget(() => this.viewModel.openBankConfig(d.subjectId, d.bankId, d.chapterId), true) },
+  handleStatTap() { return this.openPracticeTarget(() => this.viewModel.openSubjectConfig(this.data.subjectId), true) },
+  handleExitMock() { this.viewModel.mockSelection = false; this.setData({ mockSelection: false }); this.handleSheetClose() },
+  handleSheetCount(event) { this.applyViewModelResult(this.viewModel.setSheetCount(event.currentTarget.dataset.value === 'ALL' ? 'ALL' : Number(event.currentTarget.dataset.value))) },
 
   handleSheetBank(event) {
     this.applyViewModelResult(this.viewModel.setSheetBank(event.currentTarget.dataset.id))
+    return this.refreshSheetScope()
   },
 
   handleSheetMode(e) {
     this.applyViewModelResult(this.viewModel.setSheetMode(e.currentTarget.dataset.value))
   },
 
-  handleSheetOrder(e) {
-    if (this.data.sheetOrderDisabled) {
-      wx.showToast({
-        title: '背题模式固定按顺序',
-        icon: 'none'
-      })
-      return
-    }
-
-    this.applyViewModelResult(this.viewModel.setSheetOrder(e.currentTarget.dataset.value))
-  },
-
-  handleSheetTimed(e) {
-    this.applyViewModelResult(this.viewModel.setSheetTimed(e.detail.value))
-  },
-
+  handleSheetPreset(e) { this.applyViewModelResult(this.viewModel.selectSheetPreset(Number(e.detail.value))) },
+  handleCustomDuration(e) { this.applyViewModelResult(this.viewModel.setCustomDuration(e.detail.value)) },
+  async refreshSheetScope() { const pending = this.viewModel.refreshSheetScope(); this.setData(this.viewModel.buildSheetData()); this.applyViewModelResult(await pending) },
   handleSheetDuration(e) {
     const value = e.currentTarget.dataset.value
     const result = this.viewModel.selectDuration(value)
@@ -311,14 +298,20 @@ Page(withPageLifecycle({
 
   handleSheetOnlyWrong(e) {
     this.applyViewModelResult(this.viewModel.setSheetOnlyWrong(e.detail.value))
+    return this.refreshSheetScope()
   },
 
   handleSheetClose() {
     this.applyViewModelResult(this.viewModel.closeConfig())
   },
 
-  handleConfigConfirm() {
-    this.applyViewModelResult(this.viewModel.confirmConfig(this.data))
+  async handleConfigConfirm() {
+    if (this.isOpeningPractice || this.data.sheetStartDisabled) return
+    this.isOpeningPractice = true
+    wx.showLoading({ title: '正在准备答题', mask: true })
+    try { this.applyViewModelResult(await this.viewModel.confirmConfig(this.data)) }
+    catch (error) { wx.showToast({ title: error.message || '开始失败，请重试', icon: 'none' }) }
+    finally { wx.hideLoading(); this.isOpeningPractice = false }
   },
 
   applyViewModelResult(result) {

@@ -2,6 +2,7 @@
   "navigationBarTitleText": "",
   "navigationBarBackgroundColor": "#FFFFFF",
   "navigationBarTextStyle": "black",
+  "disableScroll": true,
   "usingComponents": {
     "light-toast": "/components/light-toast/index",
     "question-images": "/components/question-images/index",

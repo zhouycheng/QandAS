@@ -9,7 +9,7 @@ class PracticeLayoutViewModel {
         const prefs = preferences.getPreferences(this.storage);
         this.order = prefs.moduleOrder;
         this.savedOrder = this.order.slice();
-        const session = new PracticeSession({ quiz: { subjectId: 'layout-example', bankId: 'layout-example', sharePath: '/page/practice-layout/index', title: '答题布局预览', questions: [SAMPLE] }, mode: 'order', preferences: Object.assign({}, prefs, { autoShowExplanation: true, autoNextWhenCorrect: false, showOverviewEntry: true }) });
+        const session = new PracticeSession({ quiz: { subjectId: 'layout-example', bankId: 'layout-example', sharePath: '/page/practice-layout/index', title: '答题布局预览', questions: [SAMPLE] }, mode: 'order', preferences: Object.assign({}, prefs, { autoShowExplanation: true, autoNextWhenCorrect: false }) });
         session.reset();
         session.selectOption(1);
         session.state.isViewMode = true;

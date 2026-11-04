@@ -103,7 +103,7 @@ async function main() {
   const homeMarkup = fs.readFileSync(require.resolve('../miniprogram/page/subject-list/index.wxml'), 'utf8')
   assert(bankMarkup.indexOf('catalog-filters') > bankMarkup.indexOf('bk-search'))
   assert(bankMarkup.indexOf('catalog-filters') < bankMarkup.indexOf('class="workbench"'))
-  assert.equal((bankMarkup.match(/<picker /g) || []).length, 3)
+  assert.equal((bankMarkup.match(/<picker class="catalog-picker"/g) || []).length, 3)
   assert(!homeMarkup.includes('catalog-filters'))
   assert(!bankMarkup.includes('<page-header'))
   assert(bankMarkup.includes('class="rail"') && bankMarkup.includes('class="panel"'))

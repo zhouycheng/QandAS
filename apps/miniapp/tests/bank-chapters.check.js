@@ -55,7 +55,7 @@ async function main() {
   assert.equal(model.setSheetBank('all').data.sheetStartDisabled, true)
   model.setSheetBank('all')
   const sheet = await model.openBankConfig('s', 'a', 'a2')
-  assert.equal(sheet.data.configSubtitle, '题库甲 · 第二章 · 2 题')
+  assert.equal(sheet.data.configSubtitle, '题库甲 · 第二章 · 共 2 题')
   assert.equal(sheet.data.sheetWrongCount, 1)
   assert.equal(sheet.data.sheetChapters, undefined)
   await model.confirmConfig()

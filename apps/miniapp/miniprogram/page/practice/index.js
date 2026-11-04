@@ -1,5 +1,6 @@
 const { viewPatch } = require('../../models/view-patch.js')
 const { swipeDirection } = require('../../utils/question-swipe.js')
+const { allocateHeights, viewportHeight, resetScroll } = require('../../utils/practice-layout.js')
 const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { PracticeViewModel } = require('../../viewmodels/practice-viewmodel.js')
@@ -12,18 +13,100 @@ const AUTO_ADVANCE_DELAY = 800
 
 Page(withPageLifecycle({
   data: Object.assign(PracticeViewModel.getInitialData(), {
-    // 长解析默认收起（设计稿「剩下的收起来了」）。纯界面状态，不进 ViewModel：
-    // 换题时由 applyViewModelResult 归零，和答题逻辑没有关系
+    // 解析展开状态只属于当前题目，不进入练习快照。
     explanationOpen: false,
-    questionScrollTop: 0
+    practiceWindowHeight: 0,
+    keyboardVisible: false,
+    keyboardCompact: false,
+    paneHeights: { material: 0, stem: 140, response: 220, analysis: 0 },
+    paneOverflow: {},
+    paneScroll: { material: 0, stem: 0, response: 0, analysis: 0 }
   }),
 
   onLoad(options) {
+    this.updateWindowHeight()
     this.viewModel = new PracticeViewModel({
       storage: createWxStorageAdapter()
     })
     this.routeOptions = options || {}
     this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')
+  },
+
+  onForegroundReady() { this.updateWindowHeight(); this.scheduleMeasure() },
+  onResize() { this.updateWindowHeight(); this.scheduleMeasure() },
+
+  updateWindowHeight() {
+    if (typeof wx.getWindowInfo !== 'function') return
+    const info = wx.getWindowInfo()
+    if (!this.keyboardVisible && (!this.answerFocused || !this.fullWindowHeight || info.windowWidth !== this.fullWindowWidth || info.windowHeight >= this.fullWindowHeight)) {
+      this.fullWindowHeight = info.windowHeight
+      this.fullWindowWidth = info.windowWidth
+    }
+    this.setData({ practiceWindowHeight: viewportHeight(info.windowHeight, this.fullWindowHeight || info.windowHeight, this.keyboardHeight || 0) })
+  },
+
+  scheduleMeasure() {
+    if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted) return
+    clearTimeout(this.measureTimer)
+    this.measureVersion = (this.measureVersion || 0) + 1
+    this.measureTimer = setTimeout(() => { this.measureTimer = null; this.measurePanes() }, 0)
+  },
+
+  measurePanes() {
+    if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted || !this.createSelectorQuery) return
+    const question = this.data.currentQuestion
+    if (!question) return
+    const query = this.createSelectorQuery()
+    query.select('.pra-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom', 'row-gap'] })
+    query.selectAll('.module-info, .module-tools').boundingClientRect()
+    query.selectAll('.pra-pane-content').boundingClientRect()
+    const currentIndex = this.data.currentIndex
+    const version = this.measureVersion
+    query.exec(results => {
+      if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted || this.measureVersion !== version || this.data.currentIndex !== currentIndex || !results || !results[0]) return
+      const [content, fixed, panes] = results
+      const gap = parseFloat(content['row-gap']) || 0
+      const material = !!question.material && !this.keyboardVisible
+      const analysis = !!this.data.shouldRevealAnswer && !this.keyboardVisible
+      const response = !question.isFillBlank
+      const moduleCount = 3 + Number(response) + Number(analysis) - Number(!!this.data.keyboardCompact)
+      const fixedHeight = (fixed || []).reduce((sum, rect) => sum + rect.height, 0)
+      const height = content.height - fixedHeight - (parseFloat(content['padding-top']) || 0) - (parseFloat(content['padding-bottom']) || 0) - gap * (moduleCount - 1 + Number(material))
+      if (this.keyboardVisible && height < 64 && !this.data.keyboardCompact) {
+        this.setData({ keyboardCompact: true }, () => this.scheduleMeasure())
+        return
+      }
+      const contentHeights = {}
+      ;(panes || []).forEach(rect => { contentHeights[rect.dataset.pane] = rect.height })
+      if (question.isShortAnswer) contentHeights.response = Infinity
+      const layout = allocateHeights({ height, material, analysis, response, contentHeights, keyboard: !!this.keyboardVisible })
+      const patch = viewPatch(this.data, { paneHeights: layout.heights, paneOverflow: layout.overflow })
+      if (this.keyboardScrollRestore) {
+        patch.paneScroll = {}
+        Object.keys(this.data.paneScroll).forEach(pane => {
+          const value = this.keyboardScrollRestore[pane] || 0
+          patch.paneScroll[pane] = this.data.paneScroll[pane] === value ? value + 0.01 : value
+        })
+        this.panePositions = Object.assign({}, patch.paneScroll)
+        this.keyboardScrollRestore = null
+      }
+      if (Object.keys(patch).length) this.setData(patch, () => this.revealFocusedBlank())
+      else this.revealFocusedBlank()
+    })
+  },
+
+  onPaneScroll(event) {
+    if (!this.panePositions) this.panePositions = {}
+    this.panePositions[event.currentTarget.dataset.pane] = event.detail.scrollTop
+  },
+
+  revealFocusedBlank() {
+    if (!this.keyboardVisible || !this.answerFocused || !this.focusedBlank) return
+    const { top, height } = this.focusedBlank
+    const current = this.panePositions && this.panePositions.stem || 0
+    const visible = this.data.paneHeights.stem
+    const target = top < current ? top : top + height > current + visible - 12 ? Math.max(0, top + height - visible + 12) : current
+    if (target !== current) this.setData({ 'paneScroll.stem': target })
   },
 
   onShow() {
@@ -37,6 +120,13 @@ Page(withPageLifecycle({
   },
 
   onHide() {
+    clearTimeout(this.measureTimer)
+    if (this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
+    this.keyboardVisible = false
+    this.keyboardHeight = 0
+    this.answerFocused = false
+    this.focusedBlank = null
+    this.setData({ keyboardVisible: false, keyboardCompact: false })
     this.pageVisible = false
     this.clearAutoAdvance()
     this.swipeStart = null
@@ -54,6 +144,7 @@ Page(withPageLifecycle({
   },
 
   onUnload() {
+    clearTimeout(this.measureTimer)
     this.pageVisible = false
     this.clearAutoAdvance()
     this.swipeStart = null
@@ -79,7 +170,10 @@ Page(withPageLifecycle({
 
   observeSaveStatus() {
     if (this.stopSaveStatus || this.pageVisible === false || !this.viewModel || !this.viewModel.online || !this.viewModel.session) return
-    this.stopSaveStatus = this.viewModel.observeSaveStatus(data => { if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data) })
+    this.stopSaveStatus = this.viewModel.observeSaveStatus(data => {
+      const changed = data.canRetrySync !== this.data.canRetrySync || data.saveStatusText !== this.data.saveStatusText
+      if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data, () => { if (changed) this.scheduleMeasure() })
+    })
   },
   retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
 
@@ -119,9 +213,22 @@ Page(withPageLifecycle({
   },
 
   ignoreSwipe() { this.swipeStart = null },
-  onAnswerFocus() { this.answerFocused = true; this.ignoreSwipe() },
-  onAnswerBlur() { this.answerFocused = false },
-  onKeyboardHeight(e) { this.keyboardVisible = e.detail.height > 0; this.ignoreSwipe() },
+  onAnswerFocus(event) {
+    this.answerFocused = true
+    if (event && event.detail && event.detail.offsetTop !== undefined) this.focusedBlank = { top: event.detail.offsetTop, height: event.detail.height }
+    this.ignoreSwipe()
+    this.revealFocusedBlank()
+  },
+  onAnswerBlur() { this.answerFocused = false; this.focusedBlank = null },
+  onKeyboardHeight(e) {
+    const height = Math.max(0, e.detail.height || 0)
+    if (height > 0 && !this.keyboardVisible) this.keyboardPanePositions = Object.assign({}, this.panePositions)
+    if (!height && this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
+    this.keyboardHeight = height
+    this.keyboardVisible = this.keyboardHeight > 0
+    this.ignoreSwipe()
+    this.setData({ keyboardVisible: this.keyboardVisible, keyboardCompact: false }, () => { this.updateWindowHeight(); this.scheduleMeasure() })
+  },
   onTextSelection() { this.textSelectionActive = true; this.ignoreSwipe() },
   canSwipe() {
     return (this.data.isViewMode || this.data.feedback === 'AFTER_FINISH') && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive
@@ -262,7 +369,7 @@ Page(withPageLifecycle({
   toggleExplanation() {
     this.setData({
       explanationOpen: !this.data.explanationOpen
-    })
+    }, () => this.scheduleMeasure())
   },
 
   toggleFavorite() {
@@ -373,11 +480,15 @@ Page(withPageLifecycle({
         this.clearAutoAdvance()
         this.textSelectionActive = false
         patch.explanationOpen = !!patch.isViewMode
-        patch.questionScrollTop = this.data.questionScrollTop === 0 ? 0.01 : 0
+        patch.paneScroll = resetScroll(this.data.currentQuestion, patch.currentQuestion, this.data.paneScroll, this.panePositions || {})
+        this.panePositions = Object.assign({}, patch.paneScroll)
+        this.focusedBlank = null
+        this.keyboardScrollRestore = null
       }
 
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
-      this.setData(viewPatch(this.data, patch), runEffects)
+      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'shouldShowExplanation', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      this.setData(viewPatch(this.data, patch), () => { runEffects(); if (layoutChanged) this.scheduleMeasure() })
       return
     }
 

@@ -59,17 +59,16 @@ function updatePreferenceText(storage, key, value) {
   return savePreferences(storage, setPreferenceText(getPreferences(storage), key, value))
 }
 
-/** 答题偏好独立恢复默认，保留布局与考试倒计时。 */
+/** 恢复长期习惯，保留预设、布局和倒计时。 */
 function resetPreferences(storage) {
   const current = getPreferences(storage)
-  return savePreferences(storage, Object.assign(normalizePreferences(null), { moduleOrder: current.moduleOrder, examCountdowns: current.examCountdowns, examName: current.examName, examDate: current.examDate }))
+  const defaults = normalizePreferences(null)
+  for (const key of ['autoAddWrongBook', 'vibrateOnAnswer', 'fontSize', 'practiceOrder', 'autoShowExplanation', 'autoNextWhenCorrect']) current[key] = defaults[key]
+  return savePreferences(storage, current)
 }
-
-module.exports = {
-  getPreferences,
-  resetPreferences,
-  savePreferences,
-  updatePreferenceChoice,
-  updatePreferenceSwitch,
-  updatePreferenceText
+function getDefaultPracticeRoute(storage) {
+  const preferences = getPreferences(storage)
+  const { defaultPreset, routeForPreset } = require('../utils/practice-presets.js')
+  return routeForPreset(defaultPreset(preferences), preferences)
 }
+module.exports = { getPreferences, resetPreferences, savePreferences, getDefaultPracticeRoute, updatePreferenceChoice, updatePreferenceSwitch, updatePreferenceText }

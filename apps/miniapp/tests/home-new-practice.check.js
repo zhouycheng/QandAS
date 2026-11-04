@@ -39,7 +39,8 @@ async function main() {
   metas.b3 = { bankId: 'b3', title: '语法', subjectId: 's2', description: '英语' }
   const command = await vm.openNewPractice(recent.subjects[0].banks[1])
   assert.deepEqual(scope, { questionBankId: 'b2', count: 20, completeFirstGroup: true, order: 'SEQUENTIAL', selectionKind: 'NORMAL', collectionChip: 'all' })
-  assert.match(command.command.payload.url, /bankId=b2&mode=order&count=20/)
+  const query = new URL(command.command.payload.url, 'https://example.test').searchParams
+  assert.equal(query.get('bankId'), 'b2'); assert.equal(query.get('mode'), 'order'); assert.equal(query.get('count'), '20')
   assert.match(command.command.payload.url, /selectionKey=key/)
   assert.equal((await vm.openNewPractice()).command.url, '/page/bank-detail/index')
   repository.previewRemotePracticeScope = async () => ({ selectedCount: 0 })
@@ -86,8 +87,8 @@ async function main() {
   const listCss = fs.readFileSync(require.resolve('../miniprogram/styles/list-page.wxss'), 'utf8')
   for (const [css, name] of [[homeCss, 'hero-brand'], [bankCss, 'bk-title'], [listCss, 'page-head-title']]) assert.match(css, new RegExp('\\.' + name + '\\s*\\{[^}]*font-size:\\s*var\\(--font-(?:title|display)\\)'))
   assert.match(homeCss, /\.hero\s*\{[^}]*padding:\s*0 36rpx/)
-  assert.match(bankCss, /\.bk-head\s*\{[^}]*padding:\s*0 26rpx/)
-  assert.match(bankCss, /\.bk-navigation\s*\{[^}]*padding-left:\s*10rpx/)
+  assert.match(bankCss, /\.bk-head\s*\{[^}]*padding:\s*0 var\(--space-lg\)/)
+  assert.match(bankCss, /\.bk-navigation\s*\{[^}]*padding-left:\s*4rpx/)
   assert.match(listCss, /\.page-head\s*\{[^}]*padding:\s*0 36rpx/)
   assert.doesNotMatch((listCss.match(/\.page-head\s*\{[^}]*\}/) || [''])[0], /border-bottom/)
   console.log('首页答题卡片：近期科目与题库联动、创建和空态通过')

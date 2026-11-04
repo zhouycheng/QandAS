@@ -1,4 +1,5 @@
 Component({
+  options: { multipleSlots: true },
   properties: {
     visible: {
       type: Boolean,
@@ -11,6 +12,10 @@ Component({
     placement: {
       type: String,
       value: 'bottom'
+    },
+    fixedFooter: {
+      type: Boolean,
+      value: false
     }
   },
 
