@@ -24,6 +24,30 @@ class ContentSafetyPostgresTest: PostgresFixture() {
         eventually { state(s,ticket)["state"].asText()=="PASSED" }
     }
 
+    @Test fun `interrupted import checks retain their stored media for recovery`() {
+        val actor=sessionService.authenticate(adminToken)
+        val context=contentSafety.context(actor,"local-learner-1:${UUID.randomUUID()}")
+        val requestId=UUID.randomUUID();val mediaId=UUID.randomUUID();val workerToken=UUID.randomUUID()
+        val bytes=ByteArrayOutputStream().also { ImageIO.write(BufferedImage(16,16,BufferedImage.TYPE_INT_RGB),"png",it) }.toByteArray()
+        val hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+        org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult {
+            jdbc.update("INSERT INTO content_safety_request(id,actor_id,session_id,actor_kind,operation,payload_json,payload_digest,context_id,state,expires_at,worker_token,worker_heartbeat_at) VALUES(?,?,?,'ADMIN','EXCEL_IMPORT:banks','{}',?,?, 'RUNNING',now()+interval '30 minutes',?,now()-interval '2 minutes')",
+                requestId,actor.id,actor.sessionId,byteArrayOf(1),context.id,workerToken)
+            jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,'image/png',?,?,now()+interval '10 minutes','PENDING')",
+                mediaId,requestId,bytes,hash,byteArrayOf(2))
+        }
+
+        contentSafety.tick()
+
+        eventually {
+            jdbc.queryForObject("SELECT count(*) FROM content_safety_media WHERE id=? AND trace_id IS NOT NULL",Int::class.java,mediaId)==1 &&
+                jdbc.queryForObject("SELECT state FROM content_safety_request WHERE id=?",String::class.java,requestId)=="PENDING"
+        }
+        val trace=jdbc.queryForObject("SELECT trace_id FROM content_safety_media WHERE id=?",String::class.java,mediaId)
+        contentSafety.callback(trace,"pass")
+        eventually { jdbc.queryForObject("SELECT state FROM content_safety_request WHERE id=?",String::class.java,requestId)=="PASSED" }
+    }
+
     @Test fun `email users get session bound content contexts without acquiring login identities`() {
         val s=student();val input=mapOf("expectedVersion" to 1,"nickname" to "检测通过昵称")
         assertEquals(409,raw("PUT","/me/profile",input,s.token).statusCode())

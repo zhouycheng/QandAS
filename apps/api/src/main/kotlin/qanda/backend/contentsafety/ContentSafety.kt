@@ -194,8 +194,9 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
             }
             visit(value)
             val images=mutableListOf<Pair<ByteArray,String>>()
-            jdbc.queryForList("SELECT data,media_type FROM content_safety_media WHERE request_id=? AND trace_id IS NULL",id).forEach { images+=(it["data"] as ByteArray) to (it["media_type"] as String) }
-            jdbc.update("DELETE FROM content_safety_media WHERE request_id=? AND trace_id IS NULL",id)
+            val storedMedia=jdbc.queryForList("SELECT id,data,media_type,sha256,trace_id FROM content_safety_media WHERE request_id=?",id)
+            val knownHashes=storedMedia.map { it["sha256"] as String }.toMutableSet()
+            val pendingMedia=storedMedia.filter { it["trace_id"]==null }.toMutableList()
             fun media(node: JsonNode,field: String="") {
                 if(node.isObject) node.fields().forEachRemaining { media(it.value,it.key) }
                 else if(node.isArray && field=="assetIds" && !(row["operation"] as String).startsWith("EXCEL_IMPORT:")) node.forEach { images+=files.read(actor,UUID.fromString(it.asText())) to "image/png" }
@@ -214,15 +215,28 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
                 images+=normalized.bytes to "image/png"
             }
             images.distinctBy { java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(it.first)) }.forEach { (bytes,contentType) ->
+                val hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+                if(knownHashes.add(hash)) {
+                    val mediaId=UUID.randomUUID();val fetch=crypto.randomToken()
+                    jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,?,?,?,?,'PENDING')",
+                        mediaId,id,bytes,contentType,hash,crypto.tokenDigest(fetch),Timestamp.from(clock.instant().plusSeconds(600)))
+                    pendingMedia+=mapOf("id" to mediaId,"data" to bytes,"media_type" to contentType,"sha256" to hash)
+                }
+            }
+            if(pendingMedia.isNotEmpty()) {
                 val base=environment.getProperty("BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL")?.trimEnd('/') ?: throw ApiException(HttpStatus.SERVICE_UNAVAILABLE,"CONTENT_SAFETY_UNAVAILABLE","内容检查地址尚未配置")
                 val uri=runCatching { java.net.URI(base) }.getOrElse { invalid("/mediaUrl") }
                 if(uri.scheme!="https" || uri.host==null || uri.userInfo!=null || uri.query!=null || uri.fragment!=null) invalid("/mediaUrl")
-                val mediaId=UUID.randomUUID();val fetch=crypto.randomToken()
-                jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,?,?,?,?,'PENDING')",
-                    mediaId,id,bytes,contentType,java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)),crypto.tokenDigest(fetch),Timestamp.from(clock.instant().plusSeconds(600)))
-                renewWorker(id,workerToken)
-                val trace=checks.media(context["open_id"] as String,base+"/api/v1/content-safety/media/$mediaId?token=$fetch",scene)
-                jdbc.update("UPDATE content_safety_media SET trace_id=? WHERE id=?",trace.traceId,mediaId)
+                pendingMedia.forEach { item ->
+                    val mediaId=item["id"] as UUID;val fetch=crypto.randomToken()
+                    renewWorker(id,workerToken)
+                    jdbc.update("UPDATE content_safety_media SET fetch_digest=?,fetch_expires_at=? WHERE id=? AND trace_id IS NULL",
+                        crypto.tokenDigest(fetch),Timestamp.from(clock.instant().plusSeconds(600)),mediaId)
+                    val trace=checks.media(context["open_id"] as String,base+"/api/v1/content-safety/media/$mediaId?token=$fetch",scene)
+                    renewWorker(id,workerToken)
+                    if(jdbc.update("UPDATE content_safety_media SET trace_id=? WHERE id=? AND trace_id IS NULL",trace.traceId,mediaId)!=1)
+                        conflict("CONTENT_CHECK_INTERRUPTED","内容检查任务已转交处理")
+                }
             }
             tx.executeWithoutResult {
                 sessions.checkInTransaction(actor)
