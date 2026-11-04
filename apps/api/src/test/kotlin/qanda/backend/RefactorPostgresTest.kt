@@ -80,7 +80,8 @@ class RefactorPostgresTest : PostgresFixture() {
         val major=id(call("POST","/admin/majors",mapOf("name" to "专业${UUID.randomUUID()}","code" to "M${UUID.randomUUID()}","collegeId" to college)))
         val f=fixture(listOf(mapOf("majorId" to major,"grade" to 2)))
         val needle="检索"+UUID.randomUUID()
-        call("PUT","/admin/questions/"+f.questions.first(),question(f.bank,"SINGLE_CHOICE")+mapOf("stem" to needle,"expectedVersion" to 1))
+        val optionNeedle="选项检索"+UUID.randomUUID()
+        call("PUT","/admin/questions/"+f.questions.first(),question(f.bank,"SINGLE_CHOICE")+mapOf("stem" to needle,"options" to listOf(mapOf("key" to "A","content" to optionNeedle),mapOf("key" to "B","content" to "其他选项")),"expectedVersion" to 1))
         val a=student();val b=student()
         for(token in listOf(null,a.token,b.token)) {
             assertEquals(f.bank.toString(),call("GET","/question-banks/${f.bank}",token=token)["id"].asText())
@@ -89,6 +90,8 @@ class RefactorPostgresTest : PostgresFixture() {
             assertEquals(0,call("GET","/question-banks?subjectId=${f.subject}&grade=3",token=token)["total"].asInt())
             val search=call("GET","/search?keyword=$needle&majorId=$major&grade=2&kind=QUESTION",token=token)
             assertTrue(search["items"].any { it["questionBankId"].asText()==f.bank.toString() })
+            val optionSearch=call("GET","/search?keyword=$optionNeedle&majorId=$major&grade=2&kind=QUESTION",token=token)
+            assertTrue(optionSearch["items"].any { it["questionBankId"].asText()==f.bank.toString() })
             assertTrue(search["items"].all { !it.has("correctAnswer") && !it.has("explanation") })
         }
     }

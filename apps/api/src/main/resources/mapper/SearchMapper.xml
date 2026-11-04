@@ -10,7 +10,7 @@
     UNION ALL
     SELECT 'QUESTION',q.id,b.subject_id,b.id,q.chapter_id,q.id,left(r.stem,120),left(r.stem,240),r.type FROM question q JOIN banks b ON b.id=q.bank_id JOIN question_revision r ON r.id=q.current_revision_id
     WHERE question_active(q.id) AND (q.reading_parent_id IS NULL OR EXISTS(SELECT 1 FROM question parent WHERE parent.id=q.reading_parent_id AND parent.status='ACTIVE'))
-    AND (#{questionType}::text IS NULL OR r.type=#{questionType}) AND (position(lower(#{keyword}) in lower(r.stem))>0 OR position(lower(#{keyword}) in lower(r.content_data::jsonb->>'passage'))>0)
+    AND (#{questionType}::text IS NULL OR r.type=#{questionType}) AND (position(lower(#{keyword}) in lower(r.stem))>0 OR position(lower(#{keyword}) in lower(r.content_data::jsonb->>'passage'))>0 OR EXISTS(SELECT 1 FROM question_option o WHERE o.revision_id=r.id AND position(lower(#{keyword}) in lower(o.content))>0))
   )</sql>
   <sql id="kind">WHERE (#{kind}::text IS NULL OR kind=#{kind})</sql>
   <select id="search" resultType="qanda.backend.content.SearchResult"><include refid="results"/> SELECT * FROM results <include refid="kind"/> ORDER BY kind,title,id LIMIT #{limit} OFFSET #{offset}</select>
