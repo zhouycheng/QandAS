@@ -1,30 +1,30 @@
 const { AccountSecurityRepository } = require('../repositories/account-security-repository.js');
 const { uuid } = require('../repositories/api-transport.js');
-const { isValidEmail, isValidCode, isValidPassword, maskEmail, PASSWORD_HINT } = require('../utils/auth-form.js');
+const { isValidEmail, isValidCode, maskEmail } = require('../utils/auth-form.js');
 class AccountSecurityViewModel {
     constructor(options) {
         this.repository = options.repository || new AccountSecurityRepository(options.storage);
-        this.mode = options.mode === 'email' ? 'email' : 'password';
+        this.mode = 'email';
         this.stage = 'loading';
-        this.fields = { email: '', code: '', password: '', confirm: '' };
+        this.fields = { email: '', code: '' };
         this.profile = {};
         this.now = options.now || Date.now;
         this.cooldownEndAt = 0;
     }
     static getInitialData() {
-        return { title: '账号安全', stage: 'loading', emailMasked: '', passwordHint: PASSWORD_HINT,
+        return { title: '账号绑定', stage: 'loading', emailMasked: '',
             sending: false, submitting: false, errorText: '', errorField: '', loadError: '', actionLabel: '下一步' };
     }
     result(command) {
-        const title = this.stage === 'verify' ? '验证邮箱' : this.mode === 'password' ? (this.profile.passwordSet ? '更改密码' : '设置登录密码') : (this.profile.email ? '更换邮箱' : '绑定邮箱');
-        const actionLabel = this.stage === 'verify' ? '验证并继续' : this.stage === 'password' ? '确认更改' : '确认绑定';
+        const title = this.stage === 'verify' ? '验证当前邮箱' : (this.profile.email ? '更换邮箱' : '绑定邮箱');
+        const actionLabel = this.stage === 'verify' ? '验证并继续' : '确认绑定';
         return { data: { title, stage: this.stage, emailMasked: maskEmail(this.profile.email),
                 sending: !!this.sending, submitting: !!this.submitting, errorText: this.errorText || '', errorField: this.errorField || '', loadError: this.loadError || '', actionLabel }, command };
     }
     async load() {
         try {
             this.profile = await this.repository.load();
-            this.stage = this.profile.isTestAccount ? 'test-account' : this.profile.email ? 'verify' : this.mode === 'email' ? 'email' : 'need-email';
+            this.stage = this.profile.isTestAccount ? 'test-account' : this.profile.email ? 'verify' : 'email';
             this.loadError = '';
             return this.result();
         }
@@ -62,7 +62,7 @@ class AccountSecurityViewModel {
             this[slot] = { body, key: uuid() };
         return this[slot].key;
     }
-    purpose() { return this.stage === 'verify' ? this.mode === 'password' ? 'CHANGE_PASSWORD' : 'CHANGE_EMAIL_OLD' : this.profile.email ? 'CHANGE_EMAIL_NEW' : 'BIND_EMAIL'; }
+    purpose() { return this.stage === 'verify' ? 'CHANGE_EMAIL_OLD' : this.profile.email ? 'CHANGE_EMAIL_NEW' : 'BIND_EMAIL'; }
     async sendCode() {
         if (this.sending || this.submitting || this.cooldownEndAt > this.now() || !['verify', 'email'].includes(this.stage))
             return null;
@@ -99,30 +99,14 @@ class AccountSecurityViewModel {
     }
     validProof(proof) { return proof && Date.parse(proof.expiresAt) > this.now(); }
     async submit() {
-        if (this.submitting || this.sending || !['verify', 'password', 'email'].includes(this.stage))
+        if (this.submitting || this.sending || !['verify', 'email'].includes(this.stage))
             return null;
         this.submitting = true;
         this.errorText = '';
         this.errorField = '';
         let command;
         try {
-            if (this.stage === 'password') {
-                if (!this.validProof(this.oldProof)) {
-                    this.stage = 'verify';
-                    this.challenge = null;
-                    throw new Error('验证已过期，请重新验证邮箱');
-                }
-                if (!isValidPassword(this.fields.password))
-                    throw Object.assign(new Error(PASSWORD_HINT), { field: 'password' });
-                if (this.fields.password !== this.fields.confirm)
-                    throw Object.assign(new Error('两次输入的密码不一致'), { field: 'confirm' });
-                const input = { expectedVersion: this.profile.version, challengeId: this.oldProof.id, code: this.oldProof.code, newPassword: this.fields.password };
-                await this.repository.password(input, this.intent('writeIntent', input));
-                this.repository.expire();
-                this.dispose();
-                command = { type: 'login', title: '密码已更改，请重新登录', email: this.profile.email, reason: 'password-updated' };
-            }
-            else {
+            {
                 if (!this.validProof(this.challenge))
                     throw Object.assign(new Error('请先获取有效验证码'), { field: 'code' });
                 if (!isValidCode(this.fields.code))
@@ -132,9 +116,7 @@ class AccountSecurityViewModel {
                     this.oldProof = Object.assign({}, this.challenge, { code: this.fields.code });
                     this.challenge = null;
                     this.fields.code = '';
-                    this.fields.password = '';
-                    this.fields.confirm = '';
-                    this.stage = this.mode === 'password' ? 'password' : 'email';
+                    this.stage = 'email';
                     this.cooldownEndAt = 0;
                     command = { type: 'reset-cooldown' };
                 }
@@ -164,13 +146,11 @@ class AccountSecurityViewModel {
             if (error.statusCode) {
                 this.writeIntent = null;
             }
-            if (error.code === 'VERIFICATION_FAILED' && this.stage === 'password')
-                this.stage = 'verify';
             return this.fail(error, error.field);
         }
     }
     dispose() {
-        this.fields = { email: '', code: '', password: '', confirm: '' };
+        this.fields = { email: '', code: '' };
         this.oldProof = null;
         this.challenge = null;
         this.writeIntent = null;

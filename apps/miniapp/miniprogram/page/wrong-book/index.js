@@ -85,12 +85,12 @@ Page(withPageLifecycle({
   },
 
   handleRemoveTap(e) {
+    if (this.data.type !== 'favorite') return
     const questionId = e.currentTarget.dataset.id
-    const isWrong = this.data.type === 'wrong'
 
     wx.showModal({
-      title: isWrong ? '移出错题本' : '取消收藏',
-      content: isWrong ? '移出后这道题不再出现在错题本里，确定继续吗？' : '确定取消收藏这道题吗？',
+      title: '取消收藏',
+      content: '确定取消收藏这道题吗？',
       success: (res) => {
         if (res.confirm) {
           this.applyViewModelResult(this.viewModel.removeItem(questionId))
@@ -101,21 +101,17 @@ Page(withPageLifecycle({
 
   // 管理态下主按钮是「清空」，非管理态是「开始练习」
   handleFooterTap() {
-    if (!this.data.manage) {
+    if (this.data.type !== 'favorite' || !this.data.manage) {
       this.applyViewModelResult(this.viewModel.createPracticeCommand())
       return
     }
 
-    const isWrong = this.data.type === 'wrong'
-
     wx.showModal({
-      title: isWrong ? '清空错题本' : '清空收藏',
-      content: isWrong
-        ? `将移除全部 ${this.data.totalCount} 道错题记录，确定继续吗？`
-        : `将清空全部 ${this.data.totalCount} 道收藏，确定继续吗？`,
+      title: '清空收藏',
+      content: `将清空全部 ${this.data.totalCount} 道收藏，确定继续吗？`,
       success: (res) => {
         if (res.confirm) {
-          this.applyViewModelResult(this.viewModel.clearAll())
+          this.applyViewModelResult(this.viewModel.clearFavorites())
         }
       }
     })

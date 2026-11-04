@@ -5,6 +5,8 @@ Page(withPageLifecycle({
   data: QuestionDetailViewModel.getInitialData(),
 
   onLoad(options) {
+    this.publicQuestionId = options && options.id || ''
+    if (wx.showShareMenu) wx.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] })
     this.viewModel = new QuestionDetailViewModel({
       storage: createWxStorageAdapter()
     })
@@ -15,6 +17,8 @@ Page(withPageLifecycle({
   handleToggleFavorite() {
     this.applyViewModelResult(this.viewModel.toggleFavorite(this.data.questionId))
   },
+  onShareAppMessage() { return { title: '题小搭 公开题目', path: this.publicQuestionId ? '/page/question-detail/index?id=' + encodeURIComponent(this.publicQuestionId) : '/page/subject-list/index' } },
+  onShareTimeline() { return { title: '题小搭 公开题目', query: this.publicQuestionId ? 'id=' + encodeURIComponent(this.publicQuestionId) : '' } },
 
   handleFeedback() {
     this.applyViewModelResult(this.viewModel.openFeedback())

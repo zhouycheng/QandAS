@@ -3,6 +3,7 @@ const authRepository = require('./auth-repository.js')
 const { observable, runInAction } = require('mobx-miniprogram')
 const { createResourceCache, queryKey } = require('./resource-cache.js')
 const { scopeKey } = require('../utils/profile-rules.js')
+const catalogFilters = require('./catalog-filters.js')
 const cache = createResourceCache()
 const TTL = { catalog: 300000, profile: 300000, learning: 30000, announcements: 60000, colleges: 86400000 }
 let enabled = false
@@ -44,7 +45,7 @@ function mutate(method, path, data) { return api.request(method, path, data, { i
 function resource(storage, name, query, ttl, path, publish, force) {
   if (!enabled) return Promise.resolve(null)
   const user = bind(storage)
-  const publicRead = /^\/(subjects|question-banks|questions|colleges)(\/|$)/.test(path)
+  const publicRead = /^\/(subjects|question-banks|questions|colleges|search)(\/|$)/.test(path)
   if (!user && !publicRead) return Promise.resolve(null)
   return cache.load(queryKey(name, query), ttl, () => get(path, query).then(data => { bind(storage); return data }), publish, force)
 }
@@ -58,12 +59,12 @@ function refreshOverview(storage, options) {
 }
 function refreshSubjects(storage, options) {
   bind(storage)
-  const query = { page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }
+  const query = Object.assign({ page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(storage))
   return resource(storage, 'subjects', query, TTL.catalog, '/subjects', data => {
     state.subjects = query.page === 1 ? data.items : mergeById(state.subjects, data.items); state.subjectTotal = data.total
   }, options && options.force)
 }
-function bankQuery(options) { return { subjectId: options && options.subjectId || undefined, keyword: options && options.keyword || undefined, page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined } }
+function bankQuery(options) { return Object.assign({ subjectId: options && options.subjectId || undefined, keyword: options && options.keyword || undefined, page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)) }
 function refreshBanks(storage, options) {
   bind(storage)
   const query = bankQuery(options)
@@ -131,12 +132,11 @@ function loadChapters(storage, id, options) {
 function getChapters(storage, id) { bind(storage); return state.chapters[id] || null }
 function refreshProfile(storage, options) {
   return resource(storage, 'profile', {}, TTL.profile, '/me', profile => {
-    const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, avatarUrl: profile.avatarUrl || '', email: profile.email || '', profile, version: profile.version, college: profile.collegeName || '' })
+    const nextAuth = Object.assign({}, authRepository.getAuth(storage), { nickname: profile.nickname, avatarUrl: profile.avatarUrl || '', email: profile.email || '', profile, version: profile.version })
     const nextScope = scopeKey(nextAuth)
     if (nextScope !== scope) { reset(); api.cancelReads(); scope = nextScope }
     state.profile = profile
     authRepository.saveAuth(storage, nextAuth)
-    require('./profile-onboarding-repository.js').syncSeen(nextAuth)
     persistSummary()
   }, options && options.force)
 }
@@ -150,11 +150,11 @@ function refreshAnnouncements(storage, options) {
 function refreshRecommendations(storage, options) {
   const user = bind(storage)
   const settings = options || {}
-  const query = { page: settings.page || 1, pageSize: 3 }
+  const query = Object.assign({ page: settings.page || 1, pageSize: 3 }, catalogFilters.query(storage))
   const cached = getResourceState('recommendations', query)
   if (query.page === 1 && !settings.force && state.recommendationPage > 1 && Date.now() - cached.at < TTL.catalog) return Promise.resolve(cached.data)
   if (settings.force && query.page === 1) cache.invalidate('recommendations:')
-  return resource(storage, 'recommendations', query, TTL.catalog, user ? '/me/recommendations' : '/subjects', data => {
+  return resource(storage, 'recommendations', query, TTL.catalog, '/subjects', data => {
     const items = data.items.map(item => item.subject ? Object.assign({}, item.subject, { questionCount: item.banks.reduce((total, entry) => total + entry.bank.activeQuestionCount, 0) }) : item)
     state.recommendations = query.page === 1 ? items : mergeById(state.recommendations, items)
     state.recommendationPage = query.page
@@ -195,8 +195,8 @@ function getCollection(storage, options) { bind(storage); return cache.read(quer
 function getCollectionSummary(storage, kind) { bind(storage); return cache.read(queryKey('collectionSummary', { kind })).data }
 function getOverview(storage) { bind(storage); return state.overview }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
-function getSubjectPage(page) { return cache.read(queryKey('subjects', { page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined })) }
-function getResourceState(name, query) { return cache.read(queryKey(name, query || {})) }
+function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
+function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
 function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements : [] }
 function getRecommendations(storage) { bind(storage); return state.recommendations }
 function getRecommendationPage(storage) { bind(storage); return { page: state.recommendationPage, total: state.recommendationTotal } }
@@ -208,7 +208,7 @@ function refresh(storage, kind, options) {
   const user = bind(storage)
   const settings = options || {}
   if (kind === 'catalog') return refreshCatalog(storage, settings)
-  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 })), refreshRecommendations(storage, settings)])
+  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 }))])
   if (!user) return Promise.resolve()
   if (kind === 'profile') return refreshProfile(storage, settings)
   if (kind === 'stats') return refreshStatistics(storage, settings)
@@ -295,20 +295,17 @@ async function clearFavorites(storage) {
     }
   }
 }
-function removeWrongQuestions() { return Promise.reject(new Error('错题记录随练习结果更新，请通过复习掌握题目')) }
 function searchQuestions(storage, keyword, page) {
   const user = bind(storage)
   const context = scopeKey(authRepository.getAuth(storage))
-  return api.request('GET', '/questions', { keyword, page: page || 1, pageSize: 20, view: 'summary' }).then(checked).then((result) => {
+  const selection = JSON.stringify(catalogFilters.query(storage))
+  return api.request('GET', '/search', Object.assign({ keyword, page: page || 1, pageSize: 20 }, catalogFilters.query(storage))).then(checked).then((result) => {
     bind(storage)
     if (owner !== user) throw new Error('账号已切换，请重新搜索')
-    if (scopeKey(authRepository.getAuth(storage)) !== context) throw new Error('资料范围已变化，请重新搜索')
-    cacheQuestions((result.items || []).map(q => Object.assign({}, q, { view: 'summary' })))
-    const index = getQuestionIndex()
-    return { total: result.total, page: result.page, items: (result.items || []).map((question) => {
-      const entry = index[question.id]
-      return { questionId: question.id, stem: question.stem, typeText: entry.question.typeText, sourceText: [entry.subjectName, entry.bankName].filter(Boolean).join(' · ') }
-    }) }
+    if (scopeKey(authRepository.getAuth(storage)) !== context || selection !== JSON.stringify(catalogFilters.query(storage))) throw new Error('筛选已变化，请重新搜索')
+    return { total: result.total, page: result.page, items: (result.items || []).map(item => Object.assign({}, item, {
+      questionId: item.id, stem: item.title, typeText: { BANK: '题库', CHAPTER: '章节', QUESTION: '题目' }[item.kind], sourceText: item.summary
+    })) }
   })
 }
 function getProfile(storage) { bind(storage); return state.profile }
@@ -323,16 +320,25 @@ function saveProfile(storage, patch) {
   const profile = getProfile(storage)
   if (!profile) return Promise.reject(new Error('请先刷新账号资料'))
   const user = owner
-  return mutate('PUT', '/me/profile', Object.assign({ expectedVersion: profile.version, nickname: profile.nickname, collegeId: profile.collegeId, majorId: profile.majorId }, patch)).then(() => {
+  return mutate('PUT', '/me/profile', Object.assign({ expectedVersion: profile.version, nickname: profile.nickname }, patch)).then(() => {
     if (bind(storage) !== user) throw new Error('账号已切换，请重新查看资料')
     reset(); api.cancelReads()
     return refreshProfile(storage, { force: true }).then(result => { scope = scopeKey(authRepository.getAuth(storage)); return result })
   })
 }
-module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, removeWrongQuestions, getProfile, getColleges, loadMajors, saveProfile }
+module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
 module.exports.getRecommendations = getRecommendations
 Object.assign(module.exports, { getRecommendationPage, refreshRecommendations })
+function invalidateCatalogFilters(next) {
+  if (!next) return null
+  ;['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:', 'recommendations:'].forEach(cache.invalidate)
+  runInAction(() => { state.subjects = []; state.banks = []; state.chapters = {}; state.recommendations = []; state.recommendationPage = 0; state.recommendationTotal = 0 })
+  api.cancelReads()
+  return next
+}
+module.exports.setCatalogFilters = function (storage, patch, options) { return invalidateCatalogFilters(catalogFilters.save(storage, patch, options)) }
+module.exports.toggleCatalogFilters = function (storage) { return invalidateCatalogFilters(catalogFilters.toggle(storage)) }
 module.exports.getChapters = getChapters
 
-Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadBank, loadChapters, previewPracticeScope, getScopePreview })
+Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })

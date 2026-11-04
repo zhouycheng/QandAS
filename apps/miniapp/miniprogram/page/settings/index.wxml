@@ -1,21 +1,21 @@
 <view class="secondary-page">
 <page-header title="答题偏好" />
-<view class="page settings-page">
-  <view class="settings-actions"><text class="section-reset" bindtap="handleResetPreferences" aria-role="button" aria-label="恢复默认答题偏好" hover-class="ghost-flat-hover" hover-start-time="0" hover-stay-time="80">恢复默认</text></view>
-  <view class="menu card">
-    <view class="menu-row" wx:for="{{switches}}" wx:key="key">
-      <view class="menu-main"><text class="menu-title">{{item.label}}</text><text class="menu-desc">{{item.description}}</text></view>
-      <switch class="menu-switch" checked="{{item.value}}" color="#2b7ffc" data-key="{{item.key}}" bindchange="handleSwitchChange" />
+<view class="page settings-page settings-detail">
+  <view class="menu settings-group">
+    <view class="menu-row settings-row" wx:for="{{switches}}" wx:key="key">
+      <view class="menu-main"><text class="menu-title settings-label">{{item.label}}</text><text class="menu-desc settings-note">{{item.description}}</text></view>
+      <switch class="menu-switch" checked="{{item.value}}" color="#2563EB" data-key="{{item.key}}" aria-label="{{item.label}}" bindchange="handleSwitchChange" />
     </view>
   </view>
-  <view class="menu card choice-card">
+  <view class="menu settings-group choice-card">
     <view class="choice-row" wx:for="{{choices}}" wx:key="key">
-      <text class="menu-title">{{item.label}}</text><text class="menu-desc">{{item.description}}</text>
+      <text class="menu-title settings-label">{{item.label}}</text><text class="menu-desc settings-note">{{item.description}}</text>
       <view class="choice-options">
         <view wx:for="{{item.options}}" wx:for-item="option" wx:key="value" class="choice-chip {{option.selected ? 'active' : ''}}" data-key="{{item.key}}" data-value="{{option.value}}" bindtap="handleChoiceTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{option.label}}</view>
       </view>
       <view class="font-preview font-{{fontSize}}"><text class="font-preview-text">{{fontPreviewText}}</text></view>
     </view>
   </view>
+  <view class="settings-actions"><button class="q-button q-button--text section-reset" bindtap="handleResetPreferences" aria-role="button" aria-label="恢复默认答题偏好" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">恢复默认</button></view>
 </view>
 </view>

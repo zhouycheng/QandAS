@@ -1,13 +1,14 @@
 <!-- 登录页｜设计稿 Figma 763:567（画板 402x874，系数 750/402） -->
 <view class="secondary-page">
-<page-header />
+<page-header title="登录" />
 <view class="auth-page">
-  <view class="brand">
-    <text class="brand-name">QandA</text>
-    <text class="brand-sub">答题系统</text>
+  <view class="auth-brand-area">
+    <view class="brand">
+      <text class="brand-name">题小搭</text>
+    </view>
   </view>
 
-  <text class="page-title">登录</text>
+  <view class="login-area">
   <view wx:if="{{loginNotice}}" class="login-notice">{{loginNotice}}</view>
 
   <view class="form login-form">
@@ -26,20 +27,44 @@
     </view>
 
     <view class="field" wx:if="{{!codeMode}}">
-      <text class="field-label">密码</text>
+      <text class="field-label">测试登录码</text>
       <password-input
         error="{{errorField === 'password'}}"
         value="{{password}}"
-        placeholder="请输入密码"
+        placeholder="请输入16位测试登录码"
         maxlength="16"
         confirm-type="done"
         bindinput="handlePasswordInput"
         bindconfirm="handleLoginTap"
       />
     </view>
-    <view class="field" wx:if="{{codeMode}}"><text class="field-label">邮箱验证码</text><input class="field-input" type="number" maxlength="6" value="{{code}}" placeholder="请输入六位验证码" bindinput="handleCodeInput" /><view role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80" bindtap="handleSendCode" aria-disabled="{{cooldown > 0}}">{{cooldown > 0 ? cooldown + ' 秒后重发' : '获取验证码'}}</view></view>
+    <view class="field" wx:if="{{codeMode}}">
+      <text class="field-label">邮箱验证码</text>
+      <view class="login-code-row">
+        <input
+          class="field-input {{errorField === 'code' ? 'field-input-error' : ''}}"
+          type="number"
+          maxlength="6"
+          value="{{code}}"
+          placeholder="请输入6位验证码"
+          placeholder-class="field-ph"
+          confirm-type="done"
+          bindinput="handleCodeInput"
+          bindconfirm="handleLoginTap"
+        />
+        <button
+          class="{{cooldown > 0 || submitting ? 'q-button--disabled' : ''}} q-button  login-code-send {{cooldown > 0 ? 'login-code-send-off' : ''}}"
+          aria-role="button"
+          aria-disabled="{{cooldown > 0}}"
+          bindtap="handleSendCode"
+          hover-class="q-button-hover"
+          hover-start-time="0"
+          hover-stay-time="80"
+         disabled="{{cooldown > 0 || submitting}}">{{cooldown > 0 ? cooldown + ' 秒后重发' : '获取验证码'}}</button>
+      </view>
+      <text class="login-code-hint" wx:if="{{codeSent}}">验证码有效期 10 分钟，发送后显示 60 秒倒计时。</text>
+    </view>
   </view>
-  <view class="entry-link" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80" bindtap="handleModeTap">{{codeMode ? '使用密码登录' : '使用邮箱验证码登录'}}</view>
 
   <view class="agree-row">
     <view
@@ -52,43 +77,29 @@
       <view class="checkbox {{agreed ? 'checkbox-on' : ''}} {{errorField === 'agreed' ? 'checkbox-error' : ''}}">
         <view class="checkbox-tick" wx:if="{{agreed}}"></view>
       </view>
-      <text class="agree-text">已阅读并同意用户协议和隐私政策</text>
+      <text class="agree-text">已阅读并同意</text>
     </view>
-
-    <text
-      class="forgot-link"
-      bindtap="handleForgotTap"
-      hover-class="text-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >忘记密码？</text>
+    <text class="agree-text agree-link" data-kind="agreement" catchtap="handleLegal">用户协议</text><text class="agree-text">和</text><text class="agree-text agree-link" data-kind="privacy" catchtap="handleLegal">隐私政策</text>
   </view>
 
-  <view
-    class="btn btn-primary login-submit"
+  <button
+    class="{{submitting ? 'q-button--disabled' : ''}} q-button q-button--primary btn btn-primary login-submit"
     bindtap="handleLoginTap"
-    hover-class="btn-hover"
+    hover-class="q-button-hover"
     hover-start-time="0"
     hover-stay-time="80"
-  >登录</view>
+   disabled="{{submitting}}" loading="{{submitting}}">{{testAccount ? '登录' : '登录 / 注册'}}</button>
 
-  <text class="or-text">或</text>
-
-  <view
-    class="btn btn-wechat wechat-btn"
+  <button
+    class="{{submitting ? 'q-button--disabled' : ''}} q-button  btn btn-wechat wechat-btn"
     bindtap="handleWechatTap"
-    hover-class="btn-hover"
+    hover-class="q-button-hover"
     hover-start-time="0"
     hover-stay-time="80"
-  >微信登录</view>
-
-
-  <text
-    class="entry-link"
-    bindtap="handleRegisterTap"
-    hover-class="text-hover"
-    hover-start-time="0"
-    hover-stay-time="80"
-  >没有账号？立即注册</text>
+   disabled="{{submitting}}" loading="{{submitting}}">
+    <view class="wechat-icon" aria-hidden="true"></view>
+    <text>微信登录</text>
+  </button>
+  </view>
 </view>
 </view>

@@ -1,10 +1,22 @@
 @import "../../styles/practice.wxss";
-.layout-editor .pra-body { padding: 0 16rpx; }
-.layout-module { position: relative; padding: 20rpx 22rpx; border: 2rpx solid #dce4f3; border-radius: 16rpx; margin: 24rpx 0; background: #fff; }
-.layout-handle { position: absolute; top: -44rpx; right: 0; z-index: 2; display: flex; align-items: center; justify-content: center; width: 88rpx; height: 88rpx; }
-.layout-grip { width: 44rpx; height: 44rpx; border: 2rpx solid #dce4f3; border-radius: 12rpx; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cg fill='%234661ad'%3E%3Ccircle cx='8' cy='5' r='2'/%3E%3Ccircle cx='16' cy='5' r='2'/%3E%3Ccircle cx='8' cy='12' r='2'/%3E%3Ccircle cx='16' cy='12' r='2'/%3E%3Ccircle cx='8' cy='19' r='2'/%3E%3Ccircle cx='16' cy='19' r='2'/%3E%3C/g%3E%3C/svg%3E") center / 28rpx 28rpx no-repeat; }
-.layout-reset { display: flex; align-items: center; justify-content: center; min-height: 88rpx; margin-bottom: 24rpx; color: #2b7ffc; font-size: 24rpx; }
-.layout-dragging { box-shadow: 0 8rpx 24rpx rgba(43,127,252,.22); opacity: .9; }
-.layout-insert { position: absolute; top: -10rpx; left: 0; right: 0; border-top: 5rpx solid #2b7ffc; color: #2b7ffc; font-size: 20rpx; z-index: 12; }
-.layout-end { color: #2b7ffc; border-top: 5rpx solid #2b7ffc; font-size: 20rpx; }
-.layout-preview { min-height: 80rpx; display: flex; align-items: center; justify-content: center; color: #596779; font-size: 26rpx; }
+@import "../../styles/settings-detail.wxss";
+.settings-detail.layout-editor { padding: 0; }
+.layout-editor .pra-body { padding: 0 var(--space-lg); }
+.layout-editor .pra-footer { padding-left: var(--space-lg); padding-right: var(--space-lg); }
+.layout-module { position: relative; padding: 20rpx; border: 1rpx solid var(--line); border-radius: var(--radius-control); margin: 8rpx 0; background: var(--card); }
+.layout-drag-surface { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 2; }
+.layout-dragging { box-shadow: 0 8rpx 24rpx var(--brand-soft); opacity: .9; }
+.layout-insert { position: absolute; top: -10rpx; left: 0; right: 0; border-top: 5rpx solid var(--brand); color: var(--brand); font-size: var(--font-caption); z-index: 12; }
+.layout-end { color: var(--brand); border-top: 5rpx solid var(--brand); font-size: var(--font-caption); }
+.layout-editor .pra-content { padding-top: 4rpx; }
+.layout-editor .pra-stem { margin: 0; }
+.layout-editor .pra-meta, .layout-editor .pra-tools { margin: 0; padding: 0; }
+.layout-editor .pra-analysis { margin: 0; padding: 0; border: 0; }
+.layout-editor .pra-analysis-head { margin-bottom: 12rpx; }
+.layout-editor .pra-option { min-height: 80rpx; padding: 16rpx; margin-bottom: 12rpx; }
+.layout-editor .pra-option:last-child { margin-bottom: 0; }
+.layout-editor .pra-material { margin-bottom: 16rpx; padding: 16rpx; }
+.layout-editor .pra-body-pad { height: 12rpx; }
+.layout-tip { display: block; margin-bottom: 12rpx; color: var(--text-sub); font-size: var(--font-caption); line-height: var(--leading-caption); text-align: center; }
+.layout-actions { display: flex; gap: var(--space-md); }
+.layout-actions > .q-button { flex: 1; }

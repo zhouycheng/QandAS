@@ -1,3 +1,4 @@
+const { colors } = require('../miniprogram/utils/design-tokens.js')
 /**
  * 生成 tabBar 图标（微信要求本地图片，不支持 SVG / base64）。
  *
@@ -10,14 +11,13 @@
  */
 const fs = require('node:fs')
 const path = require('node:path')
-const { Resvg } = require('@resvg/resvg-js')
 
 const OUT_DIR = path.resolve(__dirname, '../miniprogram/assets/tabbar')
 const SIZE = 81
 const STROKE = 2
 
-const COLOR_NORMAL = '#8a94a6'
-const COLOR_ACTIVE = '#2b7ffc'
+const COLOR_NORMAL = colors['text-sub']
+const COLOR_ACTIVE = colors.brand
 
 /**
  * 四个图标统一按「光学重心」校准过：都在 24×24 网格里占 16~17.6 的宽度、
@@ -56,6 +56,7 @@ function buildSvg(body, color) {
 }
 
 function render(svg) {
+  const { Resvg } = require('@resvg/resvg-js')
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: SIZE }
   })
@@ -63,6 +64,7 @@ function render(svg) {
   return resvg.render().asPng()
 }
 
+function main() {
 fs.mkdirSync(OUT_DIR, { recursive: true })
 
 const written = []
@@ -88,3 +90,6 @@ written.forEach((item) => {
 })
 
 console.log(`\n共生成 ${written.length} 个图标，输出目录：${OUT_DIR}`)
+}
+if (require.main === module) main()
+module.exports = { ICONS, buildSvg }

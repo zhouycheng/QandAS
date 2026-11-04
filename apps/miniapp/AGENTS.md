@@ -23,7 +23,7 @@ The build uses the official WeChat npm builder. `tests/compile.check.js` locates
 - Content comes from the API. Test fixtures stay outside `miniprogram`. Guest snapshots and layout examples are current product behavior.
 - Practice sessions keep a fixed device credential, immutable revisions and durable asynchronous progress. Preserve idempotency, acknowledgement sequences, retries, dead letters and the finish barrier.
 - Keep grading fields out of the page before their configured reveal point. Submission confirms all nonempty drafts, including other questions.
-- Never persist passwords or verification codes. Account changes reject stale callbacks and responses. Profile changes invalidate scope-dependent data.
+- Never persist passwords or verification codes. Account changes reject stale callbacks and responses. Catalog filter changes invalidate discovery caches without changing private learning history.
 
 ## Platform and interaction
 
@@ -38,7 +38,7 @@ The build uses the official WeChat npm builder. `tests/compile.check.js` locates
 - Hover feedback preserves geometry. Practice hover classes inside scroll-view use opacity, not transform.
 - Module ordering uses stable nodes and CSS order. Drag cancellation and failed persistence restore the previous order. Layout reset preserves unrelated preferences.
 - Avatar selection uses native chooseAvatar and nickname inputs. Equal button dimensions prevent oval avatars. Normalize nullable component values at call sites.
-- Account profile editing lives in `page/account`; local reminder preferences live in `page/reminder`.
+- Account profile editing lives in `page/account`; device-local catalog filters live in `catalog-filters.js`.
 - Guest quota and complete snapshots persist atomically; failed storage must not consume quota. Logout retains account-scoped drafts.
 - Home greeting and cover use the same time classification. Preserve the three original covers and shared crop window; regenerate runtime crops with the existing script.
 - Code block copy, horizontal scroll, template includes and component-isolated styles need runtime checks in addition to compilation.

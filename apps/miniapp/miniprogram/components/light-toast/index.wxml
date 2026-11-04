@@ -1,5 +1,5 @@
 <root-portal enable="{{true}}" wx:if="{{visible}}">
-  <view class="toast-position" aria-live="polite">
+  <view class="portal-theme toast-position" aria-live="polite">
     <view class="toast-bubble {{leaving ? 'is-leaving' : ''}}">{{message}}</view>
   </view>
 </root-portal>

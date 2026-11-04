@@ -1,0 +1,5 @@
+@import "../../styles/controls.wxss";
+.deletion-page { display: flex; flex-direction: column; gap: 28rpx; padding: 36rpx; }
+.deletion-input { padding: 24rpx; border-radius: var(--radius-card); background: var(--page-bg); }
+.deletion-confirm {   width: 100%; }
+.deletion-error { color: var(--danger); }

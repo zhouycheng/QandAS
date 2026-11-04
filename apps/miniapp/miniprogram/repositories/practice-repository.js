@@ -1,7 +1,6 @@
 const remoteData = require('./remote-data-repository.js')
 const authRepository = require('./auth-repository.js')
 const preferenceRepository = require('./preference-repository.js')
-const reminderRepository = require('./reminder-repository.js')
 const { getFavoriteIds, hasFavorite } = require('../utils/favorites.js')
 const { getPendingIds, getMasteredIds, summarizeWrongBook } = require('../utils/wrong-book.js')
 
@@ -16,20 +15,10 @@ module.exports = {
   login: authRepository.login,
   loginWithEmail: authRepository.loginWithEmail,
   loginWithCode: authRepository.loginWithCode,
-  registerAccount: authRepository.register,
   sendAuthCode: authRepository.sendCode,
-  resetPassword: authRepository.resetPassword,
   logout: authRepository.logout,
   updateAuthProfile: authRepository.updateProfile,
   clearAuth: authRepository.clearAuth,
-  getReminder: reminderRepository.getReminder,
-  saveReminder: reminderRepository.saveReminder,
-  updateReminderSwitch: reminderRepository.updateReminderSwitch,
-  updateReminderTime: reminderRepository.updateReminderTime,
-  updateReminderFrequency: reminderRepository.updateReminderFrequency,
-  toggleAdvanceDay: reminderRepository.toggleAdvance,
-  addReminderExam: reminderRepository.addReminderExam,
-  removeReminderExam: reminderRepository.removeReminderExam,
   getFavoriteIds, hasFavorite, getPendingIds, getMasteredIds, summarizeWrongBook,
   addQuestionFavorite: remoteData.addQuestionFavorite,
   removeQuestionFavorite: remoteData.removeQuestionFavorite,
@@ -49,7 +38,6 @@ module.exports = {
   toggleQuestionFavorite: remoteData.toggleQuestionFavorite,
   removeQuestionFavorites: remoteData.removeQuestionFavorites,
   clearFavorites: remoteData.clearFavorites,
-  removeWrongQuestions: remoteData.removeWrongQuestions,
 }
 module.exports.refreshRemote = remoteData.refresh
 module.exports.isRemoteEnabled = remoteData.isEnabled
@@ -60,7 +48,7 @@ module.exports.getRemoteRecent = function (storage) {
 module.exports.getResumableSession = function (storage) {
   const auth = authRepository.getAuth(storage)
   const snapshot = !auth.loggedIn ? require('./trial-practice.js').resumable(storage) : storage.get(`qandaOnline:${auth.userId}:${storage.get(`qandaOnlineLast:${auth.userId}`) || ''}`)
-  if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: snapshot.route })
+  if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: Object.assign({}, snapshot.route, { title: snapshot.title || (snapshot.route || {}).title || '' }) })
   if (!auth.loggedIn) return null
   const overview = remoteData.getOverview(storage)
   const recentItems = overview && Object.prototype.hasOwnProperty.call(overview, 'recentSession')
@@ -90,6 +78,7 @@ module.exports.getRemoteSubjectPage = remoteData.getSubjectPage
 module.exports.getRemoteResourceState = remoteData.getResourceState
 module.exports.getRemoteAnnouncementTotal = remoteData.getAnnouncementTotal
 module.exports.loadRemoteSubjects = remoteData.refreshSubjects
+module.exports.loadRemoteSubject = remoteData.loadSubject
 module.exports.loadRemoteBanks = remoteData.refreshBanks
 module.exports.loadRemoteBank = remoteData.loadBank
 module.exports.loadRemoteChapters = remoteData.loadChapters

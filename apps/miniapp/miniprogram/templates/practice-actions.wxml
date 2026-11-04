@@ -1,16 +1,16 @@
 <view class="pra-actions">
-        <view
-          class="pra-btn {{currentIndex === 0 ? 'is-disabled' : ''}}"
+        <button
+          class="{{currentIndex === 0 ? 'q-button--disabled' : ''}} q-button  pra-btn {{currentIndex === 0 ? 'is-disabled' : ''}}"
           bindtap="goPrev"
-          hover-class="btn-flat-hover"
+          hover-class="q-button-hover"
           hover-start-time="0"
           hover-stay-time="80"
-        >上一题</view>
-        <view
-          class="pra-btn primary"
+         disabled="{{currentIndex === 0}}">上一题</button>
+        <button
+          class="q-button q-button--primary pra-btn primary"
           bindtap="goNext"
-          hover-class="btn-flat-hover"
+          hover-class="q-button-hover"
           hover-start-time="0"
           hover-stay-time="80"
-        >{{primaryActionText}}</view>
+        >{{primaryActionText}}</button>
       </view>

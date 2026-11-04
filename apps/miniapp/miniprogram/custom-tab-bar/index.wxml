@@ -1,6 +1,5 @@
-<!-- 自定义 tabBar：胶囊悬浮 + 中央「继续答题」圆钮。
-     结构上把中央按钮单独拿出来定位，避免它挤在四个 tab 之间把间距压变形 -->
-<view class="tabbar-wrap">
+<!-- 自定义 tabBar：四个等宽入口。 -->
+<view class="portal-theme tabbar-wrap">
   <view class="tabbar">
     <view
       wx:for="{{tabs}}"
@@ -16,29 +15,4 @@
       <text class="tab-text">{{item.text}}</text>
     </view>
   </view>
-
-  <!-- 中央动作与文案共用状态，点击时再次读取可续答任务。 -->
-  <view
-    class="continue-btn {{continueDisabled ? 'is-disabled' : ''}}"
-    aria-role="button"
-    aria-label="{{continueLabel}}"
-    aria-disabled="{{continueDisabled}}"
-    bindtap="handleContinueTap"
-    hover-class="{{continueDisabled ? 'none' : 'continue-hover'}}"
-    hover-start-time="0"
-    hover-stay-time="80"
-  >
-    <view class="continue-icon continue-icon-{{continueIcon}}"></view>
-  </view>
-
-  <text
-    class="continue-label {{continueDisabled ? 'is-disabled' : ''}}"
-    aria-role="button"
-    aria-label="{{continueLabel}}"
-    aria-disabled="{{continueDisabled}}"
-    bindtap="handleContinueTap"
-    hover-class="{{continueDisabled ? 'none' : 'continue-label-hover'}}"
-    hover-start-time="0"
-    hover-stay-time="80"
-  >{{continueLabel}}</text>
 </view>

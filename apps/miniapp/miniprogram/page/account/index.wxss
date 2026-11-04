@@ -1,26 +1,41 @@
 @import "../../styles/list-page.wxss";
 @import "../../styles/profile-selectors.wxss";
+@import "../../styles/settings-detail.wxss";
 
 button.avatar-button[size="mini"] {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 128rpx;
-  height: 128rpx;
-  min-width: 128rpx;
-  max-width: 128rpx;
-  margin: 20rpx auto 40rpx;
+  width: 160rpx;
+  height: 160rpx;
+  min-width: 160rpx;
+  max-width: 160rpx;
+  margin: 12rpx auto 16rpx;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: #F0F3FF;
-  overflow: hidden;
+  background: var(--brand-soft);
+  overflow: visible;
 }
 .avatar-button::after { border: none; }
-.avatar-button .profile-avatar-img { width: 100%; height: 100%; }
-.avatar-button .avatar-icon { width: 58rpx; height: 58rpx; }
+.avatar-button .profile-avatar-img { width: 100%; height: 100%; border-radius: 50%; }
+.avatar-button .avatar-icon { width: 80rpx; height: 80rpx; }
+.avatar-edit { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 48rpx; height: 48rpx; border: 4rpx solid var(--card); border-radius: 50%; background: var(--brand); pointer-events: none; }
+.avatar-edit-icon { width: 28rpx; height: 28rpx; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 20 4-1L20 7l-3-3L5 16zM14 7l3 3'/%3E%3C/svg%3E") center / contain no-repeat; }
 .avatar-hover { opacity: .7; }
-.nickname-field { display: flex; align-items: center; box-sizing: border-box; height: 86rpx; margin-top: 15rpx; padding: 0 26rpx; border-radius: 15rpx; background: #efefef; overflow: hidden; }
-.nickname-field .field-input { flex: 1; min-width: 0; width: 0; height: 86rpx; margin: 0; padding: 0; }
-.nickname-wechat-button { flex: none; display: flex; align-items: center; justify-content: flex-end; width: auto; min-width: 0; height: 86rpx; margin: 0 0 0 20rpx; padding: 0; border: 0; border-radius: 0; line-height: 45rpx; font-size: 22rpx; font-weight: 500; color: #466bff; background: transparent; box-shadow: none; }
-.nickname-wechat-button::after { border: none; }
+.account-page .field { margin: 0 0 var(--space-sm); }
+.account-page .field-label { margin-top: 0; font-size: var(--font-body); font-weight: 500; }
+.nickname-label-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.nickname-field { margin-top: 0; border-radius: var(--radius-control); background: var(--page-bg); }
+.nickname-field .field-input { box-sizing: border-box; width: 100%; height: 44px; margin: 0; padding: 0 12px; font-size: var(--font-body); font-weight: 400; }
+.q-button.nickname-wechat-button { justify-content: flex-end; margin: 0; padding-right: 0; font-size: var(--font-secondary); font-weight: 400; }
+.account-page .info-item { display: flex; align-items: center; gap: var(--space-sm); min-height: 48px; padding: 8px 0; }
+.account-page .info-label { flex: none; font-size: var(--font-body); font-weight: 400; line-height: var(--leading-body); }
+.account-page .info-line { flex: 1; min-width: 0; justify-content: flex-end; margin: 0; }
+.account-page .info-value { flex: 0 1 auto; min-width: 0; font-size: var(--font-secondary); font-weight: 400; line-height: var(--leading-secondary); overflow-wrap: anywhere; }
+.account-page .info-action { flex: none; margin-left: var(--space-md); font-size: var(--font-secondary); font-weight: 400; }
+.account-page .info-value-highlight { color: var(--brand); }
+.account-page .section-note { display: block; margin-top: var(--space-md); font-size: var(--font-secondary); font-weight: 400; }
+.account-page .row-label { font-weight: 400; }
+.q-button.account-delete { width: auto; margin: var(--space-md) auto 0; padding: 8px 24px; background: var(--danger); color: var(--card); }

@@ -1,10 +1,10 @@
 {
   "navigationBarTitleText": "",
   "navigationStyle": "custom",
-  "navigationBarBackgroundColor": "#4A7BFB",
+  "navigationBarBackgroundColor": "#2563EB",
   "navigationBarTextStyle": "white",
-  "backgroundColor": "#4A7BFB",
-  "backgroundColorTop": "#4A7BFB",
+  "backgroundColor": "#2563EB",
+  "backgroundColorTop": "#2563EB",
   "backgroundTextStyle": "light",
   "enablePullDownRefresh": true,
   "onReachBottomDistance": 150,

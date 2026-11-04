@@ -3,13 +3,9 @@
   <view class="security-page">
     <view wx:if="{{stage === 'loading'}}" class="security-status">
       <text>{{loadError || '正在读取账号信息…'}}</text>
-      <button wx:if="{{loadError}}" class="btn btn-primary" bindtap="handleRetry" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">重新读取</button>
+      <button wx:if="{{loadError}}" class="q-button q-button--primary btn btn-primary" bindtap="handleRetry" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">重新读取</button>
     </view>
     <view wx:elif="{{stage === 'test-account'}}" class="security-status"><text>测试账号的登录凭据由管理员管理。</text></view>
-    <view wx:elif="{{stage === 'need-email'}}" class="security-status">
-      <text>设置密码前，请先绑定并验证邮箱。</text>
-      <button class="btn btn-primary" bindtap="handleBindEmail" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">绑定邮箱</button>
-    </view>
     <block wx:else>
       <view wx:if="{{stage === 'verify' || stage === 'email'}}" wx:for="{{stage === 'verify' ? ['verify'] : ['email']}}" wx:for-item="formStage" wx:key="*this">
         <view class="field" wx:if="{{stage === 'verify'}}">
@@ -28,19 +24,8 @@
           </view>
         </view>
       </view>
-      <block wx:if="{{stage === 'password'}}">
-        <view class="field">
-          <text class="field-label">新密码</text>
-          <password-input input-class="security-password-input" error="{{errorField === 'password'}}" placeholder="8–16 位，包含字母和数字" maxlength="32" data-key="password" bindinput="handleInput" disabled="{{submitting}}" />
-        </view>
-        <view class="field">
-          <text class="field-label">确认密码</text>
-          <password-input input-class="security-password-input" error="{{errorField === 'confirm'}}" placeholder="再次输入新密码" maxlength="32" data-key="confirm" bindinput="handleInput" disabled="{{submitting}}" />
-        </view>
-        <text class="security-note">更改成功后，请使用新密码重新登录。</text>
-      </block>
       <text class="security-error" wx:if="{{errorText}}">{{errorText}}</text>
-      <button class="btn btn-primary" bindtap="handleSubmit" loading="{{submitting}}" disabled="{{submitting || sending}}" hover-class="btn-hover" hover-start-time="0" hover-stay-time="80">{{actionLabel}}</button>
+      <button class="{{submitting || sending ? 'q-button--disabled' : ''}} q-button q-button--primary btn btn-primary" bindtap="handleSubmit" loading="{{submitting}}" disabled="{{submitting || sending}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{actionLabel}}</button>
       <text wx:if="{{stage === 'email'}}" class="security-note">绑定成功后需重新登录，学习记录保留。</text>
     </block>
   </view>

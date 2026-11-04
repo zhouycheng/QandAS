@@ -1,11 +1,49 @@
-<view class="secondary-page">
-<page-header title="考试倒计时" />
-<view class="page settings-page">
-  <view class="menu card">
-    <view class="exam-row"><text class="exam-label">考试名称</text><input class="exam-input" value="{{examDraftName}}" maxlength="20" placeholder="如：期末考试 / 考研" bindblur="handleExamNameBlur" /></view>
-    <picker class="exam-row" mode="date" value="{{exam.examDate}}" bindchange="handleExamDateChange"><text class="exam-label">考试日期</text><text class="exam-value">{{exam.examDate || '请选择日期'}} ›</text></picker>
-    <view class="exam-status"><text>{{exam.configured ? exam.examName + ' · ' + exam.dayText + exam.statusText : '填写名称和日期后，首页会显示考试倒计时'}}</text></view>
+<template name="countdown-editor-form">
+  <text class="countdown-editor-title">{{editingId ? '编辑倒计时' : '新增倒计时'}}</text>
+  <view class="exam-field"><text class="settings-label">考试名称</text><input class="settings-input" value="{{draftName}}" maxlength="20" placeholder="如：期末考试" placeholder-class="exam-placeholder" bindinput="handleExamNameInput" /></view>
+  <picker mode="date" value="{{draftDate}}" bindchange="handleExamDateChange"><view class="settings-row"><text class="settings-label">考试日期</text><text class="exam-value {{draftDate ? '' : 'exam-value-empty'}}">{{draftDate || '请选择日期'}}</text><view class="exam-chevron"></view></view></picker>
+  <text class="countdown-error" wx:if="{{formError}}">{{formError}}</text>
+  <view class="countdown-editor-actions">
+    <button class="q-button" bindtap="handleCancelEdit" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">取消</button>
+    <button class="q-button q-button--primary {{!canSave ? 'q-button--disabled' : ''}}" disabled="{{!canSave}}" bindtap="handleSaveExam" hover-class="{{canSave ? 'q-button-hover' : 'none'}}" hover-start-time="0" hover-stay-time="80">保存</button>
   </view>
-  <view class="section-reset" bindtap="handleClearExam" hover-class="ghost-flat-hover" hover-start-time="0" hover-stay-time="80">清除倒计时</view>
-</view>
+</template>
+<view class="secondary-page secondary-page-fill">
+  <page-header title="考试倒计时" />
+  <scroll-view class="countdown-scroll" scroll-y scroll-into-view="{{editorVisible ? (editingId ? 'countdown-card-' + editingId : 'countdown-editor') : ''}}">
+    <view class="countdown-page settings-detail {{!editorVisible ? 'page-with-bottom-bar' : ''}}">
+      <view class="countdown-toolbar">
+        <text class="countdown-count">{{exams.length ? '共 ' + exams.length + ' 个倒计时' : '我的倒计时'}}</text>
+        <text class="countdown-list-note" wx:if="{{exams.length}}">首页展示最近一场未结束的考试</text>
+      </view>
+
+      <view id="countdown-editor" class="countdown-editor" wx:if="{{editorVisible && !editingId}}">
+        <template is="countdown-editor-form" data="{{editingId, draftName, draftDate, canSave, formError}}" />
+      </view>
+
+      <view class="countdown-empty" wx:if="{{!exams.length && !editorVisible}}">
+        <text class="countdown-empty-title">还没有考试计划</text>
+        <text class="countdown-caption">添加考试名称和日期，记录每一场考试</text>
+      </view>
+      <view id="countdown-card-{{item.id}}" class="countdown-card" wx:for="{{exams}}" wx:key="id">
+        <view class="countdown-card-form" wx:if="{{editorVisible && editingId === item.id}}">
+          <template is="countdown-editor-form" data="{{editingId, draftName, draftDate, canSave, formError}}" />
+        </view>
+        <block wx:else>
+        <view class="countdown-card-main">
+          <view class="countdown-card-info"><text class="countdown-name">{{item.examName}}</text><text class="countdown-caption">{{item.examDate}}</text></view>
+          <view class="countdown-metric" wx:if="{{!item.isExamDay && !item.isPast}}"><text class="countdown-caption">距考试</text><view><text class="countdown-days">{{item.dayText}}</text><text class="countdown-unit">天</text></view></view>
+          <text class="countdown-status {{item.isPast ? 'countdown-status-past' : ''}}" wx:else>{{item.isPast ? '已结束' : '今天考试'}}</text>
+        </view>
+        <view class="countdown-card-actions" wx:if="{{!editorVisible}}">
+          <button class="q-button q-button--text" data-id="{{item.id}}" bindtap="handleEditExam" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">编辑</button>
+          <button class="q-button q-button--text countdown-delete" data-id="{{item.id}}" bindtap="handleDeleteExam" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">删除</button>
+        </view>
+        </block>
+      </view>
+    </view>
+  </scroll-view>
+  <view class="bottom-bar" wx:if="{{!editorVisible}}">
+    <button class="q-button q-button--primary bottom-btn" bindtap="handleAddExam" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">新增倒计时</button>
+  </view>
 </view>

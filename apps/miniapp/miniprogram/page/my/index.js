@@ -12,7 +12,6 @@ Page(withPageLifecycle({
     })
   },
 
-  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     if (!this.viewModel) {
       return
@@ -52,10 +51,6 @@ Page(withPageLifecycle({
   /** 资料头：未登录去登录页，已登录进账号管理 */
   handleProfileTap() {
     this.applyViewModelResult(this.viewModel.tapRow('profile'))
-  },
-
-  handleAccountTap() {
-    this.applyViewModelResult(this.viewModel.tapRow('account'))
   },
 
   handleRowTap(e) {

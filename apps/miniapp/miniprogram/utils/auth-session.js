@@ -12,8 +12,6 @@ const PROVIDER_LABEL = {
 
 /** 微信昵称上限 32 个字符，超了在资料卡里会截断得很难看 */
 const NICKNAME_MAX_LENGTH = 32
-// 学院 / 单位：只用于「我的」页身份信息展示，属于可选的资料字段
-const COLLEGE_MAX_LENGTH = 24
 const TOKEN_MAX_LENGTH = 512
 const USER_ID_MAX_LENGTH = 64
 const EMAIL_MAX_LENGTH = 128
@@ -42,7 +40,6 @@ function createEmptyAuth() {
     token: '',
     email: '',
     nickname: '',
-    college: '',
     avatarUrl: '',
     loginAt: 0
   }
@@ -89,7 +86,6 @@ function normalizeAuth(raw) {
     email,
     token: readText(raw.token, TOKEN_MAX_LENGTH),
     nickname: readText(raw.nickname, NICKNAME_MAX_LENGTH),
-    college: readText(raw.college, COLLEGE_MAX_LENGTH),
     avatarUrl: readText(raw.avatarUrl, AVATAR_MAX_LENGTH),
     profile: raw.profile || null,
     version: Number(raw.version) || 0,
@@ -121,7 +117,6 @@ function describeAuth(auth) {
     providerLabel,
     email: normalized.email,
     displayName: fallbackName,
-    college: normalized.college,
     avatarUrl: normalized.avatarUrl,
     accountTag: normalized.loggedIn ? providerLabel : GUEST_NAME,
     loginAt: normalized.loginAt
@@ -170,7 +165,6 @@ function buildEmailAuth(payload, now) {
     email,
     token: readText(data.token || '', TOKEN_MAX_LENGTH),
     nickname: readText(data.nickname || '', NICKNAME_MAX_LENGTH),
-    college: readText(data.college || '', COLLEGE_MAX_LENGTH),
     avatarUrl: readText(data.avatarUrl || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
@@ -188,7 +182,6 @@ function buildWechatAuth(payload, now) {
     openId: readText(data.openId || '', USER_ID_MAX_LENGTH),
     token: readText(data.token || '', TOKEN_MAX_LENGTH),
     nickname: readText(data.nickname || '', NICKNAME_MAX_LENGTH),
-    college: readText(data.college || '', COLLEGE_MAX_LENGTH),
     avatarUrl: readText(data.avatarUrl || '', AVATAR_MAX_LENGTH),
     loginAt: Number(now) > 0 ? Number(now) : Date.now()
   })
@@ -207,7 +200,6 @@ function applyProfile(auth, profile) {
   return normalizeAuth(
     Object.assign({}, normalized, {
       nickname: payload.nickname === undefined ? normalized.nickname : readText(payload.nickname, NICKNAME_MAX_LENGTH),
-      college: payload.college === undefined ? normalized.college : readText(payload.college, COLLEGE_MAX_LENGTH),
       avatarUrl: payload.avatarUrl === undefined ? normalized.avatarUrl : readText(payload.avatarUrl, AVATAR_MAX_LENGTH)
     })
   )
@@ -218,7 +210,6 @@ module.exports = {
   AUTH_HINTS,
   AUTH_PROVIDER,
   AUTH_STORAGE_KEY,
-  COLLEGE_MAX_LENGTH,
   GUEST_NAME,
   NICKNAME_MAX_LENGTH,
   PROVIDER_LABEL,

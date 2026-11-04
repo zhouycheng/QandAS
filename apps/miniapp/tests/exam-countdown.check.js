@@ -2,9 +2,7 @@
  * 考试倒计时（设置页 → 首页）全链路 —— Node 自检脚本。
  * 运行：node apps/miniapp/tests/exam-countdown.check.js
  *
- * 这条链路跨两个页面，靠一个 storage key 串起来，最容易出的不是算错天数，
- * 而是「半套状态」：填了名字没选日期、选了日期没填名字、清了一个留了另一个。
- * 这些状态在首页的表现各不相同，必须在设置页这一侧就堵住。
+ * 覆盖列表增删改、旧数据转换、保存失败和首页选择最近一场考试。
  */
 const path = require('path')
 
@@ -43,7 +41,7 @@ function createMemoryStorage(initial) {
 
 /** 用真实的 practice-repository 驱动，才能验到「落盘 → 读回」这一步 */
 function createViewModel(storage) {
-  return new ExamCountdownViewModel({ repository: practiceRepository, storage })
+  return new ExamCountdownViewModel({ storage, now: () => NOW })
 }
 
 function createHomeViewModel(storage) {
@@ -136,56 +134,52 @@ function checkDateBoundaries() {
 function checkSettingsFlow() {
   const storage = createMemoryStorage()
   const vm = createViewModel(storage)
+  assert('列表 - 初始为空', vm.load().data.exams.length === 0)
+  assert('编辑 - 新建表单保存禁用', vm.openEditor().data.canSave === false)
+  vm.setDraftName(' 研究生入学考试 ')
+  assert('编辑 - 未选日期时保存禁用', vm.canSave() === false)
+  assert('编辑 - 未完成表单不落盘', Object.keys(storage.raw).length === 0)
+  vm.setDraftDate('2026-12-20')
+  let result = vm.saveExam()
+  assert('新增 - 完整表单保存成功', result.command.title === '倒计时已添加')
+  const firstId = result.data.exams[0].id
+  assert('新增 - 名称去除首尾空格', result.data.exams[0].examName === '研究生入学考试')
+  assert('新增 - 保存后关闭表单', result.data.editorVisible === false && result.data.canSave === false)
+  assert('新增 - 连续点击保存不重复添加', !vm.saveExam().data && vm.load().data.exams.length === 1)
 
-  // 初始状态
-  const initial = vm.load().data
-  assert('设置 - 初始为未配置', initial.exam.configured === false)
-  assert('设置 - 初始草稿名为空', initial.examDraftName === '')
+  vm.openEditor(); vm.setDraftName('期末考试'); vm.setDraftDate('2026-12-10'); vm.saveExam()
+  let exams = vm.load().data.exams
+  const secondId = exams[0].id
+  assert('列表 - 多场考试按最近日期排序', exams.length === 2 && exams[0].examName === '期末考试')
+  assert('列表 - 每张卡片有独立天数', exams[0].daysLeft === 9 && exams[1].daysLeft === 19)
+  assert('编辑 - 回显已有名称日期', vm.openEditor(firstId).data.draftDate === '2026-12-20')
+  assert('编辑 - 未修改时保存禁用', vm.canSave() === false)
+  vm.setDraftName('硕士入学考试'); vm.setDraftDate('2026-12-05'); result = vm.saveExam()
+  exams = result.data.exams
+  assert('编辑 - 更新同一卡片并重新排序', exams.length === 2 && exams[0].id === firstId && exams[0].examName === '硕士入学考试')
 
-  // 只填名称：不该生成倒计时（没有日期）
-  vm.setExamName('研究生入学考试')
-  let data = vm.load().data
-  assert('设置 - 只填名称时不算已配置', data.exam.configured === false)
-  assert('设置 - 只填名称时提示待设置日期', data.exam.title.indexOf('待设置日期') >= 0, data.exam.title)
-  assert('设置 - 名称回显到草稿', data.examDraftName === '研究生入学考试')
+  vm.openEditor(firstId); vm.setDraftName('不保存的名称'); vm.closeEditor()
+  assert('编辑 - 取消后保留已存数据', vm.load().data.exams[0].examName === '硕士入学考试')
+  vm.openEditor(); vm.setDraftName('新考试'); vm.setDraftDate('2026-11-30')
+  assert('校验 - 新增过去的日期显示错误', vm.saveExam().data.formError === '考试日期不能早于今天')
+  assert('校验 - 失败不添加卡片', vm.load().data.exams.length === 2)
 
-  // 补上日期：这时才成立
-  vm.setExamDate('2026-12-20')
-  data = vm.load().data
-  assert('设置 - 名称与日期齐全后已配置', data.exam.configured === true)
-  assert('设置 - 天数计算正确', data.exam.daysLeft === daysTo('2026-12-20'),
-    `实际 ${data.exam.daysLeft}，期望 ${daysTo('2026-12-20')}`)
+  const originalSet = storage.set
+  storage.set = () => { throw new Error('full') }
+  vm.setDraftDate('2026-12-25')
+  assert('失败 - 保存错误保留草稿供重试', !!vm.saveExam().data.formError && vm.canSave())
+  assert('失败 - 新增失败保留原列表', vm.load().data.exams.length === 2)
+  assert('失败 - 删除失败保留原列表', !!vm.deleteExam(firstId).command && vm.load().data.exams.length === 2)
+  storage.set = originalSet
+  vm.saveExam()
+  assert('失败 - 重试只添加一次', vm.load().data.exams.length === 3)
+  vm.deleteExam(firstId)
+  assert('删除 - 仅删除指定卡片', !vm.load().data.exams.some(item => item.id === firstId) && vm.load().data.exams.some(item => item.id === secondId))
+  assert('删除 - 已删除卡片不可继续编辑', !!vm.openEditor(firstId).command)
 
-  // 清除：两个字段一起清，不留半套状态
-  vm.clearExam()
-  data = vm.load().data
-  assert('设置 - 清除后回到未配置', data.exam.configured === false)
-  assert('设置 - 清除后名称也清空', data.examDraftName === '')
-
-  const afterClear = practiceRepository.getPreferences(storage)
-  assert('设置 - 清除后 storage 里名称为空', (afterClear.examName || '') === '')
-  assert('设置 - 清除后 storage 里日期为空', (afterClear.examDate || '') === '')
-
-  // 只选日期没填名称：先存下日期，提示补名称
-  vm.setExamDate('2026-12-25')
-  data = vm.load().data
-  assert('设置 - 未填名称时仍不能算已配置', data.exam.configured === false,
-    `title=${data.exam.title}`)
-  // 只选了日期会出现「距离 考试 考试还有 N 天」，所以引导态必须提示补名称
-  assert('设置 - 未填名称时提示补名称', data.exam.statusText === '去补名称', data.exam.statusText)
-  assert('设置 - 未填名称时标题含待填写名称', data.exam.title.indexOf('待填写名称') >= 0, data.exam.title)
-
-  const withDateOnly = practiceRepository.getPreferences(storage)
-  assert('设置 - 未填名称时日期已先存下', withDateOnly.examDate === '2026-12-25')
-
-  // 名称清空 → 连带清日期
-  vm.setExamName('期末考试')
-  vm.setExamName('   ')
-  data = vm.load().data
-  assert('设置 - 名称清空会连带清掉日期', data.exam.configured === false)
-
-  const clearedByEmptyName = practiceRepository.getPreferences(storage)
-  assert('设置 - 名称清空后 storage 日期也为空', (clearedByEmptyName.examDate || '') === '')
+  const beforeReset = JSON.stringify(practiceRepository.getPreferences(storage).examCountdowns)
+  practiceRepository.resetPreferences(storage)
+  assert('偏好 - 恢复答题默认保留全部倒计时', JSON.stringify(practiceRepository.getPreferences(storage).examCountdowns) === beforeReset)
 }
 
 // ---------- 四、设置页 → 首页 ----------
@@ -194,8 +188,7 @@ function checkCrossPage() {
   const storage = createMemoryStorage()
   const settings = createViewModel(storage)
 
-  settings.setExamName('期末考试')
-  settings.setExamDate('2026-12-15')
+  settings.openEditor(); settings.setDraftName('期末考试'); settings.setDraftDate('2026-12-15'); settings.saveExam()
 
   // 首页是另一个 ViewModel，只能从 storage 读回 —— 验的就是这条链路
   const home = createHomeViewModel(storage).load()
@@ -214,13 +207,35 @@ function checkCrossPage() {
   assert('跨页 - 只有日期时首页不出天数', dateOnlyHome.dayText === '')
 
   // 清空后首页必须立刻回到引导态，不能残留旧天数
-  settings.clearExam()
+  settings.deleteExam(settings.load().data.exams[0].id)
   const homeAfter = createHomeViewModel(storage).load()
   assert('跨页 - 清除后首页回到未配置', homeAfter.data.exam.configured === false)
   assert('跨页 - 清除后首页不显示天数', homeAfter.data.exam.dayText === '')
 
   assert('跨页 - 未配置时提供设置入口',
     homeAfter.data.exam.statusText === '去设置', homeAfter.data.exam.statusText)
+}
+
+function checkMigrationAndSelection() {
+  const storage = createMemoryStorage({ qandaPreferences: { examName: '原有考试', examDate: '2026-12-20', fontSize: 'large' } })
+  const vm = createViewModel(storage)
+  let exams = vm.load().data.exams
+  assert('迁移 - 旧倒计时自动出现在列表且读取不落盘', exams.length === 1 && exams[0].examName === '原有考试' && !storage.raw.qandaPreferences.examCountdowns)
+  vm.openEditor(exams[0].id); vm.setDraftName('原有考试更新'); vm.saveExam()
+  assert('迁移 - 编辑后保留其它偏好', storage.raw.qandaPreferences.fontSize === 'large')
+  assert('迁移 - 删除最后一项不恢复旧记录', vm.deleteExam(exams[0].id).data.exams.length === 0 && new ExamCountdownViewModel({ storage }).load().data.exams.length === 0)
+
+  const list = [{ id: 'past', examName: '已考', examDate: '2026-11-30' }, { id: 'later', examName: '晚一些', examDate: '2026-12-20' }, { id: 'today', examName: '今天', examDate: '2026-12-01' }]
+  assert('首页 - 今天的考试优先且跳过过去日期', examCountdown.selectHomeExam(list, NOW).id === 'today')
+  assert('首页 - 明天自动切换下一场', examCountdown.selectHomeExam(list, at(2026, 12, 2)).id === 'later')
+  assert('首页 - 全部结束时显示最近结束一场', examCountdown.selectHomeExam(list, at(2027, 1, 1)).id === 'later')
+  const dirty = examCountdown.normalizeExamList([null, { examName: 123, examDate: '2026-12-01' }, ...list, { ...list[0], examName: '重复标识' }])
+  assert('列表 - 过滤无效记录且标识唯一', dirty.length === 4 && new Set(dirty.map(item => item.id)).size === dirty.length)
+
+  const past = createMemoryStorage({ qandaPreferences: { examCountdowns: [list[0]] } })
+  const pastVm = createViewModel(past)
+  pastVm.openEditor('past'); pastVm.setDraftName('已结束考试新名称')
+  assert('编辑 - 已结束考试可以只改名称', pastVm.saveExam().data.exams[0].examName === '已结束考试新名称')
 }
 
 // ---------- 五、脏数据不崩 ----------
@@ -265,6 +280,7 @@ checkPreferences()
 checkDateBoundaries()
 checkSettingsFlow()
 checkCrossPage()
+checkMigrationAndSelection()
 checkDirtyData()
 
 const failed = results.filter((item) => !item.passed)

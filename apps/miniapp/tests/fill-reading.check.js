@@ -35,17 +35,13 @@ const remote = OnlinePractice.prototype.restored.call({ quiz: value => OnlinePra
 assert.deepEqual(remote.answers[0].blanks, ['HTTP', 'GET'])
 assert.equal(remote.answers[0].isCorrect, true)
 const { PracticeLayoutViewModel } = require('../miniprogram/viewmodels/practice-layout-viewmodel.js')
-const editor = new PracticeLayoutViewModel({ storage: { get: () => null, set: () => assert.fail('切换示例不写学习记录或试答额度') } })
+const editor = new PracticeLayoutViewModel({ storage: { get: () => null, set: () => assert.fail('通用模板预览不写学习记录或试答额度') } })
 const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmodel.js')
 const restart = new PracticeViewModel({ storage: {} })
 restart.session = {}; restart.trial = true; restart.routeOptions = { sessionId: 'old', selectionKey: 'old-preview', mode: 'test', bankId: 'b' }
 restart.load = options => options
 assert.equal(restart.reset().selectionKey, '', '重练重新选题，不使用过期的预览标识')
-for (let i = 0; i < 6; i++) {
-  const preview = editor.preview(i).data
-  assert.equal(preview.shouldRevealAnswer, true)
-  assert.equal(preview.hasAnswered, true)
-  if (i === 3) assert.equal(preview.blankInputs[0].value, '长期')
-  if (i === 5) assert(preview.currentQuestion.material.passage.includes('阅读材料'))
-}
+const preview = editor.load().data
+assert.equal(preview.shouldRevealAnswer, true)
+assert.equal(preview.hasAnswered, true)
 console.log('fill and reading: grading, disclosure, draft restore and formal snapshot passed')

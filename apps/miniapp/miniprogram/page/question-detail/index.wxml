@@ -54,14 +54,14 @@
         <rich-content wx:for="{{scoringPoints}}" wx:key="*this" text="{{(item) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
       </view>
 
-      <view
-        class="favorite-btn {{isFavorite ? 'active' : ''}}"
+      <button
+        class="q-button  {{isFavorite ? 'q-button--selected' : ''}} favorite-btn {{isFavorite ? 'active' : ''}}"
         bindtap="handleToggleFavorite"
-        hover-class="btn-flat-hover"
+        hover-class="q-button-hover"
         hover-start-time="0"
         hover-stay-time="80"
-      >{{isFavorite ? '已收藏' : '收藏本题'}}</view>
-      <view class="favorite-btn" bindtap="handleFeedback" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">题目纠错</view>
+      >{{isFavorite ? '已收藏' : '收藏本题'}}</button>
+      <button class="q-button  favorite-btn" bindtap="handleFeedback" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">题目纠错</button>
     </scroll-view>
   </block>
 </view>

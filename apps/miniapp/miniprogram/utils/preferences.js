@@ -6,6 +6,7 @@
 
 const PREFERENCE_STORAGE_KEY = 'qandaPreferences'
 const { DEFAULT_ORDER, normalizeOrder } = require('./practice-layout.js')
+const { normalizeExamList } = require('./exam-countdown.js')
 
 const FONT_SIZE_OPTIONS = [
   { value: 'small', label: '小' },
@@ -30,7 +31,8 @@ const DEFAULT_PREFERENCES = {
   vibrateOnAnswer: false,
   fontSize: 'normal',
   moduleOrder: DEFAULT_ORDER,
-  // 考试倒计时：首页卡片用。空字符串 = 未设置，卡片退化成「去设置」引导
+  examCountdowns: [],
+  // 兼容已有设备的单个倒计时，读取时转换为列表。
   examName: '',
   examDate: ''
 }
@@ -40,32 +42,32 @@ const PREFERENCE_SWITCHES = [
   {
     key: 'autoShowExplanation',
     label: '答题后自动显示解析',
-    description: '关闭后只标记对错与正确答案，解析留到交卷回顾'
+    description: '关闭后，解析在交卷回顾中查看'
   },
   {
     key: 'autoAddWrongBook',
     label: '答错自动加入错题本',
-    description: '关闭后不再收录新错题，已有错题仍随复习结果更新'
+    description: '关闭后不收录新错题，已有错题照常更新'
   },
   {
     key: 'autoNextWhenCorrect',
     label: '答对后自动进入下一题',
-    description: '练习模式确认答对后，约 0.8 秒进入下一题'
+    description: '答对后约 0.8 秒翻题，仅练习模式生效'
   },
   {
     key: 'showSelfAssessment',
     label: '交卷后显示主观题自评',
-    description: '主观题可标记“掌握”或“待复习”，也可暂不自评'
+    description: '可标记“掌握”或“待复习”，也可跳过'
   },
   {
     key: 'showOverviewEntry',
     label: '显示答题卡入口',
-    description: '在答题页顶部显示题号，点击可打开答题卡'
+    description: '点击顶部题号打开答题卡'
   },
   {
     key: 'vibrateOnAnswer',
     label: '答题震动反馈',
-    description: '作答时轻微震动，部分机型或系统设置下不生效'
+    description: '轻微震动，效果受设备及系统设置影响'
   }
 ]
 
@@ -81,7 +83,7 @@ const PREFERENCE_CHOICES = [
 ]
 
 function cloneDefaultPreferences() {
-  return Object.assign({}, DEFAULT_PREFERENCES, { moduleOrder: DEFAULT_ORDER.slice() })
+  return Object.assign({}, DEFAULT_PREFERENCES, { moduleOrder: DEFAULT_ORDER.slice(), examCountdowns: [] })
 }
 
 function isBoolean(value) {
@@ -125,6 +127,10 @@ function normalizePreferences(rawPreferences) {
       next[key] = isBoolean(value) ? value : DEFAULT_PREFERENCES[key]
     }
   })
+
+  next.examCountdowns = normalizeExamList(Array.isArray(raw.examCountdowns)
+    ? raw.examCountdowns
+    : [{ id: 'legacy-exam', examName: next.examName, examDate: next.examDate }])
 
   return next
 }

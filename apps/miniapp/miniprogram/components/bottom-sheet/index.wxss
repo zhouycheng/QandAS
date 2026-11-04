@@ -1,3 +1,4 @@
+@import "../../styles/controls.wxss";
 .bottom-sheet {
   position: fixed;
   left: 0;
@@ -21,8 +22,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: #ffffff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card);
+  border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
   padding-bottom: env(safe-area-inset-bottom);
   animation: sheet-rise 0.22s ease-out;
 }
@@ -43,7 +44,7 @@
   top: 50%;
   bottom: auto;
   transform: translateY(-50%);
-  border-radius: 32rpx;
+  border-radius: var(--radius-card);
   padding-bottom: 0;
   box-shadow: 0 24rpx 60rpx rgba(15, 23, 36, 0.24);
   animation: modal-pop 0.2s ease-out;
@@ -76,21 +77,18 @@
   align-items: center;
   justify-content: space-between;
   padding: 28rpx 32rpx;
-  border-bottom: 1rpx solid #e5e7eb;
+  border-bottom: 1rpx solid var(--line);
 }
 
 .panel-title {
-  font-size: 30rpx;
+  font-size: var(--font-title);
   font-weight: 600;
-  color: #1f2a37;
-}
-
-.panel-close {
-  font-size: 26rpx;
-  color: #8490a3;
+  color: var(--text-main);
 }
 
 .panel-body {
   max-height: 62vh;
   padding: 24rpx 32rpx 32rpx;
 }
+
+.panel-close { flex: none; }

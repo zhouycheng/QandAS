@@ -108,7 +108,7 @@ async function settingsChecks() {
   global.Page = page => { definition = page }
   global.getApp = () => ({ globalData: { version: '1.0.0' } })
   global.wx = Object.assign(global.wx, { getStorageSync: key => values[key], setStorageSync: (key, value) => { values[key] = value }, getStorageInfoSync: () => ({ keys: [] }), request() { requests++ } })
-  for (const name of ['settings', 'practice-layout', 'exam-countdown', 'reminder']) {
+  for (const name of ['settings', 'practice-layout', 'exam-countdown']) {
     require('../miniprogram/page/' + name + '/index.js')
     const page = Object.assign({}, definition, { data: Object.assign({}, definition.data), measure() {}, setData(patch, done) { Object.assign(this.data, patch); if (done) done() } })
     page.onLoad({}); page.onShow(); page.onReady()

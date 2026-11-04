@@ -4,7 +4,7 @@
 <view class="page home-page stagger">
   <view class="hero" style="padding-top: {{homeStatusBarHeight}}px;">
     <view class="hero-navigation" style="height: {{homeNavigationBarHeight}}px;">
-      <view class="hero-brand">QandA</view>
+      <view class="hero-brand">题小搭</view>
     </view>
 
     <view class="hero-search">
@@ -18,7 +18,7 @@
         <input
           class="search-input"
           value="{{searchKeyword}}"
-          placeholder="搜索题目、关键词"
+          placeholder="搜索题库、章节、题目"
           placeholder-class="search-placeholder"
           confirm-type="search"
           bindinput="handleSearchInput"
@@ -66,24 +66,13 @@
           <text class="exam-date">{{home.dateText}}</text>
         </view>
 
-        <!-- 四种状态互斥，顺序不能换：
-             已结束 → 就是今天 → 还有 N 天 → 未设置。
-             把「就是今天」并进「还有 N 天」会渲染成「距离 X 考试还有 就是今天 天」。 -->
-        <view class="exam-main" wx:if="{{exam.configured && exam.isPast}}">
-          <text class="exam-text">{{exam.examName}} 考试已结束</text>
-        </view>
-
-        <view class="exam-main exam-main-today" wx:elif="{{exam.configured && exam.isExamDay}}">
-          <text class="exam-text">{{exam.examName}}</text>
-          <text class="exam-days exam-days-today">就在今天</text>
-        </view>
-
-        <view class="exam-main" wx:elif="{{exam.configured}}">
-          <!-- 不再拼「考试」二字：用户填的名称本身常带「考试」（期末考试），
-               拼上去会变成「距离 期末考试 考试还有」，重复且更长 -->
-          <text class="exam-text">距离 {{exam.examName}} 还有</text>
-          <text class="exam-days">{{exam.dayText}}</text>
-          <text class="exam-text">天</text>
+        <view class="exam-main" wx:if="{{exam.configured}}">
+          <text class="exam-name">{{exam.examName}}</text>
+          <text class="exam-status" wx:if="{{exam.isPast}}">已结束 · {{exam.examDate}}</text>
+          <text class="exam-status exam-status-today" wx:elif="{{exam.isExamDay}}">今天考试</text>
+          <view class="exam-countdown" wx:else>
+            <text class="exam-label">还有</text><text class="exam-days">{{exam.dayText}}</text><text class="exam-label">天</text>
+          </view>
         </view>
 
         <view class="exam-main exam-main-empty" wx:else>
@@ -93,15 +82,9 @@
         <view class="exam-foot">
           <!-- 每日一句在这里，不再单独占一个弹层 -->
           <text class="exam-quote">{{home.quote}}</text>
-          <!-- 已设置时这里是「修改」而不是状态文案：状态已经在主行说完了，
-               再挂一个「天」字上去只会重复。 -->
-          <text class="exam-action">{{exam.configured ? '修改' : exam.statusText}}</text>
+          <community-group compact="{{true}}" hide-unavailable="{{true}}" />
         </view>
       </view>
-    </view>
-
-    <view class="section-head">
-      <text class="section-title">我的学习空间</text>
     </view>
 
     <view class="entry-grid">
@@ -124,34 +107,35 @@
 
     <view class="load-note" wx:if="{{overviewLoading}}">正在读取学习摘要…</view>
     <view class="load-note" wx:if="{{overviewError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{overviewError}} · 点击重试</view>
-    <community-group />
+    <view wx:if="{{lastPractice.resumed}}" class="home-continue" bindtap="handleContinuePractice" aria-role="button" aria-label="继续答题，{{lastPractice.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+      <view class="continue-detail"><text class="continue-title">继续答题</text><text class="continue-subtitle">{{lastPractice.title}} · {{lastPractice.metaText}}</text></view>
+      <text class="continue-arrow">›</text>
+    </view>
+    <view wx:else class="home-create">
+      <text class="continue-title">创建新答题</text>
+      <text wx:if="{{recentLoading}}" class="continue-subtitle">正在读取最近练习…</text>
+      <view wx:elif="{{recentError}}" class="recent-error" bindtap="handleRecentRetry" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recentError}} · 点击重试</view>
+      <block wx:elif="{{recentSubjects.length}}">
+        <picker mode="multiSelector" range="{{recentColumns}}" value="{{recentPickerValue}}" bindcolumnchange="handleRecentColumnChange" bindchange="handleRecentSelect" bindcancel="handleRecentCancel">
+        <view class="recent-picker" aria-role="button" aria-label="选择最近练过的科目和题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+          <text class="recent-picker-name">{{recentSelectedName}}</text><text class="recent-picker-arrow">⌄</text>
+        </view>
+        </picker>
+      </block>
+      <text wx:else class="continue-subtitle">{{recentHasHistory ? '最近题库暂不可用，去题库选择题目' : '还没有练习记录，去题库选择题目'}}</text>
+      <button class="{{recentLoading || recentError || newPracticeLoading ? 'q-button--disabled' : ''}} q-button q-button--primary new-practice-button {{recentLoading || recentError || newPracticeLoading ? 'new-practice-disabled' : ''}}" bindtap="handleNewPractice" aria-role="button" aria-disabled="{{recentLoading || recentError || newPracticeLoading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80" disabled="{{recentLoading || recentError || newPracticeLoading}}" loading="{{newPracticeLoading}}">{{newPracticeLoading ? '正在开始…' : '新答题'}}</button>
+    </view>
 
-    <view class="section-head recommendation-head">
-      <text class="section-title">推荐科目</text>
-      <view class="recommendation-more" bindtap="handleAllSubjectsTap" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">全部科目 ›</view>
-    </view>
-    <view class="recommendation-list" wx:if="{{recommendations.length}}">
-      <view class="recommendation-card" wx:for="{{recommendations}}" wx:key="id" data-id="{{item.id}}" bindtap="handleRecommendedSubjectTap" aria-role="button" aria-label="打开{{item.name}}题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-        <view class="recommendation-content"><text class="recommendation-name">{{item.name}}</text><text class="recommendation-count">{{item.countText}}</text></view>
-        <text class="recommendation-arrow">›</text>
-      </view>
-    </view>
-    <view class="load-note" wx:if="{{recommendationsLoading}}">正在读取推荐科目…</view>
-    <view class="load-note" wx:elif="{{recommendationsError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recommendationsError}} · 点击重试</view>
-    <view class="load-note" wx:elif="{{!recommendations.length}}" bindtap="handleAllSubjectsTap" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">暂无推荐科目，去题库看看</view>
-    <view class="load-note" wx:if="{{recommendationsLoadingMore}}">正在加载更多科目…</view>
-    <view class="load-note" wx:elif="{{recommendationsMoreError}}" bindtap="handleRecommendationsMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recommendationsMoreError}} · 点击重试</view>
-    <view class="load-note" wx:elif="{{recommendations.length && !recommendationsHasMore && !recommendationsLoading && !recommendationsError}}">已显示全部推荐科目</view>
   </view>
 
   <!-- 搜索结果按页读取，遮罩覆盖导航栏。 -->
   <root-portal enable="{{true}}">
-  <view class="search-panel portal-theme" wx:if="{{searchVisible}}">
+  <view class="portal-theme search-panel portal-theme" wx:if="{{searchVisible}}">
     <view class="search-mask" catchtouchmove="noop" catchtap="handleSearchClose"></view>
 
     <view class="search-panel-body">
       <view class="search-panel-head">
-        <text class="search-panel-title">搜索题目</text>
+        <text class="search-panel-title">搜索题库、章节、题目</text>
         <text class="search-panel-close" bindtap="handleSearchClose">关闭</text>
       </view>
 

@@ -7,47 +7,8 @@
   </view>
   <view class="review-stage">
   <view class="review-content {{requiresLogin ? 'is-locked' : ''}}" aria-hidden="{{requiresLogin}}">
-  <text class="review-sub">{{identity.subtitle}}</text>
   <view class="load-note" wx:if="{{statsLoading}}">正在读取统计…</view>
   <view class="load-note" wx:if="{{statsError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{statsError}} · 点击重试</view>
-
-  <!-- 区间切换：近 7 天 / 近 30 天 / 累计 -->
-  <view class="segmented">
-    <view
-      class="seg {{range === item.value ? 'seg-active' : ''}}"
-      wx:for="{{rangeOptions}}"
-      wx:key="value"
-      data-value="{{item.value}}"
-      bindtap="handleRangeTap"
-      hover-class="seg-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >{{item.label}}</view>
-  </view>
-
-  <view class="metric-row">
-    <view class="metric">
-      <text class="metric-label">题量</text>
-      <view class="metric-value">
-        <text class="metric-num">{{metrics.answered}}</text>
-        <text class="metric-unit">道</text>
-      </view>
-    </view>
-    <view class="metric">
-      <text class="metric-label">正确率</text>
-      <view class="metric-value">
-        <text class="metric-num">{{metrics.accuracy}}</text>
-        <text class="metric-unit">%</text>
-      </view>
-    </view>
-    <view class="metric">
-      <text class="metric-label">学习时长</text>
-      <view class="metric-value">
-        <text class="metric-num">{{metrics.duration}}</text>
-        <text class="metric-unit">分</text>
-      </view>
-    </view>
-  </view>
 
   <!-- 错题本 / 收藏本：两个独立页面，各自带统计与练习入口 -->
   <view class="entry-row">
@@ -92,6 +53,44 @@
     </view>
   </view>
 
+  <!-- 区间切换：近 7 天 / 近 30 天 / 累计 -->
+  <view class="segmented">
+    <view
+      class="seg {{range === item.value ? 'seg-active' : ''}}"
+      wx:for="{{rangeOptions}}"
+      wx:key="value"
+      data-value="{{item.value}}"
+      bindtap="handleRangeTap"
+      hover-class="seg-hover"
+      hover-start-time="0"
+      hover-stay-time="80"
+    >{{item.label}}</view>
+  </view>
+
+  <view class="metric-row">
+    <view class="metric">
+      <text class="metric-label">作答题次</text>
+      <view class="metric-value">
+        <text class="metric-num">{{metrics.answered}}</text>
+        <text class="metric-unit">次</text>
+      </view>
+    </view>
+    <view class="metric">
+      <text class="metric-label">客观正确率</text>
+      <view class="metric-value">
+        <text class="metric-num">{{metrics.accuracy}}</text>
+        <text class="metric-unit">%</text>
+      </view>
+    </view>
+    <view class="metric">
+      <text class="metric-label">学习时长</text>
+      <view class="metric-value">
+        <text class="metric-num">{{metrics.duration}}</text>
+        <text class="metric-unit">分</text>
+      </view>
+    </view>
+  </view>
+
   <view class="block">
     <view class="block-head">
       <text class="block-title">学习活动</text>
@@ -123,8 +122,8 @@
   </view>
   <view class="review-access" wx:if="{{requiresLogin}}" style="padding-top: calc(32rpx + {{homeStatusBarHeight + homeNavigationBarHeight}}px);">
     <view class="review-lock" aria-hidden="true"><view class="mi-icon mi-lock"></view></view>
-    <text class="review-access-title">登录后查看学习复盘</text>
+    <text class="review-access-title">登录后复习与查看统计</text>
     <text class="review-access-desc">查看学习趋势，回顾错题与收藏</text>
-    <button class="review-login" bindtap="handleLoginTap" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">登录查看复盘</button>
+    <button class="q-button q-button--primary review-login" bindtap="handleLoginTap" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">登录查看复习</button>
   </view>
 </view>

@@ -1,6 +1,7 @@
 const { spawnSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
+require('./generate-design-tokens.cjs').generate()
 const project = path.resolve(__dirname, '..')
 const localPath = path.join(project, 'miniprogram/ext.json')
 const local = fs.existsSync(localPath) ? JSON.parse(fs.readFileSync(localPath, 'utf8')).extConfig || {} : {}

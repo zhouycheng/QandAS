@@ -14,6 +14,8 @@ const DURATION_OPTIONS = [5, 10, 15, 20].map((value) => ({
     label: `${value} 分钟`
 }));
 const DEFAULT_SHEET = {
+    count: 20,
+    advanced: false,
     mode: 'practice',
     order: 'order',
     timed: false,
@@ -53,6 +55,10 @@ function buildPracticeConfig(sheet, target, selected, wrongCount) {
             sheetStartDisabled: !!(target && target.banks && !selected.length),
             configTargetName: target ? target.name : '',
             sheetMode: sheet.mode,
+            sheetCount: sheet.count || 20,
+            sheetSummary: `${isView ? '背题' : sheet.mode === 'test' ? '模拟考 · 交卷反馈' : '练习 · 即时反馈'} · ${sheet.order === 'random' && !isView ? '随机' : '顺序'} · ${sheet.count || 20} 题`,
+            advancedConfigVisible: !!sheet.advanced,
+            countOptions: [20, 50, 100, 1000].map(value => ({ value, label: value + ' 题' })),
             sheetOrder: sheet.order,
             sheetTimed: sheet.timed,
             sheetDuration: sheet.duration,

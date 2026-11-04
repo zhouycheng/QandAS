@@ -94,7 +94,9 @@ Page(withPageLifecycle({
   assessResult(e) { this.applyViewModelResult(this.viewModel.assessResult(e.currentTarget.dataset.id, e.currentTarget.dataset.value)) },
 
   onShareAppMessage() {
-    return this.viewModel.getShareMessage()
+    const state = this.viewModel && this.viewModel.session && this.viewModel.session.state
+    const question = state && state.questions && state.questions[state.currentIndex]
+    return { title: '题小搭 公开题目', path: question ? '/page/question-detail/index?id=' + encodeURIComponent(question.id) : '/page/subject-list/index' }
   },
 
   /** 答对自动翻页的定时器：用户手动操作时必须取消，否则会连翻两题 */
@@ -316,7 +318,7 @@ Page(withPageLifecycle({
     wx.navigateBack({
       fail: () => {
         navigation.switchTab({
-          url: HOME_PAGE_URL
+          url: '/page/bank-detail/index'
         })
       }
     })

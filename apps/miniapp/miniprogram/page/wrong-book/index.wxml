@@ -10,12 +10,14 @@
     <view class="wb-head-spacer"></view>
     <text class="wb-title">{{title}}</text>
     <view
+      wx:if="{{type === 'favorite'}}"
       class="wb-manage {{manage ? 'is-on' : ''}}"
       bindtap="handleManageTap"
       hover-class="wb-manage-hover"
       hover-start-time="0"
       hover-stay-time="80"
     >{{manage ? '完成' : '管理'}}</view>
+    <view class="wb-head-spacer" wx:else></view>
   </view>
 
   <!-- ① 统计卡：标题 + 三指标 + 科目分布条 -->
@@ -127,7 +129,7 @@
           <text class="q-title">{{item.title}}</text>
           <view
             class="q-remove"
-            wx:if="{{manage}}"
+            wx:if="{{manage && type === 'favorite'}}"
             data-id="{{item.id}}"
             catchtap="handleRemoveTap"
             hover-class="q-remove-hover"
@@ -152,33 +154,33 @@
 
   <!-- ⑤ 分页 -->
   <view class="pager" wx:if="{{items.length}}">
-    <view
-      class="pager-btn"
+    <button
+      class="{{page <= 1 ? 'q-button--disabled' : ''}} q-button  q-button--compact pager-btn"
       bindtap="handlePrevPage"
-      hover-class="pager-btn-hover"
+      hover-class="q-button-hover"
       hover-start-time="0"
       hover-stay-time="80"
-    >‹</view>
+     disabled="{{page <= 1}}">‹</button>
     <text class="pager-text">{{pageText}}</text>
     <text class="pager-index">{{page}} / {{pageCount}}</text>
-    <view
-      class="pager-btn"
+    <button
+      class="{{page >= pageCount ? 'q-button--disabled' : ''}} q-button  q-button--compact pager-btn"
       bindtap="handleNextPage"
-      hover-class="pager-btn-hover"
+      hover-class="q-button-hover"
       hover-start-time="0"
       hover-stay-time="80"
-    >›</view>
+     disabled="{{page >= pageCount}}">›</button>
   </view>
 
   <!-- ⑥ 底部固定：主按钮 + 一句口径说明 -->
   <view class="wb-footer">
-    <view
-      class="wb-footer-btn {{manage ? 'is-danger' : ''}}"
+    <button
+      class="q-button {{manage ? 'q-button--danger' : 'q-button--primary'}} wb-footer-btn {{manage ? 'is-danger' : ''}}"
       bindtap="handleFooterTap"
-      hover-class="wb-footer-hover"
+      hover-class="q-button-hover"
       hover-start-time="0"
       hover-stay-time="80"
-    >{{manage ? (type === 'wrong' ? '清空错题本' : '清空收藏') : footerText}}</view>
+    >{{manage && type === 'favorite' ? '清空收藏' : footerText}}</button>
     <text class="wb-footer-hint">{{footerHint}}</text>
   </view>
 </view>

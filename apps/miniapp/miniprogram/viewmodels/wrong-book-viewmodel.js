@@ -180,7 +180,7 @@ class WrongBookViewModel {
             chips: CHIPS[this.state.type].map(chip => ({ key: chip.key, text: `${chip.text} ${counts[chip.key] || 0}` })),
             activeChip: this.state.activeChip, items, totalCount: subjective ? summary.subjectiveCount || 0 : summary.total, filteredCount: page.total,
             pageCount, page: this.state.page, pageText: page.total ? `共 ${page.total} 题 · 第 ${this.state.page} 页` : '',
-            manage: this.state.manage, footerText: `开始${subjective ? '主观复习' : wrong ? '错题' : '收藏'}练习 · ${page.total} 道`,
+            manage: !wrong && this.state.manage, footerText: `开始${subjective ? '主观复习' : wrong ? '错题' : '收藏'}练习 · ${page.total} 道`,
             footerHint: subjective ? '自评掌握后移出；未自评保持原记录' : wrong ? '掌握的题目会随练习结果更新' : '做错的题会自动进入错题本',
             emptyText: subjective ? '主动自评为待复习的主观题会显示在这里' : this.getEmptyText(wrong, summary.total), collectionLoading: resource.status === 'loading', collectionError: resource.error || summaryState.error
         });
@@ -482,6 +482,7 @@ class WrongBookViewModel {
         return this.setPage((this.state.page || 1) + 1);
     }
     toggleManage() {
+        if (this.state.type === TYPE_WRONG) return null;
         return this.refresh({ manage: !this.state.manage });
     }
     // ---------- 写操作 ----------
@@ -489,8 +490,7 @@ class WrongBookViewModel {
         if (!questionId) {
             return null;
         }
-        if (this.state.type === TYPE_WRONG)
-            return { command: { type: 'toast', title: '错题随复习结果更新，掌握后自动移出' } };
+        if (this.state.type === TYPE_WRONG) return null;
         return this.repository.removeQuestionFavorites(this.storage, [questionId]).then(() => this.refreshRemote({ force: true })).then(() => {
             if (this.state.page > this.buildViewData().pageCount) {
                 this.state.page = this.buildViewData().pageCount;
@@ -499,9 +499,8 @@ class WrongBookViewModel {
             return this.withToast('已取消收藏');
         });
     }
-    clearAll() {
-        if (this.state.type === TYPE_WRONG)
-            return { command: { type: 'toast', title: '错题随复习结果更新，掌握后自动移出' } };
+    clearFavorites() {
+        if (this.state.type === TYPE_WRONG) return null;
         return this.repository.clearFavorites(this.storage).then(() => { this.state.page = 1; return this.refreshRemote({ force: true }); }).then(() => this.withToast('已清空收藏'));
     }
     withToast(title) {

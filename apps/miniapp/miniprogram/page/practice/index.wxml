@@ -6,7 +6,7 @@
   <view wx:if="{{trialNotice}}" class="load-note">{{trialNotice}}</view>
   <view wx:if="{{loadingPractice}}" class="load-note">正在读取本次练习…</view>
   <view wx:if="{{submitting}}" class="pra-modal"><view class="pra-modal-panel"><text>正在确认交卷结果…</text></view></view>
-  <view wx:if="{{loadError}}" class="pra-modal"><view class="pra-modal-panel"><text>{{loadError}}</text><view class="pra-btn" bindtap="returnBankDetail" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">返回题库</view></view></view>
+  <view wx:if="{{loadError}}" class="pra-modal"><view class="pra-modal-panel"><text>{{loadError}}</text><button class="q-button  pra-btn" bindtap="returnBankDetail" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回题库</button></view></view>
   <block wx:if="{{!isCompleted && !loadingPractice && !loadError}}">
     <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
     <scroll-view class="pra-body" scroll-y enhanced bounces show-scrollbar="{{false}}" scroll-top="{{questionScrollTop}}" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection">
@@ -21,8 +21,8 @@
         <text class="pra-modal-title">确认交卷</text>
         <text class="pra-modal-desc">未答 {{unansweredCount}} 题，待确认 {{pendingConfirmationCount}} 题。交卷将确认所有已保存的作答，未答客观题不得分。</text>
         <view class="pra-modal-actions">
-          <view class="pra-btn" bindtap="closeSubmitModal" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">继续答题</view>
-          <view class="pra-btn primary" bindtap="forceSubmit" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">确认交卷</view>
+          <button class="q-button  pra-btn" bindtap="closeSubmitModal" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">继续答题</button>
+          <button class="q-button q-button--primary pra-btn primary" bindtap="forceSubmit" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">确认交卷</button>
         </view>
       </view>
     </view>
@@ -48,13 +48,13 @@
     <scroll-view class="pra-result" scroll-y enhanced bounces show-scrollbar="{{false}}">
       <view wx:if="{{submitError}}" class="pra-submit-error">
         <text class="pra-submit-error-text">{{submitError}}</text>
-        <view
-          class="pra-submit-retry"
+        <button
+          class="q-button q-button--text pra-submit-retry"
           bindtap="retrySubmit"
-          hover-class="btn-flat-hover"
+          hover-class="q-button-hover"
           hover-start-time="0"
           hover-stay-time="80"
-        >重试提交</view>
+        >重试提交</button>
       </view>
 
       <!-- 蓝色渐变统计卡：三格数据，白字压在渐变上 -->
@@ -107,13 +107,13 @@
       </view>
 
       <view class="res-actions">
-        <view class="pra-btn" bindtap="returnBankDetail" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">返回题库</view>
-        <view class="pra-btn primary" bindtap="restartPractice" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">再来一次</view>
+        <button class="q-button  pra-btn" bindtap="returnBankDetail" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回题库</button>
+        <button class="q-button q-button--primary pra-btn primary" bindtap="restartPractice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">再来一次</button>
       </view>
 
       <view class="res-actions res-actions-extra" wx:if="{{hasWrongQuestions}}">
-        <view class="pra-btn highlight" bindtap="redoWrongQuestions" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">重练错题 {{wrongCount}} 题</view>
-        <view class="pra-btn" bindtap="returnHome" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">回到首页</view>
+        <button class="q-button  pra-btn highlight" bindtap="redoWrongQuestions" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">重练错题 {{wrongCount}} 题</button>
+        <button class="q-button  pra-btn" bindtap="returnHome" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">回到首页</button>
       </view>
 
       <view class="res-review">
@@ -208,8 +208,8 @@
           <view class="res-self-assessment" wx:if="{{item.isShortAnswer && item.answered}}">
             <text class="res-item-label">自评：{{item.selfAssessment === 'CORRECT' ? '掌握' : (item.selfAssessment === 'WRONG' ? '待复习' : '未自评')}}</text>
             <view class="res-assessment-actions" wx:if="{{preferences.showSelfAssessment}}">
-              <view class="res-assessment-option {{item.selfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">掌握</view>
-              <view class="res-assessment-option {{item.selfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="btn-flat-hover" hover-start-time="0" hover-stay-time="80">待复习</view>
+              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">掌握</button>
+              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">待复习</button>
             </view>
           </view>
           <view class="res-item-line">

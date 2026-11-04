@@ -1,11 +1,12 @@
+const { colors: theme } = require('./design-tokens.js')
 const { parseContent, parseBlankContent, codeTokens } = require('@qanda/content-format')
 const colors = { keyword: '#7c3aed', boolean: '#7c3aed', string: '#067647', char: '#067647', number: '#b45309', function: '#b45309', comment: '#667085', tag: '#0e7490', 'attr-name': '#7c3aed', 'attr-value': '#067647', property: '#0e7490', selector: '#b45309', operator: '#667085', punctuation: '#667085', 'class-name': '#b45309' }
-const styles = { p: 'white-space:pre-wrap;margin:8px 0;', code: 'font-family:monospace;', pre: 'white-space:pre;overflow-wrap:normal;word-break:normal;font-family:monospace;', blockquote: 'border-left:3px solid #c9cdd4;padding-left:12px;margin:8px 0;', table: 'border-collapse:collapse;min-width:100%;', th: 'border:1px solid #ddd;padding:6px;', td: 'border:1px solid #ddd;padding:6px;' }
+const styles = { p: 'white-space:pre-wrap;margin:8px 0;', code: 'font-family:monospace;', pre: 'white-space:pre;overflow-wrap:normal;word-break:normal;font-family:monospace;', blockquote: `border-left:3px solid ${theme.line};padding-left:12px;margin:8px 0;`, table: 'border-collapse:collapse;min-width:100%;', th: `border:1px solid ${theme.line};padding:6px;`, td: `border:1px solid ${theme.line};padding:6px;` }
 
 function richNodes(nodes) {
   return nodes.map(value => value.text !== undefined ? { type: 'text', text: value.text } : {
     name: value.tag === 'a' ? 'span' : value.tag,
-    attrs: { ...(value.tag === 'ol' ? { start: value.start || 1 } : {}), style: (styles[value.tag] || (/^h[1-6]$/.test(value.tag) ? 'font-size:1.05em;font-weight:bold;margin:12px 0 6px;' : '')) + (colors[value.token] ? `color:${colors[value.token]};` : '') + (value.continuation ? 'list-style-type:none;' : '') },
+    attrs: { ...(value.tag === 'ol' ? { start: value.start || 1 } : {}), style: (styles[value.tag] || (/^h[1-6]$/.test(value.tag) ? 'font-size:1em;font-weight:600;margin:12px 0 6px;' : '')) + (colors[value.token] ? `color:${colors[value.token]};` : '') + (value.continuation ? 'list-style-type:none;' : '') },
     children: richNodes(value.children || [])
   })
 }

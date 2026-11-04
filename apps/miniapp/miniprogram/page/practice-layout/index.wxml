@@ -1,11 +1,15 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
-<view class="page practice-page layout-editor font-{{preferences.fontSize}}" drag-scroll="{{dragScroll}}" change:drag-scroll="{{layoutDrag.scroll}}" drag-reset="{{dragReset}}" change:drag-reset="{{layoutDrag.clear}}">
-  <include src="../../templates/practice-head.wxml" />
-  <scroll-view class="pra-body" scroll-y scroll-top="{{scrollTop}}" bindscroll="handleScroll" bind:contentready="measure" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
+<view class="page practice-page layout-editor settings-detail font-{{preferences.fontSize}}" drag-scroll="{{dragScroll}}" change:drag-scroll="{{layoutDrag.scroll}}" drag-reset="{{dragReset}}" change:drag-reset="{{layoutDrag.clear}}" capture-bind:touchmove="{{layoutDrag.move}}" capture-bind:touchend="{{layoutDrag.end}}" capture-bind:touchcancel="{{layoutDrag.cancel}}">
+  <page-header title="自定义布局" />
+  <scroll-view id="layout-scroll" class="pra-body" scroll-y scroll-top="{{scrollTop}}" bindscroll="handleScroll" bind:contentready="measure" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
     <include src="../../templates/practice-content.wxml" />
     <view class="layout-end" wx:if="{{dragTarget === 'end'}}">松手放在这里</view>
-    <picker range="{{previewTypes}}" value="{{previewIndex}}" bindchange="handlePreviewType"><view class="layout-preview" hover-class="chip-flat-hover">预览题型：{{previewTypes[previewIndex]}} ›</view></picker>
-    <view class="layout-reset" bindtap="handleResetLayout" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80" aria-role="button">恢复默认布局</view>
   </scroll-view>
-  <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>
+  <view class="pra-footer">
+    <text class="layout-tip">可以自定义的拖拽模块的位置</text>
+    <view class="layout-actions">
+      <button class="q-button" bindtap="handleResetLayout" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">恢复默认</button>
+      <button class="q-button q-button--primary {{!layoutDirty ? 'q-button--disabled' : ''}}" disabled="{{!layoutDirty}}" bindtap="handleSaveLayout" hover-class="{{layoutDirty ? 'q-button-hover' : 'none'}}" hover-start-time="0" hover-stay-time="80">保存</button>
+    </view>
+  </view>
 </view>

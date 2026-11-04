@@ -25,7 +25,7 @@ api.request = async (method, path, body) => {
   if (path === '/me/question-collections/summary') return { ok: true, data: { total: 1, pendingCount: 1, repeatCount: 1, facets: [] } }
   if (path.startsWith('/me/recent-learning')) return { ok: true, data: { total: 1, page: 1, pageSize: 20, items: [{ id: 'p1', questionBankId: 'b1', status: 'IN_PROGRESS', deviceId: body.deviceId }] } }
   if (path === '/me') return { ok: true, data: { id: 'u1', nickname: '同学', version: 2, collegeId: 'c1', majorId: 'm1' } }
-  if (path === '/questions') return { ok: true, data: { total: 1, page: 1, items: [{ id: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [] }] } }
+  if (path === '/search') return { ok: true, data: { total: 1, page: 1, items: [{ id: 'q1', questionBankId: 'b1', kind: 'QUESTION', title: '题目', summary: '课程一' }] } }
   if (path.startsWith('/questions/')) return { ok: true, data: { id: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '选项' }], correctAnswer: ['A'], explanation: '不可提前显示' } }
   if (path === '/me/statistics') return { ok: true, data: { answeredCount: 20, objectiveAccuracy: 0.75, durationSeconds: 600 } }
   if (path.startsWith('/me/statistics/days')) return { ok: true, data: [{ date: '2026-10-28', answeredCount: 5, correctCount: 4, durationSeconds: 60 }] }
@@ -43,7 +43,7 @@ async function main() {
   assert.equal(calls.length, 2, '游客不请求个人统计')
   await remote.searchQuestions(storage, '题目', 1)
   await remote.loadQuestion(storage, 'q1')
-  assert.deepStrictEqual(calls.slice(2).map(call => call[1]), ['/questions', '/questions/q1'])
+  assert.deepStrictEqual(calls.slice(2).map(call => call[1]), ['/search', '/questions/q1'])
   calls.length = 0
   auth.saveAuth(storage, { provider: 'email', userId: 'u1', token: 'token', nickname: '同学' })
   remote.bind(storage)
@@ -52,12 +52,7 @@ async function main() {
   const homeVm = new SubjectListViewModel({ repository, storage })
   assert.strictEqual(homeVm.load().data.hasAnnouncements, false, '公告加载前保持静止')
   await Promise.all([homeVm.refreshRemote(), homeVm.refreshRemote()])
-  assert.deepStrictEqual(calls.map(c => c[1]).sort(), ['/announcements', '/me/learning-overview', '/me/recommendations'], '首页读取摘要、公告与三科推荐，并发刷新合并')
-  assert.strictEqual(calls.find(c => c[1] === '/me/recommendations')[2].pageSize, 3)
-  assert.strictEqual(homeVm.load().data.recommendations[0].id, 's1')
-  assert.strictEqual(homeVm.load().data.recommendations[0].countText, '3 道题')
-  assert.strictEqual(homeVm.openRecommendedSubject('s1').command.subjectId, 's1')
-  assert.strictEqual(homeVm.openRecommendedSubject('unknown').command.type, 'toast')
+  assert.deepStrictEqual(calls.map(c => c[1]).sort(), ['/announcements', '/me/learning-overview'], '首页读取摘要和公告，并发刷新合并')
   assert.strictEqual(calls.find(c => c[1] === '/announcements')[2].pageSize, 1)
   assert.strictEqual(homeVm.load().data.hasAnnouncements, true, '有可见公告时持续摇动')
   assert.strictEqual(homeVm.load().data.announcements[0].body, '公告正文')
@@ -135,7 +130,7 @@ async function main() {
   await remote.refreshProfile(storage)
   await remote.saveProfile(storage, { nickname: '新昵称' })
   const save = calls.find((c) => Array.isArray(c) && c[0] === 'PUT' && c[1] === '/me/profile')
-  assert.strictEqual(save[2].majorId, 'm1', '完整更新保留未编辑资料')
+  assert.strictEqual(save[2].majorId, undefined, '资料更新只提交昵称和头像')
   auth.saveAuth(storage, { provider: 'email', userId: 'u2', token: 'other' })
   assert.deepStrictEqual(remote.getFavorites(storage).ids, [], '账号切换立即清理内存快照')
   assert.strictEqual(remote.getSubjectSummaries().length, 0)

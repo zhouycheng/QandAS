@@ -82,6 +82,27 @@ function normalizeExam(raw) {
   }
 }
 
+function normalizeExamList(raw) {
+  const ids = new Set()
+  return (Array.isArray(raw) ? raw : []).flatMap((item, index) => {
+    const exam = normalizeExam(item)
+    if (!exam.examName || !exam.examDateTimestamp) return []
+    let id = item && typeof item.id === 'string' && item.id.trim() ? item.id.trim() : 'exam-' + index
+    while (ids.has(id)) id += '-' + index
+    ids.add(id)
+    return [{ id, examName: exam.examName, examDate: toDateKey(exam.examDateTimestamp) }]
+  })
+}
+
+function buildExamList(exams, now) {
+  return normalizeExamList(exams).map(exam => Object.assign({ id: exam.id }, buildExamCountdown(exam, now)))
+    .sort((a, b) => Number(a.isPast) - Number(b.isPast) || (a.isPast ? b.daysLeft - a.daysLeft : a.daysLeft - b.daysLeft))
+}
+
+function selectHomeExam(exams, now) {
+  return buildExamList(exams, now)[0] || buildExamCountdown(null, now)
+}
+
 /**
  * 倒计时视图。
  *
@@ -190,9 +211,12 @@ module.exports = {
   DEFAULT_PREPARE_DAYS,
   EXAM_NAME_MAX_LENGTH,
   buildExamCountdown,
+  buildExamList,
   diffCalendarDays,
   normalizeExam,
+  normalizeExamList,
   parseDateKey,
   toDateKey,
+  selectHomeExam,
   validateExamInput
 }

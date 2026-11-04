@@ -1,6 +1,4 @@
 const navigation = require('../utils/navigation.js')
-const practiceRepository = require('../repositories/practice-repository.js')
-const { createWxStorageAdapter } = require('../utils/wx-storage.js')
 
 /**
  * tab 索引 → 页面路径。
@@ -29,37 +27,6 @@ function findTabIndexByRoute(route) {
   return TAB_ROUTES.findIndex((tab) => tab.pagePath === normalized)
 }
 
-/**
- * 中央「继续答题」的去向。
- *
- * 有未完成会话 → 直接恢复它（接着原来的题序和答案往下做）；
- * 没有 → 去题库选一个科目开始。这条规则与首页「继续上次练习」同源，
- * 避免首页说有半场练习、点底部按钮却进了题库。
- */
-function resolveContinueTarget(storage) {
-  let session = null
-
-  try {
-    if (typeof practiceRepository.getResumableSession === 'function') {
-      session = practiceRepository.getResumableSession(storage)
-    }
-  } catch (error) {
-    session = null
-  }
-
-  if (session && session.sessionId) {
-    return {
-      type: 'practice',
-      url: `/page/practice/index?sessionId=${encodeURIComponent(session.sessionId)}`
-    }
-  }
-
-  return {
-    type: 'bank',
-    url: '/page/bank-detail/index'
-  }
-}
-
 Component({
   options: {
     styleIsolation: 'apply-shared'
@@ -67,9 +34,6 @@ Component({
 
   data: {
     selected: 0,
-    continueLabel: '跳转题库',
-    continueIcon: 'arrow-right',
-    continueDisabled: false,
     tabs: [
       { key: 'home', text: '首页', icon: '/assets/tabbar/home.png', activeIcon: '/assets/tabbar/home-active.png' },
       { key: 'bank', text: '题库', icon: '/assets/tabbar/bank.png', activeIcon: '/assets/tabbar/bank-active.png' },
@@ -80,24 +44,8 @@ Component({
 
   lifetimes: {
     attached() {
-      const { createStoreBindings } = require('mobx-miniprogram-bindings')
-      this.storage = createWxStorageAdapter()
       // 组件实例可能早于页面 onShow 创建，先按当前页面栈定位一次
       this.syncFromRoute()
-      this.storeBindings = createStoreBindings({ setData: () => this.syncContinueState() }, {
-        fields: { resumeTarget: () => {
-          if (practiceRepository.isRemoteEnabled()) {
-            practiceRepository.getRemoteOverview(this.storage)
-            practiceRepository.getRemoteRecent(this.storage)
-          }
-          return resolveContinueTarget(this.storage)
-        } },
-        structuralComparison: true
-      })
-      this.storeBindings.updateStoreBindings()
-    },
-    detached() {
-      if (this.storeBindings) this.storeBindings.destroyStoreBindings()
     }
   },
 
@@ -109,7 +57,6 @@ Component({
       const index = findTabIndexByRoute(route)
 
       if (index >= 0) this.setSelected(route)
-      else this.syncContinueState()
 
       return index
     },
@@ -119,20 +66,6 @@ Component({
     setSelected(route) {
       const index = findTabIndexByRoute(route)
       if (index >= 0 && index !== this.data.selected) this.setData({ selected: index })
-      this.syncContinueState()
-      if (practiceRepository.isRemoteEnabled()) practiceRepository.refreshRemoteOverview(this.storage || createWxStorageAdapter()).catch(() => {})
-    },
-
-    syncContinueState() {
-      const target = resolveContinueTarget(this.storage || createWxStorageAdapter())
-      const canContinue = target.type === 'practice'
-      const onBank = this.data.selected === 1
-      this.setData({
-        continueLabel: canContinue ? '继续答题' : onBank ? '选择题库' : '跳转题库',
-        continueIcon: canContinue || onBank ? 'play' : this.data.selected === 0 ? 'arrow-right' : 'arrow-left',
-        continueDisabled: !canContinue && onBank
-      })
-      return target
     },
 
     handleTabTap(e) {
@@ -150,34 +83,6 @@ Component({
 
       navigation.switchTab({
         url: tab.pagePath,
-        fail: () => {
-          wx.showToast({
-            title: '页面暂不可用',
-            icon: 'none'
-          })
-        }
-      })
-    },
-
-    handleContinueTap() {
-      const target = this.syncContinueState()
-      if (this.data.continueDisabled) return
-
-      if (target.type === 'practice') {
-        navigation.navigateTo({
-          url: target.url,
-          fail: () => {
-            wx.showToast({
-              title: '练习记录已失效',
-              icon: 'none'
-            })
-          }
-        })
-        return
-      }
-
-      navigation.switchTab({
-        url: target.url,
         fail: () => {
           wx.showToast({
             title: '页面暂不可用',

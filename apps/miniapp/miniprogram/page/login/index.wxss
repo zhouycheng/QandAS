@@ -1,22 +1,42 @@
 @import "../../styles/auth-form.wxss";
 
-/**
- * 登录页专属差异｜设计稿 763:567
- * 公共尺寸在 styles/auth-form.wxss，这里只写这张画板不同的行距。
- */
+.secondary-page > .auth-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: auto;
+  padding: 48rpx 67rpx;
+  padding-bottom: calc(144rpx + env(safe-area-inset-bottom));
+}
 
-/* 画板里「登录」标题到邮箱标签是 45px（84rpx），比注册页多 5px */
+.auth-brand-area {
+  flex: none;
+  margin-bottom: 52rpx;
+}
+
+.brand {
+  height: auto;
+}
+
+.brand-name {
+  font-size: var(--font-display);
+  line-height: 1.3;
+}
+
+.login-area {
+  flex: none;
+}
+
 .login-form {
-  margin-top: 84rpx;
+  margin-top: 0;
 }
 
 .login-notice {
-  margin-top: 28rpx;
   padding: 24rpx;
-  border-radius: 20rpx;
-  background: #eef4ff;
-  color: #345c96;
-  font-size: 26rpx;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--font-secondary);
   line-height: 1.6;
 }
 
@@ -24,15 +44,82 @@
 
 /* 两个字段之间 24px（45rpx）：比注册页的 12px 松，是这张画板的节奏 */
 .login-form .field + .field {
-  margin-top: 45rpx;
+  margin-top: 40rpx;
 }
 
-/* 协议行到主按钮 30px（56rpx） */
+.login-form .field-input {
+  padding: 0 28rpx;
+}
+
+.login-code-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 11rpx;
+}
+
+.login-code-row .field-input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  padding: 0 28rpx;
+}
+
+.login-code-send {
+  flex: none;
+  width: 196rpx;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  white-space: nowrap;
+}
+
+.login-code-send-off { background: var(--page-bg); color: var(--text-sub); }
+
+.login-code-hint {
+  display: block;
+  margin-top: 18rpx;
+  color: var(--text-sub);
+  font-size: var(--font-caption);
+  line-height: 1.5;
+}
+
+.agree-row { align-items: center; justify-content: flex-start; flex-wrap: wrap; row-gap: 8rpx; margin-top: 28rpx; }
+.agree-left { flex: none; align-items: center; }
+.agree-left .checkbox { margin-top: 0; }
+.agree-link { color: var(--brand); }
+
+/* 协议行与主按钮的间距。 */
 .login-submit {
-  margin-top: 56rpx;
+  margin-top: 32rpx;
 }
 
-/* 「或」到微信登录按钮 8px（15rpx） */
 .wechat-btn {
-  margin-top: 15rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20rpx;
 }
+
+/* Arco Design IconWechat (MIT); the SVG includes its original license notice. */
+.wechat-icon {
+  flex: none;
+  width: 36rpx;
+  height: 36rpx;
+  margin-right: 12rpx;
+  background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCI+PCEtLU1JVCBMaWNlbnNlCgpDb3B5cmlnaHQgKGMpIDIwMjEgQnl0ZWRhbmNlLCBJbmMuIGFuZCBpdHMgYWZmaWxpYXRlcy4KClBlcm1pc3Npb24gaXMgaGVyZWJ5IGdyYW50ZWQsIGZyZWUgb2YgY2hhcmdlLCB0byBhbnkgcGVyc29uIG9idGFpbmluZyBhIGNvcHkKb2YgdGhpcyBzb2Z0d2FyZSBhbmQgYXNzb2NpYXRlZCBkb2N1bWVudGF0aW9uIGZpbGVzICh0aGUgIlNvZnR3YXJlIiksIHRvIGRlYWwKaW4gdGhlIFNvZnR3YXJlIHdpdGhvdXQgcmVzdHJpY3Rpb24sIGluY2x1ZGluZyB3aXRob3V0IGxpbWl0YXRpb24gdGhlIHJpZ2h0cwp0byB1c2UsIGNvcHksIG1vZGlmeSwgbWVyZ2UsIHB1Ymxpc2gsIGRpc3RyaWJ1dGUsIHN1YmxpY2Vuc2UsIGFuZC9vciBzZWxsCmNvcGllcyBvZiB0aGUgU29mdHdhcmUsIGFuZCB0byBwZXJtaXQgcGVyc29ucyB0byB3aG9tIHRoZSBTb2Z0d2FyZSBpcwpmdXJuaXNoZWQgdG8gZG8gc28sIHN1YmplY3QgdG8gdGhlIGZvbGxvd2luZyBjb25kaXRpb25zOgoKVGhlIGFib3ZlIGNvcHlyaWdodCBub3RpY2UgYW5kIHRoaXMgcGVybWlzc2lvbiBub3RpY2Ugc2hhbGwgYmUgaW5jbHVkZWQgaW4gYWxsCmNvcGllcyBvciBzdWJzdGFudGlhbCBwb3J0aW9ucyBvZiB0aGUgU29mdHdhcmUuCgpUSEUgU09GVFdBUkUgSVMgUFJPVklERUQgIkFTIElTIiwgV0lUSE9VVCBXQVJSQU5UWSBPRiBBTlkgS0lORCwgRVhQUkVTUyBPUgpJTVBMSUVELCBJTkNMVURJTkcgQlVUIE5PVCBMSU1JVEVEIFRPIFRIRSBXQVJSQU5USUVTIE9GIE1FUkNIQU5UQUJJTElUWSwKRklUTkVTUyBGT1IgQSBQQVJUSUNVTEFSIFBVUlBPU0UgQU5EIE5PTklORlJJTkdFTUVOVC4gSU4gTk8gRVZFTlQgU0hBTEwgVEhFCkFVVEhPUlMgT1IgQ09QWVJJR0hUIEhPTERFUlMgQkUgTElBQkxFIEZPUiBBTlkgQ0xBSU0sIERBTUFHRVMgT1IgT1RIRVIKTElBQklMSVRZLCBXSEVUSEVSIElOIEFOIEFDVElPTiBPRiBDT05UUkFDVCwgVE9SVCBPUiBPVEhFUldJU0UsIEFSSVNJTkcgRlJPTSwKT1VUIE9GIE9SIElOIENPTk5FQ1RJT04gV0lUSCBUSEUgU09GVFdBUkUgT1IgVEhFIFVTRSBPUiBPVEhFUiBERUFMSU5HUyBJTiBUSEUKU09GVFdBUkUuLS0+PHBhdGggZmlsbD0iIzE1ODAzRCIgZD0iTTMyLjA5IDE2LjM2MmExNC4zOSAxNC4zOSAwIDAgMC02LjkyNyAxLjcxNiAxMy4wODcgMTMuMDg3IDAgMCAwLTUuMDA4IDQuNjc2IDExLjkzNiAxMS45MzYgMCAwIDAtMS44NTYgNi40NzNjLjAxIDEuMTM3LjE4NSAyLjI3My41MTcgMy4zNmgtMS41MDVhMjYuNjUzIDI2LjY1MyAwIDAgMS00Ljc2Ni0uNTkzbC0uOTI1LS4xNjYtNS42NjUgMi45MyAxLjU1LTQuODQ4QzMuMTc5IDI2Ljc4MyAxLjAxOCAyMy4wNzcgMSAxOC43OTJhMTEuOTUxIDExLjk1MSAwIDAgMSAyLjE4OC02LjkyNyAxNC45NDMgMTQuOTQzIDAgMCAxIDUuOTM4LTUuMDI3IDE4LjU3OSAxOC41NzkgMCAwIDEgOC4yNDgtMS44MzdBMTguODIgMTguODIgMCAwIDEgMjQuOCA2LjUwNmExNi44NjMgMTYuODYzIDAgMCAxIDUuODkzIDQuMTI4IDExLjk2MyAxMS45NjMgMCAwIDEgMi45OTIgNS44MTcgMTcuOTIyIDE3LjkyMiAwIDAgMC0xLjU5NS0uMDlabS0yMC4xNTItLjQxNGEyLjE2NyAyLjE2NyAwIDAgMCAxLjUwNS0uNDcxYy40MDUtLjM3OC42Mi0uOTA4LjU5My0xLjQ2YTEuODgxIDEuODgxIDAgMCAwLS41OTItMS40NiAyLjAyNSAyLjAyNSAwIDAgMC0xLjUwNi0uNTM1IDIuNzc4IDIuNzc4IDAgMCAwLTEuNjcuNTM1Yy0uNDU0LjMyMy0uNzI4Ljg0OS0uNzI4IDEuNDAxYTEuNzA4IDEuNzA4IDAgMCAwIC43MjcgMS41MjMgMi45MjUgMi45MjUgMCAwIDAgMS42NzEuNDY3Wk00NyAyOC45OWE5LjU3MyA5LjU3MyAwIDAgMS0xLjU5IDUuMTkzYy0xLjEyOCAxLjYtMi41MiAzLTQuMTI5IDQuMTI4bDEuMjU4IDQuMTI5LTQuNTEtMi40MTNoLS4yNDNhMjAuNzU4IDIwLjc1OCAwIDAgMS00LjYuNzYgMTUuNTM4IDE1LjUzOCAwIDAgMS03LjAzLTEuNTkgMTMuMDg5IDEzLjA4OSAwIDAgMS01LjAwOC00LjMxMyAxMC41MDEgMTAuNTAxIDAgMCAxLTEuODM4LTUuOTM5IDEwLjI5IDEwLjI5IDAgMCAxIDEuODM4LTUuOTJjMS4yNjYtMS44NDcgMy0zLjMzNCA1LjAwOC00LjMxM2ExNS41NzkgMTUuNTc5IDAgMCAxIDcuMDMtMS41OSAxNC45MTkgMTQuOTE5IDAgMCAxIDYuNzYxIDEuNTkgMTMuMjg2IDEzLjI4NiAwIDAgMSA1LjA5IDQuMzEyIDEwLjAwNCAxMC4wMDQgMCAwIDEgMS45NCA1Ljk2Nkg0N1pNMjMuNDA3IDExLjk1NWEyLjc3IDIuNzcgMCAwIDAtMS43NDcuNTM0IDEuNjUgMS42NSAwIDAgMC0uNzYgMS40NmMtLjAxNy41ODQuMjcgMS4xNDYuNzYgMS40Ni40OTguMzYgMS4xLjU0NCAxLjcxNi41MzVhMi4wODMgMi4wODMgMCAwIDAgMS41MDUtLjQ3MmMuMzY4LS40MDQuNTYxLS45MjUuNTM0LTEuNDZhMS44MzQgMS44MzQgMCAwIDAtLjUzNC0xLjUzMiAxLjg4NyAxLjg4NyAwIDAgMC0xLjUzMi0uNTM0aC4wNjN2LjAwOWgtLjAwNVptNS4yNTYgMTUuMDNhMi4wMTYgMi4wMTYgMCAwIDAgMS40Ni0uNDk4Yy4zMzItLjI4OC41MjUtLjcuNTM0LTEuMTM3YTEuNjEyIDEuNjEyIDAgMCAwLS41MzQtMS4xMzYgMi4wNjIgMi4wNjIgMCAwIDAtMS40Ni0uNDk5IDEuNTggMS41OCAwIDAgMC0xLjA5Mi40OTljLS4zMDUuMjk2LS40OS43MS0uNDk4IDEuMTM2LjAwOS40MjcuMTg0Ljg0LjQ5OCAxLjEzNy4yODguMzA1LjY3OS40OCAxLjA5Mi40OTlabTguOTUzIDBhMi4wMTYgMi4wMTYgMCAwIDAgMS40Ni0uNDk4Yy4zMzItLjI4OC41MjUtLjcuNTM0LTEuMTM3YTEuNTU4IDEuNTU4IDAgMCAwLS41OTMtMS4xMzYgMi4xMiAyLjEyIDAgMCAwLTEuNDAxLS40OTkgMS40OTMgMS40OTMgMCAwIDAtMS4wOTIuNDk5Yy0uMzA1LjI5Ni0uNDkuNzEtLjQ5OCAxLjEzNi4wMDkuNDI3LjE4NC44NC40OTggMS4xMzcuMjc5LjMwNS42NzQuNDkgMS4wOTIuNDk5WiIvPjwvc3ZnPg==") center / contain no-repeat;
+}
+
+.q-button.login-code-send { width: 88px; min-height: 48px; padding: 8px; font-size: var(--font-secondary); }
+.login-code-row .field-input { height: 48px; padding: 0 12px; }
+.login-code-row { gap: 8px; }
+.login-submit, .wechat-btn { width: 100%; }
+@media (max-width: 350px) {
+  .secondary-page > .auth-page { padding-left: 32rpx; padding-right: 32rpx; }
+}
+
+.brand-name { font-size: var(--font-metric); line-height: var(--leading-metric); }
+.login-submit { margin-top: var(--space-lg); }
+.wechat-btn { margin-top: var(--space-md); }

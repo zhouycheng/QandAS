@@ -53,17 +53,11 @@ async function main() {
   assert.strictEqual(auth.getAuth(storage).loggedIn, false)
   gateway.setAuthGateway({ loginByEmail: () => ({ ok: true, userId: 'real-id', token: 'token', profile: { version: 3 }, version: 3 }) })
   assert.strictEqual((await auth.loginWithEmail(storage, { email: 'a@b.com', password: 'abc12345' })).auth.version, 3)
-  let codes = 0
-  let registered = 0
-  gateway.setAuthGateway({
-    login: () => ++codes === 1 ? { ok: false, registrationToken: 'register-token' } : { ok: true, userId: 'wechat-user', token: 'wechat-token' },
-    registerWechat: (input) => { assert.strictEqual(input.registrationToken, 'register-token'); registered += 1; return { ok: true } }
-  })
+  gateway.setAuthGateway({ login: () => ({ ok: true, userId: 'wechat-user', token: 'wechat-token' }) })
   let issuedCodes = 0
-  const firstWechat = await auth.login(memory(), { codeProvider: (done) => done(`code-${++issuedCodes}`) })
+  const firstWechat = await auth.login(memory(), { codeProvider: done => done('fresh-' + ++issuedCodes) })
   assert.strictEqual(firstWechat.auth.userId, 'wechat-user')
-  assert.strictEqual(issuedCodes, 2)
-  assert.strictEqual(registered, 1)
+  assert.strictEqual(issuedCodes, 1)
   gateway.resetAuthGateway()
 
   let clock = 1000

@@ -19,6 +19,16 @@ async function main() {
   assert.strictEqual(requestedScope.selectionKind, 'WRONG')
   assert.strictEqual(requestedScope.count, 1000)
   assert(result.command.url.includes('count=2'))
+  assert.strictEqual(vm.toggleManage(), null, '错题本不进入收藏管理模式')
+  assert.strictEqual(vm.removeItem('question'), null)
+  assert.strictEqual(vm.clearFavorites(), null)
+  let definition, practiced = false
+  global.Page = value => { definition = value }
+  require('../miniprogram/page/wrong-book/index.js')
+  global.wx = { showModal: () => { throw new Error('错题练习不能触发清空确认') } }
+  definition.handleFooterTap.call({ data: { type: 'wrong', manage: true },
+    viewModel: { createPracticeCommand: () => { practiced = true; return null } }, applyViewModelResult() {} })
+  assert(practiced, '旧管理状态也只进入错题练习')
 
   const values = { qandaAuth: { provider: 'email', userId: 'user-1', token: 'token-1' } }
   const storage = { get: key => values[key], set: (key, value) => { values[key] = value }, remove: key => { delete values[key] } }

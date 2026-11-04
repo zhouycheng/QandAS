@@ -1,9 +1,12 @@
+@import "../../styles/settings-detail.wxss";
 .settings-scroll {
   height: 100vh;
 }
 
 .settings-page {
-  padding: 24rpx 24rpx 60rpx;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .section {
@@ -17,34 +20,23 @@
 .settings-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  margin: 0 6rpx 18rpx;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 32rpx;
 }
 
 .section-note {
-  font-size: 22rpx;
+  font-size: var(--font-caption);
   color: var(--text-muted);
 }
 
-.section-reset {
-  font-size: 23rpx;
-  color: var(--brand);
-  padding: 6rpx 4rpx;
-}
-
 /* ==================== 菜单通用 ==================== */
-.menu {
-  padding: 0 24rpx;
-}
+.menu { padding: 0; }
 
-.menu-row {
-  display: flex;
-  align-items: center;
-  padding: 26rpx 0;
-}
-
-.menu-row + .menu-row {
-  border-top: 1rpx solid var(--line);
+.settings-page .menu-row {
+  display: block;
+  min-height: 0;
+  padding: 14px 0;
 }
 
 .menu-main {
@@ -60,14 +52,17 @@
 
 .menu-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-body);
   color: var(--text-main);
+
+  font-weight: 400;
 }
+
+.menu-main .menu-title { padding-right: 68px; }
 
 .menu-desc {
   display: block;
-  margin-top: 6rpx;
-  font-size: 21rpx;
+  font-size: var(--font-secondary);
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -75,7 +70,7 @@
 .menu-value {
   flex: none;
   margin-left: 16rpx;
-  font-size: 25rpx;
+  font-size: var(--font-secondary);
   color: var(--text-muted);
 }
 
@@ -83,7 +78,7 @@
   flex: none;
   margin-left: 8rpx;
   color: var(--text-muted);
-  font-size: 32rpx;
+  font-size: var(--font-body);
 }
 
 .menu-tag {
@@ -91,15 +86,18 @@
   margin-left: 14rpx;
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
-  background: #f2f4f7;
-  font-size: 20rpx;
+  background: var(--page-bg);
+  font-size: var(--font-caption);
   color: var(--text-muted);
 }
 
 .menu-switch {
-  flex: none;
-  margin-left: 20rpx;
-  transform: scale(0.86);
+  position: absolute;
+  top: 50%;
+  right: 0;
+  margin: 0;
+  transform: translateY(-50%) scale(0.86);
+  transform-origin: center right;
 }
 
 /* ==================== 选择型偏好 ==================== */
@@ -108,7 +106,7 @@
 }
 
 .choice-row {
-  padding: 26rpx 0;
+  padding: var(--space-md) 0;
 }
 
 .choice-row + .choice-row {
@@ -124,9 +122,9 @@
   margin-left: 14rpx;
   padding: 3rpx 12rpx;
   border-radius: 999rpx;
-  background: #fff5e6;
-  font-size: 19rpx;
-  color: #b25e00;
+  background: var(--warning-soft);
+  font-size: var(--font-caption);
+  color: var(--warning);
 }
 
 .choice-options {
@@ -140,8 +138,8 @@
   margin: 0 14rpx 0 0;
   padding: 12rpx 28rpx;
   border-radius: 999rpx;
-  background: #f4f6fa;
-  font-size: 25rpx;
+  background: var(--page-bg);
+  font-size: var(--font-secondary);
   color: var(--text-sub);
   border: 2rpx solid transparent;
 }
@@ -156,38 +154,30 @@
 /* 未开放的选择：视觉上明确降级，点了只给说明 */
 .choice-chip.disabled {
   color: var(--text-muted);
-  background: #fafbfc;
+  background: var(--page-bg);
 }
 
 .choice-chip.disabled.active {
   color: var(--text-muted);
   font-weight: 400;
-  background: #f2f4f7;
-  border-color: #dfe4ec;
+  background: var(--page-bg);
+  border-color: var(--line);
 }
 
-/* 字号预览：选完当场变，档位差距与答题页一致（24 / 28 / 36rpx） */
+/* The preview inherits the same reading scale as practice content. */
 .font-preview {
   margin-top: 18rpx;
   padding: 18rpx 22rpx;
-  border-radius: 16rpx;
-  background: #f7f9fc;
-  border: 2rpx dashed #dfe6f2;
+  border-radius: var(--radius-tag);
+  background: var(--brand-soft);
+  border: 1rpx dashed var(--line);
 }
 
 .font-preview-text {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--reading-size, var(--reading-normal));
   line-height: 1.65;
   color: var(--text-sub);
-}
-
-.font-small .font-preview-text {
-  font-size: 24rpx;
-}
-
-.font-large .font-preview-text {
-  font-size: 36rpx;
 }
 
 /* ==================== 考试倒计时 ==================== */
@@ -201,21 +191,21 @@
 .exam-label {
   flex: none;
   width: 160rpx;
-  font-size: 27rpx;
+  font-size: var(--font-secondary);
   color: var(--text-main);
 }
 
 .exam-input {
   flex: 1;
   height: 48rpx;
-  font-size: 27rpx;
+  font-size: var(--font-body);
   color: var(--text-main);
   text-align: right;
 }
 
 .exam-placeholder {
   color: var(--text-muted);
-  font-size: 26rpx;
+  font-size: var(--font-secondary);
 }
 
 .exam-value-wrap {
@@ -226,7 +216,7 @@
 }
 
 .exam-value {
-  font-size: 27rpx;
+  font-size: var(--font-body);
   color: var(--text-main);
 }
 
@@ -241,19 +231,19 @@
 }
 
 .exam-status-text {
-  font-size: 24rpx;
+  font-size: var(--font-caption);
   color: var(--text-sub);
 }
 
 .exam-status-days {
   margin: 0 8rpx 0 12rpx;
-  font-size: 44rpx;
-  font-weight: 700;
+  font-size: var(--font-title);
+  font-weight: 600;
   color: var(--brand);
 }
 
 .exam-status-unit {
-  font-size: 24rpx;
+  font-size: var(--font-caption);
   color: var(--text-sub);
 }
 
@@ -263,7 +253,7 @@
 }
 
 .exam-status-idle .exam-status-text {
-  font-size: 22rpx;
+  font-size: var(--font-caption);
   color: var(--text-muted);
 }
 
@@ -273,7 +263,7 @@
   align-items: center;
   margin-bottom: 18rpx;
   padding: 24rpx 26rpx;
-  border-radius: 22rpx;
+  border-radius: var(--radius-card);
   background: var(--card);
   box-shadow: 0 6rpx 24rpx rgba(31, 42, 55, 0.06);
 }
@@ -307,7 +297,7 @@
 
 .account-name {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-body);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -315,19 +305,19 @@
 .account-provider {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: var(--font-caption);
   color: var(--text-muted);
 }
 
 .account-hint {
   margin-bottom: 18rpx;
   padding: 20rpx 24rpx;
-  border-radius: 20rpx;
-  background: #f3f8ff;
-  border: 2rpx solid #dbe9ff;
-  font-size: 22rpx;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
+  border: 2rpx solid var(--brand-soft);
+  font-size: var(--font-caption);
   line-height: 1.65;
-  color: #4a6a95;
+  color: var(--text-sub);
 }
 
 /* ==================== 关于 ==================== */
@@ -346,21 +336,24 @@
 }
 
 .about-label {
-  font-size: 26rpx;
+  font-size: var(--font-secondary);
   color: var(--text-sub);
 }
 
 .about-value {
   flex: none;
   margin-left: 20rpx;
-  font-size: 25rpx;
+  font-size: var(--font-secondary);
   color: var(--text-muted);
 }
 
 .footer-note {
   margin-top: 36rpx;
   text-align: center;
-  font-size: 22rpx;
+  font-size: var(--font-caption);
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+.settings-page > .menu { flex: none; }
+.settings-page .menu-main { margin-left: 0; }

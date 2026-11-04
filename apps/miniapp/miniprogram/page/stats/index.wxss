@@ -1,22 +1,21 @@
 @import "../../styles/list-page.wxss";
-page { background: #ffffff; }
+page { background: var(--card); }
 
 /* 复盘页（设计稿「复盘」画板，402x874，系数 750/402 ≈ 1.8657）
    页边距来自 styles/list-page.wxss，这里维护卡片与图表。
    换算：22px 页边距 → 41rpx；14px 卡内边距 → 26rpx；12px 圆角 → 22rpx；
         34px 分段高 → 63rpx；24px 指标数字 → 45rpx。
 
-   页面白底与其他 Tab 一致，浅色容器区分图表和范围选择。 */
+   页面白底与其他 Tab 一致，图表使用描边卡片。 */
 
 .review-page {
-  background: #ffffff;
+  background: var(--card);
   padding-bottom: 272rpx;
   padding-bottom: calc(272rpx + env(safe-area-inset-bottom));
 }
 
 .review-page .page-head {
   flex: none;
-  border-bottom: none;
   background: transparent;
 }
 
@@ -28,12 +27,11 @@ page { background: #ffffff; }
 .review-content.is-locked { filter: blur(10rpx); pointer-events: none; user-select: none; }
 .review-content.is-locked { height: 100%; box-sizing: border-box; overflow: hidden; }
 .review-access { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(31, 42, 55, .16); text-align: center; padding: 32rpx 32rpx 272rpx; padding-bottom: calc(272rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.review-lock { display: flex; align-items: center; justify-content: center; width: 112rpx; height: 112rpx; border-radius: 50%; background: #e8f1ff; }
+.review-lock { display: flex; align-items: center; justify-content: center; width: 112rpx; height: 112rpx; border-radius: 50%; background: var(--brand-soft); }
 .review-lock .mi-icon { width: 60rpx; height: 60rpx; }
-.review-access-title { margin-top: 28rpx; font-size: 34rpx; font-weight: 600; color: #1f2a37; }
-.review-access-desc { margin-top: 16rpx; font-size: 24rpx; color: #6b7684; line-height: 1.6; }
-.review-login { min-width: 320rpx; height: 88rpx; line-height: 88rpx; margin-top: 36rpx; padding: 0 40rpx; border-radius: 20rpx; background: #2b7ffc; color: #fff; font-size: 28rpx; font-weight: 600; }
-.review-login::after { border: none; }
+.review-access-title { margin-top: 28rpx; font-size: var(--font-body); font-weight: 600; color: var(--text-main); }
+.review-access-desc { margin-top: 16rpx; font-size: var(--font-caption); color: var(--text-sub); line-height: 1.6; }
+.review-login { min-width: 320rpx;   margin-top: 36rpx;       }
 
 .page-head-main {
   flex: 1;
@@ -43,40 +41,31 @@ page { background: #ffffff; }
   justify-content: center;
 }
 
-/* 身份行：学院 · 昵称，紧跟在标题下面，是标题的延伸而不是另一块内容 */
-.review-sub {
-  display: block;
-  margin: 12rpx 0 28rpx;
-  font-size: 21rpx;
-  line-height: 32rpx;
-  font-weight: 500;
-  color: #8b8f99;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 /* ---------- 区间切换 ---------- */
 
 .segmented {
   display: flex;
   align-items: center;
   height: 63rpx;
-  margin-top: 8rpx;
+  margin-top: 24rpx;
   padding: 6rpx;
   box-sizing: border-box;
-  border-radius: 20rpx;
-  background: #f7f9fc;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
 }
 
 .seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
+  min-width: 0;
   height: 51rpx;
-  border-radius: 15rpx;
-  font-size: 22rpx;
-  line-height: 51rpx;
+  border-radius: var(--radius-tag);
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #6b7684;
+  color: var(--text-sub);
   text-align: center;
   transition: background-color 0.16s ease, color 0.16s ease, opacity 100ms ease;
 }
@@ -87,8 +76,8 @@ page { background: #ffffff; }
 
 /* 选中态：蓝色胶囊 + 白字。蓝底白字对比度足够，不要再叠透明度 */
 .seg-active {
-  background: #466bff;
-  color: #ffffff;
+  background: var(--brand);
+  color: var(--card);
   font-weight: 600;
 }
 
@@ -97,41 +86,44 @@ page { background: #ffffff; }
 .metric-row {
   display: flex;
   align-items: flex-start;
-  margin-top: 30rpx;
+  margin-top: 40rpx;
+  padding-bottom: 14rpx;
 }
 
 .metric {
   flex: 1;
   min-width: 0;
+  text-align: center;
 }
 
 .metric-label {
   display: block;
-  font-size: 21rpx;
-  line-height: 32rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .metric-value {
   display: flex;
   align-items: baseline;
+  justify-content: center;
   margin-top: 2rpx;
 }
 
 .metric-num {
-  font-size: 45rpx;
-  line-height: 62rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-display);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .metric-unit {
   margin-left: 3rpx;
-  font-size: 21rpx;
-  line-height: 32rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #141820;
+  color: var(--text-main);
 }
 
 /* ---------- 错题本 / 收藏本入口卡 ---------- */
@@ -146,7 +138,7 @@ page { background: #ffffff; }
   min-width: 0;
   padding: 22rpx 22rpx 24rpx;
   box-sizing: border-box;
-  border-radius: 22rpx;
+  border-radius: var(--radius-card);
   transition: opacity 0.1s ease;
 }
 
@@ -160,11 +152,11 @@ page { background: #ffffff; }
 }
 
 .entry-wrong {
-  background: #fdeef0;
+  background: var(--danger-soft);
 }
 
 .entry-favorite {
-  background: #eef3ff;
+  background: var(--brand-soft);
 }
 
 .entry-head {
@@ -183,18 +175,18 @@ page { background: #ffffff; }
 }
 
 .entry-icon-wrong {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgNS42QTIuNiAyLjYgMCAwIDEgNi42IDNIMTl2MTVINi42QTIuNiAyLjYgMCAwIDAgNCAyMC42eiIgc3Ryb2tlPSIjRTA2NTZGIi8+PHBhdGggZD0iTTQgMjAuNkEyLjYgMi42IDAgMCAxIDYuNiAxOEgxOXYzSDYuNkEyLjYgMi42IDAgMCAxIDQgMjAuNnoiIHN0cm9rZT0iI0UwNjU2RiIvPjxsaW5lIHgxPSIxMS40IiB5MT0iNy40IiB4Mj0iMTEuNCIgeTI9IjEyLjIiIHN0cm9rZT0iI0UwNjU2RiIvPjxjaXJjbGUgY3g9IjExLjQiIGN5PSIxNC45IiByPSIwLjkiIGZpbGw9IiNFMDY1NkYiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgNS42QTIuNiAyLjYgMCAwIDEgNi42IDNIMTl2MTVINi42QTIuNiAyLjYgMCAwIDAgNCAyMC42eiIgc3Ryb2tlPSIjQjkxQzFDIi8+PHBhdGggZD0iTTQgMjAuNkEyLjYgMi42IDAgMCAxIDYuNiAxOEgxOXYzSDYuNkEyLjYgMi42IDAgMCAxIDQgMjAuNnoiIHN0cm9rZT0iI0I5MUMxQyIvPjxsaW5lIHgxPSIxMS40IiB5MT0iNy40IiB4Mj0iMTEuNCIgeTI9IjEyLjIiIHN0cm9rZT0iI0I5MUMxQyIvPjxjaXJjbGUgY3g9IjExLjQiIGN5PSIxNC45IiByPSIwLjkiIGZpbGw9IiNCOTFDMUMiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
 }
 
 .entry-icon-favorite {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTYuNiAzLjZoMTAuOHYxNi44TDEyIDE1LjlsLTUuNCA0LjV6IiBzdHJva2U9IiM0NjZCRkYiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTYuNiAzLjZoMTAuOHYxNi44TDEyIDE1LjlsLTUuNCA0LjV6IiBzdHJva2U9IiMyNTYzRUIiLz48L3N2Zz4=");
 }
 
 .entry-title {
-  font-size: 21rpx;
-  line-height: 32rpx;
+  font-size: var(--font-body);
+  line-height: 1.5;
   font-weight: 600;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .entry-value {
@@ -204,27 +196,27 @@ page { background: #ffffff; }
 }
 
 .entry-num {
-  font-size: 38rpx;
-  line-height: 52rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-title);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .entry-unit {
   margin-left: 4rpx;
-  font-size: 20rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .entry-caption {
   display: block;
   margin-top: 4rpx;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #a0a5af;
+  color: var(--text-sub);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -235,8 +227,9 @@ page { background: #ffffff; }
 .block {
   margin-top: 26rpx;
   padding: 26rpx 26rpx 22rpx;
-  border-radius: 26rpx;
-  background: #f7f9fc;
+  border: 2rpx solid var(--page-bg);
+  border-radius: var(--radius-card);
+  background: var(--card);
 }
 
 .block-head {
@@ -246,18 +239,18 @@ page { background: #ffffff; }
 }
 
 .block-title {
-  font-size: 28rpx;
-  line-height: 40rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-body);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .block-caption {
   margin-left: auto;
-  font-size: 20rpx;
-  line-height: 32rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 /* 两张图都按宽度铺满：SVG 的 viewBox 比例固定，宽度交给容器 */
@@ -284,9 +277,9 @@ page { background: #ffffff; }
 }
 
 .legend-text {
-  font-size: 19rpx;
-  line-height: 28rpx;
-  color: #8b8f99;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  color: var(--text-sub);
 }
 
 .legend-cell {
@@ -297,31 +290,33 @@ page { background: #ffffff; }
 }
 
 .legend-cell.lv-0 {
-  background: #f0f2f5;
+  background: var(--line);
 }
 
 .legend-cell.lv-1 {
-  background: #dbe6ff;
+  background: #DBEAFE;
 }
 
 .legend-cell.lv-2 {
-  background: #b8cdff;
+  background: #93C5FD;
 }
 
 .legend-cell.lv-3 {
-  background: #8aabfc;
+  background: #60A5FA;
 }
 
 .legend-cell.lv-4 {
-  background: #4f7dfb;
+  background: var(--brand);
 }
 
 /* ---------- 空态 ---------- */
 
 .chart-empty {
   padding: 40rpx 0;
-  font-size: 21rpx;
-  line-height: 34rpx;
-  color: #8b8f99;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  color: var(--text-sub);
   text-align: center;
 }
+
+.review-login { margin-top: var(--space-md); }

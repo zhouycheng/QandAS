@@ -40,7 +40,7 @@ function settle(storage, remote, provider) {
   const auth = provider !== 'wechat' ? buildEmailAuth(remote) : buildWechatAuth(remote)
   auth.profile = remote.profile || null
   auth.version = remote.version || remote.profile && remote.profile.version || 0
-  try { const saved = saveAuth(storage, auth); notifyIdentity(); require('./profile-onboarding-repository.js').onLogin(saved, provider === 'email-code'); return { ok: true, provider, reason: '', auth: saved } }
+  try { const saved = saveAuth(storage, auth); notifyIdentity(); return { ok: true, provider, reason: '', auth: saved } }
   catch (error) { return failure(storage, '登录状态保存失败，请检查设备存储空间') }
 }
 function defaultCodeProvider(done) {
@@ -58,18 +58,6 @@ function login(storage, options) {
       (settings.codeProvider || defaultCodeProvider)((code, reason) => {
         if (!code) { resolve(failure(storage, reason || '微信登录未完成，请重试')); return }
         call(() => authGateway.login(code, { deviceId: deviceId(storage) })).then(async (remote) => {
-          if (remote.registrationToken) {
-            const registered = await call(() => authGateway.registerWechat({ registrationToken: remote.registrationToken }))
-            if (!registered.ok) { resolve(failure(storage, registered.reason)); return }
-            // WeChat login codes are single-use; registration needs a fresh code for its session.
-            try {
-              (settings.codeProvider || defaultCodeProvider)((freshCode, freshError) => {
-                if (!freshCode) { resolve(failure(storage, freshError || '注册完成，请重新登录')); return }
-                call(() => authGateway.login(freshCode, { deviceId: deviceId(storage) })).then((session) => resolve(settle(storage, session, 'wechat')))
-              })
-            } catch (error) { resolve(failure(storage, '注册完成，请重新登录')) }
-            return
-          }
           resolve(settle(storage, remote, 'wechat'))
         })
       })
@@ -86,25 +74,17 @@ function challenge(storage, email, purpose) {
   const value = stored[`${purpose}:${email.trim().toLowerCase()}`]
   return value && Date.parse(value.expiresAt) > Date.now() ? value.challengeId : ''
 }
-function register(storage, input) {
-  const options = input || {}
-  return call(() => authGateway.register(Object.assign({}, options, { challengeId: challenge(storage, options.email || '', 'register'), deviceId: deviceId(storage) }))).then((remote) => settle(storage, remote, 'email'))
-}
 function sendCode(storage, input) {
   const options = input || {}
   return call(() => authGateway.sendCode(options)).then((remote) => {
     if (!remote.ok) return Object.assign(failure(storage, remote.reason), { cooldown: 0 })
     try {
       const stored = storage.get(CHALLENGE_KEY) || {}
-      stored[`${options.purpose === 'login' ? 'login' : options.purpose === 'reset' ? 'reset' : 'register'}:${(options.email || '').trim().toLowerCase()}`] = { challengeId: remote.challengeId, expiresAt: remote.expiresAt }
+      stored[`login:${(options.email || '').trim().toLowerCase()}`] = { challengeId: remote.challengeId, expiresAt: remote.expiresAt }
       storage.set(CHALLENGE_KEY, stored)
       return { ok: true, cooldown: remote.cooldown || 60, reason: '' }
     } catch (error) { return { ok: false, cooldown: 0, reason: '验证码状态保存失败，请检查设备存储空间' } }
   })
-}
-function resetPassword(storage, input) {
-  const options = input || {}
-  return call(() => authGateway.resetPassword(Object.assign({}, options, { challengeId: challenge(storage, options.email || '', 'reset') })))
 }
 function logout(storage) {
   const current = getAuth(storage)
@@ -118,4 +98,4 @@ function updateProfile(storage, profile) {
   try { return { ok: true, auth: saveAuth(storage, applyProfile(current, profile)), reason: '' } }
   catch (error) { return failure(storage, '资料保存失败，请检查设备存储空间') }
 }
-module.exports = { AUTH_STORAGE_KEY, deviceId, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, loginWithCode, register, sendCode, resetPassword, logout, updateProfile, requestWechatCode }
+module.exports = { AUTH_STORAGE_KEY, deviceId, clearAuth, expireAuth, getAuth, saveAuth, login, loginWithEmail, loginWithCode, sendCode, logout, updateProfile, requestWechatCode }
