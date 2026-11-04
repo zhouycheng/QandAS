@@ -151,10 +151,6 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.enterRecent())
   },
 
-  handleChangeProfile() {
-    this.applyViewModelResult(this.viewModel.changeProfile())
-  },
-
   handleRequestCourse() {
     this.applyViewModelResult(this.viewModel.requestCourse())
   },

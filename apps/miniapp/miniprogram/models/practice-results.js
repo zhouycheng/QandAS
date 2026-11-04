@@ -161,9 +161,43 @@ function finish(session) {
       resultFilter: RESULT_FILTERS.ALL,
       filteredResultItems: resultItems,
       resultFilterCounts: countResultItems(resultItems),
-      resultFilterEmptyText: resultItems.length ? '暂无题目' : '暂无题目'
+      resultFilterEmptyText: '暂无题目'
     }, {
       stopTimer: true
     })
   }
-module.exports = { finish, filterResultItems, countResultItems, RESULT_FILTERS, RESULT_FILTER_TEXT }
+function buildResultReviewPatch(session, patch) {
+    const nextState = Object.assign({}, session.state, patch)
+    const source = Array.isArray(session.state.resultItems) ? session.state.resultItems : []
+    const filtered = filterResultItems(source, nextState.resultFilter, nextState.resultKeyword)
+
+    return Object.assign({}, patch, {
+      filteredResultItems: filtered,
+      resultFilterCounts: countResultItems(source),
+      resultFilterEmptyText: buildResultEmptyText(nextState.resultFilter, nextState.resultKeyword)
+    })
+  }
+
+function buildResultEmptyText(filter, keyword) {
+    const trimmedKeyword = String(keyword || '').trim()
+
+    if (trimmedKeyword) {
+      return `没有匹配「${trimmedKeyword}」的题目`
+    }
+
+    if (filter === RESULT_FILTERS.CORRECT) {
+      return '还没有答对的题目'
+    }
+
+    if (filter === RESULT_FILTERS.WRONG) {
+      return '没有答错的题目，全部正确'
+    }
+
+    if (filter === RESULT_FILTERS.UNANSWERED) {
+      return '所有题目都已作答'
+    }
+
+    return '暂无题目'
+  }
+
+module.exports = { buildResultReviewPatch, finish, filterResultItems, countResultItems, RESULT_FILTERS, RESULT_FILTER_TEXT }

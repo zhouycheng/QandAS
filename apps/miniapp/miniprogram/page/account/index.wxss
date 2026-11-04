@@ -1,5 +1,4 @@
 @import "../../styles/list-page.wxss";
-@import "../../styles/profile-selectors.wxss";
 @import "../../styles/settings-detail.wxss";
 
 button.avatar-button[size="mini"] {

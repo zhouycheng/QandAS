@@ -6,6 +6,19 @@ const remote = require('../miniprogram/repositories/remote-data-repository.js')
 const { BankDetailViewModel } = require('../miniprogram/viewmodels/bank-detail-viewmodel.js')
 
 async function main() {
+  const subjects = Array.from({ length: 100 }, (_, index) => ({ id: 's' + index, name: '科目' + index, bankCount: 1, questionCount: 2, banks: [{ id: 'b' + index, name: '题库' + index, questionCount: 2 }] }))
+  let detailReads = 0
+  const projection = new BankDetailViewModel({ repository: {
+    getProgress: () => ({}), getRemoteRecent: () => [],
+    getRemoteChapters: () => [{ id: 'chapter', name: '章节', questionCount: 2 }],
+    getSubjectDetail: id => { detailReads += 1; return subjects.find(subject => subject.id === id) }
+  } })
+  projection.railMode = 'recent'
+  const projected = projection.buildViewData(subjects, subjects[0])
+  assert.equal(detailReads, 1, '投影当前科目时不重建全目录搜索索引')
+  assert.equal(projected.subjects.length, 100)
+  assert(projected.subjects.every(subject => !subject.active && subject.recentActive))
+  assert.deepEqual(projected.chapterGroups.map(group => group.rows.map(row => row.title)), [['章节']])
   const values = {}
   const storage = { get: key => values[key], set: (key, value) => { values[key] = value }, remove: key => delete values[key] }
   auth.saveAuth(storage, { provider: 'email', userId: 'student', token: 'token' })

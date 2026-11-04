@@ -25,7 +25,6 @@ Page(withPageLifecycle({
     this.setData({ submitting: true })
     return this.viewModel.submit().then(result => { this.applyViewModelResult(result); if (!this._pageUnloaded) this.setData({ submitting: false }) })
   },
-  handleBindEmail() { navigation.redirectTo({ url: '/page/account-security/index?mode=email' }) },
   applyViewModelResult(result) {
     if (!result) return
     if (result.data) this.setData(result.data)

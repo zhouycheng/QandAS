@@ -1,18 +1,17 @@
 const { DEFAULT_PRACTICE_TITLE, DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, formatTimer, getInitialPracticeViewData } = require('./practice-view-data.js')
-const { projectPractice } = require('./practice-presentation.js')
-const { finish, filterResultItems, countResultItems, RESULT_FILTERS, RESULT_FILTER_TEXT } = require('./practice-results.js')
+const { projectPractice, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation } = require('./practice-presentation.js')
+const { finish, filterResultItems, countResultItems, buildResultReviewPatch, RESULT_FILTERS, RESULT_FILTER_TEXT } = require('./practice-results.js')
 const { normalizePreferences, normalizePracticeOptions } = require('../utils/preferences.js')
 const { ranks } = require('../utils/practice-layout.js')
-const { gradeBlanks, blankAnswerText } = require('../utils/fill-blank.js')
+const { gradeBlanks } = require('../utils/fill-blank.js')
 const {
-  QUESTION_STATE,
   SESSION_STATUS,
   SYNC_STATUS,
   createSessionId,
   deriveQuestionStates
 } = require('./practice-session-state.js')
 
-/** 页内导航副标题用：模式文案的单一真源，别在页面里另写一份 */
+// 导航副标题与练习模式共用同一套名称。
 const MODE_LABELS = {
   order: '顺序练习',
   practice: '练习模式',
@@ -86,8 +85,6 @@ class PracticeSession {
       subjectId: quiz ? quiz.subjectId : '',
       bankId: quiz ? quiz.bankId : '',
       practiceTitle: quiz ? quiz.title : DEFAULT_PRACTICE_TITLE,
-      // 页内导航的第二行：「练习模式 · 共 12 题」。
-      // 用真实字段拼，别写死章节名——题库里没有章节信息
       practiceSubtitle: `${MODE_LABELS[mode] || '练习'} · 共 ${quiz ? quiz.questions.length : 0} 题`,
       practicePath: normalizedOptions.practicePath || (quiz && quiz.sharePath) || '/page/practice/index',
       questions: quiz ? quiz.questions : [],
@@ -216,12 +213,6 @@ class PracticeSession {
     return this.showQuestionAtIndex(currentIndex)
   }
 
-  updateSessionStatus(status) {
-    return this.updateState({
-      sessionStatus: status
-    })
-  }
-
   /** 结果筛选。只切分类，不动关键词 */
   setResultFilter(filter) {
     const normalizedFilter = RESULT_FILTER_TEXT[filter] ? filter : RESULT_FILTERS.ALL
@@ -237,40 +228,7 @@ class PracticeSession {
       resultKeyword: String(keyword === undefined || keyword === null ? '' : keyword)
     }))
   }
-
-  buildResultReviewPatch(patch) {
-    const nextState = Object.assign({}, this.state, patch)
-    const source = Array.isArray(this.state.resultItems) ? this.state.resultItems : []
-    const filtered = filterResultItems(source, nextState.resultFilter, nextState.resultKeyword)
-
-    return Object.assign({}, patch, {
-      filteredResultItems: filtered,
-      resultFilterCounts: countResultItems(source),
-      resultFilterEmptyText: this.buildResultEmptyText(nextState.resultFilter, nextState.resultKeyword)
-    })
-  }
-
-  buildResultEmptyText(filter, keyword) {
-    const trimmedKeyword = String(keyword || '').trim()
-
-    if (trimmedKeyword) {
-      return `没有匹配「${trimmedKeyword}」的题目`
-    }
-
-    if (filter === RESULT_FILTERS.CORRECT) {
-      return '还没有答对的题目'
-    }
-
-    if (filter === RESULT_FILTERS.WRONG) {
-      return '没有答错的题目，全部正确'
-    }
-
-    if (filter === RESULT_FILTERS.UNANSWERED) {
-      return '所有题目都已作答'
-    }
-
-    return '暂无题目'
-  }
+  buildResultReviewPatch(patch) { return buildResultReviewPatch(this, patch) }
 
   updateSyncStatus(status) {
     return this.updateState({
@@ -546,12 +504,13 @@ class PracticeSession {
   }
 
   openQuestionOverview() {
+    const overviewItems = this.getOverviewItems(this.state.answers, this.state.currentIndex)
     return this.updateState({
       showSubmitModal: false,
       showQuestionOverview: true,
       unansweredCount: this.getUnansweredIndexes(this.state.answers).length,
-      pendingConfirmationCount: this.getOverviewItems(this.state.answers, this.state.currentIndex).filter(item => item.isDraft).length,
-      overviewItems: this.getOverviewItems(this.state.answers, this.state.currentIndex)
+      pendingConfirmationCount: overviewItems.filter(item => item.isDraft).length,
+      overviewItems
     })
   }
 
@@ -728,39 +687,8 @@ class PracticeSession {
   getCurrentBaseQuestion() {
     return this.state.questions[this.state.currentIndex] || null
   }
-
-  getQuestionView(question, selectedKeys, revealAnswer) {
-    if (!question) {
-      return null
-    }
-
-    return Object.assign({ contentFormat: question.contentFormat || 'PLAIN_TEXT', presentation: question.presentation || 'STANDARD', codeLanguage: question.codeLanguage || 'text', id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
-      options: question.options.map((option) => ({
-        key: option.key,
-        label: option.label,
-        text: option.text,
-        selected: selectedKeys.indexOf(option.key) >= 0,
-        isCorrectOption: revealAnswer ? question.answerKeys.indexOf(option.key) >= 0 : false,
-        isWrongOption:
-          revealAnswer && question.answerKeys.indexOf(option.key) < 0 && selectedKeys.indexOf(option.key) >= 0
-      }))
-    })
-  }
-
-  getOverviewItems(answers, currentIndex) {
-    return this.state.questions.map((question, index) => ({
-      number: index + 1,
-      index,
-      answered: this.hasInput(question, answers[index]) && (answers[index].confirmed !== false),
-      isDraft: this.hasInput(question, answers[index]) && answers[index].confirmed === false,
-      isShortAnswer: !!question.isShortAnswer,
-      isCorrect: answers[index] ? !!answers[index].isCorrect : false,
-      selectedKeys: answers[index] ? answers[index].selectedKeys : [],
-      isCurrent: index === currentIndex,
-      isFavorite: this.state.favoriteQuestionIds.indexOf(question.id) >= 0,
-      isMarked: this.state.markedQuestionIds.indexOf(question.id) >= 0
-    }))
-  }
+  getQuestionView(question, selectedKeys, revealAnswer) { return getQuestionView(question, selectedKeys, revealAnswer) }
+  getOverviewItems(answers, currentIndex) { return getOverviewItems(this, answers, currentIndex) }
 
   getUnansweredIndexes(answers) {
     return this.state.questions.reduce((items, question, index) => {
@@ -821,31 +749,9 @@ class PracticeSession {
 
     return nextKeys
   }
-
-  getAnswerText(question, keys) {
-    if (!question || !keys || !keys.length) {
-      return ''
-    }
-
-    return keys
-      .map((key) => {
-        const option = question.options.find((item) => item.key === key)
-        return option ? `${key}. ${option.text}` : key
-      })
-      .join('  ')
-  }
-
-  getCorrectAnswerText(question) {
-    if (!question) {
-      return ''
-    }
-
-    return question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : `正确答案 ${question.answerKeys.join('')}`
-  }
-
-  getExplanation(question) {
-    return question && question.explanation ? question.explanation : '本题暂无解析。'
-  }
+  getAnswerText(question, keys) { return getAnswerText(question, keys) }
+  getCorrectAnswerText(question) { return getCorrectAnswerText(question) }
+  getExplanation(question) { return getExplanation(question) }
 
   returnCommand() {
     return {

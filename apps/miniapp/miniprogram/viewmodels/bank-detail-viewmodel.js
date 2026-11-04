@@ -1,11 +1,8 @@
+const { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText } = require('../models/bank-detail-presentation.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
-const CN_NUMBERS = [
-    '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'
-];
 const MAX_KEYWORD_LENGTH = 20;
 const { DEFAULT_DURATION_MINUTES, MODE_OPTIONS, DURATION_OPTIONS, DEFAULT_SHEET, resolveModeValue, resolveRouteMode, buildPracticeConfig } = require('../models/bank-practice-config.js');
 function getInitialBankDetailViewData() {
@@ -56,21 +53,6 @@ function getInitialBankDetailViewData() {
         routeLoadingDescription: ''
     };
 }
-function chapterTitle(index, name) {
-    const text = String(name === undefined || name === null ? '' : name).trim();
-    // 有些题库名本身就带序号（「第一单元」），再套一层就成了「第一章：第一单元」
-    if (/^第[一二三四五六七八九十百\d]+[章单元节讲]/.test(text)) {
-        return text;
-    }
-    const cn = CN_NUMBERS[index] || String(index + 1);
-    return `第${cn}章：${text}`;
-}
-function chapterMetaText(stats, hasProgress) {
-    if (!stats) {
-        return '';
-    }
-    return hasProgress ? `${stats.answered}/${stats.total}` : stats.totalText;
-}
 class BankDetailViewModel {
     constructor(options) {
         const normalizedOptions = options || {};
@@ -79,8 +61,6 @@ class BankDetailViewModel {
         this.railMode = 'subject';
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         this.sheetTarget = null;
-        // 已加载的目录条目按科目建立索引。
-        this.bankIndex = null;
     }
     refreshRemote(subjectId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
@@ -149,9 +129,6 @@ class BankDetailViewModel {
         this.loadingMoreBanks = this.refreshRemote(this.currentSubjectId).finally(() => { this.loadingMoreBanks = null; });
         return this.loadingMoreBanks;
     }
-    changeProfile() {
-        return { command: { type: 'navigate', url: this.repository.getAuth(this.storage).token ? '/page/account/index' : '/page/login/index' } };
-    }
     requestCourse() {
         return require('../utils/feedback-entry.js').feedbackEntry(this.storage, 'course');
     }
@@ -198,12 +175,7 @@ class BankDetailViewModel {
             data: this.buildViewData(this.repository.getSubjectSummaries(), detail)
         };
     }
-    /**
-     * 「最近在刷」：跳到上次练习的科目。
-     *
-     * 不额外存「最近浏览」，只认真实练习记录（进度表里 updatedAt 最新的那条），
-     * 这样它不会变成一个点了没反应、或者和真实学习状态不符的假入口。
-     */
+    /** 「最近在刷」定位到最近练习记录所属的科目。 */
     enterRecent(loaded) {
         if (!loaded) {
             return this.repository.refreshRemote(this.storage, 'recent').then(async () => {
@@ -249,9 +221,6 @@ class BankDetailViewModel {
             return {};
         }
     }
-    /**
-     * 组装左栏、统计卡、章节列表。
-     */
     buildViewData(subjects, detail) {
         this.currentSubjectId = detail.id;
         const progress = this.safeProgress();
@@ -277,93 +246,10 @@ class BankDetailViewModel {
                 }];
         });
         const recent = this.resolveRecentSubject(subjects);
-        this.bankIndex = this.buildBankIndex(subjects);
-        return Object.assign({
-            subjectId: detail.id,
-            subject: this.buildSubjectView(detail),
-            stats: subjectStats,
-            subjects: subjects.map((subject) => ({
-                id: subject.id,
-                name: subject.name,
-                theme: subject.theme,
-                active: this.railMode === 'subject' && subject.id === detail.id,
-                recentActive: this.railMode === 'recent'
-            })),
-            railMode: this.railMode,
-            recentSubjectId: recent ? recent.subjectId : '',
-            recentSubjectName: recent ? this.subjectNameOf(subjects, recent.subjectId) : '',
-            rows,
-            chapterGroups: this.groupChapterRows(rows),
-            showBankTitles: (detail.bankCount > 1 || detail.banks.length > 1),
-            listEmptyText: '这个科目还没有章节',
-            // 搜索面板与抽屉由用户操作驱动，重新加载时一律回到关闭态
-            searchKeyword: '',
-            searchActive: false,
-            searchResults: [],
-            searchEmptyText: '',
-            configSheetVisible: false
-        }, this.buildSheetData());
+        return buildBankView(subjects, detail, { subjectStats, rows, recent, railMode: this.railMode, chapterGroups: this.groupChapterRows(rows), sheet: this.buildSheetData() });
     }
-    buildChapterRows(detail, bank) {
-        const chapters = this.repository.getRemoteChapters(this.storage, bank.id);
-        if (!chapters)
-            return [];
-        const choices = chapters.filter(chapter => chapter.questionCount > 0);
-        if (!chapters.length || chapters.reduce((count, chapter) => count + chapter.questionCount, 0) < bank.questionCount) {
-            choices.push({ id: '', name: '全部题目', questionCount: bank.questionCount, progress: bank.progress });
-        }
-        return choices.map(chapter => {
-            const stats = summarizeBankProgress({}, chapter);
-            return {
-                id: bank.id + ':' + chapter.id, bankId: bank.id, chapterId: chapter.id, subjectId: detail.id,
-                title: chapter.name,
-                questionCount: chapter.questionCount, metaText: chapterMetaText(stats, stats.hasProgress),
-                answered: stats.answered, progressPercent: stats.progressPercent, hasProgress: stats.hasProgress,
-                isComplete: chapter.questionCount > 0 && stats.answered >= chapter.questionCount
-            };
-        });
-    }
-    groupChapterRows(rows) {
-        const detail = this.repository.getSubjectDetail(this.currentSubjectId);
-        return (detail && detail.banks || []).map(bank => ({ id: bank.id, name: bank.name, rows: rows.filter(row => row.bankId === bank.id) })).filter(group => group.rows.length);
-    }
-    buildSubjectView(detail) {
-        return {
-            id: detail.id,
-            name: detail.name,
-            theme: detail.theme,
-            description: detail.description,
-            bankCount: detail.bankCount,
-            questionCount: detail.questionCount
-        };
-    }
-    subjectNameOf(subjects, subjectId) {
-        const matched = (subjects || []).find((subject) => subject.id === subjectId);
-        return matched ? matched.name : '';
-    }
-    /** 搜索索引：跨科目搜章节名 / 科目名，命中后能直接跳到那一章 */
-    buildBankIndex(subjects) {
-        const index = [];
-        (subjects || []).forEach((subject) => {
-            const detail = this.repository.getSubjectDetail(subject.id);
-            if (!detail) {
-                return;
-            }
-            (detail.banks || []).forEach((bank, position) => {
-                index.push({
-                    id: bank.id,
-                    bankId: bank.id,
-                    subjectId: detail.id,
-                    subjectName: detail.name,
-                    title: bank.name,
-                    chapterTitle: chapterTitle(position, bank.name),
-                    metaText: bank.questionText || `${bank.questionCount} 题`,
-                    progressPercent: bank.progressPercent || 0
-                });
-            });
-        });
-        return index;
-    }
+    buildChapterRows(detail, bank) { return buildChapterRows(detail, bank, this.repository.getRemoteChapters(this.storage, bank.id)); }
+    groupChapterRows(rows) { return groupChapterRows(rows, this.repository.getSubjectDetail(this.currentSubjectId)); }
     updateSearch(keyword, nextPage) {
         const request = this.searchRequest = (this.searchRequest || 0) + 1;
         const text = String(keyword === undefined || keyword === null ? '' : keyword)
@@ -391,39 +277,12 @@ class BankDetailViewModel {
             });
         }
         this.remoteSearchText = '';
-        if (!text) {
-            return {
-                data: {
-                    searchKeyword: '',
-                    searchActive: false,
-                    searchResults: [],
-                    searchEmptyText: ''
-                }
-            };
-        }
-        const pool = Array.isArray(this.bankIndex) ? this.bankIndex : [];
-        const lower = text.toLowerCase();
-        const results = pool
-            .filter((item) => {
-            const haystack = `${item.subjectName}${item.title}${item.chapterTitle}`.toLowerCase();
-            return haystack.indexOf(lower) >= 0;
-        })
-            .slice(0, 12)
-            .map((item) => ({
-            id: item.id,
-            bankId: item.bankId,
-            subjectId: item.subjectId,
-            subjectName: item.subjectName,
-            title: item.title,
-            chapterTitle: item.chapterTitle,
-            metaText: item.metaText
-        }));
         return {
             data: {
-                searchKeyword: text,
-                searchActive: true,
-                searchResults: results,
-                searchEmptyText: results.length ? '' : `没有匹配「${text}」的章节`
+                searchKeyword: '',
+                searchActive: false,
+                searchResults: [],
+                searchEmptyText: ''
             }
         };
     }
@@ -445,30 +304,18 @@ class BankDetailViewModel {
         if (!detail) {
             return null;
         }
-        if (normalized.type === 'bank') {
-            const bank = (detail.banks || []).find((item) => item.id === normalized.bankId);
-            if (!bank) {
-                return null;
-            }
-            this.sheetTarget = {
-                type: 'bank',
-                subjectId: detail.id,
-                bankId: bank.id,
-                name: bank.name,
-                title: bank.name,
-                questionCount: bank.questionCount || 0
-            };
+        const bank = (detail.banks || []).find((item) => item.id === normalized.bankId);
+        if (!bank) {
+            return null;
         }
-        else {
-            this.sheetTarget = {
-                type: 'subject',
-                subjectId: detail.id,
-                bankId: '',
-                name: detail.name,
-                title: detail.name,
-                questionCount: detail.questionCount || 0
-            };
-        }
+        this.sheetTarget = {
+            type: 'bank',
+            subjectId: detail.id,
+            bankId: bank.id,
+            name: bank.name,
+            title: bank.name,
+            questionCount: bank.questionCount || 0
+        };
         this.sheet = sheet;
         return this.buildConfigOpenResult();
     }

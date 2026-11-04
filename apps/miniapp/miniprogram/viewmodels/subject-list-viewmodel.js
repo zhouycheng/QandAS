@@ -1,7 +1,7 @@
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const { summarizeAnswers, summarizeOverallProgress } = require('../utils/practice-progress.js');
-const { TIP_ACTIONS, buildHomeContent } = require('../utils/home-content.js');
+const { buildHomeContent } = require('../utils/home-content.js');
 const { formatStudyDuration } = require('../utils/study-time.js');
 const { buildExamCountdown, selectHomeExam } = require('../utils/exam-countdown.js');
 const questionSearch = require('../utils/question-search.js');
@@ -329,23 +329,6 @@ class SubjectListViewModel {
                 payload: {
                     url: this.repository.getAuth(this.storage).loggedIn ? url : '/page/login/index'
                 }
-            }
-        };
-    }
-    /** 公告条「去复习 / 去刷题」：按文案层给出的 action 决定去向 */
-    openTipAction(action) {
-        if (action === TIP_ACTIONS.STATS) {
-            return this.openStats();
-        }
-        if (action === TIP_ACTIONS.WRONG_BOOK) {
-            return this.openWrongBook();
-        }
-        return this.openBank();
-    }
-    closeRouteLoading() {
-        return {
-            data: {
-                routeLoadingVisible: false
             }
         };
     }

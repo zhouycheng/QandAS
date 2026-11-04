@@ -1,3 +1,4 @@
+const { blankAnswerText } = require('../utils/fill-blank.js')
 const { formatTimer } = require('./practice-view-data.js')
 function projectPractice(session) {
     const data = Object.assign({}, session.state)
@@ -34,4 +35,62 @@ function projectPractice(session) {
     }
     return data
   }
-module.exports = { projectPractice }
+function getQuestionView(question, selectedKeys, revealAnswer) {
+    if (!question) {
+      return null
+    }
+
+    return Object.assign({ contentFormat: question.contentFormat || 'PLAIN_TEXT', presentation: question.presentation || 'STANDARD', codeLanguage: question.codeLanguage || 'text', id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
+      options: question.options.map((option) => ({
+        key: option.key,
+        label: option.label,
+        text: option.text,
+        selected: selectedKeys.indexOf(option.key) >= 0,
+        isCorrectOption: revealAnswer ? question.answerKeys.indexOf(option.key) >= 0 : false,
+        isWrongOption:
+          revealAnswer && question.answerKeys.indexOf(option.key) < 0 && selectedKeys.indexOf(option.key) >= 0
+      }))
+    })
+  }
+
+function getOverviewItems(session, answers, currentIndex) {
+    return session.state.questions.map((question, index) => ({
+      number: index + 1,
+      index,
+      answered: session.hasInput(question, answers[index]) && (answers[index].confirmed !== false),
+      isDraft: session.hasInput(question, answers[index]) && answers[index].confirmed === false,
+      isShortAnswer: !!question.isShortAnswer,
+      isCorrect: answers[index] ? !!answers[index].isCorrect : false,
+      selectedKeys: answers[index] ? answers[index].selectedKeys : [],
+      isCurrent: index === currentIndex,
+      isFavorite: session.state.favoriteQuestionIds.indexOf(question.id) >= 0,
+      isMarked: session.state.markedQuestionIds.indexOf(question.id) >= 0
+    }))
+  }
+
+function getAnswerText(question, keys) {
+    if (!question || !keys || !keys.length) {
+      return ''
+    }
+
+    return keys
+      .map((key) => {
+        const option = question.options.find((item) => item.key === key)
+        return option ? `${key}. ${option.text}` : key
+      })
+      .join('  ')
+  }
+
+function getCorrectAnswerText(question) {
+    if (!question) {
+      return ''
+    }
+
+    return question.isFillBlank ? blankAnswerText(question) : question.isShortAnswer ? question.referenceAnswer : `正确答案 ${question.answerKeys.join('')}`
+  }
+
+function getExplanation(question) {
+    return question && question.explanation ? question.explanation : '本题暂无解析。'
+  }
+
+module.exports = { projectPractice, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation }

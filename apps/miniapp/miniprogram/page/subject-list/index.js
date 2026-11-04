@@ -288,10 +288,6 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.closeAnnouncement())
   },
 
-  handleRouteLoadingHide() {
-    this.applyViewModelResult(this.viewModel.closeRouteLoading())
-  },
-
   applyViewModelResult(result) {
     if (result && typeof result.then === 'function') {
       return result.then((value) => this.applyViewModelResult(value)).catch((error) => wx.showToast({ title: error.message || '请求失败', icon: 'none' }))

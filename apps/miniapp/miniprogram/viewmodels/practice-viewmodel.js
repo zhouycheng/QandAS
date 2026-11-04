@@ -3,7 +3,7 @@ const { routeQuery } = require('../utils/practice-presets.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const onlinePractice = require('../repositories/online-practice.js');
 const trials = require('../repositories/trial-practice.js');
-const { DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, PracticeSession, getInitialPracticeViewData } = require('../models/practice-session.js');
+const { DEFAULT_TEST_DURATION_MINUTES, PracticeSession, getInitialPracticeViewData } = require('../models/practice-session.js');
 const { SESSION_STATUS, SYNC_STATUS } = require('../models/practice-session-state.js');
 const { normalizePracticeOptions } = require('../utils/preferences.js');
 function decodeOptionValue(value) {
