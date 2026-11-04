@@ -16,7 +16,6 @@ const labels = { college: '学院', major: '专业' }
 
 interface EditorValues {
   name: string
-  code: string
   status: ContentStatus
 }
 
@@ -28,16 +27,16 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
   const gateway = useAdminGateway()
   const [form] = Form.useForm<EditorValues>()
   const [dirty, setDirty] = useState(false)
-  const [generatedCollegeCode] = useState(() => `COL-${crypto.randomUUID().replaceAll('-', '').slice(0, 20).toUpperCase()}`)
+  const [generatedCode] = useState(() => `${target.kind === 'college' ? 'COL' : 'MAJ'}-${crypto.randomUUID().replaceAll('-', '').slice(0, 20).toUpperCase()}`)
   const label = labels[target.kind]
   const save = useMutation({
     mutationFn: async (values: EditorValues) => {
       if (target.kind === 'college') {
-        const input = { name: values.name, code: target.record?.code ?? generatedCollegeCode, status: values.status }
+        const input = { name: values.name, code: target.record?.code ?? generatedCode, status: values.status }
         return target.record ? gateway.updateCollege(target.record.id, { ...input, expectedVersion: target.record.version }) : gateway.createCollege(input)
       }
       if (target.kind === 'major') {
-        const input = { name: values.name, code: values.code, status: values.status, collegeId: target.college.id }
+        const input = { name: values.name, code: target.record?.code ?? generatedCode, status: values.status, collegeId: target.college.id }
         return target.record ? gateway.updateMajor(target.record.id, { ...input, expectedVersion: target.record.version }) : gateway.createMajor(input)
       }
     },
@@ -84,9 +83,6 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
         <Form.Item field="name" label={`${label}名称`} rules={[{ required: true, message: `请输入${label}名称` }]}>
           <Input autoFocus placeholder={target.kind === 'college' ? '例如：信息学院' : '例如：计算机科学与技术'} maxLength={60} />
         </Form.Item>
-        {target.kind === 'major' && <Form.Item field="code" label="专业代码" rules={[{ required: true, message: '请输入专业代码' }]}>
-          <Input placeholder="例如：CS" maxLength={24} />
-        </Form.Item>}
         <Form.Item field="status" label="学生可选状态">
           <Radio.Group>
             <Radio value="ACTIVE">启用</Radio>

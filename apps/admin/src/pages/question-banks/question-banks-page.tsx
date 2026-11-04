@@ -44,13 +44,19 @@ export function QuestionBanksPage() {
         <Pagination simple size="small" current={coursePage} total={courses.data?.total ?? 0} pageSize={20} onChange={setCoursePage} />
       </aside>
       <div className="bw-bank-panel">
-        <div className="bw-panel-heading"><ExcelTransfer resource="question-banks" query={{ subjectId: courseId, keyword, publicationStatus: status }} count={banks.data?.total} onImported={() => refreshWorkbench(client)} /><h2>{course.data?.name ?? '全部题库'}</h2><Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button></div>
+        <div className="bw-panel-heading">
+          <h2>{course.data?.name ?? '全部题库'}</h2>
+          <div className="bw-bank-actions">
+            <ExcelTransfer resource="question-banks" query={{ subjectId: courseId, keyword, publicationStatus: status }} count={banks.data?.total} onImported={() => refreshWorkbench(client)} />
+            <Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button>
+          </div>
+        </div>
         {course.error && <ErrorState message={course.error.message} onRetry={() => void course.refetch()} />}
         <div className="bw-status-filters">{(['ALL', 'DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'] as const).map(value => <button key={value} className={(status ?? 'ALL') === value ? 'active' : ''} aria-pressed={(status ?? 'ALL') === value} onClick={() => { setStatus(value === 'ALL' ? undefined : value); setPage(1) }}>{value === 'ALL' ? '全部' : publicationLabels[value]}</button>)}</div>
         <div className="bw-list-toolbar"><Input.Search aria-label="搜索题库" placeholder="搜索题库名称" value={keyword} onChange={value => { setKeyword(value); setPage(1) }} allowClear /><Button icon={<IconRefresh />} aria-label="刷新题库" loading={banks.isFetching} onClick={() => void banks.refetch()} /></div>
         {banks.error && <ErrorState message={banks.error.message} onRetry={() => void banks.refetch()} />}
         <Table<QuestionBank> className="bw-bank-table" rowKey="id" data={banks.data?.items ?? []} loading={banks.isFetching} border={false} scroll={{ x: 800 }} pagination={{ current: page, pageSize: 20, total: banks.data?.total ?? 0, showTotal: true, onChange: setPage }} columns={[
-          { title: '题库 / 教材', width: 300, render: (_, bank) => <button className="bw-bank-name" onClick={() => navigate('/question-banks/' + bank.id)}><span className="bw-bank-icon"><IconBook /></span><span><strong>{bank.name}</strong><small>{bank.textbook || '教材说明待补充'}</small></span></button> },
+          { title: '题库 / 教材', width: 300, render: (_, bank) => <button className="bw-bank-name" onClick={() => navigate('/question-banks/' + bank.id)}><span className="bw-bank-icon"><IconBook /></span><span><strong title={bank.name}>{bank.name}</strong><small title={bank.textbook}>{bank.textbook || '教材说明待补充'}</small></span></button> },
           { title: '分类', render: (_, bank) => bank.categories.length ? bank.categories.length + ' 组分类' : '通用题库' },
           { title: '题数', dataIndex: 'questionCount' },
           { title: '状态', render: (_, bank) => <Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag> },
