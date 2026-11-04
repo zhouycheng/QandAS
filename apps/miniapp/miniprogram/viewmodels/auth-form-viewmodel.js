@@ -1,6 +1,6 @@
 const practiceRepository = require('../repositories/practice-repository.js');
 const { isValidEmail, trimText } = require('../utils/auth-form.js');
-/** 登录、注册与找回密码共用表单校验和提交状态。 */
+/** 登录表单的校验和提交状态。 */
 function createNullStorage() {
     return {
         get() {
@@ -15,7 +15,6 @@ function getInitialFormData() {
         email: '',
         code: '',
         password: '',
-        confirm: '',
         agreed: false,
         errorField: '',
         submitting: false,
@@ -34,8 +33,7 @@ class AuthFormViewModel {
             email: '',
             code: '',
             password: '',
-            confirm: '',
-            agreed: false
+                agreed: false
         };
         this.errorField = '';
         this.submitting = false;
@@ -57,7 +55,6 @@ class AuthFormViewModel {
             email: this.fields.email,
             code: this.fields.code,
             password: this.fields.password,
-            confirm: this.fields.confirm,
             agreed: this.fields.agreed,
             errorField: this.errorField,
             submitting: this.submitting,
@@ -103,7 +100,7 @@ class AuthFormViewModel {
         };
     }
     /**
-     * 发送邮箱验证码（注册 / 找回密码共用）。
+     * 发送登录验证码。
      *
      * 邮箱没填或格式不对就**不发**：真发出去了用户也收不到，
      * 只会以为验证码系统坏了。这里的 errorField 让输入框挂红边。
@@ -126,7 +123,7 @@ class AuthFormViewModel {
         return this.repository
             .sendAuthCode(this.storage, {
             email: this.fields.email,
-            purpose: purpose === 'login' ? 'login' : purpose === 'reset' ? 'reset' : 'register'
+            purpose: 'login'
         })
             .then((outcome) => {
             this.sendingCode = false;

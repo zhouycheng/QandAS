@@ -8,7 +8,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 describe('HTTP 管理合同', () => {
   it('测试账号创建与查看凭据使用独立请求，停用携带版本', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ id: 'test-account', status: 'ACTIVE', version: 1 }, 201))
-      .mockResolvedValueOnce(json({ email: 'test@qanda.invalid', password: 'ExampleTest123456' })).mockResolvedValueOnce(json({ id: 'test-account', version: 2 }))
+      .mockResolvedValueOnce(json({ email: 'QANDATEST001@qanda.mail', password: 'ExampleTest123456' })).mockResolvedValueOnce(json({ id: 'test-account', version: 2 }))
     const api = new HttpAdminContentGateway('', fetcher, () => 'admin')
     await api.createTestAccount({ validDays: 7, includeInStatistics: false })
     await api.getTestAccountCredentials('test-account')
@@ -31,13 +31,13 @@ describe('HTTP 管理合同', () => {
   it('列表只请求当前页，并传递范围、排序与请求追踪', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json(page))
     const api = new HttpAdminContentGateway('https://api.example.test/api/v1/', fetcher, () => 'admin-token')
-    await api.getRankings({ period: 'WEEK', sort: 'DURATION', page: 2, pageSize: 20, collegeId: 'college', majorId: 'major', grade: 3 })
+    await api.getRankings({ period: 'WEEK', sort: 'DURATION', page: 2, pageSize: 20 })
     const [url, options] = fetcher.mock.calls[0]
     const parsed = new URL(String(url))
     expect(parsed.pathname).toBe('/api/v1/admin/statistics/rankings')
     expect(parsed.searchParams.get('page')).toBe('2')
     expect(parsed.searchParams.get('sort')).toBe('DURATION')
-    expect(parsed.searchParams.get('grade')).toBe('3')
+    expect(parsed.searchParams.has('grade')).toBe(false)
     expect(options?.headers).toMatchObject({ Authorization: 'Bearer admin-token', 'X-Request-Id': expect.any(String) })
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
@@ -65,7 +65,7 @@ describe('HTTP 管理合同', () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('response lost')).mockResolvedValueOnce(json({ code: 'SERVER_ERROR' }, 503))
       .mockResolvedValueOnce(json({ code: 'RATE_LIMITED' }, 429, { 'Retry-After': '45' })).mockResolvedValueOnce(json({ id: 'course', version: 2 })).mockResolvedValueOnce(json({ id: 'course', version: 3 }))
     const api = new HttpAdminContentGateway('', fetcher, () => token)
-    const send = () => api.grantSubjectAccess('course', 'user', 1)
+    const send = () => api.disableTestAccount('test-account', 1)
     await expect(send()).rejects.toThrow('response lost')
     await expect(send()).rejects.toMatchObject({ status: 503 })
     await expect(send()).rejects.toMatchObject({ retryAfterSeconds: 45 })
@@ -78,9 +78,32 @@ describe('HTTP 管理合同', () => {
   it('版本冲突暴露错误码和请求号，撤销传递并发版本', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json({ code: 'VERSION_CONFLICT', message: '内容已更新' }, 409, { 'X-Request-Id': 'request-test' }))
     const api = new HttpAdminContentGateway('', fetcher, () => 'token')
-    await expect(api.revokeSubjectAccess('course', 'user', 8)).rejects.toMatchObject({ code: 'VERSION_CONFLICT', status: 409, requestId: 'request-test' })
-    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/admin/subjects/course/user-access/user?expectedVersion=8')
-    expect(fetcher.mock.calls[0][1]?.method).toBe('DELETE')
+    await expect(api.disableTestAccount('test-account', 8)).rejects.toMatchObject({ code: 'VERSION_CONFLICT', status: 409, requestId: 'request-test' })
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/admin/test-accounts/test-account/status')
+    expect(fetcher.mock.calls[0][1]?.method).toBe('PUT')
+  })
+  it('内容写入响应丢失及临时失败复用同一检测结果，成功后重新检测', async () => {
+    let checks = 0, writes = 0
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      if (String(url).endsWith('/admin/content-safety/requests')) return json({ id: 'check-' + (++checks), state: 'PASSED', expiresAt: new Date(Date.now() + 60000).toISOString() })
+      writes++
+      if (writes === 1) throw new Error('response lost')
+      if (writes === 2) return json({ code: 'SERVER_ERROR' }, 503)
+      if (writes === 3) return json({ code: 'RATE_LIMITED' }, 429)
+      return json({ id: 'college', version: writes })
+    })
+    const api = new HttpAdminContentGateway('', fetcher, () => 'admin')
+    const send = () => api.createCollege({ code: 'C', name: '学院', status: 'ACTIVE' })
+    await expect(send()).rejects.toThrow('response lost')
+    await expect(send()).rejects.toMatchObject({ status: 503 })
+    await expect(send()).rejects.toMatchObject({ status: 429 })
+    await send()
+    expect(checks).toBe(1)
+    const attempts = fetcher.mock.calls.filter(([url]) => String(url).endsWith('/admin/colleges'))
+    expect(new Set(attempts.map(([, init]) => (init?.headers as Record<string, string>)['Idempotency-Key'])).size).toBe(1)
+    expect(attempts.every(([, init]) => (init?.headers as Record<string, string>)['X-Content-Safety-Request'] === 'check-1')).toBe(true)
+    await send()
+    expect(checks).toBe(2)
   })
   it('账号切换拒收旧响应，旧请求认证失败不清除新账号', async () => {
     let token = 'old', finish!: (response: Response) => void
@@ -94,9 +117,9 @@ describe('HTTP 管理合同', () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))))
       .mockResolvedValueOnce(json({ id: 'course', version: 2 }))
     const api = new HttpAdminContentGateway('', fetcher, () => 'token')
-    const pending = expect(api.grantSubjectAccess('course', 'user', 1)).rejects.toThrow('请求超时')
+    const pending = expect(api.disableTestAccount('test-account', 1)).rejects.toThrow('请求超时')
     await vi.advanceTimersByTimeAsync(30000); await pending
-    await api.grantSubjectAccess('course', 'user', 1)
+    await api.disableTestAccount('test-account', 1)
     expect((fetcher.mock.calls[0][1]?.headers as Record<string,string>)['Idempotency-Key']).toBe((fetcher.mock.calls[1][1]?.headers as Record<string,string>)['Idempotency-Key'])
   })
   it('响应正文尚未读完时切换账号，丢弃数据且不清除新会话', async () => {

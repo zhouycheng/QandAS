@@ -10,7 +10,6 @@ import { publicationColors, publicationLabels } from '../../lib/recommendations'
 import type { BankPublicationStatus, QuestionBank, Subject } from '../../types/admin'
 import { BankSettingsDrawer } from './bank-settings-drawer'
 import { CourseEditorModal } from './course-editor-modal'
-import { CourseAccessDrawer } from './course-access-drawer'
 import { refreshWorkbench } from './workbench-data'
 
 export function QuestionBanksPage() {
@@ -21,7 +20,6 @@ export function QuestionBanksPage() {
   const [coursePage, setCoursePage] = useState(1), [page, setPage] = useState(1)
   const [status, setStatus] = useState<BankPublicationStatus>()
   const [courseEditor, setCourseEditor] = useState<Subject | null>()
-  const [access, setAccess] = useState<Subject>()
   const [bankEditor, setBankEditor] = useState<{ bank?: QuestionBank; tab: 'basic' | 'scope' }>()
   const courses = useQuery({ queryKey: ['subjects', 'list', coursePage, courseSearch], queryFn: () => gateway.listSubjects({ page: coursePage, keyword: courseSearch }) })
   const course = useQuery({ queryKey: ['subjects', courseId], enabled: Boolean(courseId), queryFn: () => gateway.getSubject(courseId!) })
@@ -41,7 +39,7 @@ export function QuestionBanksPage() {
         {courses.error && <ErrorState message={courses.error.message} onRetry={() => void courses.refetch()} />}
         {courses.data?.items.map(subject => <div className={`bw-course-row ${courseId === subject.id ? 'active' : ''}`} key={subject.id}>
           <button className="bw-course-choice" onClick={() => selectCourse(subject.id)}><IconBook /><span>{subject.name}{subject.status === 'INACTIVE' && <em>已停用</em>}</span></button>
-          <Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => key === 'access' ? setAccess(subject) : setCourseEditor(subject)}><Menu.Item key="edit">编辑 / 停用课程</Menu.Item><Menu.Item key="access">单独开放用户</Menu.Item></Menu>}><Button type="text" size="mini" icon={<IconMore />} aria-label={'管理课程 ' + subject.name} /></Dropdown>
+          <Dropdown trigger="click" droplist={<Menu onClickMenuItem={() => setCourseEditor(subject)}><Menu.Item key="edit">编辑 / 停用课程</Menu.Item></Menu>}><Button type="text" size="mini" icon={<IconMore />} aria-label={'管理课程 ' + subject.name} /></Dropdown>
         </div>)}
         <Pagination simple size="small" current={coursePage} total={courses.data?.total ?? 0} pageSize={20} onChange={setCoursePage} />
       </aside>
@@ -53,7 +51,7 @@ export function QuestionBanksPage() {
         {banks.error && <ErrorState message={banks.error.message} onRetry={() => void banks.refetch()} />}
         <Table<QuestionBank> className="bw-bank-table" rowKey="id" data={banks.data?.items ?? []} loading={banks.isFetching} border={false} scroll={{ x: 800 }} pagination={{ current: page, pageSize: 20, total: banks.data?.total ?? 0, showTotal: true, onChange: setPage }} columns={[
           { title: '题库 / 教材', width: 300, render: (_, bank) => <button className="bw-bank-name" onClick={() => navigate('/question-banks/' + bank.id)}><span className="bw-bank-icon"><IconBook /></span><span><strong>{bank.name}</strong><small>{bank.textbook || '教材说明待补充'}</small></span></button> },
-          { title: '适用范围', render: (_, bank) => bank.scopeType === 'ALL' ? '全校开放' : bank.audiences.length ? bank.audiences.length + ' 组资料条件' : '待设置' },
+          { title: '分类', render: (_, bank) => bank.categories.length ? bank.categories.length + ' 组分类' : '通用题库' },
           { title: '题数', dataIndex: 'questionCount' },
           { title: '状态', render: (_, bank) => <Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag> },
           { title: '操作', width: 180, render: (_, bank) => <Space size={0}><Button type="text" onClick={() => navigate('/question-banks/' + bank.id)}>管理题目</Button><Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => bankAction(key, bank)}><Menu.Item key="basic">基本信息</Menu.Item><Menu.Item key="scope">展示范围</Menu.Item>{bank.publicationStatus === 'PUBLISHED' && <Menu.Item key="unpublish">下架</Menu.Item>}<Menu.Item key="archive">归档</Menu.Item></Menu>}><Button type="text" aria-label={'更多操作 ' + bank.name} icon={<IconMore />} /></Dropdown></Space> },
@@ -62,6 +60,5 @@ export function QuestionBanksPage() {
     </div>
     {courseEditor !== undefined && <CourseEditorModal course={courseEditor ?? undefined} onClose={() => setCourseEditor(undefined)} onSaved={() => { setCourseEditor(undefined); refreshWorkbench(client) }} />}
     {bankEditor && <BankSettingsDrawer bank={bankEditor.bank} subjectId={courseId} initialTab={bankEditor.tab} onClose={() => setBankEditor(undefined)} onSaved={() => setBankEditor(undefined)} />}
-    {access && <CourseAccessDrawer subject={access} onClose={() => setAccess(undefined)} />}
   </section>
 }

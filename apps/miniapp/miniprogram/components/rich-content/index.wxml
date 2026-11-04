@@ -4,10 +4,10 @@
         <rich-text wx:else class="rich-inline" nodes="{{part.nodes}}" />
       </block>
 </template>
-<view class="rich-content" bindlongpress="selectText">
+<view class="portal-theme rich-content" bindlongpress="selectText">
   <block wx:for="{{blocks}}" wx:key="index">
     <view wx:if="{{item.tag === 'pre'}}" class="rich-code" catchtouchstart="noop">
-      <view class="code-bar"><text>{{item.language}}</text><button class="code-copy" size="mini" data-index="{{index}}" catchtap="copyCode" hover-class="copy-hover" hover-start-time="0" hover-stay-time="80">复制</button></view>
+      <view class="code-bar"><text>{{item.language}}</text><button class="q-button q-button--text code-copy" size="mini" data-index="{{index}}" catchtap="copyCode" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">复制</button></view>
       <scroll-view scroll-x class="code-scroll"><rich-text nodes="{{item.nodes}}" user-select /></scroll-view>
     </view>
     <scroll-view wx:elif="{{item.tag === 'table'}}" scroll-x class="table-scroll" catchtouchstart="noop">

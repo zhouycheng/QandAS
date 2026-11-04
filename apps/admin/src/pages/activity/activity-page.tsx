@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 import { Alert, Button, Card, Radio, Select, Space, Table } from '@arco-design/web-react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart } from '../../components/charts'
-import { ResourceSelect } from '../../components/resource-select'
 import { UserDetailDrawer } from '../../components/user-detail-drawer'
 import { useAdminGateway } from '../../gateways/gateway-context'
-import { GRADE_OPTIONS, gradeLabel } from '../../types/admin'
 import type { ActivityQuery, RankingRow } from '../../types/operations'
 import { OnlineUsersDrawer } from './online-users-drawer'
 
@@ -13,23 +11,17 @@ export function ActivityPage() {
   const gateway = useAdminGateway()
   const [visible, setVisible] = useState(!document.hidden)
   useEffect(() => { const update = () => setVisible(!document.hidden); document.addEventListener('visibilitychange', update); return () => document.removeEventListener('visibilitychange', update) }, [])
-  const [filters, setFilters] = useState<Pick<ActivityQuery, 'collegeId' | 'majorId' | 'grade'>>({})
+  const filters = {}
   const [trendPeriod, setTrendPeriod] = useState<'WEEK' | 'MONTH'>('WEEK')
   const [period, setPeriod] = useState<ActivityQuery['period']>('WEEK')
   const [sort, setSort] = useState<ActivityQuery['sort']>('ACTIVE_DAYS')
   const [page, setPage] = useState(1), [userId, setUserId] = useState<string>()
   const [onlineOpen, setOnlineOpen] = useState(false)
-  const setFilter = (next: typeof filters) => { setFilters(next); setPage(1) }
   const cards = useQuery({ queryKey: ['activity', 'cards', filters], queryFn: () => gateway.getActivity({ ...filters, period: 'DAY' }), enabled: visible, refetchInterval: visible ? 30000 : false, refetchIntervalInBackground: false })
   const trend = useQuery({ queryKey: ['activity', 'trend', filters, trendPeriod], queryFn: () => gateway.getActivity({ ...filters, period: trendPeriod }), enabled: visible, refetchInterval: visible ? 60000 : false, refetchIntervalInBackground: false })
   const rankings = useQuery({ queryKey: ['activity', 'rankings', filters, period, sort, page], queryFn: () => gateway.getRankings({ ...filters, period, sort, page, pageSize: 20 }), enabled: visible, refetchInterval: visible ? 60000 : false, refetchIntervalInBackground: false })
   const failed = cards.error || trend.error || rankings.error
   return <section className="activity-page page-stack" aria-label="活跃度监控">
-    <Space wrap className="section-gap">
-      <ResourceSelect kind="college" placeholder="全部学院" value={filters.collegeId} onChange={value => setFilter({ ...filters, collegeId: String(value || '') || undefined, majorId: undefined })} />
-      <ResourceSelect kind="major" collegeId={filters.collegeId} placeholder="全部专业" value={filters.majorId} onChange={value => setFilter({ ...filters, majorId: String(value || '') || undefined })} />
-      <Select style={{ width: 140 }} aria-label="当前年级" placeholder="全部年级" value={filters.grade} allowClear options={GRADE_OPTIONS} onChange={grade => setFilter({ ...filters, grade })} />
-    </Space>
     {failed && <Alert type="warning" content={'更新失败：' + failed.message + '。已有数据保留，以下时间为最近成功更新。'} action={<Button onClick={() => { void cards.refetch(); void trend.refetch(); void rankings.refetch() }}>重试</Button>} />}
     <div className="compact-metrics dashboard-metrics">
       <button className="metric-link" onClick={() => setOnlineOpen(true)}><span>当前在线 ↗</span><strong>{cards.data?.onlineUsers ?? '—'}</strong></button>
@@ -46,7 +38,6 @@ export function ActivityPage() {
       </Space>
       <Table<RankingRow> rowKey="userId" data={rankings.data?.items ?? []} loading={rankings.isFetching} scroll={{ x: 1300 }} pagination={{ current: page, pageSize: 20, total: rankings.data?.total ?? 0, onChange: setPage, showTotal: true }} columns={[
         { title: '名次', dataIndex: 'rank', width: 65 }, { title: '昵称', width: 120, render: (_, row) => <Button type="text" onClick={() => setUserId(row.userId)}>{row.nickname}</Button> }, { title: '账号', dataIndex: 'accountCode', width: 120 },
-        { title: '学院', dataIndex: 'collegeName', width: 150 }, { title: '专业', dataIndex: 'majorName', width: 180 }, { title: '年级', width: 90, render: (_, row) => gradeLabel(row.currentGrade) },
         { title: '活跃天数', dataIndex: 'activeDays', width: 100 }, { title: '答题量', dataIndex: 'answeredCount', width: 100 }, { title: '学习时长', width: 110, render: (_, row) => Math.floor(row.durationSeconds / 60) + ' 分钟' }, { title: '最近活跃', width: 180, render: (_, row) => row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—' },
       ]} />
       <p className="muted">榜单更新：{rankings.dataUpdatedAt ? new Date(rankings.dataUpdatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '等待数据'}。答题量与学习时长按已提交正式练习统计。</p>

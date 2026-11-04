@@ -77,7 +77,14 @@ class ExcelPostgresTest: PostgresFixture() {
             }
         }
         bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"options\"\r\n\r\n$options\r\n--$boundary--\r\n".toByteArray())
-        val response=raw("POST","/admin/${if(kind=="users") "users" else "question-banks"}/excel/$action",bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary")
+        val path="/admin/${if(kind=="users") "users" else "question-banks"}/excel/"
+        var headers=emptyMap<String,String>()
+        if(action=="imports" && token!=null) {
+            val prepared=raw("POST",path+"content-safety",bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary")
+            if(prepared.statusCode()!=200) return prepared.statusCode() to json.readTree(prepared.body())
+            headers=mapOf("X-Content-Safety-Request" to approveContentTicket(json.readTree(prepared.body()),token).toString())
+        }
+        val response=raw("POST",path+action,bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary",extraHeaders=headers)
         return response.statusCode() to json.readTree(response.body())
     }
     @Test fun `multi file failure rolls back preceding account and receipt writes`() {
@@ -130,7 +137,7 @@ class ExcelPostgresTest: PostgresFixture() {
         assertEquals(before!!+1,jdbc.queryForObject("SELECT count(*) FROM user_account",Int::class.java))
         val exported=exported("/admin/users/excel/export?keyword=$address","users")
         assertEquals(1,exported["users"].size());assertEquals(address,exported["users"][0]["email"].asText())
-        assertNull(jdbc.queryForObject("SELECT password_hash FROM user_account WHERE email_key=?",String::class.java,address))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name='user_account' AND column_name='password_hash'",Int::class.java))
         assertEquals(401,upload("users","imports",doc,token=null).first)
         val proof=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
         val payload=mapOf("challengeId" to id(proof),"code" to code(id(proof)),"deviceId" to UUID.randomUUID())
@@ -140,8 +147,7 @@ class ExcelPostgresTest: PostgresFixture() {
         assertEquals(address,call("GET","/me",token=session["accessToken"].asText())["email"].asText())
         call("POST","/auth/email-code-sessions",payload,null,409)
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
-        val reset=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to address),null,201)
-        call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(reset),"code" to code(id(reset)),"deviceId" to UUID.randomUUID()),null,409)
+        call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to address),null,422)
     }
     @Test fun `full bank import preserves identical separate records and rollback rejects bad references`() {
         val doc=json.readTree("""{"fileId":"${UUID.randomUUID()}","subject":"Excel课程${UUID.randomUUID()}","bank":{"name":"Excel题库"},"chapters":[{"id":"c1","name":"第一章"}],"questions":[{"id":"q1","chapterId":"c1","type":"TRUE_FALSE","stem":"相同内容","correctValue":true},{"id":"q2","chapterId":"c1","type":"TRUE_FALSE","stem":"相同内容","correctValue":true}]}""")

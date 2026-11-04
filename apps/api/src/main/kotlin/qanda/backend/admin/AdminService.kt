@@ -50,10 +50,9 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
         val result=rows.selectPage(com.baomidou.mybatisplus.extension.plugins.pagination.Page(page.page.toLong(),page.pageSize.toLong()),QueryWrapper<AdminAccount>().orderByDesc("created_at").orderByAsc("id"))
         return Page(result.records.map(::view),result.total,page.page,page.pageSize)
     }
-    fun listUsers(keyword: String?,collegeId: UUID?,majorId: UUID?,status: String?,page: PageSpec,grade: Int?=null): Page<UserView> {
-        if(grade!=null && grade !in 1..5) invalid("/grade")
-        val result=sql.userPage(keyword,collegeId,majorId,status,page.offset,page.pageSize,grade).map { identityViews.view(it.id!!) }
-        return Page(result,sql.userCount(keyword,collegeId,majorId,status,grade),page.page,page.pageSize)
+    fun listUsers(keyword: String?,status: String?,page: PageSpec): Page<UserView> {
+        val result=sql.userPage(keyword,status,page.offset,page.pageSize).map { identityViews.view(it.id!!) }
+        return Page(result,sql.userCount(keyword,status),page.page,page.pageSize)
     }
     fun auditLogs(page: PageSpec,keyword: String?=null,result: String?=null): Page<AuditView> {
         if(result!=null && result !in setOf("SUCCESS","FAILURE")) invalid("/result")

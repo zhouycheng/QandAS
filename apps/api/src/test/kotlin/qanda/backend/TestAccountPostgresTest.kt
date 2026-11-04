@@ -25,10 +25,19 @@ class TestAccountPostgresTest: PostgresFixture() {
         for(days in listOf(0,-1,366)) call("POST","/admin/test-accounts",mapOf("validDays" to days),status=422)
         call("POST","/admin/test-accounts",mapOf("validDays" to 1.5),status=400)
         val c=credentials(id);assertEquals(c,credentials(id));assertEquals(16,c["password"].asText().length)
+        assertTrue(c["email"].asText().matches(Regex("QANDATEST[0-9]{3,}@qanda\\.mail")))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name=\'user_account\' AND column_name=\'password_hash\'",Int::class.java))
+        assertNotNull(jdbc.queryForObject("SELECT login_code_hash FROM test_account WHERE user_id=?",String::class.java,id))
         assertNotEquals(c["password"].asText(),jdbc.queryForObject("SELECT password_ciphertext FROM test_account WHERE user_id=?",String::class.java,id))
         assertFalse(jdbc.queryForObject("SELECT response_json::text FROM command_receipt WHERE command_id=?",String::class.java,key)!!.contains(c["password"].asText()))
         assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE operation=?",Int::class.java,"VIEW_TEST_ACCOUNT_CREDENTIALS:$id"))
         val s=login(id);val me=call("GET","/me",token=s.token);assertTrue(me["isTestAccount"].asBoolean())
+        call("POST","/auth/sessions",mapOf("email" to s.email.lowercase(),"password" to c["password"].asText(),"deviceId" to UUID.randomUUID()),null)
+        val mailCount=jdbc.queryForObject("SELECT count(*) FROM mail_delivery",Long::class.java)
+        for(purpose in listOf("LOGIN","BIND_EMAIL")) {
+            call("POST","/auth/email-challenges",mapOf("purpose" to purpose,"email" to s.email),null,if(purpose=="BIND_EMAIL") 401 else 409)
+        }
+        assertEquals(mailCount,jdbc.queryForObject("SELECT count(*) FROM mail_delivery",Long::class.java))
         val sessionExpiry=jdbc.queryForObject("SELECT max(expires_at) FROM user_session WHERE user_id=?",java.sql.Timestamp::class.java,id)!!.toInstant()
         assertTrue(sessionExpiry<=Instant.parse(row["expiresAt"].asText()))
         call("GET","/admin/test-accounts",token=s.token,status=403)
@@ -36,11 +45,11 @@ class TestAccountPostgresTest: PostgresFixture() {
         call("GET","/admin/test-accounts/$id/credentials",token=s.token,status=403)
         call("GET","/admin/test-accounts?status=INVALID",status=422)
         assertEquals(id.toString(),call("GET","/admin/test-accounts?keyword=${s.email}&status=ACTIVE")["items"].single()["id"].asText())
-        call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to s.email),null,409)
-        call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to "new@qanda.invalid"),null,409)
-        call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),s.token,409)
+        call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to s.email),null,409)
+        call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to "qandatest999999@qanda.mail"),null,409)
+        call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_OLD"),s.token,409)
         call("PUT","/me/wechat-binding",mapOf("expectedVersion" to 1,"code" to "unused"),s.token,409)
-        val profile=mapOf("expectedVersion" to 1,"nickname" to "测试学生","accountCode" to me["accountCode"].asText(),"email" to s.email,"collegeId" to null,"majorId" to null,"currentGrade" to null)
+        val profile=mapOf("expectedVersion" to 1,"nickname" to "测试学生","accountCode" to me["accountCode"].asText(),"email" to s.email)
         call("PUT","/admin/users/$id",profile+mapOf("email" to "different@example.test"),status=409)
         call("PUT","/admin/users/$id",profile)
         val disableKey=UUID.randomUUID();val input=mapOf("expectedVersion" to 2)
@@ -49,7 +58,23 @@ class TestAccountPostgresTest: PostgresFixture() {
         call("GET","/me",token=s.token,status=401);call("GET","/admin/test-accounts/$id/credentials",status=409)
         call("PUT","/admin/users/$id/status",mapOf("status" to "ACTIVE","expectedVersion" to 3),status=409)
         assertNull(jdbc.queryForObject("SELECT password_ciphertext FROM test_account WHERE user_id=?",String::class.java,id))
+        assertNull(jdbc.queryForObject("SELECT login_code_hash FROM test_account WHERE user_id=?",String::class.java,id))
         assertEquals("DISABLED",call("GET","/admin/test-accounts?keyword=${s.email}")["items"].single()["status"].asText())
+    }
+
+    @Test fun `numbered accounts are unique under concurrency and disabled numbers are not reused`() {
+        val pool=java.util.concurrent.Executors.newFixedThreadPool(4)
+        val accounts=try { pool.invokeAll((1..6).map { java.util.concurrent.Callable { create() } }).map { it.get() } } finally { pool.shutdown() }
+        val names=accounts.map { it["email"].asText() }
+        assertEquals(6,names.distinct().size)
+        val numbers=names.map { it.substringAfter("QANDATEST").substringBefore('@').toLong() }
+        val last=accounts.maxBy { it["email"].asText().substringAfter("QANDATEST").substringBefore('@').toLong() }
+        call("PUT","/admin/test-accounts/${id(last)}/status",mapOf("expectedVersion" to 1))
+        val next=create()["email"].asText().substringAfter("QANDATEST").substringBefore('@').toLong()
+        assertTrue(next>numbers.max())
+        val normal=student()
+        val me=call("GET","/me",token=normal.token)
+        call("PUT","/admin/users/${normal.id}",mapOf("expectedVersion" to me["version"].asLong(),"nickname" to me["nickname"].asText(),"accountCode" to me["accountCode"].asText(),"email" to "QANDATEST999999@qanda.mail"),status=409)
     }
 
     @Test fun `expiry rejects sessions and queued progress before scheduled cleanup`() {
@@ -76,12 +101,9 @@ class TestAccountPostgresTest: PostgresFixture() {
     @Test fun `statistics follow creation setting while personal learning is always retained`() {
         val baseline=call("GET","/admin/dashboard")["userCount"].asInt()
         val normal=student();val excluded=login(id(create()));val includedRow=create(true);val included=login(id(includedRow))
-        val college=id(call("POST","/admin/colleges",mapOf("name" to "统计学院${UUID.randomUUID()}","code" to "TEST${UUID.randomUUID().toString().take(8)}")))
-        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "统计专业","code" to "STAT")))
         val answeredBaseline=call("GET","/admin/dashboard")["answeredCount"].asInt()
         val f=fixture()
         for(s in listOf(normal,excluded,included)) {
-            jdbc.update("UPDATE user_profile SET major_id=?,grade=2,grade_academic_year=2026 WHERE user_id=?",major,s.id)
             val session=createPractice(s,f);val sessionId=id(session)
             progress("/practice/sessions/$sessionId/progress-commands",progressBody(session),s.token)
             jdbc.update("UPDATE practice_session SET created_at=now()-interval '1 minute' WHERE id=?",sessionId)
@@ -91,10 +113,7 @@ class TestAccountPostgresTest: PostgresFixture() {
         }
         assertEquals(baseline+2,call("GET","/admin/dashboard")["userCount"].asInt())
         assertEquals(answeredBaseline+8,call("GET","/admin/dashboard")["answeredCount"].asInt())
-        assertEquals(2,call("GET","/admin/directory-summary?collegeId=$college")["studentCount"].asInt())
-        assertEquals(2,call("GET","/admin/majors?collegeId=$college")["items"].single()["studentCount"].asInt())
-        eventually { call("GET","/admin/statistics/activity?collegeId=$college")["dailyActive"].asInt()==2 }
-        val scoped=call("GET","/admin/statistics/rankings?collegeId=$college")["items"]
+        val scoped=call("GET","/admin/statistics/rankings?period=ALL&pageSize=100")["items"].filter { it["userId"].asText() in setOf(normal.id.toString(),included.id.toString()) }
         assertEquals(8,scoped.sumOf { it["answeredCount"].asInt() });assertEquals(60,scoped.sumOf { it["durationSeconds"].asInt() })
         val ranking=call("GET","/admin/statistics/rankings?period=ALL&pageSize=100")["items"].map { it["userId"].asText() }
         assertTrue(normal.id.toString() in ranking);assertTrue(included.id.toString() in ranking);assertFalse(excluded.id.toString() in ranking)

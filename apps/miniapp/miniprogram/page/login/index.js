@@ -7,7 +7,7 @@ const cooldown = require('../../utils/cooldown.js')
 const TOAST_DELAY = 120
 
 Page(withPageLifecycle({
-  data: Object.assign(LoginViewModel.getInitialData(), cooldown.getInitialCooldownData()),
+  data: Object.assign(LoginViewModel.getInitialData(), cooldown.getInitialCooldownData(), { codeSent: false }),
 
   onLoad(options) {
     const query = options || {}
@@ -45,17 +45,31 @@ Page(withPageLifecycle({
   },
 
   handleCodeInput(e) { this.syncForm(this.viewModel.setField('code', e.detail.value)) },
-  handleModeTap() { this.applyViewModelResult(this.viewModel.toggleMode()) },
-  handleSendCode() { if (this.data.cooldown > 0) return; this.viewModel.sendCode('login').then(result => this.applyViewModelResult(result)) },
+  handleSendCode() {
+    if (this.data.cooldown > 0) return
+    const email = this.viewModel.fields.email.trim().toLowerCase()
+    return this.viewModel.sendCode('login').then(result => {
+      if (email === this.viewModel.fields.email.trim().toLowerCase()) this.applyViewModelResult(result)
+    })
+  },
   onHide() { cooldown.stop(this) },
   onUnload() { cooldown.stop(this); this.cooldownEndAt = 0 },
   handleEmailInput(e) {
-    this.syncForm(this.viewModel.setField('email', e.detail.value))
+    const previousEmail = this.viewModel.fields.email.trim().toLowerCase()
+    const result = this.viewModel.setField('email', e.detail.value)
+    this.syncForm(result)
+    const changed = this.data.testAccount !== result.data.testAccount
+    const patch = { testAccount: result.data.testAccount, codeMode: result.data.codeMode }
+    if (previousEmail !== result.data.email.trim().toLowerCase()) patch.codeSent = false
+    if (changed) Object.assign(patch, { password: '', code: '' })
+    this.setData(patch)
   },
 
   handlePasswordInput(e) {
     this.syncForm(this.viewModel.setField('password', e.detail.value))
   },
+
+  handleLegal(event) { navigation.navigateTo({ url: '/page/legal/index?kind=' + (event.currentTarget.dataset.kind === 'privacy' ? 'privacy' : 'agreement') }) },
 
   handleToggleAgreed() {
     this.syncForm(this.viewModel.toggleAgreed())
@@ -116,18 +130,6 @@ Page(withPageLifecycle({
     })
   },
 
-  handleForgotTap() {
-    navigation.navigateTo({
-      url: '/page/forgot-password/index'
-    })
-  },
-
-  handleRegisterTap() {
-    navigation.navigateTo({
-      url: '/page/register/index'
-    })
-  },
-
   applyViewModelResult(result) {
     if (!result) {
       return
@@ -143,7 +145,7 @@ Page(withPageLifecycle({
       return
     }
 
-    if (command.type === 'cooldown') { cooldown.begin(this, command.seconds); wx.showToast({ title: command.title, icon: 'none' }); return }
+    if (command.type === 'cooldown') { this.setData({ codeSent: true }); cooldown.begin(this, command.seconds); wx.showToast({ title: command.title, icon: 'none' }); return }
     if (command.type === 'toast') {
       wx.showToast({
         title: command.title || '操作完成',
@@ -182,7 +184,7 @@ Page(withPageLifecycle({
    * 否则用户点完登录会停在原地，看起来像没生效。
    */
   finishBack(title) {
-    require('../profile-onboarding.js').finishAuthentication()
+    wx.navigateBack({ fail: () => navigation.switchTab({ url: '/page/subject-list/index' }) })
 
     if (title) {
       wx.showToast({

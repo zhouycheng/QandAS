@@ -62,7 +62,7 @@ function updatePreferenceText(storage, key, value) {
 /** 答题偏好独立恢复默认，保留布局与考试倒计时。 */
 function resetPreferences(storage) {
   const current = getPreferences(storage)
-  return savePreferences(storage, Object.assign(normalizePreferences(null), { moduleOrder: current.moduleOrder, examName: current.examName, examDate: current.examDate }))
+  return savePreferences(storage, Object.assign(normalizePreferences(null), { moduleOrder: current.moduleOrder, examCountdowns: current.examCountdowns, examName: current.examName, examDate: current.examDate }))
 }
 
 module.exports = {

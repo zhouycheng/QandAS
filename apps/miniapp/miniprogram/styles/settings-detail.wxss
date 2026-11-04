@@ -1,0 +1,23 @@
+@import "./controls.wxss";
+
+.settings-detail {
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 0 var(--space-lg) calc(var(--space-lg) + env(safe-area-inset-bottom));
+  background: var(--card);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  font-weight: 400;
+  line-height: var(--leading-body);
+}
+.settings-detail.page-with-bottom-bar { padding-bottom: calc(240rpx + env(safe-area-inset-bottom)); }
+.settings-detail .settings-group { padding: 0; background: var(--card); border-radius: 0; box-shadow: none; }
+.settings-detail .settings-row { display: flex; align-items: center; gap: var(--space-sm); min-height: 48px; padding: 8px 0; }
+.settings-detail .settings-row, .settings-detail .settings-divider { position: relative; border-top: 0; border-bottom: 0; }
+.settings-detail .settings-row::after, .settings-detail .settings-divider::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); transform: scaleY(.5); transform-origin: bottom; pointer-events: none; }
+.settings-detail .settings-label { display: block; font-size: var(--font-body); font-weight: 400; line-height: var(--leading-body); color: var(--text-main); }
+.settings-detail .settings-note { display: block; margin-top: var(--space-sm); font-size: var(--font-secondary); font-weight: 400; line-height: var(--leading-secondary); color: var(--text-sub); }
+.settings-detail .settings-label + .settings-note { margin-top: 2px; }
+.settings-detail .settings-input { box-sizing: border-box; width: 100%; height: 44px; padding: 0 12px; border-radius: var(--radius-control); background: var(--page-bg); color: var(--text-main); font-family: var(--font-family); font-size: var(--font-body); font-weight: 400; }
+.settings-detail .settings-actions { display: flex; align-items: center; justify-content: center; margin-top: auto; padding-top: var(--space-lg); }

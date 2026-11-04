@@ -1,24 +1,10 @@
-page,
-.portal-theme {
-  --brand: #2b7ffc;
-  --brand-dark: #1a63d8;
-  --brand-soft: #e8f1ff;
-  --text-main: #1f2a37;
-  --text-sub: #6b7684;
-  --text-muted: #9aa4b2;
-  --line: #eceff4;
-  --card: #ffffff;
-  --page-bg: #ffffff;
-  --success: #17b26a;
-  --danger: #f04438;
-  --warning: #f79009;
-}
-
+@import "./styles/controls.wxss";
+@import "./styles/page-theme.wxss";
 page {
   background: var(--page-bg);
   color: var(--text-main);
-  font-size: 28rpx;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: var(--font-secondary);
+  font-family: var(--font-family);
 }
 
 view,
@@ -36,7 +22,7 @@ scroll-view {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #fff;
+  background: var(--card);
 }
 
 .secondary-page > view {
@@ -51,8 +37,8 @@ scroll-view {
 
 .card {
   background: var(--card);
-  border-radius: 24rpx;
-  box-shadow: 0 6rpx 24rpx rgba(31, 42, 55, 0.06);
+  border-radius: var(--radius-card);
+
 }
 
 .text-sub {
@@ -65,7 +51,7 @@ scroll-view {
 
 .section-title {
   margin: 0 0 20rpx;
-  font-size: 32rpx;
+  font-size: var(--font-body);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -139,8 +125,8 @@ button {
 
 .load-note {
   padding: 20rpx 24rpx;
-  color: #66758c;
-  font-size: 24rpx;
+  color: var(--text-sub);
+  font-size: var(--font-caption);
   text-align: center;
 }
 
@@ -161,88 +147,88 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20rpx;
+  border-radius: var(--radius-tag);
 }
 
 /* 学习偏好 */
 .mi-switch {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmI3ZmZjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iNyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjEwIiByeD0iNSIvPjxjaXJjbGUgY3g9IjguNiIgY3k9IjEyIiByPSIyLjYiIGZpbGw9IiMyYjdmZmMiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iNyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjEwIiByeD0iNSIvPjxjaXJjbGUgY3g9IjguNiIgY3k9IjEyIiByPSIyLjYiIGZpbGw9IiMyNTYzRUIiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
 }
 
 .mi-tile-switch {
-  background: rgba(43, 127, 252, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 账户与安全 */
 .mi-shield {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMTdiMjZhIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEyIDMuMmw3IDIuOXY1LjRjMCA0LjItMi45IDcuNy03IDguNi00LjEtLjktNy00LjQtNy04LjZWNi4xeiIvPjxwYXRoIGQ9Ik05LjEgMTIuMWwyIDIgMy44LTMuOSIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEyIDMuMmw3IDIuOXY1LjRjMCA0LjItMi45IDcuNy03IDguNi00LjEtLjktNy00LjQtNy04LjZWNi4xeiIvPjxwYXRoIGQ9Ik05LjEgMTIuMWwyIDIgMy44LTMuOSIvPjwvc3ZnPg==");
 }
 
 .mi-tile-shield {
-  background: rgba(23, 178, 106, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 版本信息 */
 .mi-info {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2M1Y2ZmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOC44Ii8+PGxpbmUgeDE9IjEyIiB5MT0iMTEiIHgyPSIxMiIgeTI9IjE2LjQiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjcuOSIgcj0iMS4yIiBmaWxsPSIjN2M1Y2ZmIiBzdHJva2U9Im5vbmUiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOC44Ii8+PGxpbmUgeDE9IjEyIiB5MT0iMTEiIHgyPSIxMiIgeTI9IjE2LjQiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjcuOSIgcj0iMS4yIiBmaWxsPSIjMjU2M0VCIiBzdHJva2U9Im5vbmUiLz48L3N2Zz4=");
 }
 
 .mi-tile-info {
-  background: rgba(124, 92, 255, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 错题本 */
 .mi-wrong {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjA0NDM4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOC44Ii8+PGxpbmUgeDE9IjkuMiIgeTE9IjkuMiIgeDI9IjE0LjgiIHkyPSIxNC44Ii8+PGxpbmUgeDE9IjE0LjgiIHkxPSI5LjIiIHgyPSI5LjIiIHkyPSIxNC44Ii8+PC9zdmc+");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOC44Ii8+PGxpbmUgeDE9IjkuMiIgeTE9IjkuMiIgeDI9IjE0LjgiIHkyPSIxNC44Ii8+PGxpbmUgeDE9IjE0LjgiIHkxPSI5LjIiIHgyPSI5LjIiIHkyPSIxNC44Ii8+PC9zdmc+");
 }
 
 .mi-tile-wrong {
-  background: rgba(240, 68, 56, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 我的收藏 */
 .mi-star {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjc5MDA5IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlnb24gcG9pbnRzPSIxMiAzLjIgMTQuOSA5IDIxLjIgOS45IDE2LjYgMTQuNCAxNy43IDIwLjYgMTIgMTcuNyA2LjMgMjAuNiA3LjQgMTQuNCAyLjggOS45IDkuMSA5Ii8+PC9zdmc+");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlnb24gcG9pbnRzPSIxMiAzLjIgMTQuOSA5IDIxLjIgOS45IDE2LjYgMTQuNCAxNy43IDIwLjYgMTIgMTcuNyA2LjMgMjAuNiA3LjQgMTQuNCAyLjggOS45IDkuMSA5Ii8+PC9zdmc+");
 }
 
 .mi-tile-star {
-  background: rgba(247, 144, 9, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 清空学习数据 */
 .mi-trash {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjA0NDM4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgN2gxNiIvPjxwYXRoIGQ9Ik05LjIgN1Y1LjJoNS42VjciLz48cGF0aCBkPSJNNi42IDdsMSAxMi4yaDguOEwxNy40IDciLz48bGluZSB4MT0iMTAuNiIgeTE9IjEwLjQiIHgyPSIxMC42IiB5Mj0iMTYuMiIvPjxsaW5lIHgxPSIxMy40IiB5MT0iMTAuNCIgeDI9IjEzLjQiIHkyPSIxNi4yIi8+PC9zdmc+");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgN2gxNiIvPjxwYXRoIGQ9Ik05LjIgN1Y1LjJoNS42VjciLz48cGF0aCBkPSJNNi42IDdsMSAxMi4yaDguOEwxNy40IDciLz48bGluZSB4MT0iMTAuNiIgeTE9IjEwLjQiIHgyPSIxMC42IiB5Mj0iMTYuMiIvPjxsaW5lIHgxPSIxMy40IiB5MT0iMTAuNCIgeDI9IjEzLjQiIHkyPSIxNi4yIi8+PC9zdmc+");
 }
 
 .mi-tile-trash {
-  background: rgba(240, 68, 56, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 修改密码 */
 .mi-lock {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmI3ZmZjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iNC42IiB5PSIxMCIgd2lkdGg9IjE0LjgiIGhlaWdodD0iOS44IiByeD0iMi42Ii8+PHBhdGggZD0iTTguMyAxMFY4LjFhMy43IDMuNyAwIDAgMSA3LjQgMFYxMCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTQuOSIgcj0iMS40IiBmaWxsPSIjMmI3ZmZjIiBzdHJva2U9Im5vbmUiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iNC42IiB5PSIxMCIgd2lkdGg9IjE0LjgiIGhlaWdodD0iOS44IiByeD0iMi42Ii8+PHBhdGggZD0iTTguMyAxMFY4LjFhMy43IDMuNyAwIDAgMSA3LjQgMFYxMCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTQuOSIgcj0iMS40IiBmaWxsPSIjMjU2M0VCIiBzdHJva2U9Im5vbmUiLz48L3N2Zz4=");
 }
 
 .mi-tile-lock {
-  background: rgba(43, 127, 252, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 更换邮箱 */
 .mi-mail {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2M1Y2ZmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iNS42IiB3aWR0aD0iMTgiIGhlaWdodD0iMTIuOCIgcng9IjIuNiIvPjxwYXRoIGQ9Ik0zLjggNy40TDEyIDEyLjlsOC4yLTUuNSIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iNS42IiB3aWR0aD0iMTgiIGhlaWdodD0iMTIuOCIgcng9IjIuNiIvPjxwYXRoIGQ9Ik0zLjggNy40TDEyIDEyLjlsOC4yLTUuNSIvPjwvc3ZnPg==");
 }
 
 .mi-tile-mail {
-  background: rgba(124, 92, 255, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 退出登录 */
 .mi-logout {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjA0NDM4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE0LjIgNC42SDcuNkEyLjYgMi42IDAgMCAwIDUgNy4ydjkuNmEyLjYgMi42IDAgMCAwIDIuNiAyLjZoNi42Ii8+PHBhdGggZD0iTTE3LjQgOC42TDIwLjggMTJsLTMuNCAzLjQiLz48bGluZSB4MT0iMTAuNiIgeTE9IjEyIiB4Mj0iMjAuNiIgeTI9IjEyIi8+PC9zdmc+");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE0LjIgNC42SDcuNkEyLjYgMi42IDAgMCAwIDUgNy4ydjkuNmEyLjYgMi42IDAgMCAwIDIuNiAyLjZoNi42Ii8+PHBhdGggZD0iTTE3LjQgOC42TDIwLjggMTJsLTMuNCAzLjQiLz48bGluZSB4MT0iMTAuNiIgeTE9IjEyIiB4Mj0iMjAuNiIgeTI9IjEyIi8+PC9zdmc+");
 }
 
 .mi-tile-logout {
-  background: rgba(240, 68, 56, 0.12);
+  background: var(--brand-soft);
 }
 
 /* 用户 */

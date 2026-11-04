@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 class OpenApiConfiguration {
     @Bean fun openAPI(): OpenAPI {
         val errors=ModelConverters.getInstance().resolveAsResolvedSchema(AnnotatedType(ApiError::class.java))
-        return OpenAPI().info(Info().title("QandA 学生自主复习平台 API").version("1.0.0"))
+        return OpenAPI().info(Info().title("题小搭学生自主复习平台 API").version("1.0.0"))
             .components(Components().schemas(errors.referencedSchemas).addSecuritySchemes("BearerAuth",SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer")))
     }
     @Bean fun apiOperations()=OperationCustomizer { operation,handler ->
@@ -60,6 +60,19 @@ class OpenApiConfiguration {
         operation
     }
     @Bean fun kotlinDtoSchemas(handlers: ObjectProvider<RequestMappingHandlerMapping>)=OpenApiCustomizer { api ->
+        api.paths.forEach { (path,item) -> item.readOperationsMap().forEach { (method,operation) ->
+            // Springdoc can share parameter lists between mapped operations.
+            operation.parameters=operation.parameters.orEmpty().filterNot { it.name=="X-Content-Safety-Request" }.toMutableList()
+            val candidate=path.replace(Regex("\\{[^}]+}"),"00000000-0000-0000-0000-000000000001")
+            val mutation=qanda.backend.contentsafety.ContentMutations.operation(method.name,candidate)
+            if(mutation!=null && !mutation.startsWith("UPLOAD_IMAGE:") || method.name=="POST" && candidate.matches(Regex("/api/v1/admin/(users|question-banks)/excel/imports"))) {
+                operation.addParametersItem(io.swagger.v3.oas.models.parameters.Parameter().name("X-Content-Safety-Request").`in`("header").required(false)
+                    .description("写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。")
+                    .schema(StringSchema().format("uuid")))
+            }
+        } }
+        api.paths.entries.flatMap { (path,item) -> item.readOperations().map { path to it } }.groupBy { it.second.operationId }
+            .values.filter { it.size>1 }.forEach { variants -> variants.forEach { (path,operation) -> operation.operationId += "_"+path.removePrefix("/api/v1/").replace(Regex("[^A-Za-z0-9]+"),"_").trim('_') } }
         val classes=linkedSetOf<Class<*>>()
         fun visit(type: Type) {
             if(type is ParameterizedType) { visit(type.rawType);type.actualTypeArguments.forEach { visit(it) } }
@@ -138,8 +151,12 @@ class OpenApiConfiguration {
 
 object PublicRoutes {
     private const val ID="(?:[0-9a-fA-F-]+|\\{id})"
-    fun permits(method: String,path: String): Boolean = method=="GET" && (
-        path in setOf("/api/v1/colleges","/api/v1/health","/api/v1/subjects","/api/v1/question-banks","/api/v1/questions","/api/v1/community/group","/api/v1/community/group/image") ||
+    fun permits(method: String,path: String): Boolean =
+        method=="DELETE" && path=="/api/v1/me" ||
+        method=="POST" && path in setOf("/api/v1/content-safety/confirmations","/api/v1/content-safety/confirmations/inspection","/api/v1/content-safety/wechat-callback") ||
+        method=="GET" && (path=="/api/v1/content-safety/wechat-callback" || path.matches(Regex("/api/v1/content-safety/media/$ID"))) ||
+        method=="GET" && (
+        path in setOf("/api/v1/colleges","/api/v1/health","/api/v1/subjects","/api/v1/question-banks","/api/v1/questions","/api/v1/search","/api/v1/community/group","/api/v1/community/group/image") ||
         path.matches(Regex("/api/v1/(?:colleges/$ID/majors|subjects/$ID|question-banks/$ID(?:/chapters|/questions)?|questions/$ID|files/$ID)"))) ||
-        method=="POST" && path in setOf("/api/v1/auth/email-challenges","/api/v1/auth/email-registrations","/api/v1/auth/wechat-registrations","/api/v1/auth/sessions","/api/v1/auth/email-code-sessions","/api/v1/auth/wechat-sessions","/api/v1/auth/password-resets","/api/v1/admin/auth/sessions","/api/v1/practice/scope-preview","/api/v1/practice/trial-snapshots")
+        method=="POST" && path in setOf("/api/v1/auth/email-challenges","/api/v1/auth/sessions","/api/v1/auth/email-code-sessions","/api/v1/auth/wechat-sessions","/api/v1/admin/auth/sessions","/api/v1/practice/scope-preview","/api/v1/practice/trial-snapshots")
 }

@@ -7,12 +7,13 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { readStyles } = require('./preview-styles.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const MP = path.join(ROOT, 'miniprogram')
 const OUT_DIR = path.join(ROOT, '.tmp-preview')
 
-const read = (relative) => fs.readFileSync(path.join(MP, relative), 'utf8')
+const read = (relative) => relative.endsWith('.wxss') ? readStyles(path.join(MP, relative)) : fs.readFileSync(path.join(MP, relative), 'utf8')
 
 /** rpx → px：375px 宽的机型下 750rpx = 375px */
 function rpxToPx(css) {
@@ -95,7 +96,7 @@ const repository = require(path.join(MP, 'repositories/practice-repository.js'))
 const previewAnnouncements = ['notice', 'modal'].includes(STATE)
   ? [{ id: 'preview', title: '学习提醒', body: '每天留一点时间复习，把学过的知识记得更牢。' }]
   : []
-const noticeData = new SubjectListViewModel({ repository: Object.assign({}, repository, {
+const noticeData = new SubjectListViewModel({ storage: { get: () => null, set() {}, remove() {} }, repository: Object.assign({}, repository, {
   getRemoteAnnouncements: () => previewAnnouncements,
   getRemoteAnnouncementTotal: () => previewAnnouncements.length
 }) }).load().data
@@ -103,23 +104,22 @@ const megaphoneUri = `data:image/png;base64,${fs.readFileSync(path.join(MP, 'ass
 
 const MAIN_BLOCK = {
   configured: `<div class="exam-main">
-            <span class="exam-text">距离 期末考试 还有</span>
-            <span class="exam-days">51</span>
-            <span class="exam-text">天</span>
+            <span class="exam-name">期末考试</span>
+            <div class="exam-countdown"><span class="exam-label">还有</span><span class="exam-days">51</span><span class="exam-label">天</span></div>
           </div>`,
-  today: `<div class="exam-main exam-main-today">
-            <span class="exam-text">期末考试</span>
-            <span class="exam-days exam-days-today">就在今天</span>
+  today: `<div class="exam-main">
+            <span class="exam-name">期末考试</span>
+            <span class="exam-status exam-status-today">今天考试</span>
           </div>`,
   past: `<div class="exam-main">
-            <span class="exam-text">期末考试 考试已结束</span>
+            <span class="exam-name">期末考试</span>
+            <span class="exam-status">已结束 · 2026-11-01</span>
           </div>`,
   empty: `<div class="exam-main exam-main-empty">
             <span class="exam-text">设置考试倒计时</span>
           </div>`
 }[['notice', 'modal'].includes(STATE) ? 'configured' : STATE] || ''
 
-const ACTION_TEXT = STATE === 'empty' ? '去设置' : '修改'
 
 /* modal 状态初始打开公告；其他状态可点击入口查看。 */
 const SHOW_MODAL = STATE === 'modal'
@@ -181,7 +181,7 @@ ${combineCss()}
 <div class="scroller">
   <div class="page home-page">
     <div class="hero" style="padding-top: ${headerData.homeStatusBarHeight}px;">
-      <div class="hero-navigation" style="height: ${headerData.homeNavigationBarHeight}px;"><div class="hero-brand">QandA</div></div>
+      <div class="hero-navigation" style="height: ${headerData.homeNavigationBarHeight}px;"><div class="hero-brand">题小搭</div></div>
       <div class="hero-search">
         <div class="search-box">
           <input class="search-input" placeholder="搜索题目、关键词">
@@ -203,26 +203,25 @@ ${combineCss()}
           ${MAIN_BLOCK}
           <div class="exam-foot">
             <span class="exam-quote">与其焦虑结果，不如专注眼前这道题。</span>
-            <span class="exam-action">${ACTION_TEXT}</span>
           </div>
         </div>
       </div>
-
-      <div class="section-head"><span class="section-title">我的学习空间</span></div>
 
       <div class="entry-grid">
       ${entryHtml}
       </div>
 
-      <div class="home-foot"><span class="home-foot-text">已做 12 / 234 题 · 正确率 75%</span></div>
+      <div class="home-create">
+        <span class="continue-title">创建新答题</span>
+        <span class="continue-subtitle">还没有练习记录，去题库选择题目</span>
+        <button class="q-button q-button--primary new-practice-button">新答题</button>
+      </div>
     </div>
 
     <div class="tabbar-wrap">
       <div class="tabbar">
       ${tabHtml}
       </div>
-      <div class="continue-btn"><div class="continue-icon"></div></div>
-      <span class="continue-label">继续答题</span>
     </div>
 
     ${MODAL_HTML}

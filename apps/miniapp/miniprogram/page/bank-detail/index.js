@@ -2,77 +2,152 @@ const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { BankDetailViewModel } = require('../../viewmodels/bank-detail-viewmodel.js')
 const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
+const filters = require('../../repositories/catalog-filters.js')
+const remote = require('../../repositories/remote-data-repository.js')
 
 Page(withPageLifecycle({
   customHeader: true,
-  data: BankDetailViewModel.getInitialData(),
+  data: Object.assign(BankDetailViewModel.getInitialData(), {
+    filterColleges: [{ id: '', name: '全部学院' }], filterMajors: [{ id: '', name: '全部专业' }],
+    filterGrades: filters.GRADES, filterCollegeIndex: 0, filterMajorIndex: 0, filterGradeIndex: 0, filterError: '',
+    filterToggleEnabled: false, filterToggleRestore: false
+  }),
 
   isOpeningPractice: false,
 
   hasLoadedOnce: false,
 
-  onLoad() {
+  onLoad(options) {
+    if (wx.showShareMenu) wx.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] })
+    this.routeSubjectId = options && options.subjectId || ''
+    this.routeBankId = options && options.bankId || ''
+    this.routeChapterId = options && options.chapterId || ''
     this.viewModel = new BankDetailViewModel({
       storage: createWxStorageAdapter()
     })
   },
 
-  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     this.isOpeningPractice = false
     this.syncTabBar()
-
-    // 题库是 tabBar 页面，拿不到 URL 参数：首页点科目时把 subjectId
-    // 暂存在全局数据里，这里取走；取不到就沿用上次浏览的科目。
     const app = getApp()
-    const pendingSubjectId = app && app.consumePendingSubjectId
-      ? app.consumePendingSubjectId()
-      : ''
+    const target = app && app.consumePendingBankTarget ? app.consumePendingBankTarget()
+      : { subjectId: app && app.consumePendingSubjectId ? app.consumePendingSubjectId() : '' }
+    if (target.subjectId || target.bankId) {
+      this.routeSubjectId = target.subjectId || ''
+      this.routeBankId = target.bankId || ''
+      this.routeChapterId = target.chapterId || ''
+      this.chapterLocated = false
+      this.viewModel.directBankId = ''
+    }
+    this.syncFilterToggle()
+    this.loadFilters()
+    return this.refreshCatalog()
+  },
 
-    this.applyViewModelResult(this.viewModel.refreshRemote(pendingSubjectId || this.data.subjectId).then(result => {
+  syncTabBar() {
+    const tabBar = typeof this.getTabBar === 'function' && this.getTabBar()
+    if (tabBar && tabBar.setSelected) tabBar.setSelected('page/bank-detail/index')
+  },
+
+  refreshCatalog(options) {
+    const request = this.catalogRequest = (this.catalogRequest || 0) + 1
+    if (this.routeBankId) {
+      this.setData({ catalogLoading: true, catalogError: '' })
+      const bankId = this.routeBankId
+      const pending = this.viewModel.openPublicBank(bankId, options).then(async result => {
+        if (this._pageUnloaded || request !== this.catalogRequest) return
+        this.applyViewModelResult(result)
+        if (this.routeChapterId && !this.chapterLocated) {
+          this.chapterLocated = true
+          this.applyViewModelResult(await this.viewModel.openBankConfig(this.data.subjectId, this.routeBankId, this.routeChapterId))
+        }
+        if (request === this.catalogRequest) this.applyViewModelResult(await this.viewModel.restorePendingPractice())
+      })
+        .catch(error => { if (!this._pageUnloaded && request === this.catalogRequest) this.setData({ catalogLoading: false, catalogError: error.message, subject: null }) })
+      this.hasLoadedOnce = true
+      return pending
+    }
+    const subjectId = this.routeSubjectId || this.data.subjectId
+    if (!this.hasLoadedOnce) this.applyViewModelResult(this.viewModel.load(subjectId))
+    this.hasLoadedOnce = true
+    return this.applyViewModelResult(this.viewModel.refreshRemote(subjectId, options).then(result => {
+      if (request !== this.catalogRequest) return
       this.applyViewModelResult(result)
       return this.viewModel.restorePendingPractice()
     }))
-
-    if (!this.hasLoadedOnce) {
-      this.hasLoadedOnce = true
-      this.applyViewModelResult(this.viewModel.load(pendingSubjectId || this.data.subjectId))
-      return
-    }
-
-    // 从答题页返回或跨 tab 切换时刷新进度统计。
-    // 「最近在刷」是一个视图状态，刷新时不能把它顶回普通科目（否则列表会在
-    // 用户没做任何操作的情况下跳走），所以交给 refresh 按当前状态决定。
-    if (pendingSubjectId) {
-      this.applyViewModelResult(this.viewModel.switchSubject(pendingSubjectId))
-      return
-    }
-
-    this.applyViewModelResult(this.viewModel.refresh(this.data))
   },
 
-  /**
-   * 自定义 tabBar 的选中态要由页面主动同步，否则跨 tab 切换后高亮还停在旧页。
-   */
-  syncTabBar() {
-    if (typeof this.getTabBar !== 'function') {
-      return
+  async loadFilters() {
+    const request = this.filterRequest = (this.filterRequest || 0) + 1
+    try {
+      const result = await filters.options(this.viewModel.storage)
+      if (this._pageUnloaded || request !== this.filterRequest) return
+      this.setData({ filterColleges: result.colleges, filterMajors: result.majors, filterGrades: filters.GRADES,
+        filterCollegeIndex: Math.max(0, result.colleges.findIndex(item => item.id === result.value.collegeId)),
+        filterMajorIndex: Math.max(0, result.majors.findIndex(item => item.id === result.value.majorId)),
+        filterGradeIndex: result.value.grade || 0, filterError: '' })
+      if (result.invalid) {
+        remote.setCatalogFilters(this.viewModel.storage, result.value, { clearPrevious: true })
+        this.syncFilterToggle()
+        wx.showToast({ title: '已清理失效分类，请重新选择', icon: 'none' })
+        return this.routeBankId ? this.refreshCatalog() : this.refreshFilteredCatalog()
+      }
+      this.syncFilterToggle()
+    } catch (error) {
+      if (!this._pageUnloaded && request === this.filterRequest) this.setData({ filterError: error.message })
     }
+  },
 
-    const tabBar = this.getTabBar()
+  changeFilters(patch) {
+    try {
+      const value = remote.setCatalogFilters(this.viewModel.storage, patch)
+      this.setData({ filterGradeIndex: value.grade || 0 })
+      this.syncFilterToggle()
+      this.loadFilters()
+      return this.refreshFilteredCatalog()
+    } catch (error) { wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
+  },
 
-    if (tabBar && typeof tabBar.setSelected === 'function') {
-      tabBar.setSelected('page/bank-detail/index')
-    }
+  refreshFilteredCatalog() {
+    clearTimeout(this.searchTimer)
+    const keyword = this.data.searchKeyword || ''
+    this.routeBankId = ''; this.routeSubjectId = ''; this.routeChapterId = ''
+    this.viewModel.directBankId = ''
+    this.viewModel.currentSubjectId = ''
+    this.applyViewModelResult(this.viewModel.clearSearch())
+    this.setData({ searchKeyword: keyword, searchLoading: !!keyword.trim(), searchActive: !!keyword.trim() })
+    const request = this.catalogRequest = (this.catalogRequest || 0) + 1
+    return this.viewModel.refreshRemote('', { force: true }).then(async result => {
+      if (this._pageUnloaded || request !== this.catalogRequest) return
+      this.applyViewModelResult(result)
+      if (keyword.trim()) this.applyViewModelResult(await this.viewModel.updateSearch(keyword))
+    }).catch(error => {
+      if (!this._pageUnloaded && request === this.catalogRequest) wx.showToast({ title: error.message || '筛选读取失败', icon: 'none' })
+    }).finally(() => { if (!this._pageUnloaded && request === this.catalogRequest) this.setData({ searchLoading: false }) })
+  },
+
+  handleCollegeFilter(event) { const item = (this.data.filterColleges || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ collegeId: item.id }) },
+  handleMajorFilter(event) { const item = (this.data.filterMajors || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ majorId: item.id }) },
+  handleGradeFilter(event) { return this.changeFilters({ grade: Number(event.detail.value) || null }) },
+
+  syncFilterToggle() {
+    try {
+      const state = filters.toggleState(this.viewModel.storage)
+      this.setData({ filterToggleEnabled: state.enabled, filterToggleRestore: state.restoring })
+    } catch (error) { this.setData({ filterToggleEnabled: false, filterToggleRestore: false }) }
   },
 
   noop() {},
 
   onShareAppMessage() {
-    return this.viewModel.getShareMessage(this.data.subjectId)
+    return this.viewModel.getShareMessage(this.data.subjectId, this.routeBankId)
   },
 
+  onShareTimeline() { const share = this.onShareAppMessage(); return { title: share.title, query: (share.path.split('?')[1] || '') } },
+
   handleRecentTap() {
+    this.routeBankId = ''; this.routeSubjectId = ''; this.viewModel.directBankId = ''
     this.applyViewModelResult(this.viewModel.enterRecent())
   },
 
@@ -96,13 +171,14 @@ Page(withPageLifecycle({
       return
     }
 
+    this.routeBankId = ''; this.routeSubjectId = subjectId; this.viewModel.directBankId = ''
     this.applyViewModelResult(this.viewModel.switchSubject(subjectId))
-    this.applyViewModelResult(this.viewModel.refreshRemote(subjectId))
+    this.refreshCatalog()
   },
 
   handleBanksMore() { return this.applyViewModelResult(this.viewModel.loadMoreBanks()) },
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
-  handleRetryLoad() { return this.applyViewModelResult(this.viewModel.refreshRemote(this.data.subjectId, { force: true })) },
+  handleRetryLoad() { return this.refreshCatalog({ force: true }) },
   onPullDownRefresh() { return this.handleRetryLoad().finally(() => wx.stopPullDownRefresh()) },
   onUnload() { clearTimeout(this.searchTimer) },
 
@@ -155,7 +231,19 @@ Page(withPageLifecycle({
   },
 
   handleFilterToggle() {
-    this.applyViewModelResult(this.viewModel.toggleFilter())
+    if (!this.data.filterToggleEnabled) return
+    try {
+      const value = remote.toggleCatalogFilters(this.viewModel.storage)
+      if (!value) return
+      this.setData({
+        filterCollegeIndex: Math.max(0, this.data.filterColleges.findIndex(item => item.id === value.collegeId)),
+        filterMajorIndex: Math.max(0, this.data.filterMajors.findIndex(item => item.id === value.majorId)),
+        filterGradeIndex: value.grade || 0
+      })
+      this.syncFilterToggle()
+      this.loadFilters()
+      return this.refreshFilteredCatalog()
+    } catch (error) { wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
   },
 
   /** 章节行点击 → 打开这一章的答题配置 */
@@ -185,6 +273,8 @@ Page(withPageLifecycle({
   handleStatTap() {
     this.applyViewModelResult(this.viewModel.openSubjectConfig(this.data.subjectId))
   },
+  handleAdvancedToggle() { this.viewModel.sheet.advanced = !this.viewModel.sheet.advanced; this.setData(this.viewModel.buildSheetData()) },
+  handleSheetCount(event) { this.applyViewModelResult(this.viewModel.setSheetCount(Number(event.currentTarget.dataset.value))) },
 
   handleSheetBank(event) {
     this.applyViewModelResult(this.viewModel.setSheetBank(event.currentTarget.dataset.id))
@@ -250,7 +340,6 @@ Page(withPageLifecycle({
   },
 
   handleViewModelCommand(command) {
-    // 题库是 tabBar 页面，没有可返回的上一页，出错时只用 toast 提示
     if (command.type === 'toast') {
       wx.showToast({
         title: command.title || '操作失败',

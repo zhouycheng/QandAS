@@ -1,6 +1,7 @@
 # 项目文档
 
 - [产品规则](product-rules.md)
+- [重构实施记录](refactor-implementation.md)
 - [开发与运行](development.md)
 - [前端架构](frontend-architecture.md)
 - [后端架构](backend-architecture.md)

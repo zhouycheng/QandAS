@@ -23,7 +23,7 @@ export function ExcelTransfer({ resource, query = {}, count, bankId, onImported 
   return <Space wrap>
     <Button loading={busy} onClick={() => void execute(async () => download(await gateway.downloadExcel(resource, 'template'), `${resource}-模板.xlsx`))}>下载 Excel 模板</Button>
     <Button onClick={() => setOpen(true)}>导入 Excel</Button>
-    <Button loading={busy} onClick={() => Modal.confirm({ title: '导出 Excel', content: `导出当前筛选条件下的全部${count === undefined ? '' : ` ${count} 条`}记录。`, onOk: () => execute(async () => { const blob = await gateway.downloadExcel(resource, 'export', { ...query, bankId }); download(blob, blob.type.includes('zip') ? 'QandA-导出.zip' : `${resource}.xlsx`) }) })}>导出 Excel</Button>
+    <Button loading={busy} onClick={() => Modal.confirm({ title: '导出 Excel', content: `导出当前筛选条件下的全部${count === undefined ? '' : ` ${count} 条`}记录。`, onOk: () => execute(async () => { const blob = await gateway.downloadExcel(resource, 'export', { ...query, bankId }); download(blob, blob.type.includes('zip') ? '题小搭-导出.zip' : `${resource}.xlsx`) }) })}>导出 Excel</Button>
     <Modal title={resource === 'users' ? '导入用户' : '导入题库'} visible={open} style={{ width: 900, maxWidth: '95vw' }} onCancel={() => !busy && setOpen(false)} footer={null} unmountOnExit>
       <Space direction="vertical" style={{ width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
         <Alert content="选择 Excel 或包含 Excel、图片附件的压缩包。先预览并处理提示，再确认导入。" />

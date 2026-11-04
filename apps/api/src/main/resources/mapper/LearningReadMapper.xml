@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.learning.LearningReadMapper">
-  <sql id="visible">q.status='ACTIVE' AND NOT q.is_group AND bank_visible(b.id,#{userId})</sql>
+  <sql id="visible">question_active(q.id) AND NOT q.is_group AND bank_visible(b.id)</sql>
   <select id="overview" resultType="qanda.backend.learning.OverviewRow">
     <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>, visible AS (
       SELECT q.id,b.id bank_id,s.id subject_id FROM question q JOIN question_bank b ON b.id=q.bank_id JOIN subject s ON s.id=b.subject_id WHERE <include refid="visible"/>
     ) SELECT
+      (SELECT coalesce(sum(r.answered_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') answer_attempt_count,
+      (SELECT coalesce(sum(r.correct_count+r.wrong_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') objective_answered_count,
+      (SELECT coalesce(sum(r.correct_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') objective_correct_count,
+      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment IS NOT NULL) self_rated_count,
+      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment='CORRECT') self_rated_correct_count,
+      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment='WRONG') self_rated_wrong_count,
       (SELECT count(*) FROM facts WHERE rn=1) answered_count,
       (SELECT count(*) FROM facts WHERE rn=1 AND judgment='CORRECT') correct_count,
       (SELECT count(*) FROM facts WHERE rn=1 AND judgment='WRONG') wrong_count,

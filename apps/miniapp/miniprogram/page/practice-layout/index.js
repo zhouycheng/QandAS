@@ -7,7 +7,10 @@ Page(withPageLifecycle({
   onAnswerFocus() {},
   onAnswerBlur() {},
   onKeyboardHeight() {},
-  onLoad() { this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() }); this.applyViewModelResult(this.viewModel.load()) },
+  onLoad() {
+    this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() })
+    this.applyViewModelResult(this.viewModel.load())
+  },
   onReady() { this.measure() },
   onResize() { this.cancelDrag(); this.measure() },
   onHide() { this.cancelDrag() },
@@ -15,9 +18,9 @@ Page(withPageLifecycle({
   measure() {
     if (this._pageUnloaded) return
     const query = this.createSelectorQuery()
-    query.select('.pra-body').boundingClientRect()
-    query.selectAll('.pra-module').boundingClientRect()
-    query.select('.pra-content').boundingClientRect()
+    query.select('#layout-scroll').boundingClientRect()
+    query.selectAll('.layout-module').boundingClientRect()
+    query.select('#layout-content').boundingClientRect()
     query.exec(results => {
       if (!results || !results[0]) return
       this.viewport = results[0]
@@ -73,7 +76,7 @@ Page(withPageLifecycle({
     if (!this._pageUnloaded) this.setData({ dragId: '', dragTarget: '', dragScroll: 0, dragReset: (this.data.dragReset || 0) + 1 }, () => this.measure())
   },
   handleResetLayout() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.reset()) },
-  handlePreviewType(event) { this.cancelDrag(); this.applyViewModelResult(this.viewModel.preview(Number(event.detail.value))) },
+  handleSaveLayout() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.save()) },
   applyViewModelResult(result) {
     if (result.data) this.setData(result.data, () => this.measure())
     if (result.command) wx.showToast({ title: result.command.title, icon: 'none' })

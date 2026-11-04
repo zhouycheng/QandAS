@@ -73,8 +73,6 @@ Page(withPageLifecycle({
     }
   },
 
-  ...require('../profile-selectors.js'),
-
   handleEmailTap() {
     this.applyViewModelResult(this.viewModel.tapEmail())
   },
@@ -83,13 +81,14 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.tapWechat())
   },
 
-  handlePasswordTap() {
-    this.applyViewModelResult(this.viewModel.tapPassword())
+  handleAccountDeletion() {
+    navigation.navigateTo({ url: '/page/account-deletion/index' })
   },
 
   handleSaveTap() {
-    if (this.data.avatarPreparing) return
-    this.applyViewModelResult(this.viewModel.save())
+    if (this.data.avatarPreparing || this.data.saving) return
+    this.setData({ saving: true })
+    Promise.resolve(this.applyViewModelResult(this.viewModel.save())).finally(() => { if (!this._pageUnloaded) this.setData({ saving: false }) })
   },
 
   applyViewModelResult(result) {

@@ -9,6 +9,7 @@ class LoginAttempt { var failures: Int = 0; var blockedUntil: Instant? = null }
 @Mapper interface SystemMapper {
     fun ready(): Boolean
     fun lock(@Param("scope") scope: String): Int
+    fun tryLock(@Param("scope") scope: String): Boolean
     fun receipt(@Param("scope") scope: String, @Param("operation") operation: String, @Param("commandId") commandId: UUID): CommandReceipt?
     fun attempt(@Param("digest") digest: ByteArray): LoginAttempt?
     fun saveAttempt(@Param("digest") digest: ByteArray, @Param("failures") failures: Int, @Param("until") until: Instant?)

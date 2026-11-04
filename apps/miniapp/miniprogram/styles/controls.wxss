@@ -1,0 +1,50 @@
+@import "./theme.wxss";
+
+.q-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--page-bg);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  font-weight: 500;
+  line-height: var(--leading-body);
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transition: opacity 100ms ease, background-color 100ms ease;
+}
+/* WeChat v2 fixes default button width; only width needs higher specificity. */
+.q-button.q-button { width: 100%; }
+.q-button::after { border: 0; }
+.q-button.q-button--primary { background: var(--brand); color: var(--card); }
+.q-button.q-button--danger { background: var(--danger-soft); color: var(--danger); }
+.q-button.q-button--text { width: auto; min-height: 44px; padding: 8px; background: transparent; color: var(--brand); font-size: var(--font-secondary); font-weight: 400; }
+/* Keep a 44px hit area around the 36px compact visual. */
+.q-button.q-button--compact { width: auto; min-height: 44px; padding: 10px 12px; border: 4px solid var(--card); font-size: var(--font-secondary); line-height: 16px; }
+.q-button.q-button--selected { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+.q-button.q-button--block { width: 100%; }
+.q-button-hover { opacity: .86; }
+.q-button.q-button--primary.q-button-hover { background: var(--brand-dark); opacity: 1; }
+.q-button.q-button--disabled, .q-button.is-disabled {
+  background: var(--disabled-bg);
+  color: var(--text-disabled);
+  border-color: transparent;
+  opacity: 1;
+}
+.q-icon-button { min-width: 44px; min-height: 44px; }
+
+.font-small { --reading-size: var(--reading-small); }
+.font-normal { --reading-size: var(--reading-normal); }
+.font-large { --reading-size: var(--reading-large); }

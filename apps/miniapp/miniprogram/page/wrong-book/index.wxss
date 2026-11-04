@@ -7,7 +7,7 @@
 
 .wb-page {
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--card);
   /* 底部固定按钮（86rpx）+ 说明行 + 呼吸位，再叠安全区 */
   padding-bottom: 200rpx;
   padding-bottom: calc(200rpx + env(safe-area-inset-bottom));
@@ -34,10 +34,10 @@
 .wb-title {
   flex: 1;
   min-width: 0;
-  font-size: 32rpx;
-  line-height: 44rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-body);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
   text-align: center;
 }
 
@@ -47,10 +47,10 @@
   min-width: 56rpx;
   height: 56rpx;
   margin-right: -12rpx;
-  font-size: 22rpx;
-  line-height: 56rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #466bff;
+  color: var(--brand);
   text-align: right;
   transition: opacity 100ms ease;
 }
@@ -61,15 +61,15 @@
 
 /* 管理模式：按钮变成「完成」，颜色收到中性，避免和蓝色主按钮抢注意力 */
 .wb-manage.is-on {
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 /* ---------- 统计卡 ---------- */
 
 .stat-card {
   padding: 26rpx 30rpx 28rpx;
-  border-radius: 26rpx;
-  background: #f7f9fc;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
 }
 
 .stat-head {
@@ -93,26 +93,26 @@
 }
 
 .stat-icon.wrong {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgNS42QTIuNiAyLjYgMCAwIDEgNi42IDNIMTl2MTVINi42QTIuNiAyLjYgMCAwIDAgNCAyMC42eiIgc3Ryb2tlPSIjRTA2NTZGIi8+PHBhdGggZD0iTTQgMjAuNkEyLjYgMi42IDAgMCAxIDYuNiAxOEgxOXYzSDYuNkEyLjYgMi42IDAgMCAxIDQgMjAuNnoiIHN0cm9rZT0iI0UwNjU2RiIvPjxsaW5lIHgxPSIxMS40IiB5MT0iNy40IiB4Mj0iMTEuNCIgeTI9IjEyLjIiIHN0cm9rZT0iI0UwNjU2RiIvPjxjaXJjbGUgY3g9IjExLjQiIGN5PSIxNC45IiByPSIwLjkiIGZpbGw9IiNFMDY1NkYiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgNS42QTIuNiAyLjYgMCAwIDEgNi42IDNIMTl2MTVINi42QTIuNiAyLjYgMCAwIDAgNCAyMC42eiIgc3Ryb2tlPSIjQjkxQzFDIi8+PHBhdGggZD0iTTQgMjAuNkEyLjYgMi42IDAgMCAxIDYuNiAxOEgxOXYzSDYuNkEyLjYgMi42IDAgMCAxIDQgMjAuNnoiIHN0cm9rZT0iI0I5MUMxQyIvPjxsaW5lIHgxPSIxMS40IiB5MT0iNy40IiB4Mj0iMTEuNCIgeTI9IjEyLjIiIHN0cm9rZT0iI0I5MUMxQyIvPjxjaXJjbGUgY3g9IjExLjQiIGN5PSIxNC45IiByPSIwLjkiIGZpbGw9IiNCOTFDMUMiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==");
 }
 
 .stat-icon.favorite {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTYuNiAzLjZoMTAuOHYxNi44TDEyIDE1LjlsLTUuNCA0LjV6IiBzdHJva2U9IiM0NjZCRkYiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTYuNiAzLjZoMTAuOHYxNi44TDEyIDE1LjlsLTUuNCA0LjV6IiBzdHJva2U9IiMyNTYzRUIiLz48L3N2Zz4=");
 }
 
 .stat-title {
-  font-size: 26rpx;
-  line-height: 38rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .stat-hint {
   margin-left: auto;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .stat-row {
@@ -128,10 +128,10 @@
 
 .stat-label {
   display: block;
-  font-size: 20rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .stat-value {
@@ -141,18 +141,18 @@
 }
 
 .stat-num {
-  font-size: 41rpx;
-  line-height: 56rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-title);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .stat-unit {
   margin-left: 3rpx;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #141820;
+  color: var(--text-main);
 }
 
 /* ---------- 科目分布：一条分段进度 + 一行图例 ---------- */
@@ -166,7 +166,7 @@
   height: 12rpx;
   border-radius: 6rpx;
   overflow: hidden;
-  background: #f0f2f5;
+  background: var(--page-bg);
 }
 
 /* 段与段之间留一道白缝：没有它，同色相邻的两段会看成一段 */
@@ -175,19 +175,19 @@
 }
 
 .dist-seg.tone-0 {
-  background: #466bff;
+  background: var(--brand);
 }
 
 .dist-seg.tone-1 {
-  background: #7f9dff;
+  background: var(--brand);
 }
 
 .dist-seg.tone-2 {
-  background: #b4c8ff;
+  background: var(--brand-soft);
 }
 
 .dist-seg.tone-3 {
-  background: #d8e2ff;
+  background: var(--brand-soft);
 }
 
 .dist-legend {
@@ -204,10 +204,10 @@
 }
 
 .dist-name {
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -215,10 +215,10 @@
 
 .dist-count {
   margin-left: 6rpx;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #141820;
+  color: var(--text-main);
 }
 
 /* ---------- 筛选行 ---------- */
@@ -253,17 +253,17 @@
 }
 
 .filter-strong {
-  font-size: 24rpx;
-  line-height: 34rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .filter-weak {
-  font-size: 21rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .filter-caret {
@@ -271,15 +271,15 @@
   height: 10rpx;
   margin-left: 8rpx;
   margin-top: -4rpx;
-  border-right: 3rpx solid #8b8f99;
-  border-bottom: 3rpx solid #8b8f99;
+  border-right: 3rpx solid var(--text-sub);
+  border-bottom: 3rpx solid var(--text-sub);
   transform: rotate(45deg);
 }
 
 .filter-sep {
   margin: 0 10rpx;
-  font-size: 20rpx;
-  color: #c3c7d1;
+  font-size: var(--font-caption);
+  color: var(--line);
 }
 
 /* 排序图标：两条横线，用两个伪元素拼，省一张图 */
@@ -297,7 +297,7 @@
   left: 0;
   height: 3rpx;
   border-radius: 2rpx;
-  background: #8b8f99;
+  background: var(--text-sub);
 }
 
 .filter-sort-icon::before {
@@ -334,27 +334,27 @@
   position: relative;
   z-index: 21;
   padding: 10rpx 0;
-  border-radius: 22rpx;
-  background: #ffffff;
+  border-radius: var(--radius-card);
+  background: var(--card);
   box-shadow: 0 12rpx 40rpx rgba(20, 24, 32, 0.12);
 }
 
 .subject-option {
   height: 78rpx;
   padding: 0 30rpx;
-  font-size: 24rpx;
-  line-height: 78rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
   transition: background-color 100ms ease;
 }
 
 .subject-option-hover {
-  background: #f5f6fa;
+  background: var(--page-bg);
 }
 
 .subject-option.is-active {
-  color: #466bff;
+  color: var(--brand);
   font-weight: 600;
 }
 
@@ -369,12 +369,12 @@
   flex: 1;
   height: 56rpx;
   margin-right: 16rpx;
-  border-radius: 16rpx;
-  background: #f7f9fc;
-  font-size: 21rpx;
-  line-height: 56rpx;
+  border-radius: var(--radius-tag);
+  background: var(--brand-soft);
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
-  color: #6b7684;
+  color: var(--text-sub);
   text-align: center;
   transition: background-color 0.14s ease, color 0.14s ease, opacity 100ms ease;
 }
@@ -384,8 +384,8 @@
 }
 
 .chip.is-active {
-  background: #466bff;
-  color: #ffffff;
+  background: var(--brand);
+  color: var(--card);
   font-weight: 600;
 }
 
@@ -401,8 +401,8 @@
   margin-bottom: 18rpx;
   padding: 24rpx 26rpx 24rpx 30rpx;
   box-sizing: border-box;
-  border-radius: 22rpx;
-  background: #f7f9fc;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
   transition: opacity 100ms ease;
 }
 
@@ -421,15 +421,15 @@
 }
 
 .q-accent.wrong {
-  background: #f2a6ac;
+  background: var(--danger-soft);
 }
 
 .q-accent.todo {
-  background: #a9c1ff;
+  background: var(--brand-soft);
 }
 
 .q-accent.done {
-  background: #b6e7d2;
+  background: var(--success-soft);
 }
 
 .q-body {
@@ -445,10 +445,10 @@
 .q-title {
   flex: 1;
   min-width: 0;
-  font-size: 24rpx;
-  line-height: 34rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-body);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -460,8 +460,8 @@
   width: 14rpx;
   height: 14rpx;
   margin-left: 16rpx;
-  border-top: 3rpx solid #c3c7d1;
-  border-right: 3rpx solid #c3c7d1;
+  border-top: 3rpx solid var(--line);
+  border-right: 3rpx solid var(--line);
   transform: rotate(45deg);
 }
 
@@ -471,12 +471,12 @@
   margin-left: 16rpx;
   padding: 0 14rpx;
   height: 44rpx;
-  border-radius: 12rpx;
-  background: #fdeef0;
-  font-size: 20rpx;
-  line-height: 44rpx;
+  border-radius: var(--radius-tag);
+  background: var(--danger-soft);
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #e0656f;
+  color: var(--danger);
   transition: opacity 100ms ease;
 }
 
@@ -487,10 +487,10 @@
 /* 题干最多两行：列表用来「认题」，不是用来读题的 */
 .q-stem {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  line-height: 34rpx;
+  font-size: var(--font-body);
+  line-height: 1.5;
   font-weight: 500;
-  color: #6b7684;
+  color: var(--text-sub);
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -508,40 +508,40 @@
   padding: 0 10rpx;
   height: 34rpx;
   border-radius: 8rpx;
-  font-size: 18rpx;
-  line-height: 34rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
 }
 
 .q-badge.wrong {
-  background: #fdeef0;
-  color: #e0656f;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .q-badge.todo {
-  background: #eef3ff;
-  color: #466bff;
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .q-badge.done {
-  background: #e9f7ef;
-  color: #17b26a;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .q-type {
   margin-left: 12rpx;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #a0a5af;
+  color: var(--text-sub);
 }
 
 .q-date {
   margin-left: auto;
-  font-size: 19rpx;
-  line-height: 28rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #a0a5af;
+  color: var(--text-sub);
 }
 
 /* ---------- 空态 ---------- */
@@ -552,10 +552,10 @@
 
 .wb-empty-text {
   display: block;
-  font-size: 22rpx;
-  line-height: 36rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
   text-align: center;
 }
 
@@ -571,35 +571,28 @@
 .pager-btn {
   flex: none;
   width: 52rpx;
-  height: 52rpx;
-  border-radius: 50%;
-  font-size: 26rpx;
-  line-height: 52rpx;
-  font-weight: 600;
-  color: #6b7684;
-  text-align: center;
-  transition: background-color 100ms ease;
+
 }
 
 .pager-btn-hover {
-  background: #eceef4;
+  background: var(--page-bg);
 }
 
 .pager-text {
   margin-left: 10rpx;
-  font-size: 20rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .pager-index {
   margin-left: auto;
   margin-right: 10rpx;
-  font-size: 20rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 600;
-  color: #6b7684;
+  color: var(--text-sub);
 }
 
 /* ---------- 底部固定 ---------- */
@@ -611,38 +604,20 @@
   bottom: 0;
   padding: 16rpx 41rpx 20rpx;
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  background: var(--card);
   box-shadow: 0 -8rpx 24rpx rgba(20, 24, 32, 0.05);
-}
-
-.wb-footer-btn {
-  height: 86rpx;
-  border-radius: 22rpx;
-  background: #466bff;
-  font-size: 26rpx;
-  line-height: 86rpx;
-  font-weight: 600;
-  color: #ffffff;
-  text-align: center;
-  transition: opacity 0.14s ease;
 }
 
 .wb-footer-hover {
   opacity: 0.86;
 }
 
-/* 管理态：主按钮变「清空」，用红底红字把破坏性动作和「开始练习」分开 */
-.wb-footer-btn.is-danger {
-  background: #fdeef0;
-  color: #e0656f;
-}
-
 .wb-footer-hint {
   display: block;
   margin-top: 10rpx;
-  font-size: 18rpx;
-  line-height: 26rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #a0a5af;
+  color: var(--text-sub);
   text-align: center;
 }

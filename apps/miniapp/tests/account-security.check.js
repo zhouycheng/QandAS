@@ -12,7 +12,7 @@ async function main() {
   const calls = []
   let failure = null
   const repo = {
-    load: async () => ({ email: 'owner@example.test', passwordSet: true, wechatBound: false, version: 3 }),
+    load: async () => ({ email: 'owner@example.test', wechatBound: false, version: 3 }),
     issue: async (input, key) => { calls.push(['issue', input, key]); if (failure) throw failure; return { id: 'proof', expiresAt: new Date(now + 600000).toISOString(), resendAfterSeconds: 60 } },
     verify: async (id, input) => { calls.push(['verify', id, input]); if (failure) throw failure },
     password: async (input, key) => { calls.push(['password', input, key]); if (failure) throw failure },
@@ -23,11 +23,11 @@ async function main() {
     expire: () => calls.push(['expire'])
   }
   const create = mode => new AccountSecurityViewModel({ mode, repository: repo, now: () => now })
-  const fixed = new AccountSecurityViewModel({ repository: { load: async () => ({ isTestAccount: true, email: 'test@qanda.invalid' }) } })
+  const fixed = new AccountSecurityViewModel({ repository: { load: async () => ({ isTestAccount: true, email: 'QANDATEST001@qanda.mail' }) } })
   assert.equal((await fixed.load()).data.stage, 'test-account')
   assert.equal(await fixed.sendCode(), null)
   assert.equal(await fixed.submit(), null)
-  const vm = create('password')
+  const vm = create('email')
   assert.equal((await vm.load()).data.stage, 'verify')
   assert.equal((await vm.submit()).data.errorField, 'code')
   failure = new Error('network')
@@ -40,21 +40,8 @@ async function main() {
   failure = Object.assign(new Error('验证码无效'), { code: 'VERIFICATION_FAILED' })
   assert.equal((await vm.submit()).data.stage, 'verify', 'failed proof never opens password form')
   failure = null
-  assert.equal((await vm.submit()).data.stage, 'password')
-  vm.setField('password', 'LettersOnly')
-  vm.setField('confirm', 'LettersOnly')
-  assert.equal((await vm.submit()).data.errorField, 'password')
-  vm.setField('password', 'Letters123')
-  vm.setField('confirm', 'Letters124')
-  assert.equal((await vm.submit()).data.errorField, 'confirm')
-  vm.setField('confirm', 'Letters123')
-  failure = new Error('timeout')
-  await vm.submit(); await vm.submit()
-  assert.equal(calls.at(-1)[2], calls.at(-2)[2], 'response loss preserves command payload and key')
-  failure = null
-  assert.equal((await vm.submit()).command.type, 'login')
-  assert.equal(vm.fields.password, '')
-  assert.equal(vm.oldProof, null)
+  assert.equal((await vm.submit()).data.stage, 'email')
+  assert.equal(Object.hasOwn(vm.fields, 'password'), false)
 
   const email = create('email')
   await email.load(); await email.sendCode(); email.setField('code', '123456')
@@ -81,29 +68,29 @@ async function main() {
   assert.equal(returning.load().data.email, 'new@example.test')
   assert.equal(returning.load().data.password, '')
   assert.equal(returning.load().data.agreed, false)
-  assert.equal(returning.load().data.loginNotice, '邮箱已更换，请使用新邮箱和原密码重新登录。')
+  assert.equal(returning.load().data.loginNotice, '邮箱已更换，请使用新邮箱验证码登录。')
   returning.setField('email', 'edited@example.test')
   assert.equal(returning.load().data.email, 'edited@example.test', 'later page shows preserve user edits')
   const invalidPrefill = new LoginViewModel({ email: '<invalid>', returnReason: 'arbitrary text' })
   assert.equal(invalidPrefill.load().data.email, '')
   assert.equal(invalidPrefill.load().data.loginNotice, '')
 
-  const expired = create('password')
+  const expired = create('email')
   await expired.load(); await expired.sendCode(); expired.setField('code', '123456'); await expired.submit()
   now += 601000
-  expired.setField('password', 'Password123'); expired.setField('confirm', 'Password123')
+  expired.setField('email', 'expiry@example.test'); await expired.sendCode(); expired.setField('code', '123456')
   assert.equal((await expired.submit()).data.stage, 'verify')
 
-  const noEmailRepo = Object.assign({}, repo, { load: async () => ({ version: 1, email: null, passwordSet: false }) })
+  const noEmailRepo = Object.assign({}, repo, { load: async () => ({ version: 1, email: null,  }) })
   const noEmail = new AccountSecurityViewModel({ repository: noEmailRepo, mode: 'password' })
-  assert.equal((await noEmail.load()).data.stage, 'need-email')
+  assert.equal((await noEmail.load()).data.stage, 'email')
   const bind = new AccountSecurityViewModel({ repository: noEmailRepo, mode: 'email', now: () => now })
   await bind.load(); bind.setField('email', 'first@example.test'); await bind.sendCode()
   assert.equal(calls.at(-1)[1].purpose, 'BIND_EMAIL')
   bind.setField('email', 'changed@example.test')
   assert.equal(bind.challenge, null, 'proof is tied to exact email')
 
-  let accountProfile = { nickname: '账户名字', wechatBound: false, version: 3, collegeId: 'college', majorId: 'major', currentGrade: 1 }
+  let accountProfile = { nickname: '账户名字', wechatBound: false, version: 3 }
   let accountToken = 'owner-token'
   const security = Object.assign({}, repo, {
     load: async () => accountProfile,

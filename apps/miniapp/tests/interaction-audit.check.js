@@ -13,6 +13,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { readStyles } = require('../scripts/preview-styles.cjs')
 
 const SRC = path.join(path.resolve(__dirname, '..'), 'miniprogram')
 
@@ -236,7 +237,7 @@ if (!fs.existsSync(componentsDir)) {
 
     const src = fs.readFileSync(wxmlPath, 'utf8')
     const css = fs.existsSync(wxssPath)
-      ? fs.readFileSync(wxssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ')
+      ? readStyles(wxssPath).replace(/\/\*[\s\S]*?\*\//g, ' ')
       : ''
     const own = new Set([...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]))
     const used = new Set()

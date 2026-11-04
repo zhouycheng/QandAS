@@ -1,13 +1,13 @@
 function paint(ins) {
   var s = ins.getState();
   if (!s.id) return;
-  var node = ins.selectComponent('.module-' + s.id);
+  var node = ins.selectComponent('#layout-module-' + s.id);
   if (node) node.setStyle({ transform: 'translateY(' + (s.y - s.startY + (s.scroll || 0)) + 'px)', 'z-index': 10 });
 }
 function reset(ins) {
   var s = ins.getState();
   if (s.id) {
-    var node = ins.selectComponent('.module-' + s.id);
+    var node = ins.selectComponent('#layout-module-' + s.id);
     if (node) node.setStyle({ transform: '', 'z-index': '' });
   }
   s.id = '';
@@ -24,7 +24,7 @@ function start(event, ins) {
 }
 function move(event, ins) {
   var s = ins.getState();
-  if (!s.id || !event.touches.length) return false;
+  if (!s.id || !event.touches.length) return;
   s.y = event.touches[0].clientY;
   paint(ins);
   if (event.timeStamp - s.last > 40) {
@@ -35,11 +35,12 @@ function move(event, ins) {
 }
 function end(event, ins) {
   var s = ins.getState();
-  if (s.id) ins.callMethod('handleDragEnd', { y: event.changedTouches[0].clientY });
+  if (!s.id) return;
+  ins.callMethod('handleDragEnd', { y: event.changedTouches.length ? event.changedTouches[0].clientY : s.y });
   reset(ins);
   return false;
 }
-function cancel(event, ins) { reset(ins); ins.callMethod('handleDragCancel', {}); return false; }
+function cancel(event, ins) { if (!ins.getState().id) return; reset(ins); ins.callMethod('handleDragCancel', {}); return false; }
 function scroll(value, old, ins) { ins.getState().scroll = value || 0; paint(ins); }
 function clear(value, old, ins) { if (value !== old) reset(ins); }
 module.exports = { start: start, move: move, end: end, cancel: cancel, scroll: scroll, clear: clear };

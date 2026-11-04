@@ -1,14 +1,8 @@
 const GRADE_LABELS = ['大一', '大二', '大三', '大四', '已毕业']
-function academicYear(now) {
-  const date = new Date((now === undefined ? Date.now() : now) + 8 * 60 * 60 * 1000)
-  return date.getUTCFullYear() - (date.getUTCMonth() < 8 ? 1 : 0)
-}
 function scopeKey(auth) {
-  const p = auth && auth.profile || {}
-  return [auth && auth.userId || '', p.collegeId || '', p.majorId || '', p.currentGrade || '', academicYear()].join(':')
+  return auth && auth.userId || ''
 }
-function needsProfile(auth) { return !!(auth && auth.token && auth.profile && auth.profile.profileComplete === false) }
 function successCommand(auth, title) {
   return { type: 'back', title }
 }
-module.exports = { GRADE_LABELS, academicYear, scopeKey, needsProfile, successCommand }
+module.exports = { GRADE_LABELS, scopeKey, successCommand }

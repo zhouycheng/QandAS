@@ -1,6 +1,6 @@
 const httpGateway = require('./http-gateway.js')
 
-const CHANNELS = ['login', 'loginByEmail', 'loginByCode', 'register', 'sendCode', 'resetPassword', 'registerWechat']
+const CHANNELS = ['login', 'loginByEmail', 'loginByCode', 'sendCode']
 
 let override = null
 
@@ -69,18 +69,8 @@ function loginByEmail(email, password, options) {
 }
 
 function loginByCode(input) { return dispatch('loginByCode', [input]) }
-function register(input) {
-  return dispatch('register', [input || {}])
-}
-
-function registerWechat(input) { return dispatch('registerWechat', [input || {}]) }
-
 function sendCode(input) {
   return dispatch('sendCode', [input || {}])
-}
-
-function resetPassword(input) {
-  return dispatch('resetPassword', [input || {}])
 }
 
 module.exports = {
@@ -89,10 +79,7 @@ module.exports = {
   login,
   loginByEmail,
   loginByCode,
-  register,
-  registerWechat,
   resetAuthGateway,
-  resetPassword,
   sendCode,
   setAuthGateway
 }

@@ -12,7 +12,8 @@ App({
     version: '1.0.0',
     // 题库是 tabBar 页面，而 switchTab 不支持 query 参数，
     // 因此首页点科目时先把 subjectId 暂存在这里，由题库页 onShow 时取走。
-    pendingSubjectId: ''
+    pendingSubjectId: '',
+    pendingBankTarget: null
   },
 
   onLaunch() {
@@ -32,7 +33,8 @@ App({
     remoteData.enable(true)
     remoteData.bind(storage)
     onlinePractice.enable(storage)
-    require('./page/profile-onboarding.js').start()
+    try { require('./repositories/account-deletion-repository.js').resumeCleanup(storage) }
+    catch (_) { wx.showToast({ title: '账号已注销，本机数据清理未完成，请重试', icon: 'none' }) }
     // 点击链路诊断的起点：逻辑层只要启动了，第一行日志就一定会有。
     // 如果控制台连这行都没有，说明 appservice 根本没跑起来，
     // 后面所有的「点了没反应」都不用再从业务代码里找。
@@ -86,7 +88,19 @@ App({
   },
 
   setPendingSubjectId(subjectId) {
+    this.globalData.pendingBankTarget = null
     this.globalData.pendingSubjectId = subjectId || ''
+  },
+
+  setPendingBankTarget(target) {
+    this.globalData.pendingSubjectId = ''
+    this.globalData.pendingBankTarget = target || null
+  },
+
+  consumePendingBankTarget() {
+    const target = this.globalData.pendingBankTarget
+    this.globalData.pendingBankTarget = null
+    return target || { subjectId: this.consumePendingSubjectId() }
   },
 
   /** 取走即清空，避免下次普通切换 tab 时被重复消费 */

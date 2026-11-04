@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAdminGateway } from '../../gateways/gateway-context'
 import type { QuestionBank } from '../../types/admin'
 import { CourseEditorModal } from './course-editor-modal'
-import { audienceGroups, emptyScopeGroup, groupsToAudiences } from '../../lib/bank-workbench'
+import { audienceGroups, emptyScopeGroup, groupsToCategories } from '../../lib/bank-workbench'
 import { ResourceSelect } from '../../components/resource-select'
 import { ScopeEditor } from './scope-editor'
 import { refreshWorkbench } from './workbench-data'
@@ -20,8 +20,7 @@ export function BankSettingsDrawer({ bank, subjectId, initialTab = 'basic', onCl
   const client = useQueryClient()
   const [form] = Form.useForm<{ subjectId: string; name: string; textbook: string; description: string }>()
   const [tab, setTab] = useState(initialTab)
-  const [scopeType, setScopeType] = useState<'ALL' | 'TARGETED'>(bank?.scopeType ?? 'TARGETED')
-  const [groups, setGroups] = useState(() => bank?.audiences.length ? audienceGroups(bank.audiences, { colleges: [], majors: [] }) : [emptyScopeGroup()])
+  const [groups, setGroups] = useState(() => bank?.categories.length ? audienceGroups(bank.categories, { colleges: [], majors: [] }) : [emptyScopeGroup()])
   const [maintainerIds, setMaintainerIds] = useState(bank?.maintainerIds ?? [])
   const [dirty, setDirty] = useState(false)
   const [newCourse, setNewCourse] = useState(false)
@@ -34,8 +33,7 @@ export function BankSettingsDrawer({ bank, subjectId, initialTab = 'basic', onCl
         description: values.description ?? bank?.description ?? '',
         maintainerIds,
         status: bank?.status ?? 'ACTIVE' as const,
-        scopeType,
-        audiences: scopeType === 'ALL' ? [] : groupsToAudiences(groups),
+        categories: groupsToCategories(groups),
       }
       return bank ? gateway.updateQuestionBank(bank.id, { ...input, expectedVersion: bank.version }) : gateway.createQuestionBank(input)
     },
@@ -67,8 +65,8 @@ export function BankSettingsDrawer({ bank, subjectId, initialTab = 'basic', onCl
             <Form.Item label="题库维护者"><ResourceSelect kind="admin" multiple placeholder="选择维护者" value={maintainerIds} onChange={value => { setMaintainerIds(value as string[]); markDirty() }} /></Form.Item>
             <p className="bw-form-note">题库创建后先保存为草稿。可以继续添加题目和章节，检查通过后再发布。</p>
           </Tabs.TabPane>
-          <Tabs.TabPane key="scope" title="展示范围"><ScopeEditor scopeType={scopeType} groups={groups} disabled={save.isPending}
-            onTypeChange={(value) => { setScopeType(value); markDirty() }} onChange={(value) => { setGroups(value); markDirty() }} /></Tabs.TabPane>
+          <Tabs.TabPane key="scope" title="题库分类"><ScopeEditor groups={groups} disabled={save.isPending}
+            onChange={(value) => { setGroups(value); markDirty() }} /></Tabs.TabPane>
         </Tabs>
       </Form>
     </Drawer>

@@ -1,7 +1,7 @@
 const { CommunityGroupViewModel } = require('../../viewmodels/community-group-viewmodel.js')
 
 Component({
-  properties: { inline: { type: Boolean, value: false } },
+  properties: { inline: { type: Boolean, value: false }, compact: { type: Boolean, value: false }, hideUnavailable: { type: Boolean, value: false } },
   data: CommunityGroupViewModel.getInitialData(),
   lifetimes: {
     attached() { this.active = true; this.viewModel = new CommunityGroupViewModel(); this.refresh(false) },
@@ -12,6 +12,13 @@ Component({
       if (this.data.loading) return
       this.setData({ loading: true, message: '' })
       const result = await this.viewModel.load(preview === true)
+      if (this.data.hideUnavailable && result.data.imageUrl) {
+        const loaded = await new Promise(resolve => wx.getImageInfo({ src: result.data.imageUrl, success: () => resolve(true), fail: () => resolve(false) }))
+        if (!loaded || Date.parse(result.data.expiresAt) <= Date.now()) {
+          result.data.imageUrl = ''
+          result.command = null
+        }
+      }
       if (!this.active) return
       this.setData(result.data)
       clearTimeout(this.expiryTimer)

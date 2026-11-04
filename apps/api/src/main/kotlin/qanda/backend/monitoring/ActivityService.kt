@@ -11,7 +11,7 @@ import qanda.backend.platform.http.*
 data class ActivityDayView(val date: LocalDate,val activeUsers: Long,val newUsers: Long,val returningUsers: Long)
 data class ActivityView(val dailyActive: Long,val weeklyActive: Long,val monthlyActive: Long,val activeUsers: Long,val retention: Double,val records: List<ActivityDayView>,val onlineUsers: Long,val updatedAt: Instant)
 data class RankingView(val userId: UUID,val nickname: String,val answeredCount: Long,val correctCount: Long,val durationSeconds: Long,
-    val rank: Long,val accountCode: String,val collegeId: UUID?,val collegeName: String?,val majorId: UUID?,val majorName: String?,val currentGrade: Int?,val activeDays: Long,val lastActiveAt: Instant?)
+    val rank: Long,val accountCode: String,val activeDays: Long,val lastActiveAt: Instant?)
 
 @Service
 @Transactional(readOnly=true,timeout=3)
@@ -31,5 +31,5 @@ class ActivityService(private val sql: ActivityMapper,private val clock: Clock) 
         return ActivityView(sql.activeCount(today),sql.activeCount(week),sql.activeCount(month),sql.activeCount(f),if(base==0L) 0.0 else sql.returningCount(f,previous.start).toDouble()/base,records,sql.onlineCount(f,now),now)
     }
     fun rankings(f: StatsFilter,p: PageSpec): Page<RankingView> = Page(sql.ranking(f,p.offset,p.pageSize).mapIndexed { i,it -> RankingView(it.userId!!,it.nickname,it.answeredCount,it.correctCount,it.durationSeconds,
-        (p.offset+i+1).toLong(),it.accountCode,it.collegeId,it.collegeName,it.majorId,it.majorName,it.currentGrade,it.activeDays,it.lastActiveAt) },sql.rankingCount(f),p.page,p.pageSize)
+        (p.offset+i+1).toLong(),it.accountCode,it.activeDays,it.lastActiveAt) },sql.rankingCount(f),p.page,p.pageSize)
 }

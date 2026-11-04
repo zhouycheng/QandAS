@@ -183,7 +183,7 @@ def export_contract(source):
     for module, paths in modules.items():
         folder = DESIGN / "modules" / module
         folder.mkdir(parents=True, exist_ok=True)
-        owner = {"openapi": document["openapi"], "info": {"title": "QandA " + module + " API", "version": "1.0.0"},
+        owner = {"openapi": document["openapi"], "info": {"title": "题小搭 " + module + " API", "version": "1.0.0"},
                  "servers": document["servers"], "paths": references(paths), "components": {"securitySchemes": document["components"]["securitySchemes"]}}
         (folder / "openapi.yaml").write_text(json.dumps(owner, ensure_ascii=False, indent=2) + "\n")
     return {"modules": len(modules), "operations": sum(len(x) for x in (paths for module in modules.values() for paths in module.values()))}

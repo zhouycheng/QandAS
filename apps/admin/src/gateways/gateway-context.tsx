@@ -1,5 +1,6 @@
 import { createContext, useContext, type PropsWithChildren } from 'react'
 import type { AdminContentGateway } from './admin-content-gateway'
+import { ContentSafetyDialog } from '../components/content-safety-dialog'
 
 const GatewayContext = createContext<AdminContentGateway | null>(null)
 
@@ -7,7 +8,7 @@ export function GatewayProvider({
   gateway,
   children,
 }: PropsWithChildren<{ gateway: AdminContentGateway }>) {
-  return <GatewayContext.Provider value={gateway}>{children}</GatewayContext.Provider>
+  return <GatewayContext.Provider value={gateway}>{children}<ContentSafetyDialog /></GatewayContext.Provider>
 }
 
 export function useAdminGateway() {

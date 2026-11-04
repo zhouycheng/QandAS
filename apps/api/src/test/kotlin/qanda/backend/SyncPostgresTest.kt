@@ -195,7 +195,7 @@ class SyncPostgresTest : PostgresFixture() {
 
     @Test fun `multi bank practice validates the whole scope and preserves per bank progress`() {
         val s=student();val f=fixture();val outside=fixture()
-        val second=id(call("POST","/admin/question-banks",mapOf("subjectId" to f.subject,"name" to "第二题库","description" to "课程练习题库","scopeType" to "ALL")))
+        val second=id(call("POST","/admin/question-banks",mapOf("subjectId" to f.subject,"name" to "第二题库","description" to "课程练习题库")))
         val q=id(call("POST","/admin/questions",question(second,"SINGLE_CHOICE")))
         val unpublished=call("GET","/admin/question-banks/$second")
         call("PUT","/admin/question-banks/$second/publication",mapOf("expectedVersion" to unpublished["version"].asLong(),"status" to "PUBLISHED"))
@@ -316,12 +316,11 @@ class SyncPostgresTest : PostgresFixture() {
         assertEquals("1.0.0",spec["info"]["version"].asText());assertTrue(spec["paths"].has("/api/v1/practice/sessions"));assertTrue(spec["components"]["schemas"].has("QuestionInput"))
         val schemas=spec["components"]["schemas"]
         assertTrue(schemas["PracticeConfiguration"]["properties"]["mode"]["enum"].any { it.isNull })
-        for ((schema,field) in listOf("RegistrationInput" to "password","LoginInput" to "password","ResetPasswordInput" to "newPassword","PasswordInput" to "newPassword")) {
-            val property=schemas[schema]["properties"][field]
-            assertEquals(8,property["minLength"].asInt());assertEquals(16,property["maxLength"].asInt())
-            assertTrue(Regex(property["pattern"].asText()).containsMatchIn("abc12345"))
-            assertFalse(Regex(property["pattern"].asText()).containsMatchIn("abcdefgh"))
-        }
+        val property=schemas["LoginInput"]["properties"]["password"]
+        assertEquals(16,property["minLength"].asInt());assertEquals(16,property["maxLength"].asInt())
+        assertTrue(Regex(property["pattern"].asText()).matches("FixedCode1234567"))
+        for(name in listOf("RegistrationInput","ResetPasswordInput","PasswordInput")) assertFalse(schemas.has(name))
+        assertTrue(spec["paths"].has("/api/v1/search"));assertTrue(spec["paths"]["/api/v1/me"].has("delete"))
         val operations=spec["paths"].fields().asSequence().flatMap { it.value.fields().asSequence() }.filter { it.key in setOf("get","post","put","patch","delete") }.map { it.value }.toList()
         assertEquals(operations.size,operations.map { it["operationId"].asText() }.distinct().size)
         val dir=evidenceDir;Files.createDirectories(dir);Files.writeString(dir.resolve("openapi.json"),json.writerWithDefaultPrettyPrinter().writeValueAsString(spec))

@@ -154,7 +154,7 @@ export function ImportQuestionsModal({
       >
         <p>导入到：{bank.name}</p>
         {save.error && <Alert className="bw-form-error" type="error" content={save.error.message} action={<Button onClick={() => { void client.invalidateQueries({ queryKey: ['bank-detail', bank.id] }); void chapters.refetch() }}>刷新题库信息</Button>} />}
-        <Space wrap style={{ marginBottom: 16 }}><a href={templateUrl} download="qanda-template.json">下载空白模板</a><a href={exampleUrl} download="qanda-six-types.json">下载六类题型示例</a><a href={codeUrl} download="qanda-code-content.json">下载代码题示例</a><a href={schemaUrl} download="qanda-schema.json">下载 JSON Schema</a></Space>
+        <Space wrap style={{ marginBottom: 16 }}><a href={templateUrl} download="题小搭-模板.json">下载空白模板</a><a href={exampleUrl} download="题小搭-六类题型示例.json">下载六类题型示例</a><a href={codeUrl} download="题小搭-代码题示例.json">下载代码题示例</a><a href={schemaUrl} download="题小搭-题库协议.json">下载 JSON Schema</a></Space>
         {chapters.isError && (
           <Alert
             type="error"

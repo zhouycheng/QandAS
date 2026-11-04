@@ -1,24 +1,11 @@
-/**
- * 「我的 / 账号管理 / 邮箱提醒」三页公用样式。
- *
- * 三张画板（Figma 781:1922 / 781:2123 / 781:2043）同一套视觉语言：
- * 22px 页边距、54px 行高、#EEF0F5 分隔线、#466BFF 主色、纯白底。
- * 公共部分放这里，页面 wxss 只写各自的差异，避免三页慢慢长歪。
- *
- * 尺寸换算：画板宽 402px，小程序按 750rpx 满宽，系数 750/402 ≈ 1.8657
- *   22px 页边距 → 41rpx   54px 行高 → 101rpx   14px 正文 → 26rpx
- *   12px 次要  → 22rpx    11px 说明 → 21rpx    16px 分区标题 → 30rpx
- *   56px 头像  → 104rpx   46px 输入框 → 86rpx   48px 主按钮 → 90rpx
- *   12px 圆角  → 22rpx     8px 圆角  → 15rpx
- * 设计稿写的字体是 Inter，小程序端不引外部字体，统一落到系统字体栈。
- */
+@import "./controls.wxss";
 
 .list-page {
   min-height: 100vh;
   padding: 0 41rpx;
   box-sizing: border-box;
-  background: #ffffff;
-  color: #141820;
+  background: var(--card);
+  color: var(--text-main);
 }
 
 /* ---------- 页内标题（「我的」是 tab 页，导航栏标题留空） ---------- */
@@ -28,15 +15,14 @@
   align-items: center;
   height: 131rpx;
   margin: 0 -41rpx;
-  padding: 0 41rpx;
-  border-bottom: 2rpx solid #eef0f5;
+  padding: 0 36rpx;
 }
 
 .page-head-title {
-  font-size: 34rpx;
-  line-height: 45rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-title);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 /* ---------- 资料头 ---------- */
@@ -57,7 +43,7 @@
   justify-content: center;
   border-radius: 50%;
   overflow: hidden;
-  background: #f0f3ff;
+  background: var(--brand-soft);
 }
 
 .profile-avatar-img {
@@ -74,7 +60,7 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100% 100%;
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNDY2QkZGIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjguNiIgcj0iMy45Ii8+PHBhdGggZD0iTTQuOSAyMGMuNy0zLjYgMy42LTUuNyA3LjEtNS43czYuNCAyLjEgNy4xIDUuNyIvPjwvc3ZnPg==");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M0VCIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjguNiIgcj0iMy45Ii8+PHBhdGggZD0iTTQuOSAyMGMuNy0zLjYgMy42LTUuNyA3LjEtNS43czYuNCAyLjEgNy4xIDUuNyIvPjwvc3ZnPg==");
 }
 
 .profile-main {
@@ -85,19 +71,19 @@
 
 .profile-name {
   display: block;
-  font-size: 34rpx;
-  line-height: 45rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-body);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .profile-sub {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  line-height: 37rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -106,10 +92,10 @@
 .profile-meta {
   display: block;
   margin-top: 4rpx;
-  font-size: 21rpx;
-  line-height: 34rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -123,28 +109,28 @@
   height: 101rpx;
   margin-top: 47rpx;
   padding: 0 26rpx;
-  border-radius: 22rpx;
-  background: #efefef;
+  border-radius: var(--radius-card);
+  background: var(--page-bg);
   transition: background-color 100ms ease;
 }
 
 .pill-row-hover {
-  background: #e6e8ee;
+  background: var(--line);
 }
 
 .pill-row-label {
-  font-size: 26rpx;
-  line-height: 45rpx;
+  font-size: var(--font-body);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .pill-row-value {
   margin-left: auto;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 /* ---------- 分组与行 ---------- */
@@ -155,23 +141,23 @@
 
 .group-title {
   display: block;
-  font-size: 30rpx;
-  line-height: 45rpx;
-  font-weight: 700;
-  color: #141820;
+  font-size: var(--font-body);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .row {
   display: flex;
   align-items: center;
   min-height: 101rpx;
-  border-bottom: 2rpx solid #eef0f5;
+  border-bottom: 2rpx solid var(--page-bg);
   background: transparent;
   transition: background-color 100ms ease;
 }
 
 .row-hover {
-  background: #f7f8fa;
+  background: var(--page-bg);
 }
 
 .row-main {
@@ -181,37 +167,37 @@
 
 .row-label {
   display: block;
-  font-size: 26rpx;
-  line-height: 45rpx;
+  font-size: var(--font-body);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .row-desc {
   display: block;
   margin-top: 3rpx;
-  font-size: 21rpx;
-  line-height: 34rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .row-value {
   flex: none;
   margin-left: 22rpx;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .row-strong {
   flex: none;
   margin-left: auto;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #466bff;
+  color: var(--brand);
 }
 
 /* 右向箭头：用边框画，比文字「›」在各机型上更稳定 */
@@ -220,13 +206,13 @@
   width: 16rpx;
   height: 16rpx;
   margin-left: 18rpx;
-  border-top: 3rpx solid #8b8f99;
-  border-right: 3rpx solid #8b8f99;
+  border-top: 3rpx solid var(--text-sub);
+  border-right: 3rpx solid var(--text-sub);
   transform: rotate(45deg);
 }
 
 .chevron-strong {
-  border-color: #466bff;
+  border-color: var(--brand);
 }
 
 /* ---------- 底部协议链接 ---------- */
@@ -240,17 +226,17 @@
 }
 
 .link {
-  font-size: 21rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .link-divider {
   width: 2rpx;
   height: 19rpx;
   margin: 0 30rpx;
-  background: #eef0f5;
+  background: var(--page-bg);
 }
 
 /* ---------- 账号管理页：表单项 ---------- */
@@ -266,39 +252,39 @@
 .field-label {
   display: block;
   margin-top: 22rpx;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .field-input {
   height: 86rpx;
   margin-top: 15rpx;
   padding: 0 26rpx;
-  border-radius: 15rpx;
-  background: #efefef;
-  font-size: 26rpx;
-  line-height: 86rpx;
-  color: #141820;
+  border-radius: var(--radius-tag);
+  background: var(--page-bg);
+  font-size: var(--font-body);
+  line-height: 1.5;
+  color: var(--text-main);
 }
 
 .field-placeholder {
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 /* 账号信息项：两行（标签 + 状态与操作），行高合计 80px */
 .info-item {
   padding: 26rpx 0;
-  border-bottom: 2rpx solid #eef0f5;
+  border-bottom: 2rpx solid var(--page-bg);
 }
 
 .info-label {
   display: block;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .info-line {
@@ -308,49 +294,37 @@
 }
 
 .info-value {
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-body);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .info-action {
   margin-left: auto;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #466bff;
+  color: var(--brand);
 }
 
 .section-note {
   display: block;
   margin-top: 11rpx;
-  font-size: 21rpx;
-  line-height: 34rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 /* ---------- 底部固定主按钮 ---------- */
 
 .bottom-bar {
   position: fixed;
-  left: 41rpx;
-  right: 41rpx;
+  left: 32rpx;
+  right: 32rpx;
   bottom: 67rpx;
   bottom: calc(67rpx + env(safe-area-inset-bottom));
-}
-
-.bottom-btn {
-  height: 90rpx;
-  border-radius: 22rpx;
-  background: #466bff;
-  color: #ffffff;
-  font-size: 26rpx;
-  line-height: 90rpx;
-  font-weight: 500;
-  text-align: center;
-  transition: opacity 100ms ease;
 }
 
 .bottom-btn-hover {
@@ -358,7 +332,7 @@
 }
 
 .bottom-btn-disabled {
-  background: #c3ccf7;
+  background: var(--brand-soft);
 }
 
 /* 内容底部让位：90rpx 按钮 + 67rpx 底距 + 呼吸位，再叠安全区 */
@@ -373,7 +347,7 @@
   display: flex;
   align-items: center;
   min-height: 101rpx;
-  border-bottom: 2rpx solid #eef0f5;
+  border-bottom: 2rpx solid var(--page-bg);
 }
 
 .switch-row-tall {
@@ -394,15 +368,15 @@
   display: flex;
   align-items: center;
   min-height: 93rpx;
-  border-bottom: 2rpx solid #eef0f5;
+  border-bottom: 2rpx solid var(--page-bg);
 }
 
 .exam-date {
   margin-left: auto;
-  font-size: 21rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
 }
 
 .status-pill {
@@ -411,39 +385,39 @@
   padding: 0 11rpx;
   height: 34rpx;
   border-radius: 7rpx;
-  background: #efefef;
-  font-size: 17rpx;
-  line-height: 34rpx;
+  background: var(--page-bg);
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #8b8f99;
+  color: var(--text-sub);
   text-align: center;
 }
 
 .status-pill-upcoming {
-  background: #eef2ff;
-  color: #466bff;
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .status-pill-today {
-  background: #e9f7ef;
-  color: #17b26a;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .add-btn {
   height: 67rpx;
   margin-top: 22rpx;
-  border-radius: 15rpx;
-  background: #efefef;
-  font-size: 22rpx;
-  line-height: 67rpx;
+  border-radius: var(--radius-tag);
+  background: var(--page-bg);
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #466bff;
+  color: var(--brand);
   text-align: center;
   transition: background-color 100ms ease;
 }
 
 .add-btn-hover {
-  background: #e6e8ee;
+  background: var(--line);
 }
 
 /* ---------- 提前提醒勾选 ---------- */
@@ -467,15 +441,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10rpx;
-  border: 2rpx solid #d5d8e0;
-  background: #ffffff;
+  border-radius: var(--radius-tag);
+  border: 2rpx solid var(--line);
+  background: var(--card);
   transition: background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .checkbox-checked {
-  border-color: #466bff;
-  background: #466bff;
+  border-color: var(--brand);
+  background: var(--brand);
 }
 
 /* 白色对勾：两根边框拼出来，不依赖图片资源 */
@@ -483,25 +457,25 @@
   width: 8rpx;
   height: 15rpx;
   margin: -3rpx 0 0 0;
-  border-right: 3rpx solid #ffffff;
-  border-bottom: 3rpx solid #ffffff;
+  border-right: 3rpx solid var(--card);
+  border-bottom: 3rpx solid var(--card);
   transform: rotate(45deg);
 }
 
 .checkbox-label {
   margin-left: 11rpx;
-  font-size: 22rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #141820;
+  color: var(--text-main);
 }
 
 .checkbox-hint {
   display: block;
   margin-top: 15rpx;
-  font-size: 19rpx;
-  line-height: 34rpx;
-  color: #8b8f99;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  color: var(--text-sub);
 }
 
 /* ---------- 弹层内容共用 ---------- */
@@ -509,9 +483,9 @@
 .sheet-text {
   display: block;
   padding: 8rpx 0 24rpx;
-  font-size: 24rpx;
+  font-size: var(--font-caption);
   line-height: 1.7;
-  color: #6b7684;
+  color: var(--text-sub);
   white-space: pre-wrap;
 }
 

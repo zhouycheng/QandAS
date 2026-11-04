@@ -39,7 +39,6 @@ class AccountSecurityRepository {
     return response.data
   }
 
-  password(input, key) { return this.call('changeOwnPassword', input, key) }
   email(input, key) { return this.call('changeOwnEmail', input, key) }
   wechatCode() { this.assertIdentity(); return auth.requestWechatCode() }
   wechat(input, key) { return this.call('bindOwnWechat', input, key) }

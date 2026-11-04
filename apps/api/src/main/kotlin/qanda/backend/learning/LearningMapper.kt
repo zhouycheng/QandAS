@@ -10,6 +10,7 @@ class StatsRow { var practiceCount: Long=0;var totalCount: Long=0;var answeredCo
 class SelfRow { var rated: Long=0;var correct: Long=0;var wrong: Long=0 }
 class DailyRow { var objectiveAnsweredCount: Long=0; var day: LocalDate=LocalDate.now();var practiceCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var durationSeconds: Long=0 }
 @Mapper interface LearningMapper {
+    fun distinctCount(@Param("f") filter: StatsFilter): Long
     fun stats(@Param("f") filter: StatsFilter): StatsRow
     fun selfStats(@Param("f") filter: StatsFilter): SelfRow
     fun days(@Param("f") filter: StatsFilter): List<DailyRow>

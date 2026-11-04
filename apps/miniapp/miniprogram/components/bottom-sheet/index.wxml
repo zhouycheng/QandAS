@@ -1,11 +1,11 @@
 <root-portal enable="{{true}}" wx:if="{{visible}}">
-<view class="bottom-sheet" wx:if="{{visible}}">
+<view class="portal-theme bottom-sheet" wx:if="{{visible}}">
   <view class="mask" catchtouchmove="noop" catchtap="handleMaskTap"></view>
 
   <view catchtap="noop" hover-class="none" class="panel {{placement === 'center' ? 'panel-center' : ''}}">
     <view class="panel-header">
       <text class="panel-title">{{title}}</text>
-      <text class="panel-close" bindtap="handleCloseTap">关闭</text>
+      <button class="q-button q-button--text panel-close" bindtap="handleCloseTap" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">关闭</button>
     </view>
 
     <scroll-view class="panel-body" scroll-y>

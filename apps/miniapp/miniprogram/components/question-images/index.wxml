@@ -1,1 +1,1 @@
-<view wx:for="{{paths}}" wx:key="*this" data-path="{{item}}" bindtap="preview" hover-class="image-hover" hover-start-time="0" hover-stay-time="80" aria-label="查看题目图片"><image class="question-image" src="{{item}}" mode="widthFix" /></view>
+<view wx:for="{{paths}}" wx:key="*this" data-path="{{item}}" bindtap="preview" class="portal-theme" hover-class="image-hover" hover-start-time="0" hover-stay-time="80" aria-label="查看题目图片"><image class="question-image" src="{{item}}" mode="widthFix" /></view>

@@ -6,18 +6,8 @@ const { maskEmail } = require('../utils/auth-form.js');
 const LOGIN_URL = '/page/login/index';
 const ACCOUNT_URL = '/page/account/index';
 const SETTINGS_URL = '/page/settings/index';
-const REMINDER_URL = '/page/reminder/index';
 // 「我的」集中提供账号、独立学习设置与关于入口。
-const AGREEMENT_TEXT = [
-    'QandA 提供课程题库、练习和学习复盘。登录后，正式学习记录保存在你的账号中。',
-    '正式练习草稿联网后同步到账号，游客试答记录保存在当前设备。',
-    '题目或解析有误时，可在题目页面提交纠错，并在反馈记录中查看处理结果。'
-].join('\n');
-const PRIVACY_TEXT = [
-    '邮箱和微信绑定信息用于登录与账号验证。昵称、头像和院系资料用于展示个人资料及匹配题库范围。',
-    '作答进度、错题、收藏和学习时长按账号保存，联网后同步。',
-    '游客试答、答题偏好、自定义布局和提醒设置保存在当前设备。退出登录后，这些设置仍会保留。'
-].join('\n');
+const { AGREEMENT_TEXT, PRIVACY_TEXT } = require('../utils/legal-content.js');
 function createNullStorage() {
     return {
         get() {
@@ -80,17 +70,19 @@ class MyViewModel {
     }
     load() {
         const preferences = normalizePreferences(this.repository.getPreferences(this.storage));
-        const reminder = this.repository.getReminder(this.storage);
         const auth = this.readAuthView();
+        const account = this.repository.getAuth(this.storage);
+        const testAccount = account.loggedIn && account.email.toLowerCase().endsWith('@qanda.mail');
         return {
             data: Object.assign(getInitialMyViewData(), {
                 auth,
                 learnRows: [
                     { key: 'practice', title: '答题偏好', value: describeExplanationLabel(preferences) },
                     { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
-                    { key: 'reminder', title: '邮箱提醒', value: '仅本机保存' },
                     { key: 'feedback', title: '反馈与处理结果', value: '' },
-                    { key: 'about', title: '关于 QandA', value: '' }
+                    { key: 'countdown', title: '考试倒计时', value: '' },
+                    ...(testAccount ? [{ key: 'content-confirm', title: '管理员内容确认', value: '' }] : []),
+                    { key: 'about', title: '关于题小搭', value: '' }
                 ],
                 links: [
                     { key: 'agreement', title: '用户协议' },
@@ -116,9 +108,9 @@ class MyViewModel {
                 displayName: view.displayName,
                 avatarUrl: view.avatarUrl,
                 accountTag: view.accountTag,
-                college: view.college,
+
                 emailMasked: maskEmail(view.email),
-                subText: view.college || getProviderLabel(view.provider) || view.accountTag,
+                subText: getProviderLabel(view.provider) || view.accountTag,
                 metaText: maskEmail(view.email) || '未绑定邮箱'
             };
         }
@@ -155,26 +147,16 @@ class MyViewModel {
                 }
             };
         }
-        if (key === 'reminder') {
-            const auth = this.readAuthView();
-            if (!auth.loggedIn) {
-                return {
-                    command: {
-                        type: 'toast',
-                        title: '请登录后设置提醒偏好'
-                    }
-                };
-            }
-            return {
-                command: {
-                    type: 'navigate',
-                    url: REMINDER_URL
-                }
-            };
+        if (key === 'countdown') return { command: { type: 'navigate', url: '/page/exam-countdown/index' } };
+        if (key === 'content-confirm') {
+            const account = this.repository.getAuth(this.storage);
+            if (!account.loggedIn || !account.email.toLowerCase().endsWith('@qanda.mail')) return null;
+            return { command: { type: 'navigate', url: '/page/content-confirm/index' } };
         }
         if (key === 'about') {
             return { command: { type: 'navigate', url: '/page/about/index' } };
         }
+        if (key === 'account-deletion') return { command: { type: 'navigate', url: this.readAuthView().loggedIn ? '/page/account-deletion/index' : LOGIN_URL } };
         if (key === 'agreement') {
             return this.openSheet('agreement');
         }

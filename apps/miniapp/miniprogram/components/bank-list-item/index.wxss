@@ -1,14 +1,15 @@
+@import "../../styles/controls.wxss";
 /* 章节行：设计稿里题库列表就是一条条灰色圆角条，点一条配这一条的答题参数。
    行高定死（96rpx）而不是靠内边距撑：题库页是长列表，行高一致才好扫读。 */
 
 .chapter-row {
-  height: 96rpx;
+  min-height: 96rpx;
   margin-bottom: 16rpx;
-  padding: 0 24rpx;
+  padding: 20rpx 24rpx;
   display: flex;
   align-items: center;
-  border-radius: 22rpx;
-  background: #f2f3f5;
+  border-radius: var(--radius-card);
+  background: var(--page-bg);
   transition: background-color 120ms ease;
 }
 
@@ -17,7 +18,7 @@
    真机上点这一行是全无反馈的（编译不报错）。按压只改底色，不做 transform：
    组件用在 scroll-view 里，位移会被当成内容尺寸变化，滚动位置会跳。 */
 .chapter-hover {
-  background-color: #e3e7ef;
+  background-color: var(--line);
   transition-duration: 100ms;
 }
 
@@ -31,28 +32,27 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: 27rpx;
+  font-size: var(--font-body);
   line-height: 1.35;
-  color: #141820;
+  color: var(--text-main);
 }
-
 
 .chapter-meta {
   flex: none;
   margin-left: 12rpx;
-  font-size: 22rpx;
-  color: #8b8f99;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
 }
 
 .chapter-arrow {
   flex: none;
   margin-left: 8rpx;
-  font-size: 30rpx;
+  font-size: var(--font-body);
   line-height: 1;
-  color: #b4b9c2;
+  color: var(--text-sub);
 }
 
 /* 整章刷完：只把进度数字染绿，不整条变绿 —— 列表里满屏绿条反而看不出重点 */
 .chapter-row.is-done .chapter-meta {
-  color: #17b26a;
+  color: var(--success);
 }

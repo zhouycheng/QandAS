@@ -126,7 +126,7 @@ async function checkHttpGateway() {
   const calls = []
   global.wx = { request(options) {
     calls.push(options)
-    options.success({ statusCode: 200, data: options.url.endsWith('/me') ? { id: 'u9', nickname: '昵称' } : { session: { accessToken: 'tk9' } } })
+    options.success({ statusCode: 200, data: options.url.endsWith('/me') ? { id: 'u9', nickname: '昵称' } : { accessToken: 'tk9' } })
   } }
   const result = await httpGateway.login('code9')
   assert('网关 - 微信 code 交给 v1 会话接口', calls[0].url.endsWith('/api/v1/auth/wechat-sessions') && calls[0].data.code === 'code9')
@@ -143,96 +143,19 @@ async function checkHttpGateway() {
 async function checkLoginViewModel() {
   const storage = createMemoryStorage()
   const vm = new LoginViewModel({ storage })
-  const initial = vm.load()
-
-  assert('登录页 - 初始字段为空', initial.data.email === '' && initial.data.password === '')
-  assert('登录页 - 初始协议未勾选', initial.data.agreed === false)
-
-  // 1) 空表单：拦在邮箱
-  const emptySubmit = await vm.submit()
-
-  assert('登录页 - 空表单提示填邮箱', emptySubmit.command.title === '请输入邮箱', emptySubmit.command.title)
-  assert('登录页 - 空表单标红邮箱框', emptySubmit.data.errorField === 'email')
-
-  // 2) 邮箱格式错
-  vm.setField('email', 'curry@')
-  vm.setField('password', 'abc12345ABCD')
-
-  const badEmail = await vm.submit()
-
-  assert('登录页 - 邮箱格式错被拦', badEmail.command.title === '邮箱格式不正确', badEmail.command.title)
-
-  // 3) 登录密码必须包含字母和数字
-  vm.setField('email', 'curry@test.com')
-  vm.setField('password', 'abcdefgh')
-
-  const badPassword = await vm.submit()
-
-  assert('登录页 - 纯字母密码被拒', badPassword.command.title.indexOf('字母和数字') >= 0,
-    badPassword.command.title)
-  assert('登录页 - 密码问题标红密码框', badPassword.data.errorField === 'password')
-
-  // 4) 未勾协议：拦在最后，别一上来就挡人
-  vm.setField('password', 'abc12345ABCD')
-
-  const noAgree = await vm.submit()
-
-  assert('登录页 - 未勾协议被拦', noAgree.command.title.indexOf('用户协议') >= 0, noAgree.command.title)
-  assert('登录页 - 未勾协议标记勾选栏', noAgree.data.errorField === 'agreed')
-  assert('登录页 - 勾选后红框立即消失', vm.toggleAgreed().data.errorField === '')
-
-  // 5) 后端不可用（没接上）→ 降级，但仍然是登录成功
-  //    unavailable 与「后端明确拒绝」是两件事：只有前者能降级
-  authGateway.setAuthGateway({
-    name: 'none',
-    loginByEmail: () => ({ ok: false, unavailable: true, reason: '服务暂不可用，请稍后重试' })
-  })
-
-  const degraded = await vm.submit()
-  const degradedAuth = authRepository.getAuth(storage)
-
-  assert('登录页 - 断网保持未登录', degradedAuth.loggedIn === false)
-  assert('登录页 - 断网不生成身份', degradedAuth.provider === '', degradedAuth.provider)
-  assert('登录页 - 断网展示失败原因', degraded.command.title === '服务暂不可用，请稍后重试', degraded.command.title)
-  assert('登录页 - 失败停留当前页面', degraded.command.type === 'toast', JSON.stringify(degraded.command))
-  assert('登录页 - 失败没有用户编号', degradedAuth.userId === '', degradedAuth.userId)
-  assert('登录页 - 密码不写进身份', JSON.stringify(degradedAuth).indexOf('abc12345ABCD') < 0)
-  assert('登录页 - storage 里也没有密码', JSON.stringify(storage.raw).indexOf('abc12345ABCD') < 0)
-
-  // 6) 真登录
-  authGateway.setAuthGateway({
-    name: 'fake',
-    loginByEmail: () => ({ ok: true, userId: 'u-9', email: 'curry@test.com', token: 'tk-9' })
-  })
-
-  const okStorage = createMemoryStorage()
-  const okVm = new LoginViewModel({ storage: okStorage })
-
-  okVm.setField('email', 'curry@test.com')
-  okVm.setField('password', 'abc12345ABCD')
-  okVm.toggleAgreed()
-
-  const logged = await okVm.submit()
-
-  assert('登录页 - 真登录提示登录成功', logged.command.title === '登录成功', logged.command.title)
-  assert('登录页 - 真登录用后端给的 id',
-    authRepository.getAuth(okStorage).userId === 'u-9', authRepository.getAuth(okStorage).userId)
-
-  // 7) 微信登录通道保留（设计稿里是「或」下面的备选按钮）
-  authGateway.setAuthGateway({ name: 'fake', login: () => ({ ok: true, userId: 'u-1', token: 'tk1', openId: 'o-1' }) })
-
-  global.wx = { login: (input) => input.success({ code: 'wechat-code' }) }
-  const wechat = await new LoginViewModel({ storage: createMemoryStorage() }).wechatLogin()
+  vm.setField('email', 'new@example.test'); vm.setField('code', '123456'); vm.toggleAgreed()
+  authGateway.setAuthGateway({ loginByCode: () => ({ ok: false, reason: '服务不可用' }) })
+  assert('登录失败保留未登录', (await vm.submit()).command.type === 'toast' && !authRepository.getAuth(storage).loggedIn)
+  authGateway.setAuthGateway({ loginByCode: () => ({ ok: true, userId: 'u9', token: 'tk9' }) })
+  assert('邮箱验证码成功直接返回', (await vm.submit()).command.type === 'back')
+  assert('验证码不保存', !JSON.stringify(storage.raw).includes('123456'))
+  authGateway.setAuthGateway({ login: () => ({ ok: true, userId: 'wx9', token: 'wx-token' }) })
+  const wechat = new LoginViewModel({ storage: createMemoryStorage() })
+  assert('微信登录需要协议', (await wechat.wechatLogin()).command.type === 'toast')
+  global.wx = { login: input => input.success({ code: 'fresh-code' }) }
+  wechat.toggleAgreed()
+  assert('微信首次登录直接返回', (await wechat.wechatLogin()).command.type === 'back')
   delete global.wx
-
-  assert('登录页 - 微信登录仍可用', wechat.command.type === 'back', JSON.stringify(wechat.command))
-
-  // 8) 退出
-  const logout = okVm.logout()
-
-  assert('登录页 - 退出后回到未登录', authRepository.getAuth(okStorage).loggedIn === false)
-  assert('登录页 - 退出有提示', logout.command.title === '已退出登录')
-
   authGateway.resetAuthGateway()
 }
 
@@ -257,8 +180,8 @@ async function checkEntryPages() {
     my.tapRow('account').command.url === '/page/login/index',
     JSON.stringify(my.tapRow('account')))
   assert('我的 - 未登录点邮箱提醒先引导登录',
-    my.tapRow('reminder').command.title.indexOf('登录') >= 0,
-    JSON.stringify(my.tapRow('reminder')))
+    my.tapRow('account-deletion').command.url === '/page/login/index',
+    JSON.stringify(my.tapRow('account-deletion')))
 
   authGateway.setAuthGateway({
     name: 'fake',
@@ -275,8 +198,8 @@ async function checkEntryPages() {
     my.tapRow('account').command.url === '/page/account/index',
     JSON.stringify(my.tapRow('account')))
   assert('我的 - 登录后邮箱提醒可进入',
-    my.tapRow('reminder').command.url === '/page/reminder/index',
-    JSON.stringify(my.tapRow('reminder')))
+    my.tapRow('account-deletion').command.url === '/page/account-deletion/index',
+    JSON.stringify(my.tapRow('account-deletion')))
 
   const logout = my.logout()
 
@@ -301,21 +224,12 @@ function checkStaticContract() {
   // 改版后登录页是纯认证页（设计稿 763:567），不再承担头像昵称编辑
   assert('页面 - 登录按钮处理函数已定义', loginJs.indexOf('handleLoginTap()') >= 0)
   assert('页面 - 微信登录处理函数已定义', loginJs.indexOf('handleWechatTap()') >= 0)
-  assert('页面 - 注册入口处理函数已定义', loginJs.indexOf('handleRegisterTap()') >= 0)
-  assert('页面 - 忘记密码处理函数已定义', loginJs.indexOf('handleForgotTap()') >= 0)
+  assert('页面 - 协议入口可打开', loginJs.includes('handleLegal(event)'))
+  assert('页面 - 验证码发送处理函数已定义', loginJs.includes('handleSendCode()'))
   assert('页面 - 登录页注册原生 Page 配置', /Page\(withPageLifecycle\(\s*\{/.test(loginJs))
 
   // 输入框不再做受控回写：回写 value 会让真机光标跳到末尾
   assert('页面 - 输入不反写 value', loginJs.indexOf('value:') < 0)
-
-  const registerWxml = readFile('page/register/index.wxml')
-  const forgotWxml = readFile('page/forgot-password/index.wxml')
-
-  assert('页面 - 注册页有验证码发送入口', registerWxml.indexOf('handleSendCode') >= 0)
-  assert('页面 - 注册页有协议勾选', registerWxml.indexOf('checkbox-tick') >= 0)
-  assert('页面 - 找回密码页有确认密码字段', forgotWxml.indexOf('请再次输入新密码') >= 0)
-  assert('页面 - 找回密码页说明重置后要重新登录',
-    forgotWxml.indexOf('重置成功后，请使用新密码登录') >= 0)
 
   const allJs = []
   const walk = (dir) => {
@@ -369,11 +283,6 @@ function checkStaticContract() {
 
   // 三个认证页必须共用同一份尺寸来源，否则三个页面会慢慢长歪
   assert('页面 - 登录页引入公用认证样式', loginWxss.indexOf('styles/auth-form.wxss') >= 0)
-  assert('页面 - 注册页引入公用认证样式',
-    readFile('page/register/index.wxss').indexOf('styles/auth-form.wxss') >= 0)
-  assert('页面 - 找回密码页引入公用认证样式',
-    readFile('page/forgot-password/index.wxss').indexOf('styles/auth-form.wxss') >= 0)
-
   // 从登录页返回后，两个入口页都得重新读一次身份，否则标签还停在旧状态
   assert('页面 - 设置页返回时刷新登录态', readFile('page/settings/index.js').indexOf('onShow()') >= 0)
   assert('页面 - 我的页返回时刷新登录态', readFile('page/my/index.js').indexOf('onShow()') >= 0)

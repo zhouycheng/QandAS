@@ -59,19 +59,20 @@ function readFile(relativePath) {
   return fs.readFileSync(path.join(MINIPROGRAM, relativePath), 'utf8')
 }
 
-/** 从 WXSS 里取出 `.font-<档位> .<类> { font-size: Nrpx }` 的数值 */
-function pickFontSize(wxss, scale, target) {
-  const pattern = new RegExp(`\\.font-${scale}\\s+\\.${target}\\s*\\{[^}]*?font-size:\\s*(\\d+)rpx`, 'm')
-  const matched = wxss.match(pattern)
+const { readingSizes } = require('../miniprogram/utils/design-tokens.js')
+const controls = readFile('styles/controls.wxss')
 
-  return matched ? Number(matched[1]) : 0
+function hasReadingSize(wxss, target) {
+  const pattern = new RegExp(`\\.${target}\\s*\\{[^}]*?font-size:\\s*var\\(--reading-size,\\s*var\\(--reading-normal\\)\\)`)
+  return pattern.test(wxss)
+}
+
+function pickFontSize(wxss, scale, target) {
+  return hasReadingSize(wxss, target) && controls.includes(`.font-${scale} { --reading-size: var(--reading-${scale}); }`) ? readingSizes[scale] : 0
 }
 
 function pickDefaultFontSize(wxss, target) {
-  const pattern = new RegExp(`(^|\\})\\s*\\.${target}\\s*\\{[^}]*?font-size:\\s*(\\d+)rpx`, 'm')
-  const matched = wxss.match(pattern)
-
-  return matched ? Number(matched[2]) : 0
+  return hasReadingSize(wxss, target) ? readingSizes.normal : 0
 }
 
 // ---------- 一、偏好本身 ----------
@@ -137,7 +138,7 @@ function checkPracticeScale() {
       `small=${small} base=${base} large=${large}`)
     assert(`答题页 - .${target} 方向正确（小 < 标准 < 大）`, small < base && base < large,
       `small=${small} base=${base} large=${large}`)
-    assert(`答题页 - .${target} 小档与大档差距 ≥ 8rpx`, large - small >= 8,
+    assert(`答题页 - .${target} 小档与大档差距 ≥ 4px`, large - small >= 4,
       `large - small = ${large - small}`)
   })
 

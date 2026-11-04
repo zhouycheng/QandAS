@@ -310,7 +310,7 @@ class PracticeSession {
 
   getShareMessage() {
     return {
-      title: this.state.practiceTitle || 'QandA 练习',
+      title: this.state.practiceTitle || '题小搭练习',
       path: this.state.practicePath || '/page/practice/index'
     }
   }

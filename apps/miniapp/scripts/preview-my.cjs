@@ -1,5 +1,5 @@
 /**
- * 「我的 / 账号管理 / 邮箱提醒」静态预览：把真实 WXSS 的 rpx 按 750rpx = 402px
+ * “我的”页面静态预览：把真实 WXSS 的 rpx 按 750rpx = 402px
  * （设计稿画板宽）换算后渲染 HTML，包含「我的」静止与按压状态，
  * 用来和 Figma 781:1922 / 781:2123 / 781:2043 逐项比对。
  *
@@ -9,6 +9,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { readStyles } = require('./preview-styles.cjs')
 const { execFileSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -19,7 +20,7 @@ const STAGE_H = 874 // 设计稿画板高度
 const NAV_H = 91 // 状态栏 + 导航栏，画板的顶部留白里含这部分
 const header = require('../miniprogram/utils/home-header.js').getInitialHomeHeaderData({ statusBarHeight: 47 }, { top: 51, height: 32 })
 
-const read = (relative) => fs.readFileSync(path.join(MP, relative), 'utf8')
+const read = (relative) => relative.endsWith('.wxss') ? readStyles(path.join(MP, relative)) : fs.readFileSync(path.join(MP, relative), 'utf8')
 
 /** rpx → px：按 750rpx = STAGE_W px 换算 */
 function rpxToPx(css) {
@@ -142,19 +143,15 @@ const myBody = `
   <div class="list-page" style="padding-top:${header.homeStatusBarHeight}px">
     <div class="page-head" style="height:${header.homeNavigationBarHeight}px"><span class="page-head-title">我的</span></div>
     ${profileHead}
-    <div class="pill-row">
-      <span class="pill-row-label">账号管理</span>
-      <span class="pill-row-value">个人信息与安全</span>
-      ${chevron}
-    </div>
     <div class="group">
-      <span class="group-title">学习设置</span>
+      <span class="group-title">设置</span>
       ${row('答题偏好', '即时答案')}
       ${row('自定义布局', '默认布局')}
-      ${row('邮箱提醒', '已开启')}
-      ${row('关于 QandA', '')}
+      ${row('反馈与处理结果', '')}
+      ${row('考试倒计时', '')}
+      ${row('关于题小搭', '')}
+      ${row('退出登录', '')}
     </div>
-    <div class="bottom-btn logout-button">退出登录</div>
     <div class="links">
       <span class="link">用户协议</span>
       <div class="link-divider"></div>
@@ -162,103 +159,9 @@ const myBody = `
     </div>
   </div>`
 
-const accountBody = `
-  <div class="nav-bar"><div class="nav-back"></div><span class="nav-title">个人资料</span></div>
-  <div class="list-page page-with-bottom-bar">
-      <button class="profile-avatar avatar-button" size="mini" aria-label="更换头像"><div class="avatar-icon"></div></button>
-      <div class="field">
-        <span class="field-label">昵称</span>
-        <input class="field-input" value="curry" />
-      </div>
-      ${[['学院', '计算机科学与技术学院'], ['专业', '软件工程'], ['当前年级', '大二']].map(([label, value]) => `<div class="field profile-selector"><span class="field-label">${label}</span><div class="profile-select"><span class="profile-select-value">${value}</span><div class="profile-select-arrow"></div></div></div>`).join('')}
-      <span class="section-note">每年 9 月自动升一级，大四后为已毕业。你可以随时调整。</span>
-      <div class="info-item">
-        <span class="info-label">绑定邮箱</span>
-        <div class="info-line">
-          <span class="info-value">cu***@qq.com</span>
-          <span class="info-action">更换</span>
-          ${chevron}
-        </div>
-      </div>
-      <div class="info-item">
-        <span class="info-label">微信绑定</span>
-        <div class="info-line">
-          <span class="info-value">已绑定</span>
-          <span class="info-action">管理</span>
-          ${chevron}
-        </div>
-      </div>
-      <div class="info-item">
-        <span class="info-label">登录密码</span>
-        <div class="info-line">
-          <span class="info-value">已设置</span>
-          <span class="info-action">修改</span>
-          ${chevron}
-        </div>
-      </div>
-      <span class="section-note">邮箱用于登录、找回密码与接收提醒。</span>
-  </div>
-  <div class="bottom-bar"><div class="bottom-btn">保存资料</div></div>`
-
-function examRow(name, date, status, tone) {
-  return `
-    <div class="exam-row">
-      <span class="row-label">${name}</span>
-      <span class="exam-date">${date}</span>
-      <div class="status-pill status-pill-${tone}">${status}</div>
-    </div>`
-}
-
-function checkItem(label, on) {
-  return `<div class="checkbox-item">${check(on)}<span class="checkbox-label">${label}</span></div>`
-}
-
-const reminderBody = `
-  <div class="nav-bar"><div class="nav-back"></div><span class="nav-title">邮箱提醒</span></div>
-  <div class="list-page page-with-bottom-bar">
-    <div class="switch-row switch-row-tall">
-      <div class="row-main">
-        <span class="row-label">允许邮箱提醒</span>
-        <span class="row-desc">发送至 cu***@qq.com</span>
-      </div>
-      ${sw(true)}
-    </div>
-    <div class="group">
-      <span class="group-title">定时复习</span>
-      <div class="switch-row">
-        <span class="row-label">定时复习</span>
-        ${sw(true)}
-      </div>
-      ${row('提醒时间', '20:00')}
-      ${row('重复频率', '每天')}
-    </div>
-    <div class="group">
-      <div class="switch-row">
-        <span class="row-label">考试提醒</span>
-        ${sw(true)}
-      </div>
-      <span class="exam-title">我的考试</span>
-      ${examRow('大学语文', '2026/12/26', '24天后', 'upcoming')}
-      ${examRow('期末考试', '2027/01/09', '38天后', 'upcoming')}
-      <div class="add-btn">+ 添加考试</div>
-      <div class="advance">
-        <span class="advance-label">提前提醒</span>
-        <div class="checkbox-row">
-          ${checkItem('7天前', true)}
-          ${checkItem('3天前', false)}
-          ${checkItem('当天', true)}
-        </div>
-        <span class="checkbox-hint">已结束的考试不再发送提醒</span>
-      </div>
-    </div>
-  </div>
-  <div class="bottom-bar"><div class="bottom-btn">保存设置</div></div>`
-
 const stages = [
   { dir: 'page/my', body: myBody, tag: '我的 781:1922' },
-  { dir: 'page/my', body: myBody.replace('class="row"', 'class="row row-hover"'), tag: '我的 · 按压反馈' },
-  { dir: 'page/account', body: accountBody, tag: '账号管理 781:2123' },
-  { dir: 'page/reminder', body: reminderBody, tag: '邮箱提醒 781:2043' }
+  { dir: 'page/my', body: myBody.replace('class="profile"', 'class="profile profile-hover"'), tag: '我的 · 按压反馈' }
 ]
 
 function buildHtml() {

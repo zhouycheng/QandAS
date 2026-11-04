@@ -12,13 +12,17 @@ import java.time.Instant
 import java.util.UUID
 
 class OverviewRow {
+    var answerAttemptCount: Long=0;var objectiveAnsweredCount: Long=0;var objectiveCorrectCount: Long=0
+    var selfRatedCount: Long=0;var selfRatedCorrectCount: Long=0;var selfRatedWrongCount: Long=0
     var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var masteredCount: Long=0
     var favoriteCount: Long=0;var totalCount: Long=0;var subjectCount: Long=0;var bankCount: Long=0
     var durationSeconds: Long=0;var practiceCount: Long=0;var wrongBookCount: Long=0
 }
 data class LearningOverviewView(val answeredCount: Long,val correctCount: Long,val wrongCount: Long,val masteredCount: Long,
     val favoriteCount: Long,val totalCount: Long,val subjectCount: Long,val bankCount: Long,val durationSeconds: Long,
-    val practiceCount: Long,val recentSession: PracticeSummary?,val wrongBookCount: Long)
+    val practiceCount: Long,val recentSession: PracticeSummary?,val wrongBookCount: Long,
+    val answerAttemptCount: Long,val distinctQuestionCount: Long,val objectiveAnsweredCount: Long,val objectiveCorrectCount: Long,
+    val objectiveAccuracy: Double?,val selfRatedCount: Long,val selfRatedCorrectCount: Long,val selfRatedWrongCount: Long)
 class CollectionRow {
     var questionId: UUID?=null;var questionBankId: UUID?=null;var subjectId: UUID?=null
     var questionBankName: String="";var subjectName: String="";var stem: String="";var type: String="";var contentFormat: String="PLAIN_TEXT";var presentation: String="STANDARD"
@@ -50,7 +54,9 @@ class LearningReadService(private val sql: LearningReadMapper,private val clock:
     fun overview(userId: UUID,deviceId: UUID?=null): LearningOverviewView {
         val r=sql.overview(userId);val s=sql.latestSession(userId,deviceId)
         return LearningOverviewView(r.answeredCount,r.correctCount,r.wrongCount,r.masteredCount,r.favoriteCount,r.totalCount,
-            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s,r.wrongBookCount)
+            r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s,r.wrongBookCount,r.answerAttemptCount,r.answeredCount,
+            r.objectiveAnsweredCount,r.objectiveCorrectCount,if(r.objectiveAnsweredCount==0L) null else r.objectiveCorrectCount.toDouble()/r.objectiveAnsweredCount,
+            r.selfRatedCount,r.selfRatedCorrectCount,r.selfRatedWrongCount)
     }
     private fun filter(kind: String,status: String="UNMASTERED",subjectId: UUID?=null,bankId: UUID?=null,chip: String="all",sort: String="recent"): CollectionFilter {
         if(kind !in setOf("WRONG","FAVORITE")) invalid("/kind")

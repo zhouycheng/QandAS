@@ -252,6 +252,7 @@ class OnlinePractice {
     let response = command.serverAccepted
       ? await http.request('GET', `${path}/${command.idempotencyKey}`, null, { token: identity.token, priority: 'background' })
       : await http.request('POST', path, body, { token: identity.token, idempotencyKey: command.idempotencyKey, priority: 'background' })
+    if (auth.getAuth(this.storage).token !== identity.token || !this.storage.get(snapshotKey)) return { ok: false, statusCode: 401, reason: '账号状态已变化，请重新打开练习' }
     if (response.ok) {
       const state = response.data
       if (state.state === 'REJECTED') return { ok: false, rejected: true, statusCode: state.failure.status, reason: state.failure.message }

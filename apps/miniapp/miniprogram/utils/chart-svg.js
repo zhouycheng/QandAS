@@ -11,13 +11,10 @@
  * 想让标签落在 24rpx 这一档，字号就写 24，不要按「画布像素」直觉去写 12。
  */
 
+const { colors, fontSizes, blueScale } = require('./design-tokens.js')
 const { encodeBase64Utf8 } = require('./base64.js')
 
-const COLORS = {
-  brand: '#2b7ffc',
-  text: '#667085',
-  muted: '#98a2b3'
-}
+const COLORS = { brand: colors.brand, text: colors['text-sub'], muted: colors['text-sub'] }
 
 const FONT_FAMILY = 'PingFang SC, Helvetica Neue, Helvetica, Arial, sans-serif'
 
@@ -38,7 +35,7 @@ function escapeXml(text) {
 function textNode(x, y, content, options) {
   const config = options || {}
   const anchor = config.anchor || 'middle'
-  const size = config.size || 24
+  const size = config.size || fontSizes.caption * 2
   const weight = config.weight || 400
   const fill = config.fill || COLORS.text
 
@@ -81,7 +78,7 @@ function buildHeatmapSvg(options) {
 
   // 五档蓝：0 是无记录的浅灰，4 是最深的品牌蓝。档位固定，不随最大值浮动，
   // 否则「同样做了 20 题」在不同周可能显示成不同深浅，看着像数据错了。
-  const LEVEL_FILL = ['#f0f2f5', '#dbe6ff', '#b8cdff', '#8aabfc', '#4f7dfb']
+  const LEVEL_FILL = blueScale
 
   const cells = columns
     .map((column, colIndex) => column
@@ -103,7 +100,7 @@ function buildHeatmapSvg(options) {
   const monthLabels = months
     .map((month) => textNode(month.col * step, gridHeight + 24, month.text, {
       anchor: 'start',
-      size: 20,
+      size: fontSizes.caption * 2,
       fill: COLORS.muted
     }))
     .join('')
@@ -183,7 +180,7 @@ function buildAreaTrendSvg(points, options) {
 
       return textNode(coords[index].x, height - 6, point.label, {
         anchor: index === 0 ? 'start' : index === list.length - 1 ? 'end' : 'middle',
-        size: 20,
+        size: fontSizes.caption * 2,
         fill: COLORS.muted
       })
     })
@@ -198,7 +195,7 @@ function buildAreaTrendSvg(points, options) {
     `<path d="${area}" fill="url(#areaFill)"/>` +
     `<path d="${line}" fill="none" stroke="${COLORS.brand}" stroke-width="3" ` +
     'stroke-linecap="round" stroke-linejoin="round"/>' +
-    `<circle cx="${round(last.x)}" cy="${round(last.y)}" r="5" fill="#ffffff" ` +
+    `<circle cx="${round(last.x)}" cy="${round(last.y)}" r="5" fill="${colors.card}" ` +
     `stroke="${COLORS.brand}" stroke-width="3"/>` +
     `<g>${labels}</g></svg>`
 }

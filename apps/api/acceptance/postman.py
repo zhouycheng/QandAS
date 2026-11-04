@@ -4,12 +4,12 @@ import uuid
 from urllib.parse import urlencode
 from contracts import Contracts, ROOT
 
-ALIASES = {"test-accounts": "testAccountId", "question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "email-registrations": "userId", "wechat-registrations": "userId", "finish": "resultId"}
+ALIASES = {"test-accounts": "testAccountId", "question-banks": "questionBankId", "questions": "questionId", "chapters": "chapterId", "subjects": "subjectId", "colleges": "collegeId", "majors": "majorId", "administrators": "administratorId", "users": "userId", "students": "userId", "sessions": "sessionId", "question-feedback": "feedbackId", "course-requests": "courseRequestId", "announcements": "announcementId", "favorites": "questionId", "images": "fileId", "email-challenges": "challengeId", "finish": "resultId"}
 
 
 def main():
     contracts = Contracts()
-    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "newPassword": "", "email": "", "code": "", "oldCode": "", "newCode": "", "registrationToken": "", "imageFile": "", "excelFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
+    variables = {"baseUrl": "http://127.0.0.1:8083", "adminToken": "", "userToken": "", "commandKey": "", "password": "", "email": "", "code": "", "proof": "", "token": "", "contentSafetyRequestId": "", "oldCode": "", "newCode": "", "imageFile": "", "excelFile": "", "username": "", "writerToken": "", "deviceId": "", "clientSequence": 1, "acknowledgedSequence": 0}
 
     def sample(schema, owner, field=""):
         schema, owner = contracts.resolve(schema, owner)
@@ -46,7 +46,7 @@ def main():
             return "2026-10-28T00:00:00.000Z"
         if schema.get("format") == "date":
             return "2026-10-29" if field == "endDateExclusive" else "2026-10-28"
-        return {"scopeType": "ALL", "status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "AFTER_FINISH", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "REGISTER", "email": "student@example.test", "password": "Example12345", "newPassword": "NewExample12345", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator", "accountCode": "STUDENT01"}.get(field, "示例内容")
+        return {"status": "ACTIVE", "role": "SUPER_ADMIN", "feedback": "IMMEDIATE", "order": "SEQUENTIAL", "selectionKind": "NORMAL", "purpose": "LOGIN", "email": "student@example.test", "password": "SampleCode123456", "code": "000000", "oldCode": "000000", "newCode": "000000", "category": "ANSWER", "assessment": "CORRECT", "username": "administrator", "accountCode": "STUDENT01"}.get(field, "示例内容")
 
     def template(value, field=""):
         if isinstance(value, dict):
@@ -76,6 +76,8 @@ def main():
         if any(x["in"] == "header" and x["name"] == "Idempotency-Key" for x in parameters):
             headers.append({"key": "Idempotency-Key", "value": "{{effectiveCommandKey}}"})
         for parameter in parameters:
+            if parameter["in"] == "header" and parameter["name"] == "X-Content-Safety-Request":
+                headers.append({"key": "X-Content-Safety-Request", "value": "{{contentSafetyRequestId}}"})
             if parameter["in"] == "header" and parameter["name"] == "X-Practice-Writer":
                 headers.append({"key": "X-Practice-Writer", "value": "{{writerToken}}"})
         query = [{"key": p["name"], "value": str(sample(p["schema"], owner, p["name"])), "disabled": not p.get("required", False)} for p in parameters if p["in"] == "query"]
@@ -115,7 +117,7 @@ def main():
         parts = route.rstrip("/").split("/")
         resource = ALIASES.get(parts[-2] if parts[-1] == "{id}" else parts[-1])
         pre = ["const base=pm.environment.get('baseUrl');", "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');", "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');", "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"]
-        post = [f"pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql({success}));", "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));", "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();", "const session=b.session||b;", f"if(session.accessToken)pm.environment.set({json.dumps(token_variable)},session.accessToken);", "if(b.registrationToken)pm.environment.set('registrationToken',b.registrationToken);", "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);"]
+        post = [f"pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql({success}));", "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));", "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();", "const session=b;", f"if(session.accessToken)pm.environment.set({json.dumps(token_variable)},session.accessToken);", "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);"]
         if resource:
             variables.setdefault(resource, "")
             post.append(f"if(b.id)pm.environment.set({json.dumps(resource)},b.id);")
@@ -127,8 +129,8 @@ def main():
         examples.append({"operationId": operation_id, "method": entry["method"], "path": route, "body": body_sample})
     destination = ROOT / "apps/api/postman"
     destination.mkdir(parents=True, exist_ok=True)
-    collection = {"info": {"name": "QandA 1.0.0", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"}, "item": [{"name": name, "item": items} for name, items in sorted(folders.items())]}
-    environment = {"name": "QandA Local", "values": [{"key": key, "value": value, "enabled": True, "type": "secret" if key in ("password", "newPassword", "adminToken", "userToken", "registrationToken", "writerToken") else "default"} for key, value in variables.items()], "_postman_variable_scope": "environment"}
+    collection = {"info": {"name": "题小搭 1.0.0", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"}, "item": [{"name": name, "item": items} for name, items in sorted(folders.items())]}
+    environment = {"name": "题小搭 Local", "values": [{"key": key, "value": value, "enabled": True, "type": "secret" if key in ("password", "adminToken", "userToken", "writerToken", "proof", "token") else "default"} for key, value in variables.items()], "_postman_variable_scope": "environment"}
     for name, value in [("QandA.postman_collection.json", collection), ("QandA-Local.postman_environment.json", environment), ("QandA.examples.json", examples)]:
         (destination / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps({"operations": len(examples), "folders": len(folders)}, ensure_ascii=False))

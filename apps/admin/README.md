@@ -1,4 +1,4 @@
-# QandA 管理端
+# 题小搭管理端
 
 React、TypeScript、Arco Design 管理端，通过 HTTP API 维护内容、用户和运营信息。
 

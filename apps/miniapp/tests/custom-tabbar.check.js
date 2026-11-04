@@ -1,16 +1,4 @@
-/**
- * 自定义 tabBar（胶囊 + 中央「继续答题」） —— Node 自检脚本。
- * 运行：node apps/miniapp/tests/custom-tabbar.check.js
- *
- * 自定义 tabBar 有三个只有它能踩、内置 tabBar 不会踩的坑，这里逐条锁死：
- *   1. **选中态不会自动跟随页面**。改成 custom 之后基础库不再维护 selected，
- *      必须由每个 tab 页的 onShow 主动调 getTabBar().setSelected()。
- *      少一个页面就会出现「人在题库、底栏高亮首页」。
- *   2. **中央按钮的去向必须与首页一致**。首页「继续上次练习」和底部按钮都读
- *      getResumableSession，不能一个说有半场练习、另一个直接跳题库。
- *   3. **中央按钮会挤占 tab 宽度**。它是绝对定位浮在胶囊上，
- *      必须给第 3 个 tab 让出右边距，否则 4 个 tab 被压成不等宽。
- */
+/* 自定义 tabBar 的配置、导航、选中态和页面留白检查。 */
 const fs = require('fs')
 const path = require('path')
 
@@ -149,30 +137,6 @@ function checkBottomSpace() {
   assert('留白 - tabBar 高度不超过预留值', wrapHeight > 0 && wrapHeight <= reserved,
     `实际 ${wrapHeight}rpx，页面预留 ${reserved}rpx`)
 
-  // 圆钮顶端不能超出 wrap：超出说明页面留白算少了
-  const capsuleBottom = Number((tabBarWxss.match(/\.tabbar\s*\{[^}]*?bottom:\s*(\d+)rpx/) || [])[1] || 0)
-  const capsuleHeight = Number((tabBarWxss.match(/\.tabbar\s*\{[^}]*?height:\s*(\d+)rpx/) || [])[1] || 0)
-  const circleBottom = Number((tabBarWxss.match(/\.continue-btn\s*\{[^}]*?bottom:\s*(\d+)rpx/) || [])[1] || 0)
-  const circleSize = Number((tabBarWxss.match(/\.continue-btn\s*\{[^}]*?width:\s*(\d+)rpx/) || [])[1] || 0)
-
-  assert('留白 - 圆钮顶端不超出 tabBar 高度',
-    circleBottom + circleSize <= wrapHeight,
-    `圆钮顶到 ${circleBottom + circleSize}rpx，wrap 只有 ${wrapHeight}rpx`)
-  assert('留白 - 圆钮底部落在胶囊内部（是悬浮不是悬空）',
-    circleBottom > capsuleBottom && circleBottom < capsuleBottom + capsuleHeight,
-    `圆钮底 ${circleBottom}rpx，胶囊 ${capsuleBottom}~${capsuleBottom + capsuleHeight}rpx`)
-
-  // 「继续答题」文字要留在白色胶囊里、圆钮下面，且不能掉出胶囊底部
-  const labelBottom = Number((tabBarWxss.match(/\.continue-label\s*\{[^}]*?bottom:\s*(\d+)rpx/) || [])[1] || 0)
-  const labelHeight = Number((tabBarWxss.match(/\.continue-label\s*\{[^}]*?height:\s*(\d+)rpx/) || [])[1] || 0)
-
-  assert('留白 - 「继续答题」文字在胶囊内',
-    labelBottom >= capsuleBottom && labelBottom + labelHeight <= capsuleBottom + capsuleHeight,
-    `文字 ${labelBottom}~${labelBottom + labelHeight}rpx，胶囊 ${capsuleBottom}~${capsuleBottom + capsuleHeight}rpx`)
-  assert('留白 - 「继续答题」文字在圆钮下方（不与圆钮重叠）',
-    labelBottom + labelHeight <= circleBottom,
-    `文字顶到 ${labelBottom + labelHeight}rpx，圆钮底在 ${circleBottom}rpx`)
-
   // 通栏滚动的页面：靠根容器 padding 让位
   // stats 用根 padding；my 改版后把让位放在底部协议链接上（设计稿 781:1922
   // 的内容区是白底通栏，根容器不再有内边距），所以这里连 @import 一起读。
@@ -220,120 +184,10 @@ function checkHiddenOnOverlay() {
   assert('弹层 - 页面隐藏时统一关闭弹窗', read('utils/page-lifecycle.js').includes('announcementSheetVisible'))
 }
 
-// ---------- 三、中央「继续答题」 ----------
-
-function checkContinueButton() {
-  assert('中央钮 - WXML 存在中央按钮', tabBarWxml.indexOf('class="continue-btn') >= 0)
-  assert('中央钮 - 文案绑定当前动作状态', tabBarWxml.includes('{{continueLabel}}') && tabBarJs.includes('继续答题') && tabBarJs.includes('选择题库'))
-
-  // 文字必须在圆钮外面（用户明确要求：「不要放在蓝色图标里面」）
-  const circleTag = (tabBarWxml.match(/<view\s+class="continue-btn[^\"]*"[\s\S]*?>[\s\S]*?<\/view>/) || [''])[0]
-
-  assert('中央钮 - 圆钮里只有播放三角，没有文字',
-    circleTag.indexOf('继续答题') < 0 && circleTag.indexOf('continue-icon') >= 0,
-    '文字还留在圆钮内部')
-  assert('中央钮 - 文字是独立的 continue-label', tabBarWxml.indexOf('class="continue-label') >= 0)
-
-  /*
-   * 真实出过的事故：`.continue-label` 用 left:0 + right:0 铺满整条底栏，
-   * 它和四个 tab 的标签同高、又是绝对定位且排在 tab 之后，
-   * 于是这一条 30rpx 高的带子盖住全部 tab 文字 —— 点「复盘」两个字，
-   * 实际触发的是 handleContinueTap，页面直接跳去答题页。用户报的就是这个。
-   * 所以宽度必须收在中央圆钮那一格里，禁止再用左右双向拉伸。
-   */
-  const labelBlock = (tabBarWxss.match(/\.continue-label\s*\{[^}]*\}/) || [''])[0]
-  const labelWidth = Number((labelBlock.match(/width:\s*(\d+)rpx/) || [])[1] || 0)
-
-  assert('中央钮 - 文字点击区不得铺满底栏（会吃掉四个 tab 的点击）',
-    !/right\s*:\s*0/.test(labelBlock) && labelWidth > 0 && labelWidth <= 140,
-    labelBlock.indexOf('right: 0') >= 0 ? '还在用 left:0 + right:0' : `宽度 ${labelWidth}rpx`)
-  assert('中央钮 - 文字点击区水平居中',
-    /left\s*:\s*50%/.test(labelBlock) && /margin-left\s*:\s*-?\d+rpx/.test(labelBlock))
-  assert('中央钮 - 文字也能点击（与圆钮同一处理函数）',
-    (tabBarWxml.match(/bindtap="handleContinueTap"/g) || []).length === 2,
-    `实际 ${(tabBarWxml.match(/bindtap="handleContinueTap"/g) || []).length} 处`)
-  assert('中央钮 - 带 hover 反馈且 hover-start-time 为 0',
-    /hover-class="\{\{continueDisabled \? 'none' : 'continue-hover'\}\}"[\s\S]{0,120}?hover-start-time="0"/.test(tabBarWxml))
-  assert('中央钮 - 使用绝对定位浮在胶囊上（不挤占 tab 布局）',
-    /\.continue-btn\s*\{[^}]*position\s*:\s*absolute/.test(tabBarWxss))
-  assert('中央钮 - 胶囊本身是圆角悬浮',
-    /\.tabbar\s*\{[^}]*border-radius\s*:\s*\d+rpx/.test(tabBarWxss))
-
-  // 目的地解析：必须与首页同源，都读 getResumableSession
-  assert('中央钮 - 去向解析读 getResumableSession', tabBarJs.indexOf('getResumableSession') >= 0)
-  assert('中央钮 - 有半场会话时恢复练习', tabBarJs.indexOf('/page/practice/index?sessionId=') >= 0)
-  assert('中央钮 - 无半场会话时去题库', tabBarJs.indexOf("url: '/page/bank-detail/index'") >= 0)
-  assert('中央钮 - 读取失败时降级到题库而不是崩', /catch\s*\(error\)/.test(tabBarJs))
-
-  const homeVm = read('viewmodels/subject-list-viewmodel.js')
-  assert('中央钮 - 与首页「继续上次练习」同源（都读 getResumableSession）',
-    homeVm.indexOf('getResumableSession') >= 0)
-}
-
-// ---------- 三·补、圆钮不得压住任何 tab ----------
-
-/**
- * 真实出现过的问题：让位边距加在**第 3 个 tab 之后**，前 3 个 tab 平分左半侧，
- * 「统计」刚好落在屏幕正中，整个图标被 118rpx 的圆钮盖住，
- * 只剩一行「统计」两个字露在圆钮下面。
- *
- * 这里按 WXSS 里的真实数值把四格的位置算出来，和圆钮的横向区间求交。
- * 改边距、改圆钮大小、改胶囊左右留白，只要压上了就会红。
- */
-function checkNoOverlap() {
-  const capsuleLeft = Number((tabBarWxss.match(/\.tabbar\s*\{[^}]*?left:\s*(\d+)rpx/) || [])[1] || 0)
-  const capsuleRight = Number((tabBarWxss.match(/\.tabbar\s*\{[^}]*?right:\s*(\d+)rpx/) || [])[1] || 0)
-  const buttonWidth = Number((tabBarWxss.match(/\.continue-btn\s*\{[^}]*?width:\s*(\d+)rpx/) || [])[1] || 0)
-
-  // 让位必须加在第 2 个之后：加在第 3 个之后会把「统计」推进圆钮底下
-  const gapMatched = tabBarWxss.match(/\.tab-item:nth-child\(2\)\s*\{[^}]*?margin-right:\s*(\d+)rpx/)
-
-  assert('布局 - 让位边距加在第 2 个 tab 之后',
-    !!gapMatched,
-    '若写在第 3 个之后，第 3 格会被推到屏幕正中、被圆钮整个盖住')
-  assert('布局 - 第 3 个 tab 不再承担让位',
-    /\.tab-item:nth-child\(3\)\s*\{[^}]*margin-right/.test(tabBarWxss) === false)
-
-  if (!gapMatched || !buttonWidth) {
-    return
-  }
-
-  const gap = Number(gapMatched[1])
-  const screenWidth = 750
-  const capsuleWidth = screenWidth - capsuleLeft - capsuleRight
-  // .tabbar 的左右内边距也算进来：内宽变小，四格才等分
-  const paddingSide = Number((tabBarWxss.match(/\.tabbar\s*\{[^}]*?padding:\s*0\s+(\d+)rpx/) || [])[1] || 0)
-  const innerWidth = capsuleWidth - paddingSide * 2
-  const itemWidth = (innerWidth - gap) / 4
-
-  // 圆钮用 left:50% + 负 margin 居中，换算到胶囊内部坐标
-  const localCenter = screenWidth / 2 - capsuleLeft
-  const buttonLeft = localCenter - buttonWidth / 2
-  const buttonRight = localCenter + buttonWidth / 2
-
-  const ranges = [0, 1, 2, 3].map((index) => {
-    const start = paddingSide + index * itemWidth + (index >= 2 ? gap : 0)
-
-    return { index, start, end: start + itemWidth }
-  })
-
-  const overlapped = ranges.filter((item) => !(item.end <= buttonLeft || item.start >= buttonRight))
-
-  assert('布局 - 圆钮不压住任何一个 tab',
-    overlapped.length === 0,
-    overlapped.map((item) => `第 ${item.index + 1} 格 [${item.start.toFixed(1)}, ${item.end.toFixed(1)}]`).join(' / ') +
-      ` 与圆钮 [${buttonLeft}, ${buttonRight}] 重叠`)
-
-  const leftInset = ranges[0].start
-  const rightInset = capsuleWidth - ranges[3].end
-
-  assert('布局 - 四个 tab 左右对称',
-    Math.abs(leftInset - rightInset) < 0.5,
-    `左 ${leftInset.toFixed(1)} / 右 ${rightInset.toFixed(1)}`)
-
-  assert('布局 - 每个 tab 宽度足够放图标与文字',
-    itemWidth >= 110,
-    `每格仅 ${itemWidth.toFixed(1)}rpx`)
+function checkLayout() {
+  assert('布局 - 四个入口等宽', /\.tab-item\s*\{[^}]*flex:\s*1/.test(tabBarWxss))
+  assert('布局 - 入口之间没有额外让位', !/\.tab-item:nth-child/.test(tabBarWxss))
+  assert('布局 - 显示四个导航入口', /wx:for="\{\{tabs\}\}"/.test(tabBarWxml))
 }
 
 // ---------- 四、纯函数：去向解析 ----------
@@ -356,7 +210,7 @@ function loadTabBarModule() {
   m.filename = modulePath
   m.paths = Module._nodeModulePaths(path.dirname(modulePath))
 
-  const wrapped = `${head}\n${body}\nmodule.exports = { TAB_ROUTES, findTabIndexByRoute, resolveContinueTarget }`
+  const wrapped = `${head}\n${body}\nmodule.exports = { TAB_ROUTES, findTabIndexByRoute }`
 
   return m._compile ? (() => {
     m._compile(wrapped, modulePath)
@@ -379,7 +233,7 @@ function checkPureFunctions() {
     return
   }
 
-  const { TAB_ROUTES, findTabIndexByRoute, resolveContinueTarget } = exported
+  const { TAB_ROUTES, findTabIndexByRoute } = exported
 
   assert('纯函数 - TAB_ROUTES 有 4 项', TAB_ROUTES.length === 4, `实际 ${TAB_ROUTES.length}`)
 
@@ -396,29 +250,7 @@ function checkPureFunctions() {
   assert('纯函数 - 空路由返回 -1', findTabIndexByRoute('') === -1)
   assert('纯函数 - 非字符串返回 -1', findTabIndexByRoute(null) === -1)
 
-  // 无会话 → 题库
-  const bare = resolveContinueTarget(null)
-  assert('纯函数 - 无存储时回落到题库', bare.type === 'bank' && bare.url === '/page/bank-detail/index',
-    JSON.stringify(bare))
 
-  // 读存储抛错也要回落，不能让底栏点不动
-  const explodingStorage = {
-    get() {
-      throw new Error('storage 不可用')
-    }
-  }
-
-  let threw = false
-  let fallback = null
-
-  try {
-    fallback = resolveContinueTarget(explodingStorage)
-  } catch (error) {
-    threw = true
-  }
-
-  assert('纯函数 - storage 抛错时不冒泡', threw === false)
-  assert('纯函数 - storage 抛错时回落题库', fallback && fallback.type === 'bank')
 }
 
 // ---------- 输出 ----------
@@ -427,8 +259,7 @@ checkConfig()
 checkSelectionSync()
 checkBottomSpace()
 checkHiddenOnOverlay()
-checkContinueButton()
-checkNoOverlap()
+checkLayout()
 checkPureFunctions()
 
 const failed = results.filter((item) => !item.passed)

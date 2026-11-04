@@ -8,22 +8,21 @@
     "page/my/index",
     "page/about/index",
     "page/login/index",
-    "page/register/index",
-    "page/forgot-password/index",
     "page/wrong-book/index",
     "page/settings/index",
     "page/practice-layout/index",
     "page/exam-countdown/index",
     "page/account/index",
     "page/account-security/index",
-    "page/reminder/index",
-    "page/feedback/index",
-    "page/profile-setup/index"
+    "page/content-confirm/index",
+    "page/account-deletion/index",
+    "page/legal/index",
+    "page/feedback/index"
   ],
   "window": {
     "navigationStyle": "custom",
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "QandA",
+    "navigationBarTitleText": "题小搭",
     "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#ffffff",
     "backgroundColorTop": "#ffffff",
@@ -36,8 +35,8 @@
   },
   "tabBar": {
     "custom": true,
-    "color": "#8a94a6",
-    "selectedColor": "#2b7ffc",
+    "color": "#667085",
+    "selectedColor": "#2563EB",
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [

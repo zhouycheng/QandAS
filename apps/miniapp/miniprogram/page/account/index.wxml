@@ -1,8 +1,6 @@
-<import src="../../templates/profile-selectors.wxml" />
 <view class="secondary-page">
 <page-header title="个人资料" />
-<view class="profile-select-mask" wx:if="{{collegePickerVisible || majorPickerVisible || gradePickerVisible}}" catchtap="handlePickersClose"></view>
-<view class="list-page page-with-bottom-bar">
+<view class="list-page page-with-bottom-bar account-page settings-detail">
     <button
       class="profile-avatar avatar-button"
       size="mini"
@@ -21,10 +19,14 @@
           wx:if="{{draft.avatarUrl}}"
         ></image>
         <view class="avatar-icon" wx:else></view>
+        <view class="avatar-edit" aria-hidden="true"><view class="avatar-edit-icon"></view></view>
     </button>
 
     <view class="field">
-      <text class="field-label">昵称</text>
+      <view class="nickname-label-row">
+        <text class="field-label">昵称</text>
+        <button wx:if="{{profile.wechatBound}}" class="q-button q-button--text nickname-wechat-button" bindtap="handleUseWechatNickname" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">使用微信昵称</button>
+      </view>
       <view class="nickname-field">
       <input
         class="field-input"
@@ -39,34 +41,30 @@
         bindnicknamereview="handleNicknameReview"
         focus="{{nicknameFocus}}"
       />
-      <button wx:if="{{profile.wechatBound}}" class="nickname-wechat-button" bindtap="handleUseWechatNickname" hover-class="text-hover" hover-start-time="0" hover-stay-time="80">使用微信昵称</button>
       </view>
     </view>
 
-    <template is="profile-selectors" data="{{draft, collegePickerVisible, collegeOptions, collegeLoading, collegeError, collegeHasMore, majorPickerVisible, majorOptions, majorLoading, majorError, majorHasMore, gradePickerVisible, gradeLabels}}" />
     <view
-      class="info-item"
+      class="info-item settings-divider"
       bindtap="handleEmailTap"
       hover-class="row-hover"
       hover-start-time="0"
       hover-stay-time="80"
     >
-      <text class="info-label">绑定邮箱</text>
+      <text class="info-label">邮箱</text>
       <view class="info-line">
-        <text class="info-value">{{profile.emailMasked || '未绑定'}}</text>
-        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.emailMasked ? '更换' : '绑定'}}</text>
-        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
+        <text class="info-value {{profile.emailMasked ? '' : 'info-value-highlight'}}">{{profile.emailMasked ? '绑定' : '未绑定'}}</text>
       </view>
     </view>
 
     <view
-      class="info-item"
+      class="info-item settings-divider"
       bindtap="handleWechatTap"
       hover-class="row-hover"
       hover-start-time="0"
       hover-stay-time="80"
     >
-      <text class="info-label">微信绑定</text>
+      <text class="info-label">微信</text>
       <view class="info-line">
         <text class="info-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
         <text wx:if="{{profile.wechatAction && !profile.isTestAccount}}" class="info-action">{{profile.wechatAction}}</text>
@@ -74,30 +72,18 @@
       </view>
     </view>
 
-    <view
-      class="info-item"
-      bindtap="handlePasswordTap"
-      hover-class="row-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >
-      <text class="info-label">登录密码</text>
-      <view class="info-line">
-        <text class="info-value">{{profile.passwordStatus}}</text>
-        <text wx:if="{{!profile.isTestAccount}}" class="info-action">{{profile.passwordStatus === '已设置' ? '修改' : '设置'}}</text>
-        <view wx:if="{{!profile.isTestAccount}}" class="chevron"></view>
-      </view>
-    </view>
 
-    <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定邮箱和密码，登录凭据由管理员管理。' : '邮箱用于登录、找回密码和验证账号安全操作。'}}</text>
+    <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定登录码，凭据由管理员管理。' : '邮箱与微信用于登录和验证账号操作。'}}</text>
+
+    <button class="q-button account-delete" bindtap="handleAccountDeletion" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销账号</button>
 </view>
 <view class="bottom-bar">
-  <view
-    class="bottom-btn {{dirty && !avatarPreparing ? '' : 'bottom-btn-disabled'}}"
+  <button
+    class="{{!dirty || avatarPreparing || saving ? 'q-button--disabled' : ''}} q-button q-button--primary bottom-btn"
     bindtap="handleSaveTap"
-    hover-class="bottom-btn-hover"
+    hover-class="q-button-hover"
     hover-start-time="0"
     hover-stay-time="80"
-  >保存资料</view>
+   disabled="{{!dirty || avatarPreparing || saving}}" loading="{{avatarPreparing || saving}}">保存资料</button>
 </view>
 </view>

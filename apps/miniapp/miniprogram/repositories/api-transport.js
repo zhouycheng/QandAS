@@ -57,6 +57,10 @@ function request(method, path, data, options) {
   const settings = options || {}
   const requestId = uuid()
   const token = Object.prototype.hasOwnProperty.call(settings, 'token') ? settings.token : (config.tokenProvider ? config.tokenProvider() : '')
+  const safety = require('./content-safety-repository.js')
+  if (token && safety.requiresCheck(method, path) && !(settings.headers && settings.headers['X-Content-Safety-Request'])) {
+    return safety.checkedRequest(method, path, data, settings, token, () => config.tokenProvider ? config.tokenProvider() : token)
+  }
   const headers = Object.assign({ 'content-type': 'application/json', 'X-Request-Id': requestId }, settings.headers || {})
   if (token) headers.Authorization = `Bearer ${token}`
   if (settings.idempotencyKey) headers['Idempotency-Key'] = settings.idempotencyKey

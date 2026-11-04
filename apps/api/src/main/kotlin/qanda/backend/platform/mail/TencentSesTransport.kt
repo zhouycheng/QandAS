@@ -29,10 +29,10 @@ internal class TencentSesTransport(private val settings: TencentSesSettings, pri
     internal fun request(material: MailMaterial): SendEmailRequest = SendEmailRequest().apply {
         fromEmailAddress = settings.from
         destination = arrayOf(material.recipient)
-        subject = "QandA 邮箱验证"
+        subject = "题小搭邮箱验证"
         template = Template().apply {
             templateID = settings.templateId
-            templateData = mapper.writeValueAsString(mapOf("app_name" to "QandA", "code" to material.code, "expire_minutes" to ((Duration.between(clock.instant(), material.expiresAt).seconds.coerceAtLeast(1) + 59) / 60)))
+            templateData = mapper.writeValueAsString(mapOf("app_name" to "题小搭", "code" to material.code, "expire_minutes" to ((Duration.between(clock.instant(), material.expiresAt).seconds.coerceAtLeast(1) + 59) / 60)))
         }
     }
     override fun send(deliveryId: UUID, material: MailMaterial): SendResult {

@@ -1,24 +1,13 @@
-/**
- * 认证页公用样式（登录 / 注册 / 找回密码）。
- *
- * 三张画板 763:567 / 772:1036 / 772:1076 共用同一套头部与控件，
- * 只有表单行距和底部操作区不同，所以公共部分放这里，页面 wxss 只写差异。
- *
- * 尺寸换算：设计稿画板宽 402px，小程序按 750rpx 满宽，系数 750/402 ≈ 1.8657
- *   36px 页边距 → 67rpx   330px 内容宽 → 616rpx   52px 输入框高 → 97rpx
- *   48px 按钮高 → 90rpx   12px 圆角   → 22rpx     14px 正文  → 26rpx
- *   42px 品牌名 → 78rpx   20px 标题   → 37rpx     16px 勾选框 → 30rpx
- * 设计稿写的字体是 Inter，小程序端不引外部字体，统一落到系统字体栈。
- */
+@import "./controls.wxss";
 
 .auth-page {
   min-height: 100vh;
   padding: 48rpx 67rpx 60rpx;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--card);
   /* 设计稿顶部留白 116px 已含状态栏与导航栏，导航栏本身占掉约 91px，
      所以页面内只需补 25px（≈48rpx），品牌名才会落在设计稿的位置 */
-  font-family: 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--font-family);
 }
 
 /* ---------- 头部 ---------- */
@@ -30,28 +19,28 @@
 }
 
 .brand-name {
-  font-size: 78rpx;
-  line-height: 97rpx;
-  font-weight: 700;
-  color: #000000;
+  font-size: var(--font-display);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
   letter-spacing: -1rpx;
 }
 
 .brand-sub {
   margin-left: 11rpx;
   margin-bottom: 7rpx;
-  font-size: 22rpx;
-  line-height: 24rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #000000;
+  color: var(--text-main);
 }
 .page-title {
   display: block;
   margin-top: 34rpx;
-  font-size: 37rpx;
-  line-height: 52rpx;
+  font-size: var(--font-title);
+  line-height: 1.5;
   font-weight: 600;
-  color: #000000;
+  color: var(--text-main);
 }
 
 /* ---------- 表单 ---------- */
@@ -66,8 +55,8 @@
 
 .field-label {
   display: block;
-  font-size: 26rpx;
-  line-height: 37rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.9);
 }
@@ -79,22 +68,22 @@
   margin-top: 11rpx;
   padding: 0 52rpx;
   box-sizing: border-box;
-  border-radius: 22rpx;
-  background: #f0f0f0;
-  font-size: 26rpx;
+  border-radius: var(--radius-card);
+  background: var(--page-bg);
+  font-size: var(--font-body);
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-main);
 }
 
 .field-ph {
-  font-size: 26rpx;
+  font-size: var(--font-body);
   font-weight: 500;
-  color: #8a8a8a;
+  color: var(--text-sub);
 }
 
 /* 错误态用内阴影而不是 border：border 会吃掉 2rpx 高度，输入框会跟着抖一下 */
 .field-input-error {
-  box-shadow: inset 0 0 0 2rpx #f04438;
+  box-shadow: inset 0 0 0 2rpx var(--danger);
 }
 
 /* 验证码输入行：输入框 + 右侧「发送验证码」 */
@@ -105,8 +94,8 @@
   height: 97rpx;
   padding: 0 52rpx 0 0;
   box-sizing: border-box;
-  border-radius: 22rpx;
-  background: #f0f0f0;
+  border-radius: var(--radius-card);
+  background: var(--page-bg);
 }
 
 .code-row .field-input {
@@ -119,14 +108,14 @@
 .code-btn {
   flex: none;
   padding-left: 16rpx;
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #1477fb;
+  color: var(--brand);
 }
 
 .code-btn-off {
-  color: #b8bcc4;
+  color: var(--text-sub);
 }
 
 /* ---------- 协议勾选 ---------- */
@@ -151,18 +140,18 @@
   height: 30rpx;
   margin-top: 1rpx;
   box-sizing: border-box;
-  border: 2rpx solid #c9cdd4;
-  border-radius: 10rpx;
-  background: #ffffff;
+  border: 2rpx solid var(--line);
+  border-radius: var(--radius-tag);
+  background: var(--card);
 }
 
 .checkbox-on {
-  border-color: #0d6fff;
-  background: #0d6fff;
+  border-color: var(--brand);
+  background: var(--brand);
 }
 
 .checkbox-error {
-  border-color: #f04438;
+  border-color: var(--danger);
 }
 
 /* 对勾：纯 CSS 两条边旋转，避免再引一张图 */
@@ -170,53 +159,34 @@
   width: 8rpx;
   height: 14rpx;
   margin: 4rpx 0 0 9rpx;
-  border-right: 3rpx solid #ffffff;
-  border-bottom: 3rpx solid #ffffff;
+  border-right: 3rpx solid var(--card);
+  border-bottom: 3rpx solid var(--card);
   transform: rotate(45deg);
 }
 
 .agree-text {
   margin-left: 9rpx;
-  font-size: 22rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-main);
 }
 
 .forgot-link {
   flex: none;
   margin-left: 16rpx;
-  font-size: 22rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 500;
-  color: #1477fb;
+  color: var(--brand);
 }
 
 /* ---------- 按钮与入口 ---------- */
 
 .btn {
-  height: 90rpx;
+
   margin-top: 41rpx;
-  border-radius: 22rpx;
-  text-align: center;
-  font-size: 26rpx;
-  line-height: 90rpx;
-  font-weight: 500;
-}
 
-.btn-primary {
-  background: #1477fb;
-  color: #ffffff;
-}
-
-/* 未填完时压暗而不是置灰禁用：置灰按钮在真机上几乎看不出可点性差别 */
-.btn-disabled {
-  opacity: 0.5;
-}
-
-.btn-wechat {
-  background: #f0f0f0;
-  color: rgba(0, 0, 0, 0.9);
 }
 
 .text-hover {
@@ -226,8 +196,8 @@
 .or-text {
   display: block;
   margin-top: 15rpx;
-  font-size: 26rpx;
-  line-height: 45rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.2);
   text-align: center;
@@ -236,10 +206,10 @@
 .entry-link {
   display: block;
   margin-top: 22rpx;
-  font-size: 26rpx;
-  line-height: 45rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
-  color: #1477fb;
+  color: var(--brand);
   text-align: center;
 }
 
@@ -251,25 +221,30 @@
 }
 
 .back-tip {
-  font-size: 22rpx;
-  line-height: 45rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 400;
-  color: #000000;
+  color: var(--text-main);
 }
 .back-link {
   margin-left: 8rpx;
-  font-size: 26rpx;
-  line-height: 45rpx;
+  font-size: var(--font-secondary);
+  line-height: 1.5;
   font-weight: 500;
-  color: #1477fb;
+  color: var(--brand);
 }
 
 /* 找回密码页那句说明，设计稿里是 12px 常规字重 */
 .hint-line {
   display: block;
   margin-top: 45rpx;
-  font-size: 22rpx;
-  line-height: 30rpx;
+  font-size: var(--font-caption);
+  line-height: 1.5;
   font-weight: 400;
-  color: #000000;
+  color: var(--text-main);
 }
+
+.field-input { height: 48px; border: 1px solid var(--control-border); font-weight: 400; }
+.field-ph { color: var(--text-sub); font-weight: 400; }
+.code-row, .code-row .field-input { height: 48px; }
+.agree-left { min-height: 44px; }

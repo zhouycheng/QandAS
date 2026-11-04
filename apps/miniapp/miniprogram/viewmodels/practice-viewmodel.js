@@ -122,7 +122,7 @@ class PracticeViewModel {
     getShareMessage() {
         if (!this.session) {
             return {
-                title: 'QandA 练习',
+                title: '题小搭练习',
                 path: '/page/practice/index'
             };
         }

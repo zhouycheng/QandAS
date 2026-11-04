@@ -171,7 +171,7 @@ class StatsViewModel {
         const days = this.getRecentPoints();
         const serverStatistics = this.repository.getRemoteStatistics(this.storage);
         if (serverStatistics) {
-            overall.answered = serverStatistics.answeredCount;
+            overall.answered = serverStatistics.answerAttemptCount;
             overall.accuracy = serverStatistics.objectiveAccuracy == null ? null : Math.round(serverStatistics.objectiveAccuracy * 100);
         }
         this.cache = { overall, days, studySeconds: Number(studyTime.totalSeconds) || 0 };
@@ -266,7 +266,7 @@ class StatsViewModel {
      */
     buildMetrics(option, cache) {
         const statistics = this.repository.getRemoteStatistics(this.storage, option.days === 7 ? 'WEEK' : option.days === 30 ? 'MONTH' : 'ALL');
-        return { answered: `${statistics && statistics.answeredCount || 0}`, accuracy: statistics && statistics.objectiveAccuracy != null ? `${Math.round(statistics.objectiveAccuracy * 100)}` : '—', duration: `${Math.floor((statistics && statistics.durationSeconds || 0) / 60)}` };
+        return { distinct: statistics && statistics.distinctQuestionCount || 0, selfRated: statistics && statistics.selfRatedCount || 0, selfCorrect: statistics && statistics.selfRatedCorrectCount || 0, selfWrong: statistics && statistics.selfRatedWrongCount || 0, answered: `${statistics && statistics.answerAttemptCount || 0}`, accuracy: statistics && statistics.objectiveAccuracy != null ? `${Math.round(statistics.objectiveAccuracy * 100)}` : '—', duration: `${Math.floor((statistics && statistics.durationSeconds || 0) / 60)}` };
     }
     /** 近半年的逐日记录（含今天），热力图与趋势都从这里取 */
     getRecentPoints() {

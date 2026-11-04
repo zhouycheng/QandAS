@@ -1,1 +1,35 @@
-@import "../settings/index.wxss";
+@import "../../styles/list-page.wxss";
+@import "../../styles/settings-detail.wxss";
+.countdown-scroll { flex: 1; min-height: 0; height: 0; }
+.countdown-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
+.countdown-count, .countdown-caption, .countdown-list-note { color: var(--text-sub); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.countdown-count { flex: none; }
+.countdown-list-note { min-width: 0; margin-left: var(--space-md); text-align: right; }
+.countdown-card, .countdown-editor { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); margin-bottom: var(--space-md); }
+.countdown-card { padding: var(--space-lg) var(--space-lg) 0; }
+.countdown-card-main { display: flex; align-items: center; gap: var(--space-lg); }
+.countdown-card-info { flex: 1; min-width: 0; }
+.countdown-name { display: block; color: var(--text-main); font-size: var(--font-body); font-weight: 500; line-height: var(--leading-body); overflow-wrap: anywhere; }
+.countdown-card-info .countdown-caption { display: block; margin-top: var(--space-xs); }
+.countdown-metric { flex: none; text-align: right; color: var(--brand); }
+.countdown-days { font-size: var(--font-metric); font-weight: 600; line-height: var(--leading-metric); font-variant-numeric: tabular-nums; }
+.countdown-unit { margin-left: 4px; font-size: var(--font-secondary); }
+.countdown-status { flex: none; border-radius: var(--radius-tag); padding: 4px 8px; background: var(--brand-soft); color: var(--brand); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.countdown-status-past { background: var(--page-bg); color: var(--text-sub); }
+.countdown-card-actions { display: flex; justify-content: flex-end; gap: var(--space-lg); margin-top: var(--space-sm); }
+.countdown-card-actions .q-button { flex: none; margin: 0; padding-left: 0; padding-right: 0; font-size: var(--font-secondary); }
+.countdown-card-actions .countdown-delete { color: var(--danger); }
+.countdown-card-form { padding-bottom: var(--space-lg); }
+.countdown-editor { padding: var(--space-lg); }
+.countdown-editor-title { display: block; font-size: var(--font-body); font-weight: 600; }
+.exam-field { padding: var(--space-lg) 0 var(--space-sm); }
+.exam-field .settings-input { margin-top: var(--space-sm); }
+.exam-placeholder { color: var(--text-sub); }
+.exam-value { flex: 1; min-width: 0; text-align: right; color: var(--text-main); font-size: var(--font-secondary); }
+.exam-value-empty { color: var(--text-sub); }
+.exam-chevron { flex: none; width: 12rpx; height: 12rpx; margin-left: var(--space-sm); border-top: 2rpx solid var(--text-sub); border-right: 2rpx solid var(--text-sub); transform: rotate(45deg); }
+.countdown-editor-actions { display: flex; gap: var(--space-md); margin-top: var(--space-lg); }
+.countdown-editor-actions .q-button { flex: 1; }
+.countdown-error { display: block; color: var(--danger); font-size: var(--font-secondary); margin-top: var(--space-sm); }
+.countdown-empty { padding-top: 64rpx; text-align: center; }
+.countdown-empty-title { display: block; font-size: var(--font-body); font-weight: 500; margin-bottom: var(--space-sm); }

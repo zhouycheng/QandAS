@@ -20,7 +20,6 @@ function getInitialBankDetailViewData() {
         rows: [],
         chapterGroups: [],
         showBankTitles: false,
-        hiddenRowCount: 0,
         listEmptyText: '这个科目还没有章节',
         // 搜索
         searchKeyword: '',
@@ -28,8 +27,6 @@ function getInitialBankDetailViewData() {
         searchResults: [],
         searchEmptyText: '',
         // 筛选：只看没刷完的章节
-        filterUnfinished: false,
-        filterEnabled: false,
         // 答题配置抽屉
         configSheetVisible: false,
         configTitle: '答题配置',
@@ -79,13 +76,13 @@ class BankDetailViewModel {
         this.repository = normalizedOptions.repository || practiceRepository;
         this.storage = normalizedOptions.storage || null;
         this.railMode = 'subject';
-        this.filterUnfinished = false;
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         this.sheetTarget = null;
         // 已加载的目录条目按科目建立索引。
         this.bankIndex = null;
     }
     refreshRemote(subjectId, options) {
+        const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
         if (subjectId && subjectId !== this.currentSubjectId)
             this.remotePage = 1;
         if (subjectId)
@@ -96,14 +93,28 @@ class BankDetailViewModel {
         }
         return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1 }))
             .then(async () => {
+            if (revision !== this.catalogRevision) return null;
             if (this.repository.loadRemoteChapters) {
                 const subjects = this.repository.getSubjectSummaries();
                 const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id;
                 const page = this.repository.getRemoteCatalogPage({ subjectId: id, page: this.remotePage || 1 }).data;
                 await Promise.allSettled((page && page.items || []).map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)));
             }
-            return { data: this.projectRemote() };
-        }).catch(() => ({ data: this.projectRemote() }));
+            return revision === this.catalogRevision ? { data: this.projectRemote() } : null;
+        }).catch(() => revision === this.catalogRevision ? { data: this.projectRemote() } : null);
+    }
+    async openPublicBank(bankId, options) {
+        const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
+        const bank = await this.repository.loadRemoteBank(this.storage, bankId, options);
+        if (revision !== this.catalogRevision) return null;
+        if (!bank) throw new Error('题库已失效，请返回题库首页');
+        this.currentSubjectId = bank.subjectId;
+        this.directBankId = bank.id;
+        await this.repository.loadRemoteChapters(this.storage, bank.id, options);
+        if (revision !== this.catalogRevision) return null;
+        const subjects = this.repository.getSubjectSummaries();
+        const detail = this.repository.getSubjectDetail(bank.subjectId);
+        return { data: Object.assign(this.buildViewData(subjects, Object.assign({}, detail, { banks: detail.banks.filter(item => item.id === bank.id) })), { catalogLoading: false, catalogError: '', catalogHasMore: false }) };
     }
     projectRemote() {
         const subjects = this.repository.getSubjectSummaries();
@@ -115,6 +126,7 @@ class BankDetailViewModel {
             const cached = this.repository.getRemoteCatalogPage({ subjectId: id, page }).data;
             (cached && cached.items || []).forEach(bank => ids.add(bank.id));
         }
+        if (this.directBankId) { ids.clear(); ids.add(this.directBankId); }
         const data = detail ? this.buildViewData(subjects, Object.assign({}, detail, { banks: detail.banks.filter(bank => ids.has(bank.id)) })) : { subject: null, subjects: [] };
         ['searchKeyword', 'searchActive', 'searchResults', 'searchEmptyText', 'configSheetVisible'].forEach(key => delete data[key]);
         const subjectState = this.repository.getRemoteSubjectPage(this.remoteSubjectPage || 1);
@@ -123,7 +135,7 @@ class BankDetailViewModel {
         data.loggedIn = !!this.repository.getAuth(this.storage).token;
         Object.assign(data, { catalogLoading: ((current.status === 'loading' || subjectState.status === 'loading') && !ids.size) || (!data.rows?.length && chapterStates.some(state => state.status === 'idle' || state.status === 'loading')),
             catalogError: current.error || subjectState.error || (chapterStates.find(state => state.error) || {}).error || '',
-            catalogHasMore: !!current.data && (this.remotePage || 1) * 20 < current.data.total,
+            catalogHasMore: !this.directBankId && !!current.data && (this.remotePage || 1) * 20 < current.data.total,
             subjectsHasMore: !!subjectPage && (this.remoteSubjectPage || 1) * 20 < subjectPage.total });
         return data;
     }
@@ -243,7 +255,7 @@ class BankDetailViewModel {
         this.currentSubjectId = detail.id;
         const progress = this.safeProgress();
         const subjectStats = summarizeSubjectProgress(progress, detail);
-        const allRows = (detail.banks || []).flatMap((bank, index) => {
+        const rows = (detail.banks || []).flatMap((bank, index) => {
             if (this.repository.getRemoteChapters)
                 return this.buildChapterRows(detail, bank);
             const bankStats = summarizeBankProgress(progress, bank);
@@ -263,10 +275,7 @@ class BankDetailViewModel {
                     isComplete: !!bankStats && bankStats.progressPercent >= 100
                 }];
         });
-        const rows = this.filterRows(allRows);
         const recent = this.resolveRecentSubject(subjects);
-        // 筛选切换只重算列表，不重新取卷：统计卡与左栏都不受影响
-        this.allRows = allRows;
         this.bankIndex = this.buildBankIndex(subjects);
         return Object.assign({
             subjectId: detail.id,
@@ -285,9 +294,7 @@ class BankDetailViewModel {
             rows,
             chapterGroups: this.groupChapterRows(rows),
             showBankTitles: (detail.bankCount > 1 || detail.banks.length > 1),
-            hiddenRowCount: allRows.length - rows.length,
-            listEmptyText: this.resolveListEmptyText(allRows.length, rows.length),
-            filterEnabled: allRows.length > 0,
+            listEmptyText: '这个科目还没有章节',
             // 搜索面板与抽屉由用户操作驱动，重新加载时一律回到关闭态
             searchKeyword: '',
             searchActive: false,
@@ -318,26 +325,6 @@ class BankDetailViewModel {
     groupChapterRows(rows) {
         const detail = this.repository.getSubjectDetail(this.currentSubjectId);
         return (detail && detail.banks || []).map(bank => ({ id: bank.id, name: bank.name, rows: rows.filter(row => row.bankId === bank.id) })).filter(group => group.rows.length);
-    }
-    /**
-     * 筛选只影响「列表显示」，不影响统计卡 —— 统计永远按整科算，
-     * 否则打开筛选后数字会变，看起来像进度丢了。
-     */
-    filterRows(allRows) {
-        const rows = Array.isArray(allRows) ? allRows : [];
-        if (!this.filterUnfinished) {
-            return rows;
-        }
-        return rows.filter((row) => !row.isComplete);
-    }
-    resolveListEmptyText(totalCount, visibleCount) {
-        if (!totalCount) {
-            return '这个科目还没有章节';
-        }
-        if (!visibleCount && this.filterUnfinished) {
-            return '所有章节都刷完了，关掉筛选看看';
-        }
-        return '没有符合条件的章节';
     }
     buildSubjectView(detail) {
         return {
@@ -377,6 +364,7 @@ class BankDetailViewModel {
         return index;
     }
     updateSearch(keyword, nextPage) {
+        const request = this.searchRequest = (this.searchRequest || 0) + 1;
         const text = String(keyword === undefined || keyword === null ? '' : keyword)
             .trim()
             .slice(0, MAX_KEYWORD_LENGTH);
@@ -384,7 +372,7 @@ class BankDetailViewModel {
             this.remoteSearchText = text;
             const pageNumber = nextPage || 1;
             return this.repository.loadRemoteBanks(this.storage, { keyword: text, page: pageNumber }).then(async () => {
-                if (this.remoteSearchText !== text)
+                if (request !== this.searchRequest || this.remoteSearchText !== text)
                     return null;
                 const page = this.repository.getRemoteCatalogPage({ keyword: text, page: pageNumber }).data;
                 this.remoteSearchPage = pageNumber;
@@ -394,7 +382,7 @@ class BankDetailViewModel {
                         .filter(row => `${bank.name}${row.title}`.toLowerCase().includes(text.toLowerCase()))
                         .map(row => Object.assign({}, row, { subjectName: bank.subjectName, bankName: bank.name, chapterTitle: row.title }));
                 }));
-                if (this.remoteSearchText !== text)
+                if (request !== this.searchRequest || this.remoteSearchText !== text)
                     return null;
                 const rows = groups.flat();
                 this.remoteSearchResults = pageNumber === 1 ? rows : (this.remoteSearchResults || []).concat(rows);
@@ -440,20 +428,6 @@ class BankDetailViewModel {
     }
     clearSearch() {
         return this.updateSearch('');
-    }
-    toggleFilter() {
-        this.filterUnfinished = !this.filterUnfinished;
-        const allRows = Array.isArray(this.allRows) ? this.allRows : [];
-        const rows = this.filterRows(allRows);
-        return {
-            data: {
-                filterUnfinished: this.filterUnfinished,
-                rows,
-                chapterGroups: this.groupChapterRows(rows),
-                hiddenRowCount: allRows.length - rows.length,
-                listEmptyText: this.resolveListEmptyText(allRows.length, rows.length)
-            }
-        };
     }
     /**
      * 打开答题配置抽屉。
@@ -598,6 +572,11 @@ class BankDetailViewModel {
             }
         };
     }
+    setSheetCount(count) {
+        if (![20, 50, 100, 1000].includes(count)) return null;
+        this.sheet.count = count;
+        return { data: this.buildSheetData() };
+    }
     setSheetMode(mode) {
         this.sheet.mode = resolveModeValue(mode);
         this.sheet.timed = this.sheet.mode === 'test' ? true : this.sheet.timed;
@@ -728,7 +707,8 @@ class BankDetailViewModel {
                 questionBankId: bankId,
                 ...(target.banks ? { questionBankIds: selected.map(bank => bank.id) } : {}),
                 chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [],
-                count: this.sheet.onlyWrong ? 1000 : Math.min(selected.length ? selected.reduce((sum, bank) => sum + bank.activeQuestionCount, 0) : target.questionCount || 1000, 1000),
+                count: this.sheet.onlyWrong ? 1000 : (this.sheet.count || 20),
+                ...(!this.sheet.onlyWrong && (this.sheet.count || 20) === 20 ? { completeFirstGroup: true } : {}),
                 order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
                 selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',
                 collectionChip: 'all'
@@ -744,12 +724,11 @@ class BankDetailViewModel {
         }
         return buildCommand(target.questionCount || 0);
     }
-    getShareMessage(subjectId) {
+    getShareMessage(subjectId, bankId) {
         const subject = this.repository.getSubjectDetail(subjectId);
         return {
-            title: subject ? `QandA · ${subject.name}` : 'QandA 题库',
-            // 题库是 tabBar 页面，分享路径不能携带参数，进入后落在默认科目
-            path: '/page/bank-detail/index'
+            title: subject ? `题小搭 · ${subject.name}` : '题小搭题库',
+            path: subjectId ? '/page/bank-detail/index?subjectId=' + encodeURIComponent(subjectId) + (bankId ? '&bankId=' + encodeURIComponent(bankId) : '') : '/page/subject-list/index'
         };
     }
 }

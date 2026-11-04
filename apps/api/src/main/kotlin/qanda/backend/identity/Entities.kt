@@ -11,25 +11,13 @@ class UserAccount {
     var accountCode: String = ""
     var nickname: String = ""
     var avatar: String? = null
-    var profileSetupSeen: Boolean = false
     var email: String? = null
     var emailKey: String? = null
-    var passwordHash: String? = null
     var status: String = "ACTIVE"
     var version: Long = 1
     var credentialVersion: Long = 1
     var createdAt: Instant = Instant.now()
     var updatedAt: Instant = Instant.now()
-}
-
-@TableName("user_profile")
-class UserProfile {
-    @TableId(type = IdType.INPUT)
-    var userId: UUID? = null
-    var collegeId: UUID? = null
-    var majorId: UUID? = null
-    var grade: Int? = null
-    var gradeAcademicYear: Int? = null
 }
 
 @TableName("user_wechat")
@@ -50,6 +38,7 @@ class UserSession {
     var userId: UUID? = null
     var tokenDigest: ByteArray = byteArrayOf()
     var credentialVersion: Long = 1
+    var authMethod: String = "EMAIL"
     var deviceId: UUID? = null
     var issuedAt: Instant = Instant.now()
     var expiresAt: Instant = Instant.now()
@@ -71,18 +60,6 @@ class EmailChallenge {
     var credentialVersion: Long? = null
     var failedAttempts: Int = 0
     var createdAt: Instant = Instant.now()
-    var expiresAt: Instant = Instant.now()
-    var consumedAt: Instant? = null
-}
-
-@TableName("wechat_ticket")
-class WechatTicket {
-    @TableId(type = IdType.INPUT)
-    var id: UUID? = null
-    var tokenDigest: ByteArray = byteArrayOf()
-    var appId: String = ""
-    var openId: String = ""
-    var unionId: String? = null
     var expiresAt: Instant = Instant.now()
     var consumedAt: Instant? = null
 }

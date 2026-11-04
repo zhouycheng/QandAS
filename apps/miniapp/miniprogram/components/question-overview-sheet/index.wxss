@@ -1,18 +1,4 @@
-/**
- * 答题卡弹层（2026-10-27 按设计稿重做）
- *
- * 结构：grip → 标题 → 三格统计（已答/未答/标记）→ 图例 → 6 列网格 → 按钮组。
- *
- * 配色（从设计稿采样得到）：
- *   已答 #B6E7D2 / 字 #17845A      未答 白底 + 虚线灰边 / 字 #9AA0A6
- *   当前 #466BFF / 字 #fff         标记点 #F79009
- *
- * ⚠️ 格子只区分「答没答」，不区分「对不对」：考试模式下按对错染色等于当场泄题。
- *    结果页的 `res-cell` 才按对错染色（那是交卷之后）。
- *
- * ⚠️ 网格用「固定宽度 + 换行 + 第 6 个去右边距」，不用百分比：
- *    百分比在 flex 容器里会被 border 撑出 7 列。
- */
+@import "../../styles/controls.wxss";
 
 .overview {
   position: fixed;
@@ -41,8 +27,8 @@
   padding: 16rpx 40rpx 0;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-  background: #fff;
-  border-radius: 32rpx 32rpx 0 0;
+  background: var(--card);
+  border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
   display: flex;
   flex-direction: column;
 }
@@ -52,7 +38,7 @@
   width: 72rpx;
   height: 8rpx;
   margin: 0 auto 22rpx;
-  background: #DDE1E6;
+  background: var(--line);
   border-radius: 999rpx;
 }
 
@@ -63,9 +49,9 @@
 }
 
 .panel-title {
-  font-size: 32rpx;
+  font-size: var(--font-title);
   font-weight: 600;
-  color: #141820;
+  color: var(--text-main);
 }
 
 /* 三格统计挤在一行，用 · 分隔 */
@@ -88,19 +74,19 @@
 }
 
 .stat-text {
-  font-size: 21rpx;
-  color: #9AA0A6;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
 }
 
 .stat-sep {
   margin: 0 12rpx;
-  font-size: 21rpx;
-  color: #C9CDD3;
+  font-size: var(--font-caption);
+  color: var(--line);
 }
 
 .panel-sub {
-  font-size: 21rpx;
-  color: #9AA0A6;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
   margin-bottom: 8rpx;
 }
 
@@ -126,26 +112,26 @@
 
 /* 未答用「空心圆」而不是灰点：设计稿里未答格子就是白底虚线，图例要呼应 */
 .dot-answered {
-  background: #0DAD69;
+  background: var(--success);
 }
 
 .dot-pending {
-  background: #fff;
-  border: 2rpx solid #C9CDD3;
+  background: var(--card);
+  border: 2rpx solid var(--line);
   box-sizing: border-box;
 }
 
 .dot-current {
-  background: #466BFF;
+  background: var(--brand);
 }
 
 .dot-mark {
-  background: #F79009;
+  background: var(--warning);
 }
 
 .legend-text {
-  font-size: 20rpx;
-  color: #9AA0A6;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
 }
 
 .grid-scroll {
@@ -170,10 +156,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16rpx;
+  border-radius: var(--radius-tag);
   /* 基态 = 未答：白底虚线框。⚠️ 必须 border-box，否则 2rpx 边框会把 6 格挤成 5 格 */
-  background: #fff;
-  border: 2rpx dashed #D8DCE3;
+  background: var(--card);
+  border: 2rpx dashed var(--line);
   box-sizing: border-box;
   transition: opacity 100ms ease;
 }
@@ -187,30 +173,30 @@
 }
 
 .cell-number {
-  font-size: 26rpx;
+  font-size: var(--font-secondary);
   font-weight: 600;
-  color: #9AA0A6;
+  color: var(--text-sub);
 }
 
 .cell.cell-answered {
-  background: #B6E7D2;
+  background: var(--success-soft);
   border-style: solid;
-  border-color: #B6E7D2;
+  border-color: var(--success-soft);
 }
 
 .cell.cell-answered .cell-number {
-  color: #17845A;
+  color: var(--success);
 }
 
 /* 当前题压过其它状态：蓝底白字，一眼能找到「我在哪」 */
 .cell.cell-current {
-  background: #466BFF;
+  background: var(--brand);
   border-style: solid;
-  border-color: #466BFF;
+  border-color: var(--brand);
 }
 
 .cell.cell-current .cell-number {
-  color: #fff;
+  color: var(--card);
 }
 
 /* 标记点固定在右上角，不随题号居中 */
@@ -221,7 +207,7 @@
   width: 12rpx;
   height: 12rpx;
   border-radius: 50%;
-  background: #F79009;
+  background: var(--warning);
 }
 
 .panel-actions {
@@ -240,17 +226,9 @@
 
 .panel-btn {
   flex: 1;
-  height: 88rpx;
-  line-height: 84rpx;
-  text-align: center;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #466BFF;
-  background: #fff;
-  border: 2rpx solid #466BFF;
-  border-radius: 18rpx;
+
   box-sizing: border-box;
-  transition: opacity 100ms ease;
+
 }
 
 .panel-btn + .panel-btn {
@@ -262,26 +240,5 @@
   opacity: 0.86;
 }
 
-/* 主操作：蓝底白字。
-   ⚠️ 组件样式是隔离的，页面的 `.pra-btn.primary` 不会漏进来 —— 预览脚本把两套 wxss 拼在
-   同一个文档里，曾经因此「看起来是蓝的、真机却是白底描边」。组件内必须自带这一条 */
-.panel-btn.primary {
-  color: #fff;
-  background: #466BFF;
-  border-color: #466BFF;
-}
-
-/* 白底红字：交卷是「结束」动作，用红色把它和翻页按钮分开 */
-.panel-btn.danger {
-  color: #E5484D;
-  border-color: #F5C2C4;
-}
-
-.panel-btn.accent {
-  color: #fff;
-  background: #F79009;
-  border-color: #F79009;
-}
-
-.cell-draft { background: #fff5df; color: #805500; border-style: dashed; }
-.dot-draft { background: #e7b652; }
+.cell-draft { background: var(--warning-soft); color: var(--warning); border-style: dashed; }
+.dot-draft { background: var(--warning); }

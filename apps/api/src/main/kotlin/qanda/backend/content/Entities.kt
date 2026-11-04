@@ -14,7 +14,6 @@ class QuestionBank {
     var textbook: String = ""
     var status: String = "ACTIVE"
     var publicationStatus: String = "DRAFT"
-    var scopeType: String = "ALL"
     var version: Long = 1
     var contentVersion: Long = 1
     var createdBy: UUID? = null
@@ -73,8 +72,8 @@ class QuestionOption {
     var sortOrder: Int = 0
 }
 
-@TableName("bank_audience")
-class BankAudience {
+@TableName("bank_category")
+class BankCategory {
     @TableId(type = IdType.INPUT)
     var id: UUID? = null
     var bankId: UUID? = null

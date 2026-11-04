@@ -1,9 +1,9 @@
 import type { Page } from './admin'
 import type { ActivityQuery, LoginPlatform } from './operations'
 
-export type OnlineQuery = Pick<ActivityQuery, 'collegeId' | 'majorId' | 'grade' | 'page' | 'pageSize'> & { keyword?: string }
+export type OnlineQuery = Pick<ActivityQuery, 'page' | 'pageSize'> & { keyword?: string }
 export interface OnlineUser {
-  userId: string; nickname: string; accountCode: string; collegeName?: string; majorName?: string; currentGrade?: number
+  userId: string; nickname: string; accountCode: string
   onlineSessionCount: number; lastHeartbeatAt: string
   clients: { platform: LoginPlatform; sessionCount: number; lastHeartbeatAt: string }[]
 }

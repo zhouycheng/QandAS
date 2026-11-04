@@ -1,5 +1,5 @@
 <view
-  class="chapter-row {{bank.isComplete ? 'is-done' : ''}}"
+  class="portal-theme chapter-row {{bank.isComplete ? 'is-done' : ''}}"
   bindtap="handleOpenTap"
   hover-class="chapter-hover"
   hover-start-time="0"

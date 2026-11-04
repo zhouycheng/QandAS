@@ -12,6 +12,7 @@ Page(withPageLifecycle({
   hasLoadedOnce: false,
 
   onLoad() {
+    if (wx.showShareMenu) wx.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] })
     this.updateHeaderLayout()
     this.viewModel = new SubjectListViewModel({
       storage: createWxStorageAdapter()
@@ -29,7 +30,6 @@ Page(withPageLifecycle({
     this.setData(getInitialHomeHeaderData(windowInfo, menuButton))
   },
 
-  onForegroundReady() { require('../profile-onboarding.js').showPending(this) },
   onShow() {
     this.isNavigating = false
     this.syncTabBar()
@@ -60,9 +60,12 @@ Page(withPageLifecycle({
 
   noop() {},
 
+  handleContinuePractice() { this.handleContinueTap() },
+
   onShareAppMessage() {
     return this.viewModel.getShareMessage()
   },
+  onShareTimeline() { return { title: '题小搭 公开题库' } },
 
   // 下拉刷新
   onPullDownRefresh() {
@@ -75,15 +78,77 @@ Page(withPageLifecycle({
   },
 
   refresh(options) {
-    this.setData({ recommendationsMoreError: '' })
     this.applyViewModelResult({ data: this.viewModel.projectRemote() })
-    return this.applyViewModelResult(this.viewModel.refreshRemote(options))
+    return Promise.all([this.applyViewModelResult(this.viewModel.refreshRemote(options)), this.loadRecentChoices(options)])
+  },
+
+  async loadRecentChoices(options) {
+    const revision = this.recentRevision = (this.recentRevision || 0) + 1
+    this.setData({ recentLoading: true, recentError: '', recentSubjects: [], recentColumns: [[], []], recentSelectedSubjectId: '', recentSelectedBankId: '', recentSelectedName: '', recentHasHistory: false, newPracticeLoading: !!this.newPracticePending })
+    try {
+      const result = await this.viewModel.loadRecentChoices(options)
+      if (revision !== this.recentRevision || !result) return
+      const { subjects, hasHistory } = result
+      const subject = subjects[0]
+      const bank = subject && subject.banks[0]
+      this.setData({ recentSubjects: subjects, recentColumns: [subjects.map(item => item.name), subject ? subject.banks.map(item => item.name) : []], recentPickerValue: [0, 0], recentSelectedSubjectId: subject ? subject.id : '', recentSelectedBankId: bank ? bank.id : '', recentSelectedName: bank ? subject.name + ' · ' + bank.name : '', recentHasHistory: hasHistory })
+    } catch (error) {
+      if (revision === this.recentRevision) this.setData({ recentError: error.message || '最近练习读取失败' })
+    } finally {
+      if (revision === this.recentRevision) this.setData({ recentLoading: false })
+    }
+  },
+
+  handleRecentColumnChange(event) {
+    const { column, value } = event.detail
+    const selection = this.data.recentPickerValue.slice()
+    selection[column] = value
+    if (column === 0) selection[1] = 0
+    const subject = this.data.recentSubjects[selection[0]]
+    if (subject) this.setData({ recentPickerValue: selection, recentColumns: [this.data.recentSubjects.map(item => item.name), subject.banks.map(item => item.name)] })
+  },
+
+  handleRecentSelect(event) {
+    const [subjectIndex, bankIndex] = event.detail.value
+    const subject = this.data.recentSubjects[subjectIndex]
+    const bank = subject && subject.banks[bankIndex]
+    if (bank) this.setData({ recentPickerValue: [subjectIndex, bankIndex], recentSelectedSubjectId: subject.id, recentSelectedBankId: bank.id, recentSelectedName: subject.name + ' · ' + bank.name })
+  },
+
+  handleRecentCancel() {
+    const subjectIndex = this.data.recentSubjects.findIndex(item => item.id === this.data.recentSelectedSubjectId)
+    const subject = this.data.recentSubjects[subjectIndex]
+    if (subject) this.setData({ recentPickerValue: [subjectIndex, Math.max(0, subject.banks.findIndex(item => item.id === this.data.recentSelectedBankId))], recentColumns: [this.data.recentSubjects.map(item => item.name), subject.banks.map(item => item.name)] })
+  },
+
+  handleRecentRetry() { return this.loadRecentChoices({ force: true }) },
+
+  async handleNewPractice() {
+    if (this.data.recentLoading || this.data.recentError || this.newPracticePending) return
+    const subjects = this.data.recentSubjects
+    const subject = subjects.find(item => item.id === this.data.recentSelectedSubjectId)
+    const choice = subject && subject.banks.find(item => item.id === this.data.recentSelectedBankId)
+    if (subjects.length && !choice) return
+    const revision = this.recentRevision
+    this.newPracticePending = true
+    this.setData({ newPracticeLoading: true })
+    try {
+      const result = await this.viewModel.openNewPractice(choice)
+      if (revision === this.recentRevision) this.applyViewModelResult(result)
+    } catch (error) {
+      if (revision === this.recentRevision) wx.showToast({ title: error.message || '无法开始答题，请重试', icon: 'none' })
+    } finally {
+      this.newPracticePending = false
+      if (!this._pageUnloaded) this.setData({ newPracticeLoading: false })
+    }
   },
 
   handleContinueTap() {
-    const lastPractice = this.data.lastPractice
+    const lastPractice = this.viewModel.buildResumablePractice()
 
     if (!lastPractice) {
+      wx.showToast({ title: '暂无可继续的练习', icon: 'none' })
+      this.applyViewModelResult({ data: this.viewModel.projectRemote() })
       return
     }
 
@@ -110,19 +175,6 @@ Page(withPageLifecycle({
     }
 
     this.applyViewModelResult(this.viewModel.openEntry(key))
-  },
-
-  handleRecommendedSubjectTap(event) { this.applyViewModelResult(this.viewModel.openRecommendedSubject(event.currentTarget.dataset.id)) },
-  handleAllSubjectsTap() { this.applyViewModelResult(this.viewModel.openBank()) },
-
-  onReachBottom() { return this.handleRecommendationsMore() },
-
-  handleRecommendationsMore() {
-    if (this.data.recommendationsLoadingMore || !this.data.recommendationsHasMore) return
-    this.setData({ recommendationsLoadingMore: true, recommendationsMoreError: '' })
-    return this.viewModel.loadMoreRecommendations().then(result => this.applyViewModelResult(result))
-      .catch(error => this.setData({ recommendationsMoreError: error.message }))
-      .finally(() => this.setData({ recommendationsLoadingMore: false }))
   },
 
   // ---------- 搜索 ----------
@@ -182,13 +234,20 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.closeSearch())
   },
 
+  onHide() {
+    this.recentRevision = (this.recentRevision || 0) + 1
+    this.setData({ newPracticeLoading: false })
+  },
+
   onUnload() {
+    this.recentRevision = (this.recentRevision || 0) + 1
     if (this.searchTimer) clearTimeout(this.searchTimer)
     this.searchRevision = (this.searchRevision || 0) + 1
   },
 
   handleSearchResultTap(e) {
     const questionId = e.currentTarget.dataset.id
+    const item = (this.data.searchResults || []).find(result => result.id === questionId)
 
     if (!questionId) {
       return
@@ -196,6 +255,12 @@ Page(withPageLifecycle({
 
     // 先进面板再跳转：面板是 fixed 定位，跳页后仍留在这个 tab 的 DOM 里
     this.applyViewModelResult(this.viewModel.closeSearch())
+    if (item && item.kind !== 'QUESTION') {
+      this.handleViewModelCommand({ type: 'switchTab', url: '/page/bank-detail/index', target: {
+        subjectId: item.subjectId, bankId: item.questionBankId, chapterId: item.chapterId || ''
+      } })
+      return
+    }
     this.applyViewModelResult(this.viewModel.openSearchResult(questionId))
   },
 
@@ -298,10 +363,12 @@ Page(withPageLifecycle({
 
     if (command.type === 'switchTab') {
       const app = getApp()
-      if (command.subjectId && app && app.setPendingSubjectId) app.setPendingSubjectId(command.subjectId)
+      if (command.target && app && app.setPendingBankTarget) app.setPendingBankTarget(command.target)
+      else if (command.subjectId && app && app.setPendingSubjectId) app.setPendingSubjectId(command.subjectId)
       navigation.switchTab({
         url: command.url,
         fail: () => {
+          if (command.target && app && app.setPendingBankTarget) app.setPendingBankTarget(null)
           if (command.subjectId && app && app.setPendingSubjectId) app.setPendingSubjectId('')
           wx.showToast({
             title: '页面暂不可用',

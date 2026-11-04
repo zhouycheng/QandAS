@@ -63,12 +63,14 @@ def initialize():
         "secondStudent": {"email": "student2@example.test", "nickname": "联调同学乙"},
     }
     for account in ["admin", "secondAdmin", "student", "secondStudent"]:
-        config[account]["password"] = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(14)) + "A7"
+        if account in ("admin", "secondAdmin"):
+            config[account]["password"] = secrets.token_urlsafe(24) + "A7"
         config[account]["deviceId"] = str(uuid.uuid4())
     values = dict(line.split("=", 1) for line in (ROOT / "apps/api/.env.backend.example").read_text().splitlines() if "=" in line)
     values.update({"BACKEND_API_PORT": "8084", "BACKEND_DB_PORT": "56433", "BACKEND_SMTP_PORT": "51026",
                    "BACKEND_MAIL_UI_PORT": "58026", "BACKEND_IMAGE": "qanda-backend:integration",
                    "BACKEND_ENV_FILE": str(PRIVATE / "backend.env"),
+                   "BACKEND_CONTENT_SAFETY_PROVIDER": "local",
                    "BACKEND_DB_PASSWORD": secrets.token_urlsafe(32), "BACKEND_RABBIT_PASSWORD": secrets.token_urlsafe(32)})
     for key in ["COMMAND_DIGEST", "IDENTITY_MAC", "MAIL_ENCRYPTION"]:
         values["BACKEND_" + key + "_KEYS"] = "1:" + base64.b64encode(secrets.token_bytes(32)).decode()
@@ -99,10 +101,12 @@ def compose(config, *args):
             "--env-file", str(PRIVATE / "backend.env"), "-f", str(ROOT / "apps/api/compose.backend.yml"), *args]
 
 
-def request(config, method, path, body=None, token=None, key=None, expected=None):
+def request(config, method, path, body=None, token=None, key=None, expected=None, safety_id=None):
     headers = {"Content-Type": "application/json", "X-Request-Id": str(uuid.uuid4())}
     if token:
         headers["Authorization"] = "Bearer " + token
+    if safety_id:
+        headers["X-Content-Safety-Request"] = safety_id
     if method not in ("GET", "HEAD"):
         headers["Idempotency-Key"] = key or str(uuid.uuid4())
     req = urllib.request.Request(config["api"] + "/api/v1" + path,
@@ -116,17 +120,58 @@ def request(config, method, path, body=None, token=None, key=None, expected=None
         data = json.loads(raw) if raw else None
     except ValueError:
         raise RuntimeError(f"{method} {path.split('?')[0]}: HTTP {response.code}，响应格式异常") from None
+    if response.code == 409 and isinstance(data, dict) and data.get("code") == "CONTENT_CHECK_REQUIRED" and token and body and not safety_id:
+        settings = dict(line.split("=", 1) for line in (PRIVATE / "backend.env").read_text().splitlines() if "=" in line and not line.startswith("#"))
+        if settings.get("BACKEND_MODE") not in ("local", "test") or settings.get("BACKEND_CONTENT_SAFETY_PROVIDER") != "local" or settings.get("BACKEND_WECHAT_PROVIDER") != "local":
+            raise RuntimeError("此联调脚本的内容写入需要显式本地检测配置；官方检测请通过配套小程序和管理端完成确认")
+        prefix = "/admin" if path.startswith("/admin/") else "/me"
+        context = None
+        if prefix == "/me":
+            context = request(config, "POST", "/me/content-safety/contexts", {"code": "local-learner-1:" + str(uuid.uuid4())}, token)["id"]
+        ticket = request(config, "POST", prefix + "/content-safety/requests", {"method": method, "path": path, "payload": body, "contextId": context}, token)
+        if prefix == "/admin":
+            request(config, "POST", "/content-safety/confirmations", {"requestId": ticket["id"], "token": ticket["confirmationToken"], "code": "local-learner-1:" + str(uuid.uuid4())})
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            state = request(config, "GET", prefix + "/content-safety/requests/" + ticket["id"], token=token)
+            if state["state"] == "PASSED":
+                return request(config, method, path, body, token, headers["Idempotency-Key"], expected, ticket["id"])
+            if state["state"] in ("REJECTED", "EXPIRED"):
+                raise RuntimeError("联调内容检查未通过")
+            time.sleep(0.1)
+        raise RuntimeError("联调内容检查超时")
     if (expected is not None and response.code != expected) or (expected is None and not 200 <= response.code < 300):
         code = data.get("code", data.get("error", {}).get("code", "")) if isinstance(data, dict) else ""
         raise RuntimeError(f"{method} {path.split('?')[0]}: HTTP {response.code} {code}")
     return data
 
 
+_sessions = {}
+
+
 def login(config, name):
     account = config[name]
-    admin = "username" in account
-    body = {key: account[key] for key in ["username" if admin else "email", "password", "deviceId"]}
-    return request(config, "POST", "/admin/auth/sessions" if admin else "/auth/sessions", body)["accessToken"]
+    if "username" in account:
+        return request(config, "POST", "/admin/auth/sessions", {k: account[k] for k in ("username", "password", "deviceId")})["accessToken"]
+    if name in _sessions:
+        return _sessions[name]
+    with OPENER.open(config["mail"] + "/api/v1/messages", timeout=5) as response:
+        previous = {message["ID"] for message in json.load(response).get("messages", [])}
+    challenge = request(config, "POST", "/auth/email-challenges", {"purpose": "LOGIN", "email": account["email"]})
+    for _ in range(45):
+        with OPENER.open(config["mail"] + "/api/v1/messages", timeout=5) as response:
+            messages = json.load(response).get("messages", [])
+        for message in messages:
+            if message["ID"] in previous or not any(to.get("Address") == account["email"] for to in message.get("To", [])):
+                continue
+            with OPENER.open(config["mail"] + "/api/v1/message/" + message["ID"], timeout=5) as response:
+                found = re.search(r"(?<!\d)\d{6}(?!\d)", json.load(response).get("Text", ""))
+            if found:
+                session = request(config, "POST", "/auth/email-code-sessions", {"challengeId": challenge["id"], "code": found.group(), "deviceId": account["deviceId"]})
+                _sessions[name] = session["accessToken"]
+                return _sessions[name]
+        time.sleep(1)
+    raise RuntimeError("本地验证码未送达，请检查 worker 邮件投递")
 
 
 def bootstrap(config):
@@ -184,7 +229,7 @@ def seed(config):
     majors = [once("major" + str(i), "POST", "/admin/majors", {"collegeId": college["id"], "name": name, "code": "INT" + str(i)})
               for i, name in enumerate(["软件工程", "信息管理"])]
     subject = once("subject", "POST", "/admin/subjects", {"name": "三端联调演示课", "description": "用于目录、六类题型与同步联调"})
-    bank = once("bank", "POST", "/admin/question-banks", {"subjectId": subject["id"], "name": "六类题型练习", "description": "可反复练习的联调样例", "scopeType": "ALL", "maintainerIds": [editor["id"]]})
+    bank = once("bank", "POST", "/admin/question-banks", {"subjectId": subject["id"], "name": "六类题型练习", "description": "可反复练习的联调样例", "maintainerIds": [editor["id"]]})
     chapter = once("chapter", "POST", f"/admin/question-banks/{bank['id']}/chapters", {"name": "第一章：基础联调", "sortOrder": 0})
     questions = [
         {"type": "SINGLE_CHOICE", "stem": "HTTP 中读取资源通常使用哪个方法？", "options": [{"key": "A", "content": "GET"}, {"key": "B", "content": "DELETE"}], "correctAnswer": ["A"], "explanation": "GET 用于读取资源。"},
@@ -201,39 +246,17 @@ def seed(config):
     current = request(config, "GET", f"/admin/question-banks/{bank['id']}", token=token)
     once("publication", "PUT", f"/admin/question-banks/{bank['id']}/publication", {"expectedVersion": current["version"], "status": "PUBLISHED"})
     restricted_subject = once("restrictedSubject", "POST", "/admin/subjects", {"name": "软件工程专业课"})
-    restricted = once("restrictedBank", "POST", "/admin/question-banks", {"subjectId": restricted_subject["id"], "name": "专业范围联调", "description": "软件工程专业可见", "scopeType": "TARGETED", "audiences": [{"majorId": majors[0]["id"]}], "maintainerIds": [editor["id"]]})
+    restricted = once("restrictedBank", "POST", "/admin/question-banks", {"subjectId": restricted_subject["id"], "name": "专业范围联调", "description": "软件工程专业分类", "categories": [{"majorId": majors[0]["id"]}], "maintainerIds": [editor["id"]]})
     once("restrictedQuestion", "POST", "/admin/questions", {**questions[0], "questionBankId": restricted["id"]})
     current = request(config, "GET", f"/admin/question-banks/{restricted['id']}", token=token)
     once("restrictedPublication", "PUT", f"/admin/question-banks/{restricted['id']}/publication", {"expectedVersion": current["version"], "status": "PUBLISHED"})
-    once("draftBank", "POST", "/admin/question-banks", {"subjectId": subject["id"], "name": "未发布联调草稿", "scopeType": "ALL"})
-    once("announcement", "POST", "/admin/announcements", {"title": "三端联调已开放", "summary": "六类题型、资料范围与同步监控可开始体验", "body": "请从题库进入六类题型练习。作答后可在管理端查看学习记录与同步情况。", "status": "PUBLISHED"})
-    for index, name in enumerate(["student", "secondStudent"]):
-        account = config[name]
-        if name not in fixtures or "result" not in fixtures[name]:
-            challenge = once(name + "Challenge", "POST", "/auth/email-challenges", {"purpose": "REGISTER", "email": account["email"]}, None)
-            code = None
-            for _ in range(45):
-                with OPENER.open(config["mail"] + "/api/v1/messages", timeout=5) as response:
-                    messages = json.load(response).get("messages", [])
-                for message in messages:
-                    if not any(to.get("Address") == account["email"] for to in message.get("To", [])):
-                        continue
-                    with OPENER.open(config["mail"] + "/api/v1/message/" + message["ID"], timeout=5) as response:
-                        content = json.load(response)
-                    found = re.search(r"(?<!\d)\d{6}(?!\d)", content.get("Text", ""))
-                    if found:
-                        code = found.group()
-                        break
-                if code:
-                    break
-                time.sleep(1)
-            if not code:
-                raise RuntimeError("本地验证码未送达，请检查 worker 邮件投递")
-            once(name, "POST", "/auth/email-registrations", {"challengeId": challenge["id"], "code": code, "password": account["password"], "nickname": account["nickname"]}, None)
+    once("draftBank", "POST", "/admin/question-banks", {"subjectId": subject["id"], "name": "未发布联调草稿"})
+    once("announcement", "POST", "/admin/announcements", {"title": "三端联调已开放", "summary": "六类题型、分类筛选与同步监控可开始体验", "body": "请从题库进入六类题型练习。作答后可在管理端查看学习记录与同步情况。", "status": "PUBLISHED"})
+    for name in ["student", "secondStudent"]:
         student_token = login(config, name)
         me = request(config, "GET", "/me", token=student_token)
-        once(name + "Profile", "PUT", "/me/profile", {"expectedVersion": me["version"], "nickname": account["nickname"], "majorId": majors[index]["id"], "currentGrade": 2}, student_token)
-    print("已准备两名超级管理员、两名学生、两种专业范围、六类题型和公告")
+        once(name + "Profile", "PUT", "/me/profile", {"expectedVersion": me["version"], "nickname": config[name]["nickname"]}, student_token)
+    print("已准备两名管理员、两名邮箱用户、分类题库、六类题型和公告")
 
 
 def connect(config):
@@ -244,41 +267,6 @@ def connect(config):
     data.setdefault("extConfig", {})["apiBaseUrl"] = config["api"]
     save(path, data)
     subprocess.run(["npm", "run", "build"], cwd=ROOT / "apps/miniapp", check=True)
-
-
-def reset_student_passwords(config):
-    path = PRIVATE / "password-resets.json"
-    records = json.loads(path.read_text()) if path.exists() else {}
-    for name in ["student", "secondStudent"]:
-        if len(config[name]["password"]) <= 16:
-            continue
-        record = records.setdefault(name, {"password": "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(14)) + "A7", "key": str(uuid.uuid4())})
-        if "body" not in record:
-            with OPENER.open(config["mail"] + "/api/v1/messages", timeout=5) as response:
-                previous = {m["ID"] for m in json.load(response).get("messages", [])}
-            challenge = request(config, "POST", "/auth/email-challenges", {"purpose": "RESET_PASSWORD", "email": config[name]["email"]})
-            for _ in range(45):
-                with OPENER.open(config["mail"] + "/api/v1/messages", timeout=5) as response:
-                    messages = json.load(response).get("messages", [])
-                for message in messages:
-                    if message["ID"] in previous or not any(to.get("Address") == config[name]["email"] for to in message.get("To", [])):
-                        continue
-                    with OPENER.open(config["mail"] + "/api/v1/message/" + message["ID"], timeout=5) as response:
-                        found = re.search(r"(?<!\d)\d{6}(?!\d)", json.load(response).get("Text", ""))
-                    if found:
-                        record["body"] = {"challengeId": challenge["id"], "code": found.group(), "newPassword": record["password"]}
-                        save(path, records)
-                        break
-                if "body" in record:
-                    break
-                time.sleep(1)
-            if "body" not in record:
-                raise RuntimeError("重置验证码未送达")
-        request(config, "POST", "/auth/password-resets", record["body"], key=record["key"])
-        config[name]["password"] = record["password"]
-        save(CONFIG, config)
-        login(config, name)
-    print("学生测试账号已通过正式重置接口采用 16 位字母数字密码")
 
 
 def main():
@@ -296,8 +284,6 @@ def main():
         seed(config)
     elif command == "connect":
         connect(config)
-    elif command == "passwords":
-        reset_student_passwords(config)
     elif command == "admin":
         environment = {**os.environ, "VITE_API_BASE_URL": "/", "QANDA_API_PROXY_TARGET": config["api"]}
         subprocess.run(["pnpm", "dev", "--host", "127.0.0.1", "--strictPort"], cwd=ROOT / "apps/admin", env=environment, check=True)
@@ -305,7 +291,7 @@ def main():
         args = {"status": ["ps"], "logs": ["logs", "--tail", "80", "api", "worker", "monitor"], "stop": ["stop"]}[command]
         subprocess.run(compose(config, *args), env=compose_environment(), check=True)
     else:
-        raise RuntimeError("命令：init up bootstrap seed passwords connect admin status logs stop")
+        raise RuntimeError("命令：init up bootstrap seed connect admin status logs stop")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
--- QandA 1.0.0：在空的专用数据库中执行。
+-- 题小搭 1.0.0：在空的专用数据库中执行。
 CREATE TABLE college (
  id uuid PRIMARY KEY, code varchar(40) NOT NULL UNIQUE, name varchar(80) NOT NULL UNIQUE,
  status varchar(12) NOT NULL CHECK(status IN ('ACTIVE','INACTIVE')), version bigint NOT NULL DEFAULT 1 CHECK(version>0),
@@ -13,26 +13,12 @@ CREATE TABLE major (
 CREATE TABLE user_account (
  id uuid PRIMARY KEY, account_code varchar(12) NOT NULL UNIQUE, nickname varchar(40) NOT NULL,
  avatar text CHECK(avatar IS NULL OR (char_length(avatar) BETWEEN 1 AND 87407 AND avatar ~ '^data:image/(jpeg|png);base64,')),
- email varchar(254), email_key varchar(254) UNIQUE, password_hash varchar(256),
- status varchar(12) NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','DISABLED')),
- profile_setup_seen boolean NOT NULL DEFAULT false,
+ email varchar(254), email_key varchar(254) UNIQUE,
+ status varchar(12) NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','DISABLED','DELETING')),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0),
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  CHECK((email IS NULL)=(email_key IS NULL)), CHECK(email_key IS NULL OR email_key=lower(email_key))
 );
-CREATE TABLE user_profile (
- user_id uuid PRIMARY KEY REFERENCES user_account(id), college_id uuid REFERENCES college(id), major_id uuid REFERENCES major(id),
- grade integer CHECK(grade BETWEEN 1 AND 5), grade_academic_year integer CHECK(grade_academic_year BETWEEN 1900 AND 2200),
- CHECK((grade IS NULL)=(grade_academic_year IS NULL)), CHECK(major_id IS NULL OR college_id IS NULL)
-);
-CREATE INDEX user_profile_major_idx ON user_profile(major_id);
-CREATE INDEX user_profile_college_idx ON user_profile(college_id);
-CREATE FUNCTION academic_year(day date) RETURNS integer LANGUAGE sql IMMUTABLE STRICT AS $$
- SELECT extract(year FROM day)::integer - CASE WHEN extract(month FROM day)<9 THEN 1 ELSE 0 END
-$$;
-CREATE FUNCTION current_grade(grade integer, anchor_year integer, day date) RETURNS integer LANGUAGE sql IMMUTABLE STRICT AS $$
- SELECT least(5,grade+greatest(0,academic_year(day)-anchor_year))
-$$;
 CREATE TABLE user_wechat (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), app_id varchar(64) NOT NULL, open_id varchar(128) NOT NULL,
  union_id varchar(128),
@@ -45,12 +31,13 @@ CREATE TABLE admin_account (
  credential_version bigint NOT NULL DEFAULT 1 CHECK(credential_version>0), created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(), last_login_at timestamptz
 );
+CREATE SEQUENCE test_account_number;
 CREATE TABLE test_account (
  user_id uuid PRIMARY KEY REFERENCES user_account(id),
  expires_at timestamptz NOT NULL, include_in_statistics boolean NOT NULL DEFAULT false,
  created_by uuid NOT NULL REFERENCES admin_account(id), disabled_at timestamptz,
  disable_reason varchar(12) CHECK(disable_reason IN ('MANUAL','EXPIRED')),
- password_ciphertext text, password_nonce varchar(24), password_key_version integer,
+ login_code_hash varchar(256), password_ciphertext text, password_nonce varchar(24), password_key_version integer,
  CHECK((disabled_at IS NULL) = (disable_reason IS NULL)),
  CHECK((password_ciphertext IS NULL) = (password_nonce IS NULL)),
  CHECK((password_ciphertext IS NULL) = (password_key_version IS NULL))
@@ -78,11 +65,17 @@ CREATE TABLE admin_control (id integer PRIMARY KEY CHECK(id=1), bootstrap_comple
 INSERT INTO admin_control(id) VALUES(1);
 CREATE TABLE user_session (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), token_digest bytea NOT NULL UNIQUE CHECK(octet_length(token_digest)=32),
- credential_version bigint NOT NULL, device_id uuid NOT NULL,
+ credential_version bigint NOT NULL, device_id uuid NOT NULL, auth_method varchar(8) NOT NULL CHECK(auth_method IN ('EMAIL','WECHAT','TEST')),
  issued_at timestamptz NOT NULL, expires_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, revoked_at timestamptz,
  CHECK(expires_at>issued_at), UNIQUE(id,user_id)
 );
 CREATE INDEX user_session_account_idx ON user_session(user_id,issued_at DESC);
+CREATE TABLE account_deletion_proof (
+ token_digest bytea PRIMARY KEY CHECK(octet_length(token_digest)=32), user_id uuid, session_id uuid, credential_version bigint,
+ expires_at timestamptz NOT NULL, command_id uuid, completed_at timestamptz,
+ CHECK((completed_at IS NULL)=(command_id IS NULL)),
+ CHECK(completed_at IS NULL OR (user_id IS NULL AND session_id IS NULL AND credential_version IS NULL))
+);
 CREATE TABLE session_presence (
  session_id uuid PRIMARY KEY REFERENCES user_session(id), foreground_seen_at timestamptz NOT NULL
 );
@@ -98,16 +91,12 @@ CREATE TABLE login_attempt (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE email_challenge (
- id uuid PRIMARY KEY, user_id uuid REFERENCES user_account(id), purpose varchar(24) NOT NULL CHECK(purpose IN ('LOGIN','REGISTER','RESET_PASSWORD','BIND_EMAIL','CHANGE_PASSWORD','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW')),
+ id uuid PRIMARY KEY, user_id uuid REFERENCES user_account(id), purpose varchar(24) NOT NULL CHECK(purpose IN ('LOGIN','BIND_EMAIL','CHANGE_EMAIL_OLD','CHANGE_EMAIL_NEW','DELETE_ACCOUNT')),
  email varchar(254) NOT NULL, email_key varchar(254) NOT NULL, code_mac bytea NOT NULL CHECK(octet_length(code_mac)=32), key_version integer NOT NULL,
  eligible boolean NOT NULL, credential_version bigint, failed_attempts integer NOT NULL DEFAULT 0 CHECK(failed_attempts BETWEEN 0 AND 5), created_at timestamptz NOT NULL,
  expires_at timestamptz NOT NULL, consumed_at timestamptz, CHECK(expires_at>created_at)
 );
 CREATE INDEX email_challenge_target_idx ON email_challenge(email_key,purpose,created_at DESC);
-CREATE TABLE wechat_ticket (
- id uuid PRIMARY KEY, token_digest bytea NOT NULL UNIQUE, app_id varchar(64) NOT NULL, open_id varchar(128) NOT NULL, union_id varchar(128),
- expires_at timestamptz NOT NULL, consumed_at timestamptz
-);
 CREATE TABLE subject (
  id uuid PRIMARY KEY, name varchar(120) NOT NULL UNIQUE, description text NOT NULL DEFAULT '',
  status varchar(12) NOT NULL CHECK(status IN ('ACTIVE','INACTIVE')), version bigint NOT NULL DEFAULT 1 CHECK(version>0),
@@ -117,7 +106,7 @@ CREATE TABLE question_bank (
  id uuid PRIMARY KEY, subject_id uuid NOT NULL REFERENCES subject(id), name varchar(120) NOT NULL, description text NOT NULL DEFAULT '', textbook varchar(500) NOT NULL DEFAULT '',
  status varchar(12) NOT NULL CHECK(status IN ('ACTIVE','INACTIVE')),
  publication_status varchar(16) NOT NULL DEFAULT 'DRAFT' CHECK(publication_status IN ('DRAFT','PUBLISHED','UNPUBLISHED','ARCHIVED')),
- scope_type varchar(12) NOT NULL DEFAULT 'ALL' CHECK(scope_type IN ('ALL','TARGETED')), version bigint NOT NULL DEFAULT 1 CHECK(version>0),
+ version bigint NOT NULL DEFAULT 1 CHECK(version>0),
  content_version bigint NOT NULL DEFAULT 1 CHECK(content_version>0), created_by uuid NOT NULL REFERENCES admin_account(id),
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(id,subject_id)
 );
@@ -126,17 +115,11 @@ CREATE TABLE bank_maintainer (
  bank_id uuid NOT NULL REFERENCES question_bank(id), admin_id uuid NOT NULL REFERENCES admin_account(id), PRIMARY KEY(bank_id,admin_id)
 );
 CREATE INDEX bank_maintainer_admin_idx ON bank_maintainer(admin_id,bank_id);
-CREATE TABLE bank_audience (
+CREATE TABLE bank_category (
  id uuid PRIMARY KEY, bank_id uuid NOT NULL REFERENCES question_bank(id), college_id uuid REFERENCES college(id), major_id uuid REFERENCES major(id),
  grade integer CHECK(grade BETWEEN 1 AND 5), CHECK(major_id IS NULL OR college_id IS NULL),
  CHECK(num_nonnulls(college_id,major_id,grade)>0), UNIQUE NULLS NOT DISTINCT(bank_id,college_id,major_id,grade)
 );
-CREATE TABLE subject_user_access (
- subject_id uuid NOT NULL REFERENCES subject(id), user_id uuid NOT NULL REFERENCES user_account(id),
- granted_by uuid NOT NULL REFERENCES admin_account(id), created_at timestamptz NOT NULL DEFAULT now(),
- PRIMARY KEY(subject_id,user_id)
-);
-CREATE INDEX subject_user_access_user_idx ON subject_user_access(user_id,subject_id);
 CREATE TABLE chapter (
  id uuid PRIMARY KEY, bank_id uuid NOT NULL REFERENCES question_bank(id), name varchar(120) NOT NULL, sort_order integer NOT NULL CHECK(sort_order>=0),
  version bigint NOT NULL DEFAULT 1 CHECK(version>0), UNIQUE(id,bank_id), UNIQUE(bank_id,sort_order) DEFERRABLE INITIALLY DEFERRED
@@ -151,24 +134,22 @@ CREATE TABLE question (
 CREATE INDEX question_reading_idx ON question(reading_parent_id,reading_order);
 CREATE INDEX question_bank_idx ON question(bank_id,status,created_at,id);
 CREATE INDEX question_chapter_idx ON question(chapter_id);
-CREATE FUNCTION bank_visible(bank uuid, student uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
- WITH student_scope AS (
-   SELECT coalesce(m.college_id,p.college_id) college_id,p.major_id,
-          current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) grade
-   FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
-   WHERE u.id=student
- )
+CREATE FUNCTION question_active(question_id uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT EXISTS(SELECT 1 FROM question q WHERE q.id=question_id AND q.status='ACTIVE'
+ AND (q.reading_parent_id IS NULL OR EXISTS(SELECT 1 FROM question parent WHERE parent.id=q.reading_parent_id AND parent.status='ACTIVE')))
+$$;
+CREATE FUNCTION bank_visible(bank uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
  SELECT EXISTS(SELECT 1 FROM question_bank b JOIN subject s ON s.id=b.subject_id
  WHERE b.id=bank AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'
- AND EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group)
- AND (student IS NULL OR b.scope_type='ALL'
- OR EXISTS(SELECT 1 FROM subject_user_access g WHERE g.subject_id=b.subject_id AND g.user_id=student)
- OR EXISTS(SELECT 1 FROM student_scope p WHERE p.college_id IS NULL
-   OR EXISTS(SELECT 1 FROM bank_audience a LEFT JOIN major am ON am.id=a.major_id
-     WHERE a.bank_id=b.id
-     AND (coalesce(am.college_id,a.college_id) IS NULL OR coalesce(am.college_id,a.college_id)=p.college_id)
-     AND (p.major_id IS NULL OR a.major_id IS NULL OR a.major_id=p.major_id)
-     AND (p.major_id IS NULL OR p.grade IS NULL OR a.grade IS NULL OR a.grade=p.grade)))))
+ AND EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND q.status='ACTIVE' AND NOT q.is_group
+ AND (q.reading_parent_id IS NULL OR EXISTS(SELECT 1 FROM question parent WHERE parent.id=q.reading_parent_id AND parent.status='ACTIVE'))))
+$$;
+CREATE FUNCTION bank_matches_category(bank uuid, selected_college uuid, selected_major uuid, selected_grade integer) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT NOT EXISTS(SELECT 1 FROM bank_category WHERE bank_id=bank) OR EXISTS(
+ SELECT 1 FROM bank_category c LEFT JOIN major m ON m.id=c.major_id WHERE c.bank_id=bank
+ AND (selected_college IS NULL OR coalesce(m.college_id,c.college_id) IS NULL OR coalesce(m.college_id,c.college_id)=selected_college)
+ AND (selected_major IS NULL OR c.major_id IS NULL OR c.major_id=selected_major)
+ AND (selected_grade IS NULL OR c.grade IS NULL OR c.grade=selected_grade))
 $$;
 CREATE TABLE question_revision (
  id uuid PRIMARY KEY, question_id uuid NOT NULL REFERENCES question(id) DEFERRABLE INITIALLY DEFERRED, revision_number integer NOT NULL CHECK(revision_number>0),
@@ -293,11 +274,8 @@ CREATE INDEX domain_event_pending_idx ON domain_event_outbox(occurred_at,id) WHE
 
 CREATE VIEW monitoring_student AS
  SELECT u.id user_id,u.account_code,u.nickname,u.status,u.credential_version,u.created_at,
- coalesce(p.college_id,m.college_id) college_id,c.name college_name,p.major_id,m.name major_name,
- current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date) current_grade,
- account_in_statistics(u.id) include_in_statistics
- FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
- LEFT JOIN college c ON c.id=coalesce(p.college_id,m.college_id);
+ account_in_statistics(u.id) include_in_statistics FROM user_account u;
+
 CREATE VIEW monitoring_learning AS
  SELECT s.id session_id,s.user_id,s.submitted_at,r.answered_count,r.correct_count,r.duration_seconds
  FROM practice_session s JOIN practice_result r ON r.session_id=s.id WHERE s.status='SUBMITTED';
@@ -317,8 +295,8 @@ CREATE INDEX audit_log_page_idx ON audit_log(created_at DESC,id);
 CREATE INDEX email_challenge_user_idx ON email_challenge(user_id);
 CREATE INDEX question_bank_creator_idx ON question_bank(created_by);
 CREATE INDEX question_bank_listing_idx ON question_bank(publication_status,status,name,id);
-CREATE INDEX bank_audience_college_idx ON bank_audience(college_id);
-CREATE INDEX bank_audience_major_idx ON bank_audience(major_id);
+CREATE INDEX bank_category_college_idx ON bank_category(college_id);
+CREATE INDEX bank_category_major_idx ON bank_category(major_id);
 CREATE INDEX question_revision_creator_idx ON question_revision(created_by);
 CREATE INDEX file_asset_uploader_idx ON file_asset(uploaded_by);
 CREATE INDEX question_attachment_file_idx ON question_attachment(file_id);
@@ -340,7 +318,45 @@ CREATE INDEX command_receipt_user_idx ON command_receipt(actor_user_id);
 CREATE INDEX command_receipt_admin_idx ON command_receipt(actor_admin_id);
 CREATE INDEX audit_log_user_idx ON audit_log(actor_user_id);
 CREATE INDEX audit_log_admin_idx ON audit_log(actor_admin_id);
-CREATE FUNCTION keep_history_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Historical facts are immutable'; END $$;
+CREATE TABLE content_safety_context (
+ id uuid PRIMARY KEY, actor_id uuid NOT NULL, session_id uuid NOT NULL, actor_kind varchar(5) NOT NULL CHECK(actor_kind IN ('USER','ADMIN')),
+ app_id varchar(64) NOT NULL, open_id varchar(128) NOT NULL, expires_at timestamptz NOT NULL
+);
+CREATE TABLE content_safety_request (
+ id uuid PRIMARY KEY, actor_id uuid NOT NULL, session_id uuid NOT NULL, actor_kind varchar(5) NOT NULL CHECK(actor_kind IN ('USER','ADMIN')),
+ operation varchar(200) NOT NULL, payload_json text NOT NULL, payload_digest bytea NOT NULL, context_id uuid REFERENCES content_safety_context(id),
+ confirmation_digest bytea, state varchar(24) NOT NULL CHECK(state IN ('WAITING_CONFIRMATION','CHECKING','RUNNING','PENDING','PASSED','REJECTED','EXPIRED','CONSUMED')),
+ expires_at timestamptz NOT NULL, consumed_at timestamptz, error_code varchar(64), worker_token uuid, worker_heartbeat_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ CHECK ((worker_token IS NULL) = (worker_heartbeat_at IS NULL)), CHECK ((state='RUNNING') = (worker_token IS NOT NULL))
+);
+CREATE INDEX content_safety_pending_idx ON content_safety_request(state,expires_at);
+CREATE TABLE content_safety_media (
+ id uuid PRIMARY KEY, request_id uuid NOT NULL REFERENCES content_safety_request(id), data bytea NOT NULL,
+ media_type varchar(32) NOT NULL, sha256 varchar(64) NOT NULL, trace_id varchar(128) UNIQUE,
+ fetch_digest bytea NOT NULL, fetch_expires_at timestamptz NOT NULL,
+ state varchar(12) NOT NULL CHECK(state IN ('PENDING','PASSED','REJECTED'))
+);
+CREATE INDEX content_safety_media_request_idx ON content_safety_media(request_id);
+CREATE TABLE content_safety_callback (
+ trace_id varchar(128) PRIMARY KEY, suggest varchar(12) NOT NULL, received_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE FUNCTION keep_history_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE erasing uuid;
+BEGIN
+ erasing:=nullif(current_setting('qanda.erasing_user',true),'')::uuid;
+ IF EXISTS(SELECT 1 FROM user_account WHERE id=erasing AND status='DELETING') THEN
+  IF TG_TABLE_NAME='practice_result' AND TG_OP='DELETE' THEN
+   IF EXISTS(SELECT 1 FROM practice_session WHERE id=OLD.session_id AND user_id=erasing) THEN RETURN OLD; END IF;
+  END IF;
+  IF TG_TABLE_NAME='audit_log' AND TG_OP='UPDATE' THEN
+   IF (to_jsonb(NEW)-'actor_user_id'-'operation')=(to_jsonb(OLD)-'actor_user_id'-'operation')
+   AND NEW.actor_user_id IS NULL AND NEW.operation=regexp_replace(OLD.operation,':'||erasing::text||'$', '')
+   AND (OLD.actor_user_id=erasing OR OLD.operation LIKE '%:'||erasing::text) THEN RETURN NEW; END IF;
+  END IF;
+ END IF;
+ RAISE EXCEPTION 'Historical facts are immutable';
+END $$;
 CREATE TRIGGER revision_immutable BEFORE UPDATE OR DELETE ON question_revision FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();
 CREATE TRIGGER option_immutable BEFORE UPDATE OR DELETE ON question_option FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();
 CREATE TRIGGER attachment_immutable BEFORE UPDATE OR DELETE ON question_attachment FOR EACH ROW EXECUTE FUNCTION keep_history_immutable();

@@ -1,0 +1,15 @@
+<view class="secondary-page">
+  <page-header title="注销账号" />
+  <view class="deletion-page">
+    <text>注销后，账号及私人学习数据将被删除。请先验证当前登录身份。</text>
+    <block wx:if="{{!verified}}">
+      <text wx:if="{{method === 'EMAIL'}}">当前邮箱：{{emailMasked}}</text>
+      <input wx:if="{{method === 'EMAIL'}}" class="deletion-input" type="number" maxlength="6" bindinput="handleInput" placeholder="邮箱验证码" disabled="{{loading}}" />
+      <button wx:if="{{method === 'EMAIL'}}" bindtap="handleSendCode" disabled="{{loading || cooldown > 0}}" class="{{loading || cooldown > 0 ? 'q-button--disabled' : ''}} q-button " hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{cooldown ? cooldown + ' 秒后重发' : '发送验证码'}}</button>
+      <password-input wx:if="{{method === 'TEST'}}" maxlength="16" bindinput="handleInput" placeholder="当前测试登录码" disabled="{{loading}}" />
+      <button class="{{loading || !method ? 'q-button--disabled' : ''}} q-button q-button--primary btn btn-primary" bindtap="handleVerify" disabled="{{loading || !method}}" loading="{{loading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{method === 'WECHAT' ? '验证当前微信身份' : '验证身份'}}</button>
+    </block>
+    <button wx:else class="{{loading ? 'q-button--disabled' : ''}} q-button q-button--danger deletion-confirm" bindtap="handleDelete" disabled="{{loading}}" loading="{{loading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销并删除账号数据</button>
+    <text wx:if="{{error}}" class="deletion-error">{{error}}</text>
+  </view>
+</view>

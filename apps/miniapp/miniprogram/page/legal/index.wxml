@@ -1,0 +1,1 @@
+<view class="secondary-page"><page-header title="{{title}}" /><view class="legal-body"><text user-select>{{body}}</text></view></view>

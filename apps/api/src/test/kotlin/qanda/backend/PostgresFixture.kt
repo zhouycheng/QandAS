@@ -80,6 +80,9 @@ abstract class PostgresFixture {
             r.add("spring.datasource.url") { postgres.jdbcUrl };r.add("spring.datasource.username") { postgres.username };r.add("spring.datasource.password") { postgres.password }
             r.add("qanda.backend.mode") { "test" };r.add("server.address") { "127.0.0.1" }
             r.add("BACKEND_WECHAT_PROVIDER") { "local" };r.add("BACKEND_COMMAND_DIGEST_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_MAC_KEYS") { "1:$key" };r.add("BACKEND_IDENTITY_RATE_KEY") { key }
+            r.add("BACKEND_CONTENT_SAFETY_PROVIDER") { "local" }
+            r.add("BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL") { "https://content-safety.example.test" }
+            r.add("qanda.backend.content-safety.poll-delay-ms") { 20 }
             r.add("BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS") { "1:$key" };r.add("BACKEND_MAIL_ENCRYPTION_KEYS") { "1:$key" };r.add("qanda.backend.mail.enabled") { true };r.add("qanda.backend.mail.transport") { "local-capture" }
             r.add("qanda.backend.mail.host") { "127.0.0.1" };r.add("qanda.backend.mail.port") { mailpit.getMappedPort(1025) };r.add("qanda.backend.mail.dispatch-enabled") { false }
             r.add("qanda.backend.files.enabled") { true };r.add("qanda.backend.files.root") { assetRoot.toString() }
@@ -103,6 +106,7 @@ abstract class PostgresFixture {
     @Autowired lateinit var activityMapper: qanda.backend.monitoring.ActivityMapper
     @Autowired lateinit var onlineUsers: qanda.backend.monitoring.OnlineUsers
     @Autowired lateinit var syncHealth: qanda.backend.monitoring.SyncHealth
+    @Autowired lateinit var contentSafety: qanda.backend.contentsafety.ContentSafety
     protected val evidenceDir=Path.of(System.getenv("QANDA_QUALITY_EVIDENCE_DIR") ?: ".backend-runtime/verification")
     protected val http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
     protected val exchanges=sharedExchanges
@@ -158,12 +162,41 @@ abstract class PostgresFixture {
         return command["acknowledgement"]
     }
     protected fun call(method: String,path: String,body: Any?=null,token: String?=adminToken,status: Int=200,key: UUID?=UUID.randomUUID()): JsonNode {
-        val response=raw(method,path,body,token,key)
+        val operation=qanda.backend.contentsafety.ContentMutations.operation(method,path)
+        val proof=if(status in setOf(200,201,409,422,500) && token!=null && body!=null && operation!=null && contentSafety.required(operation,body)) {
+            val actor=sessionService.authenticate(token)
+            val prefix=if(actor.kind=="ADMIN") "/admin" else "/me"
+            val context=if(actor.kind=="USER") json.readTree(raw("POST","$prefix/content-safety/contexts",mapOf("code" to "local-learner-1:${UUID.randomUUID()}"),token).body())["id"].asText() else null
+            val prepared=raw("POST","$prefix/content-safety/requests",mapOf("operation" to operation,"payload" to body,"contextId" to context),token)
+            if(status==422 && prepared.statusCode()==422) return json.readTree(prepared.body())
+            assertEquals(200,prepared.statusCode(),prepared.body())
+            approveContentTicket(json.readTree(prepared.body()),token).toString()
+        } else null
+        val response=raw(method,path,body,token,key,extraHeaders=proof?.let { mapOf("X-Content-Safety-Request" to it) } ?: emptyMap())
         assertEquals(status,response.statusCode(),"$method $path: ${response.body()}")
         assertEquals(listOf("no-store"),response.headers().allValues("Cache-Control"))
         assertEquals(1,response.headers().allValues("X-Request-Id").size)
         UUID.fromString(response.headers().firstValue("X-Request-Id").orElseThrow())
         return json.readTree(response.body())
+    }
+    protected fun approveContentTicket(request: JsonNode,token: String): UUID {
+        val requestId=id(request)
+        if(request["state"].asText()=="PASSED") return requestId
+        val actor=sessionService.authenticate(token);val prefix=if(actor.kind=="ADMIN") "/admin" else "/me"
+        if(actor.kind=="ADMIN") {
+            val confirmed=raw("POST","/content-safety/confirmations",mapOf("requestId" to requestId,"token" to request["confirmationToken"].asText(),"code" to "local-learner-1:"+UUID.randomUUID()),null)
+            assertEquals(200,confirmed.statusCode(),confirmed.body())
+        }
+        eventually {
+            val state=json.readTree(raw("GET",prefix+"/content-safety/requests/"+requestId,token=token).body())
+            assertTrue(state["state"].asText() !in setOf("REJECTED","EXPIRED"),state.toString())
+            if(state["state"].asText()=="PENDING") {
+                // The local vendor fixture supplies verdicts; callback cryptography has separate tests.
+                jdbc.queryForList("SELECT trace_id FROM content_safety_media WHERE request_id=? AND trace_id LIKE 'local-%'",String::class.java,requestId).forEach { contentSafety.callback(it,"pass") }
+            }
+            state["state"].asText()=="PASSED"
+        }
+        return requestId
     }
     protected fun id(value: JsonNode)=UUID.fromString(value["id"].asText())
     protected fun code(challengeId: UUID): String {
@@ -173,10 +206,10 @@ abstract class PostgresFixture {
     }
     protected fun student(): Student {
         val email="${UUID.randomUUID()}@example.test"
-        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to email),null,201)
-        val registration=call("POST","/auth/email-registrations",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"password" to studentPassword,"nickname" to "测试学生"),null,201)
-        val login=call("POST","/auth/sessions",mapOf("email" to email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
-        return Student(id(registration),email,login["accessToken"].asText())
+        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to email),null,201)
+        val login=call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"deviceId" to UUID.randomUUID()),null)
+        val token=login["accessToken"].asText()
+        return Student(id(call("GET","/me",token=token)),email,token)
     }
     protected fun question(bank: UUID,type: String): Map<String,Any?> = mapOf("questionBankId" to bank,"type" to type,"stem" to "原题$type","explanation" to "原解析",
         "options" to if(type.endsWith("CHOICE")) listOf(mapOf("key" to "A","content" to "甲"),mapOf("key" to "B","content" to "乙"),mapOf("key" to "C","content" to "丙")) else emptyList<Any>(),
@@ -184,7 +217,7 @@ abstract class PostgresFixture {
         "correctValue" to false.takeIf { type=="TRUE_FALSE" },"referenceAnswer" to "原参考答案".takeIf { type=="SHORT_ANSWER" })
     protected fun fixture(audiences: List<Map<String,Any>> = emptyList(),maintainers: List<UUID> = emptyList()): Fixture {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "课程${UUID.randomUUID()}")))
-        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "课程练习题库","scopeType" to if(audiences.isEmpty()) "ALL" else "TARGETED","audiences" to audiences,"maintainerIds" to maintainers)))
+        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "课程练习题库","categories" to audiences,"maintainerIds" to maintainers)))
         val questions=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { id(call("POST","/admin/questions",question(bank,it))) }
         val current=call("GET","/admin/question-banks/$bank")
         call("PUT","/admin/question-banks/$bank/publication",mapOf("expectedVersion" to current["version"].asLong(),"status" to "PUBLISHED"))
@@ -209,10 +242,11 @@ abstract class PostgresFixture {
                 val result=json.createObjectNode()
                 node.fields().forEachRemaining { (key,value) ->
                     result.set<JsonNode>(key,when {
-                        key in setOf("password","newPassword") -> json.valueToTree("Redacted1234")
+                        key in setOf("password","newPassword","loginCode") -> json.valueToTree("Redacted12345678")
                         key=="writerToken" && value.isTextual -> json.valueToTree("00000000-0000-0000-0000-000000000001")
-                        key in setOf("accessToken","registrationToken") && value.isTextual -> json.valueToTree((if(value.asText().startsWith("u_")) "u_" else if(value.asText().startsWith("a_")) "a_" else "")+"x".repeat(43))
+                        key in setOf("accessToken","registrationToken","proof","confirmationToken","token") && value.isTextual -> json.valueToTree((if(value.asText().startsWith("u_")) "u_" else if(value.asText().startsWith("a_")) "a_" else "")+"x".repeat(43))
                         key in setOf("code","oldCode","newCode") && value.isTextual && value.asText().matches(Regex("[0-9]{6}")) -> json.valueToTree("000000")
+                        key=="code" && value.isTextual -> json.valueToTree("redacted-provider-code")
                         else -> redact(value)
                     })
                 }

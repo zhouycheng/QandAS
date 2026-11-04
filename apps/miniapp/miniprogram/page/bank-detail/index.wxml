@@ -24,8 +24,11 @@
         >×</view>
       </view>
       <view
-        class="bk-filter {{filterUnfinished ? 'is-on' : ''}} {{filterEnabled ? '' : 'is-off'}}"
+        class="bk-filter {{filterToggleEnabled ? 'is-on' : 'is-off'}}"
         bindtap="handleFilterToggle"
+        aria-role="button"
+        aria-disabled="{{!filterToggleEnabled}}"
+        aria-label="{{filterToggleRestore ? '恢复上次筛选' : '重置筛选'}}"
         hover-class="bk-icon-hover"
         hover-start-time="0"
         hover-stay-time="80"
@@ -33,13 +36,17 @@
         <view class="bk-filter-icon"></view>
       </view>
     </view>
+    <view class="catalog-filters">
+      <picker class="catalog-picker" range="{{filterColleges}}" range-key="name" value="{{filterCollegeIndex}}" bindchange="handleCollegeFilter"><view class="filter-select" aria-label="学院筛选">{{filterColleges[filterCollegeIndex].name || '全部学院'}}</view></picker>
+      <picker class="catalog-picker" range="{{filterMajors}}" range-key="name" value="{{filterMajorIndex}}" bindchange="handleMajorFilter"><view class="filter-select" aria-label="专业筛选">{{filterMajors[filterMajorIndex].name || '全部专业'}}</view></picker>
+      <picker class="catalog-picker" range="{{filterGrades}}" value="{{filterGradeIndex}}" bindchange="handleGradeFilter"><view class="filter-select" aria-label="年级筛选">{{filterGrades[filterGradeIndex] || '全部年级'}}</view></picker>
+    </view>
+    <view wx:if="{{filterError}}" class="load-note" bindtap="loadFilters" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{filterError}} · 重试</view>
   </view>
 
-  <view class="load-note" wx:if="{{catalogLoading}}">正在读取题库…</view>
-  <view class="load-note" wx:if="{{catalogError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{catalogError}} · 点击重试</view>
-  <view class="load-note" wx:if="{{!catalogLoading && !catalogError && !subject}}">
-    <view>{{loggedIn ? '当前资料范围内暂无题库' : '暂无已发布的题库'}}</view>
-    <view wx:if="{{loggedIn}}" bindtap="handleChangeProfile" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">修改个人资料</view>
+  <view class="catalog-content">
+  <view class="catalog-empty" wx:if="{{!catalogLoading && !catalogError && !subject}}">
+    <view>当前筛选下暂无公开题库</view>
     <view bindtap="handleRequestCourse" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">反馈缺少课程</view>
   </view>
 
@@ -167,9 +174,15 @@
     </scroll-view>
   </view>
 
+  <view class="catalog-status" wx:if="{{catalogLoading || catalogError}}" aria-live="polite">
+    <view class="load-note catalog-status-note" wx:if="{{catalogLoading}}">正在读取题库…</view>
+    <view class="load-note catalog-status-note" wx:else bindtap="handleRetryLoad" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{catalogError}} · 点击重试</view>
+  </view>
+  </view>
+
   <!-- 答题配置抽屉：参数都是「本次答题」的，不写学习偏好 -->
   <root-portal enable="{{true}}">
-  <view class="config-sheet portal-theme" wx:if="{{configSheetVisible}}">
+  <view class="portal-theme config-sheet portal-theme" wx:if="{{configSheetVisible}}">
     <view class="config-mask" catchtouchmove="noop" catchtap="handleSheetClose"></view>
     <view class="config-panel">
       <view class="config-grip"></view>
@@ -190,7 +203,9 @@
         </view>
       </scroll-view>
 
-      <view class="config-rows">
+      <view class="config-row"><text>{{sheetSummary}}</text><text bindtap="handleAdvancedToggle" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{advancedConfigVisible ? '收起配置' : '更多配置'}}</text></view>
+      <view class="config-rows" wx:if="{{advancedConfigVisible}}">
+        <view class="config-row"><text class="config-label">题量</text><view class="seg-group"><view wx:for="{{countOptions}}" wx:key="value" class="seg-chip {{sheetCount === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetCount" hover-class="chip-flat-hover">{{item.label}}</view></view></view>
         <view class="config-row">
           <text class="config-label">模式</text>
           <view class="seg-group">
@@ -228,7 +243,7 @@
           <switch
             class="config-switch"
             checked="{{sheetTimed}}"
-            color="#466BFF"
+            color="#2563EB"
             bindchange="handleSheetTimed"
           />
         </view>
@@ -255,7 +270,7 @@
             <switch
               class="config-switch"
               checked="{{sheetOnlyWrong}}"
-              color="#466BFF"
+              color="#2563EB"
               bindchange="handleSheetOnlyWrong"
             />
           </view>
@@ -263,20 +278,20 @@
       </view>
 
       <view class="config-actions">
-        <view
-          class="config-btn ghost"
+        <button
+          class="q-button  config-btn ghost"
           bindtap="handleSheetClose"
-          hover-class="btn-flat-hover"
+          hover-class="q-button-hover"
           hover-start-time="0"
           hover-stay-time="80"
-        >取消</view>
-        <view
-          class="config-btn primary {{sheetStartDisabled ? 'is-disabled' : ''}}" aria-disabled="{{sheetStartDisabled}}"
+        >取消</button>
+        <button
+          class="{{sheetStartDisabled ? 'q-button--disabled' : ''}} q-button q-button--primary config-btn primary {{sheetStartDisabled ? 'is-disabled' : ''}}" aria-disabled="{{sheetStartDisabled}}"
           bindtap="handleConfigConfirm"
-          hover-class="btn-flat-hover"
+          hover-class="q-button-hover"
           hover-start-time="0"
           hover-stay-time="80"
-        >{{sheetStartText}}</view>
+         disabled="{{sheetStartDisabled}}">{{sheetStartText}}</button>
       </view>
     </view>
   </view>

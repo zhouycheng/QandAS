@@ -1,15 +1,16 @@
+@import "../../styles/controls.wxss";
 .detail-page {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--card);
 }
 
 .detail-loading,
 .detail-empty {
   padding: 120rpx 0;
   text-align: center;
-  font-size: 28rpx;
-  color: #8a94a6;
+  font-size: var(--font-secondary);
+  color: var(--text-sub);
 }
 
 .detail-area {
@@ -27,23 +28,23 @@
 .detail-type {
   padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(43, 127, 252, 0.12);
+  background: var(--brand-soft);
   color: var(--brand-dark);
-  font-size: 22rpx;
+  font-size: var(--font-caption);
 }
 
 .detail-source {
   flex: 1;
   margin-left: 16rpx;
-  font-size: 24rpx;
-  color: #8a94a6;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
 }
 
 .detail-stem {
   display: block;
-  font-size: 30rpx;
-  line-height: 1.7;
-  color: #1f2a37;
+  font-size: var(--reading-size, var(--reading-normal));
+  line-height: 1.65;
+  color: var(--text-main);
 }
 
 .detail-option {
@@ -51,30 +52,30 @@
   align-items: flex-start;
   padding: 20rpx 24rpx;
   margin-top: 16rpx;
-  border-radius: 12rpx;
-  background: #f7f9fc;
+  border-radius: var(--radius-tag);
+  background: var(--brand-soft);
 }
 
 .detail-option.correct {
-  background: rgba(29, 158, 117, 0.12);
+  background: var(--success-soft);
 }
 
 .detail-option.wrong {
-  background: rgba(163, 45, 45, 0.1);
+  background: var(--danger-soft);
 }
 
 .detail-option-label {
   flex-shrink: 0;
   width: 40rpx;
-  font-size: 28rpx;
+  font-size: var(--reading-size, var(--reading-normal));
   color: var(--brand-dark);
 }
 
 .detail-option-text {
   flex: 1;
-  font-size: 28rpx;
-  line-height: 1.6;
-  color: #1f2a37;
+  font-size: var(--reading-size, var(--reading-normal));
+  line-height: 1.65;
+  color: var(--text-main);
 }
 
 .answer-row {
@@ -86,98 +87,54 @@
 .answer-label {
   flex-shrink: 0;
   width: 140rpx;
-  font-size: 26rpx;
-  color: #8a94a6;
+  font-size: var(--font-secondary);
+  color: var(--text-sub);
 }
 
 .answer-value {
   flex: 1;
-  font-size: 28rpx;
-  line-height: 1.6;
-  color: #1f2a37;
+  font-size: var(--reading-size, var(--reading-normal));
+  line-height: 1.65;
+  color: var(--text-main);
 }
 
 .answer-value.ok {
-  color: #0f6e56;
+  color: var(--success);
 }
 
 .answer-value.no {
-  color: #a32d2d;
+  color: var(--danger);
 }
 
 .correct-value {
-  color: #0f6e56;
+  color: var(--success);
 }
 
 .answer-flag {
   padding: 14rpx 0 0;
-  font-size: 26rpx;
+  font-size: var(--font-secondary);
 }
 
 .answer-flag.ok {
-  color: #0f6e56;
+  color: var(--success);
 }
 
 .answer-flag.no {
-  color: #a32d2d;
+  color: var(--danger);
 }
 
 .explain-text {
   display: block;
-  font-size: 27rpx;
-  line-height: 1.7;
-  color: #4a5568;
+  font-size: var(--reading-size, var(--reading-normal));
+  line-height: 1.65;
+  color: var(--text-sub);
 }
 
 .favorite-btn {
   margin-top: 24rpx;
-  padding: 24rpx 0;
-  border-radius: 16rpx;
-  text-align: center;
-  font-size: 28rpx;
-  background: #ffffff;
-  border: 2rpx solid rgba(43, 127, 252, 0.3);
-  color: var(--brand-dark);
-}
 
-.favorite-btn.active {
-  background: rgba(43, 127, 252, 0.12);
-  border-color: rgba(43, 127, 252, 0.5);
 }
 
 /* ==================== 学习偏好：题目字号 ====================
    看单题详情也是「读题」，字号偏好要跟答题页一致地生效。
    档位与答题页对齐：小 26 / 标准 30 / 大 40rpx（拉大差距才看得出来）。 */
-.font-small .detail-stem {
-  font-size: 25rpx;
-}
-
-.font-small .detail-option-label {
-  font-size: 23rpx;
-}
-
-.font-small .detail-option-text {
-  font-size: 23rpx;
-}
-
-.font-small .explain-text {
-  font-size: 22rpx;
-}
-
-.font-large .detail-stem {
-  font-size: 40rpx;
-  line-height: 1.62;
-}
-
-.font-large .detail-option-label {
-  width: 50rpx;
-  font-size: 36rpx;
-}
-
-.font-large .detail-option-text {
-  font-size: 36rpx;
-}
-
-.font-large .explain-text {
-  font-size: 33rpx;
-}

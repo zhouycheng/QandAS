@@ -76,23 +76,23 @@ class IdentityPostgresTest : PostgresFixture() {
         call("PUT","/admin/administrators/$createdDisabled",mapOf("username" to username,"name" to "停用管理员","role" to "CONTENT_ADMIN","expectedVersion" to 2),status=422)
     }
 
-    @Test fun `verification attempt limits survive failed registration transactions`() {
-        val address="${UUID.randomUUID()}@example.test"
-        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,201)
+    @Test fun `verification attempt limits survive failed first login transactions`() {
+        val address=UUID.randomUUID().toString()+"@example.test"
+        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
         val actual=code(id(challenge));val wrong=if(actual=="000000") "111111" else "000000"
-        val payload=mapOf("challengeId" to id(challenge),"code" to wrong,"password" to studentPassword)
-        repeat(5) { call("POST","/auth/email-registrations",payload,null,409) }
+        val payload=mapOf("challengeId" to id(challenge),"code" to wrong,"deviceId" to UUID.randomUUID())
+        repeat(5) { call("POST","/auth/email-code-sessions",payload,null,409) }
         assertEquals(5,jdbc.queryForObject("SELECT failed_attempts FROM email_challenge WHERE id=?",Int::class.java,id(challenge)))
-        call("POST","/auth/email-registrations",payload+mapOf("code" to actual),null,409)
+        call("POST","/auth/email-code-sessions",payload+mapOf("code" to actual),null,409)
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM user_account WHERE email_key=?",Int::class.java,address))
-        call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,429)
+        call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,429)
         outbox.dispatchOne()
         assertEquals("CANCELLED",jdbc.queryForObject("SELECT state FROM mail_delivery WHERE challenge_id=?",String::class.java,id(challenge)))
     }
 
     @Test fun `local mail uses encrypted outbox and a real SMTP capture transport`() {
         val address="${UUID.randomUUID()}@example.test"
-        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,201)
+        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
         repeat(200) { if(jdbc.queryForObject("SELECT state FROM mail_delivery WHERE challenge_id=?",String::class.java,id(challenge))!="ACCEPTED") outbox.dispatchOne() }
         assertEquals("ACCEPTED",jdbc.queryForObject("SELECT state FROM mail_delivery WHERE challenge_id=?",String::class.java,id(challenge)))
         val uri=URI("http://127.0.0.1:${mailpit.getMappedPort(8025)}/api/v1/search?query="+java.net.URLEncoder.encode("to:$address",Charsets.UTF_8))
@@ -116,44 +116,30 @@ class IdentityPostgresTest : PostgresFixture() {
         assertEquals(413,raw("POST","/admin/question-banks/${f.bank}/images",ByteArray(5*1024*1024+1),contentType="image/png").statusCode())
     }
 
-    @Test fun `password resets disable old sessions and disabled accounts cannot authenticate`() {
-        val s=student()
-        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",s.email)
-        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to s.email),null,201)
-        val newPassword="NewLearner456"
-        call("POST","/auth/password-resets",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"newPassword" to newPassword),null)
-        call("GET","/me",token=s.token,status=401)
-        assertEquals("邮箱或密码不正确，请检查后重试",call("POST","/auth/sessions",mapOf("email" to s.email,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)["message"].asText())
-        val login=call("POST","/auth/sessions",mapOf("email" to s.email,"password" to newPassword,"deviceId" to UUID.randomUUID()),null)
-        val token=login["accessToken"].asText();val me=call("GET","/me",token=token)
-        call("PUT","/admin/users/${s.id}/status",mapOf("expectedVersion" to me["version"].asLong(),"status" to "DISABLED"))
-        call("GET","/me",token=token,status=401)
+    @Test fun `ordinary accounts reject fixed credentials and disabled accounts cannot authenticate`() {
+        val user=student()
+        call("POST","/auth/sessions",mapOf("email" to user.email,"password" to "Invalid123456789","deviceId" to UUID.randomUUID()),null,401)
+        for(path in listOf("/auth/email-registrations","/auth/password-resets","/me/password","/me/profile-setup/acknowledgement")) {
+            call("POST",path,emptyMap<String,String>(),user.token,404)
+        }
+        val view=call("GET","/me",token=user.token)
+        call("PUT","/admin/users/"+user.id+"/status",mapOf("expectedVersion" to view["version"].asLong(),"status" to "DISABLED"))
+        call("GET","/me",token=user.token,status=401)
     }
 
-    @Test fun `student password policy covers registration login reset and change`() {
-        val address="${UUID.randomUUID()}@example.test"
-        val registrationProof=call("POST","/auth/email-challenges",mapOf("purpose" to "REGISTER","email" to address),null,201)
-        val registration=mapOf("challengeId" to id(registrationProof),"code" to code(id(registrationProof)))
-        val invalidPasswords=listOf("abc1234","abc12345678901234","abcdefgh","12345678")
-        for (bad in invalidPasswords) call("POST","/auth/email-registrations",registration+mapOf("password" to bad),null,422)
-        call("POST","/auth/email-registrations",registration+mapOf("password" to "abc12345"),null,201)
-        fun login(value: String)=call("POST","/auth/sessions",mapOf("email" to address,"password" to value,"deviceId" to UUID.randomUUID()),null)["accessToken"].asText()
-        login("abc12345")
-        for (bad in invalidPasswords) call("POST","/auth/sessions",mapOf("email" to address,"password" to bad,"deviceId" to UUID.randomUUID()),null,422)
-
-        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
-        val resetProof=call("POST","/auth/email-challenges",mapOf("purpose" to "RESET_PASSWORD","email" to address),null,201)
-        val reset=mapOf("challengeId" to id(resetProof),"code" to code(id(resetProof)))
-        for (bad in invalidPasswords) assertEquals("/newPassword",call("POST","/auth/password-resets",reset+mapOf("newPassword" to bad),null,422)["fieldErrors"][0]["field"].asText())
-        call("POST","/auth/password-resets",reset+mapOf("newPassword" to "Abc1234567890123"),null)
-        val token=login("Abc1234567890123")
-
-        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
-        val changeProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),token)
-        val change=mapOf("expectedVersion" to call("GET","/me",token=token)["version"].asLong(),"challengeId" to id(changeProof),"code" to code(id(changeProof)))
-        for (bad in invalidPasswords) assertEquals("/newPassword",call("PUT","/me/password",change+mapOf("newPassword" to bad),token,422)["fieldErrors"][0]["field"].asText())
-        call("PUT","/me/password",change+mapOf("newPassword" to "Passw0rd"),token)
-        login("Passw0rd")
+    @Test fun `two first-login proofs create one identity and independent sessions`() {
+        val address=UUID.randomUUID().toString()+"@example.test"
+        val first=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
+        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE id=?",id(first))
+        val second=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address.uppercase()),null,201)
+        val inputs=listOf(first,second).map { mapOf("challengeId" to id(it),"code" to code(id(it)),"deviceId" to UUID.randomUUID()) }
+        val executor=Executors.newFixedThreadPool(2)
+        try {
+            val responses=inputs.map { input -> executor.submit<HttpResponse<String>> { raw("POST","/auth/email-code-sessions",input,null) } }.map { it.get() }
+            responses.forEach { assertEquals(200,it.statusCode(),it.body()) }
+            assertEquals(2,responses.map { json.readTree(it.body())["accessToken"].asText() }.distinct().size)
+        } finally { executor.shutdownNow() }
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM user_account WHERE email_key=?",Int::class.java,address))
     }
 
     @Test fun `configured administrator login locking idle timeout and password rules are enforced`() {
@@ -177,108 +163,56 @@ class IdentityPostgresTest : PostgresFixture() {
         }
     }
 
-    @Test fun `local WeChat registration creates optional profile without a student email`() {
-        val first=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-1:${UUID.randomUUID()}","deviceId" to UUID.randomUUID()),null)
-        assertTrue(first["session"].isNull)
-        val registration=call("POST","/auth/wechat-registrations",mapOf("registrationToken" to first["registrationToken"].asText(),"nickname" to "微信学生"),null,201)
-        val login=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-1:${UUID.randomUUID()}","deviceId" to UUID.randomUUID()),null)
-        val user=call("GET","/me",token=login["session"]["accessToken"].asText())
-        assertEquals(registration["id"],user["id"]);assertTrue(user["email"].isNull);assertTrue(user["majorId"].isNull);assertTrue(user["wechatBound"].asBoolean())
+    @Test fun `wechat first login directly returns the same bound learning identity`() {
+        val code="local-learner-1:"+UUID.randomUUID()
+        val first=call("POST","/auth/wechat-sessions",mapOf("code" to code,"deviceId" to UUID.randomUUID()),null)
+        assertFalse(first.has("registrationToken"));val token=first["accessToken"].asText()
+        val user=call("GET","/me",token=token)
+        assertTrue(user["wechatBound"].asBoolean());assertFalse(user.has("profileComplete"));assertFalse(user.has("collegeId"))
+        val second=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-1:"+UUID.randomUUID(),"deviceId" to UUID.randomUUID()),null)
+        assertEquals(user["id"],call("GET","/me",token=second["accessToken"].asText())["id"])
+        call("POST","/auth/wechat-sessions",mapOf("code" to code,"deviceId" to UUID.randomUUID()),null,401)
     }
 
-    @Test fun `directories chapter ordering account lists and session ownership use real relational records`() {
-        val s=student();val f=fixture()
-        val college=id(call("POST","/admin/colleges",mapOf("name" to "目录${UUID.randomUUID()}","code" to UUID.randomUUID().toString())))
-        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "目录专业","code" to "M")))
-        assertTrue(call("GET","/colleges?pageSize=100",token=null)["items"].any { it["id"].asText()==college.toString() })
-        assertEquals(major.toString(),call("GET","/colleges/$college/majors",token=null)["items"].first()["id"].asText())
-        call("PUT","/admin/colleges/$college",mapOf("name" to "更新后的学院","code" to UUID.randomUUID().toString(),"expectedVersion" to 1))
-        call("PUT","/admin/majors/$major",mapOf("collegeId" to college,"name" to "更新后的专业","code" to "UPDATED","expectedVersion" to 1))
-        call("PUT","/admin/subjects/${f.subject}",mapOf("name" to "更新后的课程${UUID.randomUUID()}","description" to "课程描述","expectedVersion" to 1))
-        call("GET","/admin/colleges");call("GET","/admin/majors?collegeId=$college");call("GET","/admin/subjects");call("GET","/subjects",token=s.token);call("GET","/subjects/${f.subject}",token=s.token)
-        val first=id(call("POST","/admin/question-banks/${f.bank}/chapters",mapOf("name" to "第一章","sortOrder" to 0)))
-        val second=id(call("POST","/admin/question-banks/${f.bank}/chapters",mapOf("name" to "第二章","sortOrder" to 1)))
-        val bank=call("GET","/admin/question-banks/${f.bank}")
-        call("GET","/admin/question-banks");call("GET","/admin/question-banks/${f.bank}/chapters")
-        call("GET","/question-banks?subjectId=${f.subject}",token=s.token)
-        call("PUT","/admin/question-banks/${f.bank}/chapter-order",mapOf("expectedContentVersion" to bank["contentVersion"].asLong(),"ids" to listOf(second,first)))
-        assertEquals(second.toString(),call("GET","/question-banks/${f.bank}/chapters",token=s.token).first()["id"].asText())
-        call("PUT","/admin/question-banks/${f.bank}/chapters/$first",mapOf("name" to "已修改章节","sortOrder" to 1,"expectedVersion" to 2))
-        call("DELETE","/admin/question-banks/${f.bank}/chapters/$second?expectedVersion=2")
-        call("PUT","/admin/questions/${f.questions.first()}",question(f.bank,"SINGLE_CHOICE")+mapOf("chapterId" to first,"expectedVersion" to 1))
-        call("DELETE","/admin/question-banks/${f.bank}/chapters/$first?expectedVersion=3",status=409)
-        assertEquals(1,call("GET","/admin/question-banks/${f.bank}/questions?chapterId=$first")["total"].asInt())
-        assertTrue(call("GET","/questions/${f.questions.first()}",token=s.token)["correctAnswer"].isNull)
-        assertEquals("原题SINGLE_CHOICE",call("GET","/admin/questions/${f.questions.first()}")["stem"].asText())
-        assertEquals(4,call("GET","/admin/question-banks/${f.bank}/questions")["total"].asInt())
-        call("DELETE","/admin/questions/${f.questions.last()}?expectedVersion=1")
-        assertEquals(3,call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 4),s.token)["availableCount"].asInt())
-        assertEquals("1.0.0",call("GET","/health",token=null)["version"].asText())
-        val me=call("GET","/me",token=s.token)
-        call("PUT","/me/wechat-binding",mapOf("expectedVersion" to me["version"].asLong(),"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)
-        assertTrue(call("GET","/me",token=s.token)["wechatBound"].asBoolean())
-        val boundVersion=call("GET","/me",token=s.token)["version"].asLong()
-        assertEquals(boundVersion,call("PUT","/me/wechat-binding",mapOf("expectedVersion" to boundVersion,"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)["version"].asLong())
-        val avatarOutput=java.io.ByteArrayOutputStream()
-        javax.imageio.ImageIO.write(java.awt.image.BufferedImage(160,160,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",avatarOutput)
-        val avatar="data:image/png;base64,"+java.util.Base64.getEncoder().encodeToString(avatarOutput.toByteArray())
-        val profileInput=mapOf("expectedVersion" to boundVersion,"nickname" to "原生选择的微信名","collegeId" to college,"majorId" to major,"currentGrade" to 1,"avatar" to avatar)
-        val profileKey=UUID.randomUUID()
-        val profileSaved=call("PUT","/me/profile",profileInput,s.token,key=profileKey)
-        assertEquals(profileSaved,call("PUT","/me/profile",profileInput,s.token,key=profileKey))
-        val withAvatar=call("GET","/me",token=s.token)
-        assertEquals(avatar,withAvatar["avatarUrl"].asText())
-        assertEquals("原生选择的微信名",withAvatar["nickname"].asText())
-        assertEquals(profileSaved["version"].asLong(),call("PUT","/me/wechat-binding",mapOf("expectedVersion" to profileSaved["version"].asLong(),"code" to "local-learner-3:${UUID.randomUUID()}"),s.token)["version"].asLong())
-        val preserved=call("PUT","/me/profile",mapOf("expectedVersion" to profileSaved["version"].asLong(),"nickname" to "更新昵称","collegeId" to college,"majorId" to major),s.token)
-        assertEquals(avatar,call("GET","/me",token=s.token)["avatarUrl"].asText(),"ordinary profile edits preserve the selected avatar")
-        call("PUT","/me/profile",profileInput+mapOf("expectedVersion" to preserved["version"].asLong(),"avatar" to "https://example.test/avatar.jpg"),s.token,422)
-        assertTrue(call("GET","/admin/administrators")["items"].any { it["id"].asText()==platformId.toString() })
-        call("GET","/admin/users/${s.id}");call("GET","/admin/users")
-        val other=student()
-        assertEquals("WECHAT_ALREADY_BOUND",call("PUT","/me/wechat-binding",mapOf("expectedVersion" to 1,"code" to "local-learner-3:${UUID.randomUUID()}"),other.token,409)["code"].asText())
-        assertFalse(call("GET","/me",token=other.token)["wechatBound"].asBoolean())
-        call("DELETE","/auth/sessions/current",token=other.token)
-        call("GET","/me",token=other.token,status=401)
+    @Test fun `category directory and chapter ordering remain independent of user profiles`() {
+        val college=id(call("POST","/admin/colleges",mapOf("name" to "分类学院"+UUID.randomUUID(),"code" to "C"+UUID.randomUUID())))
+        val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "分类专业","code" to "M")))
+        assertFalse(call("GET","/admin/colleges/"+college).has("studentCount"))
+        assertEquals(college.toString(),call("GET","/admin/majors/"+major)["collegeId"].asText())
+        val f=fixture(listOf(mapOf("majorId" to major,"grade" to 2)))
+        val a=id(call("POST","/admin/question-banks/"+f.bank+"/chapters",mapOf("name" to "第二章","sortOrder" to 1)))
+        val b=id(call("POST","/admin/question-banks/"+f.bank+"/chapters",mapOf("name" to "第一章","sortOrder" to 0)))
+        val bank=call("GET","/admin/question-banks/"+f.bank)
+        call("PUT","/admin/question-banks/"+f.bank+"/chapter-order",mapOf("expectedContentVersion" to bank["contentVersion"].asLong(),"ids" to listOf(a,b)))
+        assertEquals(listOf(a.toString(),b.toString()),call("GET","/question-banks/"+f.bank+"/chapters",token=null).map { it["id"].asText() })
+        val owner=student();val other=student();val practice=createPractice(owner,f)
+        call("GET","/practice/sessions/"+id(practice),token=other.token,status=404)
+        assertFalse(call("GET","/admin/users/"+owner.id).has("currentGrade"))
     }
 
-    @Test fun `email binding password change and two proofs for email replacement preserve one user identity`() {
-        val ticket=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-2:${UUID.randomUUID()}","deviceId" to UUID.randomUUID()),null)
-        val registration=call("POST","/auth/wechat-registrations",mapOf("registrationToken" to ticket["registrationToken"].asText()),null,201)
-        fun wechatToken(): String=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-2:${UUID.randomUUID()}","deviceId" to UUID.randomUUID()),null)["session"]["accessToken"].asText()
-        val token=wechatToken();val address="${UUID.randomUUID()}@example.test"
-        assertFalse(call("GET","/me",token=token)["passwordSet"].asBoolean())
-        val binding=call("POST","/me/email-challenges",mapOf("purpose" to "BIND_EMAIL","email" to address),token)
-        call("PUT","/me/email-binding",mapOf("expectedVersion" to 1,"newChallengeId" to id(binding),"newCode" to code(id(binding))),token)
+    @Test fun `email binding and replacement preserve learning identity and revoke old sessions`() {
+        val session=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-2:"+UUID.randomUUID(),"deviceId" to UUID.randomUUID()),null)
+        val token=session["accessToken"].asText();val user=call("GET","/me",token=token)
+        val address=UUID.randomUUID().toString()+"@example.test"
+        val proof=call("POST","/me/email-challenges",mapOf("purpose" to "BIND_EMAIL","email" to address),token)
+        call("PUT","/me/email-binding",mapOf("expectedVersion" to user["version"].asLong(),"newChallengeId" to id(proof),"newCode" to code(id(proof))),token)
         call("GET","/me",token=token,status=401)
-        val boundToken=wechatToken()
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
-        val passwordProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_PASSWORD"),boundToken)
-        val verifyPath="/me/email-challenges/${id(passwordProof)}/verification"
-        val verifyInput=mapOf("purpose" to "CHANGE_PASSWORD","code" to code(id(passwordProof)))
-        val stranger=student()
-        call("POST",verifyPath,verifyInput,stranger.token,409)
-        call("POST",verifyPath,verifyInput + ("purpose" to "CHANGE_EMAIL_OLD"),boundToken,409)
-        val wrongCode=if(verifyInput["code"]=="000000") "999999" else "000000"
-        call("POST",verifyPath,verifyInput + ("code" to wrongCode),boundToken,409)
-        assertEquals(1,jdbc.queryForObject("SELECT failed_attempts FROM email_challenge WHERE id=?",Int::class.java,id(passwordProof)))
-        assertEquals(passwordProof["expiresAt"],call("POST",verifyPath,verifyInput,boundToken)["expiresAt"])
-        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM email_challenge WHERE id=? AND consumed_at IS NOT NULL",Int::class.java,id(passwordProof)))
-        call("PUT","/me/password",mapOf("expectedVersion" to 2,"challengeId" to id(passwordProof),"code" to code(id(passwordProof)),"newPassword" to studentPassword),boundToken)
-        call("GET","/me",token=boundToken,status=401)
-        val login=call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
-        val currentToken=login["accessToken"].asText()
-        assertTrue(call("GET","/me",token=currentToken)["passwordSet"].asBoolean())
-        call("POST",verifyPath,verifyInput,currentToken,409)
+        val loginProof=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to address),null,201)
+        val emailSession=call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(loginProof),"code" to code(id(loginProof)),"deviceId" to UUID.randomUUID()),null)
+        val emailToken=emailSession["accessToken"].asText();val bound=call("GET","/me",token=emailToken)
+        assertEquals(user["id"],bound["id"]);assertTrue(bound["wechatBound"].asBoolean())
+        val occupied=student()
+        call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_NEW","email" to occupied.email),emailToken,409)
         jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",address)
-        val oldProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_OLD"),currentToken)
-        call("POST","/me/email-challenges/${id(oldProof)}/verification",mapOf("purpose" to "CHANGE_EMAIL_OLD","code" to code(id(oldProof))),currentToken)
-        val replacement="${UUID.randomUUID()}@example.test"
-        val newProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_NEW","email" to replacement),currentToken)
-        call("PUT","/me/email-binding",mapOf("expectedVersion" to 3,"oldChallengeId" to id(oldProof),"oldCode" to code(id(oldProof)),"newChallengeId" to id(newProof),"newCode" to code(id(newProof))),currentToken)
-        val finalLogin=call("POST","/auth/sessions",mapOf("email" to replacement,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null)
-        assertEquals(registration["id"],call("GET","/me",token=finalLogin["accessToken"].asText())["id"])
-        assertEquals("邮箱或密码不正确，请检查后重试",call("POST","/auth/sessions",mapOf("email" to address,"password" to studentPassword,"deviceId" to UUID.randomUUID()),null,401)["message"].asText())
+        val oldProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_OLD"),emailToken)
+        val next=UUID.randomUUID().toString()+"@example.test"
+        val newProof=call("POST","/me/email-challenges",mapOf("purpose" to "CHANGE_EMAIL_NEW","email" to next),emailToken)
+        call("PUT","/me/email-binding",mapOf("expectedVersion" to bound["version"].asLong(),"oldChallengeId" to id(oldProof),"oldCode" to code(id(oldProof)),
+            "newChallengeId" to id(newProof),"newCode" to code(id(newProof))),emailToken)
+        call("GET","/me",token=emailToken,status=401)
+        assertEquals(next,jdbc.queryForObject("SELECT email_key FROM user_account WHERE id=?",String::class.java,id(user)))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM user_account WHERE email_key=?",Int::class.java,address))
     }
 
 }

@@ -88,7 +88,7 @@ function readJpegSize(filePath) {
 // ---------- 一、页面结构 ----------
 
 function checkStructure() {
-  assert('结构 - 品牌区显示 QandA', /class="hero-brand"[^>]*>QandA</.test(homeWxml))
+  assert('结构 - 品牌区显示题小搭', /class="hero-brand"[^>]*>题小搭</.test(homeWxml))
   assert('结构 - 头部含搜索框', homeWxml.indexOf('class="search-box"') >= 0)
   assert('结构 - 搜索框为真实 input', /<input[\s\S]{0,400}?class="search-input"/.test(homeWxml))
   // 右上角小喇叭是「公告」入口，不是每日一句——每日一句已挪进蓝色倒计时卡
@@ -96,26 +96,26 @@ function checkStructure() {
   assert('结构 - 公告入口绑定公告处理函数', homeWxml.indexOf('handleAnnouncementTap') >= 0)
   assert('结构 - 不再有「每日一句」圆钮', homeWxml.indexOf('hero-quote-btn') < 0)
 
-  // 倒计时卡四种状态互斥，顺序必须是「已结束 → 就在今天 → 还有 N 天 → 未设置」。
-  // 把「就在今天」并进「还有 N 天」会渲染成「距离 X 考试还有 就是今天 天」。
+  // 名称与倒计时分层，日期状态互斥。
   assert('结构 - 倒计时卡存在', homeWxml.indexOf('class="exam-card"') >= 0)
   assert('结构 - 分支一：已结束',
-    /wx:if="\{\{exam\.configured && exam\.isPast\}\}"/.test(homeWxml))
+    /wx:if="\{\{exam\.isPast\}\}"/.test(homeWxml))
   assert('结构 - 分支二：考试当天',
-    /wx:elif="\{\{exam\.configured && exam\.isExamDay\}\}"/.test(homeWxml))
-  assert('结构 - 分支三：还有 N 天', /wx:elif="\{\{exam\.configured\}\}"/.test(homeWxml))
+    /wx:elif="\{\{exam\.isExamDay\}\}"/.test(homeWxml))
+  assert('结构 - 分支三：还有 N 天', /class="exam-countdown" wx:else/.test(homeWxml))
   assert('结构 - 分支四：未设置', /wx:else/.test(homeWxml) && homeWxml.indexOf('exam-main-empty') >= 0)
   assert('结构 - 天数独立成块（字号要放大）', homeWxml.indexOf('class="exam-days"') >= 0)
-  assert('结构 - 「就在今天」不套用天数的大号字',
-    homeWxml.indexOf('exam-days-today') >= 0 && /\.exam-days-today\s*\{[^}]*font-size/.test(homeWxss))
-  assert('结构 - 已设置时底部是「修改」而非重复的状态字',
-    /\{\{exam\.configured \? '修改' : exam\.statusText\}\}/.test(homeWxml))
+  assert('结构 - 今天考试使用独立状态字号',
+    homeWxml.indexOf('exam-status-today') >= 0 && /\.exam-status-today\s*\{[^}]*font-size:\s*var\(--font-title\)/.test(homeWxss))
+  assert('结构 - 倒计时卡显示有效群码入口', /<community-group compact="\{\{true\}\}" hide-unavailable="\{\{true\}\}"/.test(homeWxml))
 
-  assert('结构 - 出现「我的学习空间」标题', homeWxml.indexOf('我的学习空间') >= 0)
+  assert('结构 - 四宫格位于倒计时卡之后', homeWxml.indexOf('class="entry-grid"') > homeWxml.indexOf('class="exam-card"'))
   assert('结构 - 四宫格按 entries 渲染', /wx:for="\{\{entries\}\}"/.test(homeWxml))
+  assert('结构 - 未完成练习显示在四宫格下方', /wx:if="\{\{lastPractice\.resumed\}\}" class="home-continue"/.test(homeWxml) && homeWxml.indexOf('class="home-continue"') > homeWxml.indexOf('class="entry-grid"'))
+  assert('结构 - 倒计时卡可进入设置', /class="exam-card"\s+bindtap="handleExamTap"/.test(homeWxml))
   assert('结构 - 四宫格有计数徽标', homeWxml.indexOf('class="entry-badge"') >= 0)
 
-  assert('结构 - 搜索结果面板存在', /class="search-panel(?:\s|")/.test(homeWxml))
+  assert('结构 - 搜索结果面板存在', /class="[^"\n]*\bsearch-panel(?:\s|")/.test(homeWxml))
   assert('结构 - 搜索空态区分「已搜无果」与「未搜索」',
     homeWxml.indexOf('searchSearched && searchResultCount === 0') >= 0 &&
     homeWxml.indexOf('!searchSearched') >= 0)
@@ -158,14 +158,14 @@ function checkStructure() {
   assert('顶部 - 系统未返回尺寸时使用有效布局', getInitialHomeHeaderData().homeNavigationBarHeight === 44 && getInitialHomeHeaderData({ statusBarHeight: 44 }, { top: 0, height: 0 }).homeNavigationBarHeight === 44)
   assert('顶部 - 全屏状态保留零高度状态栏', getInitialHomeHeaderData({ statusBarHeight: 0 }, { top: 4, height: 32 }).homeStatusBarHeight === 0)
 
-  assert('顶部 - 导航栏背景改为品牌蓝', String(homeJson.navigationBarBackgroundColor).toLowerCase() === '#4a7bfb',
+  assert('顶部 - 导航栏背景改为品牌蓝', String(homeJson.navigationBarBackgroundColor).toLowerCase() === '#2563eb',
     homeJson.navigationBarBackgroundColor)
   assert('顶部 - 导航栏文字改为白色', homeJson.navigationBarTextStyle === 'white')
   assert('顶部 - 下拉刷新背景也是蓝的（否则下拉时闪白）',
-    String(homeJson.backgroundColor).toLowerCase() === '#4a7bfb')
+    String(homeJson.backgroundColor).toLowerCase() === '#2563eb')
   // 头部渐变必须从同一个色开始且是垂直方向，否则和导航栏接缝处有色差
-  assert('顶部 - 头部渐变与导航栏同色衔接',
-    /\.hero\s*\{[^}]*linear-gradient\(180deg,\s*#4a7bfb/.test(homeWxss))
+  assert('顶部 - 头部与导航栏统一品牌色',
+    /\.hero\s*\{[^}]*background:\s*var\(--brand\)/.test(homeWxss))
 
   // ---------- 蓝色倒计时卡：配图 + 金句 ----------
   assert('卡片 - 封面图由时段决定（早/中/晚三张）',

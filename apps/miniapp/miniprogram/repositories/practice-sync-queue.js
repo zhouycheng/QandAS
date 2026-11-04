@@ -32,6 +32,7 @@ function createSyncQueue(options) {
     timers[id] = setTimer(() => { delete timers[id]; flush(id) }, delay)
   }
   function save(id, payload) {
+    if (stopped) return { ok: false, paused: true, reason: '同步已停止，请重新打开练习' }
     try {
       const previous = get(id)
       if (previous && JSON.stringify(previous.payload.progress || previous.payload) === JSON.stringify(payload.progress || payload)) return { ok: true, draft: previous, unchanged: true }
@@ -56,8 +57,10 @@ function createSyncQueue(options) {
     } catch (error) { return Promise.resolve({ ok: false, storageError: true, reason: '答题数据保存失败，请检查设备存储空间' }) }
     const command = copy(draft.pending)
     sending[id] = Promise.resolve().then(() => send(id, command)).catch(() => ({ ok: false, statusCode: 0, reason: '网络请求失败' })).then((result) => {
+      if (stopped) return result
       try {
         const current = get(id)
+        if (!current) return result
         if (result.pending) {
           current.pending.serverAccepted = true
           current.serverState = result.serverState || 'QUEUED'

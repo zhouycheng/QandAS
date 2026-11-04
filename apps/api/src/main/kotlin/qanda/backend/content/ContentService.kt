@@ -16,7 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 @Service
 @Transactional
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
-                     private val revisions: QuestionRevisionMapper,private val audiences: BankAudienceMapper,private val files: FileAssetMapper,
+                     private val revisions: QuestionRevisionMapper,private val categories: BankCategoryMapper,private val files: FileAssetMapper,
                      private val accounts: AccountDirectory,private val directory: CatalogDirectory,
                      private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val reader: QuestionReader) {
     fun bankViewsByIds(ids: List<UUID>): List<BankView> = if(ids.isEmpty()) emptyList() else bankViews(banks.selectByIds(ids),false)
@@ -24,46 +24,46 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     private fun bankViews(rows: List<QuestionBank>,admin: Boolean,userId: UUID?=null): List<BankView> {
         if(rows.isEmpty()) return emptyList()
         val ids=rows.map { it.id!! };val facts=sql.bankListFacts(ids,userId).associateBy { it.bankId }
-        val audienceRows=sql.bankAudiences(ids).groupBy { it.bankId }
+        val audienceRows=sql.bankCategories(ids).groupBy { it.bankId }
         val maintainers=if(admin) sql.bankMaintainers(ids).groupBy { it.bankId } else emptyMap()
         return rows.map { row -> val f=facts.getValue(row.id)
-            BankView(row.id!!,row.subjectId!!,row.name,row.description,row.textbook,row.status,row.publicationStatus,row.scopeType,
-                audienceRows[row.id].orEmpty().map { AudienceInput(it.collegeId,it.majorId,it.grade) },
+            BankView(row.id!!,row.subjectId!!,row.name,row.description,row.textbook,row.status,row.publicationStatus,
+                audienceRows[row.id].orEmpty().map { CategoryInput(it.collegeId,it.majorId,it.grade) },
                 maintainers[row.id].orEmpty().map { it.adminId!! },row.version,row.contentVersion,if(admin) f.questionCount else f.activeQuestionCount,f.activeQuestionCount,row.updatedAt,f.subjectName,
                 userId?.let { BankProgressView(f.answeredCount,f.correctCount,f.wrongCount,f.wrongBookCount) })
         }
     }
-    fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null): Page<BankView> {
+    fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null,filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): Page<BankView> {
+        filter.validate(directory)
         if(publicationStatus!=null && publicationStatus !in listOf("DRAFT","PUBLISHED","UNPUBLISHED","ARCHIVED")) invalid("/publicationStatus")
         val publicOnly=actor?.kind!="ADMIN"
         val userId=actor?.takeIf { it.kind=="USER" }?.id
-        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus),p.page,p.pageSize)
+        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus,filter),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus,filter),p.page,p.pageSize)
     }
     fun bank(actor: Actor?,id: UUID)=bankView(access.bank(actor,id),actor?.kind=="ADMIN")
     fun saveBank(actor: Actor,id: UUID?,input: BankInput): MutationResult {
         val row=id?.let { access.bank(actor,it,true) } ?: QuestionBank().apply { this.id=UUID.randomUUID();createdBy=actor.id;subjectId=input.subjectId }
         if(id!=null) { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version);if(row.subjectId!=input.subjectId) invalid("/subjectId","IMMUTABLE_PARENT","题库所属课程不可变更") }
         if(directory.subject(input.subjectId)==null) invalid("/subjectId")
-        if(input.scopeType !in setOf("ALL","TARGETED") || input.audiences.size>100) invalid("/scopeType")
-        if(input.scopeType=="ALL" && input.audiences.isNotEmpty()) invalid("/audiences")
-        val normalized=input.audiences.map { normalizeAudience(it) }
-        if(normalized.distinct().size!=normalized.size) invalid("/audiences")
+        if(input.categories.size>100) invalid("/categories")
+        val normalized=input.categories.map { normalizeCategory(it) }
+        if(normalized.distinct().size!=normalized.size) invalid("/categories")
         input.maintainerIds?.let { ids ->
             if(ids.size>100 || ids.distinct().size!=ids.size) invalid("/maintainerIds")
             ids.forEach { if(!accounts.activeAdmin(it)) invalid("/maintainerIds") }
         }
-        row.name=name(input.name);row.description=text(input.description,2000);row.textbook=text(input.textbook,500);row.status=activeStatus(input.status);row.scopeType=input.scopeType;row.updatedAt=Instant.now()
+        row.name=name(input.name);row.description=text(input.description,2000);row.textbook=text(input.textbook,500);row.status=activeStatus(input.status);row.updatedAt=Instant.now()
         if(id==null) banks.insert(row) else { row.version++;banks.updateById(row) }
-        sql.clearAudiences(row.id!!);normalized.forEach { audiences.insert(BankAudience().apply { this.id=UUID.randomUUID();bankId=row.id;collegeId=it.collegeId;majorId=it.majorId;grade=it.grade }) }
+        sql.clearCategories(row.id!!);normalized.forEach { categories.insert(BankCategory().apply { this.id=UUID.randomUUID();bankId=row.id;collegeId=it.collegeId;majorId=it.majorId;grade=it.grade }) }
         if(input.maintainerIds!=null) { sql.clearMaintainers(row.id!!);input.maintainerIds.forEach { sql.addMaintainer(row.id!!,it) } }
         if(row.publicationStatus=="PUBLISHED" && row.status=="ACTIVE") validatePublication(row)
         return MutationResult(row.id!!,row.version)
     }
-    private fun normalizeAudience(input: AudienceInput): AudienceInput {
-        val major=input.majorId?.let { directory.major(it) ?: invalid("/audiences/majorId") }
-        if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("/audiences/collegeId")
-        if(input.collegeId!=null && directory.college(input.collegeId)==null || major==null && input.collegeId==null && input.grade==null) invalid("/audiences")
-        if(input.grade!=null && input.grade !in 1..5) invalid("/audiences/grade")
+    private fun normalizeCategory(input: CategoryInput): CategoryInput {
+        val major=input.majorId?.let { directory.major(it) ?: invalid("/categories/majorId") }
+        if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("/categories/collegeId")
+        if(input.collegeId!=null && directory.college(input.collegeId)==null || major==null && input.collegeId==null && input.grade==null) invalid("/categories")
+        if(input.grade!=null && input.grade !in 1..5) invalid("/categories/grade")
         return input.copy(collegeId=if(major==null) input.collegeId else null)
     }
     fun chapters(actor: Actor?,bankId: UUID): List<ChapterView> {
@@ -105,15 +105,14 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         row.publicationStatus=input.status;row.version++;row.updatedAt=Instant.now();banks.updateById(row);return MutationResult(id,row.version)
     }
     private fun validatePublication(row: QuestionBank) {
-        if(publicationChecks(row).any { !it.passed }) invalid("/publication","PUBLISH_VALIDATION_FAILED","发布需要启用的课程、题库说明、有效题目、完整解析和展示范围")
+        if(publicationChecks(row).any { !it.passed }) invalid("/publication","PUBLISH_VALIDATION_FAILED","发布需要启用的课程、题库说明、有效题目、完整解析")
     }
     fun publicationChecks(actor: Actor,id: UUID): List<PublicationCheck> = publicationChecks(access.bank(actor,id))
     private fun publicationChecks(row: QuestionBank): List<PublicationCheck> = listOf(
         PublicationCheck("课程与题库已启用",row.status=="ACTIVE" && directory.subject(row.subjectId)?.status=="ACTIVE","停用的内容不能发布"),
         PublicationCheck("题库说明已填写",row.description.isNotBlank(),"说明题库用途与内容"),
         PublicationCheck("存在有效题目",sql.questionCount(row.id!!,true)>0,"阅读题组按小题计数"),
-        PublicationCheck("启用题目解析完整",sql.publicationIssues(row.id!!)==0L,"题型、答案和章节归属在保存时校验"),
-        PublicationCheck("展示范围已配置",row.scopeType=="ALL" || audiences.selectCount(QueryWrapper<BankAudience>().eq("bank_id",row.id))>0,"根据学生保存的资料匹配")
+        PublicationCheck("启用题目解析完整",sql.publicationIssues(row.id!!)==0L,"题型、答案和章节归属在保存时校验")
     )
     fun validate(input: QuestionInput,validateReferences: Boolean=true) {
         if(input.contentFormat !in setOf("PLAIN_TEXT","MARKDOWN")) invalid("/contentFormat")

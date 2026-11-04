@@ -41,6 +41,9 @@ function createWxStorageAdapter(options) {
       } catch (error) {
         return []
       }
+    },
+    keysStrict() {
+      return storage.getStorageInfoSync().keys || []
     }
   }
 }
