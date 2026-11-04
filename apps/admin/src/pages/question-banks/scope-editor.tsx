@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Alert, Button, Radio, Select, Tag } from '@arco-design/web-react'
+import { Button, Select, Tag } from '@arco-design/web-react'
 import { IconDelete, IconEye, IconPlus } from '@arco-design/web-react/icon'
 import { GRADE_OPTIONS } from '../../types/admin'
 import type { QuestionBank, Subject } from '../../types/admin'
 import { ResourceSelect } from '../../components/resource-select'
 import { useScopeDirectory } from './scope-directory'
-import { bankVisibility, emptyScopeGroup, groupsToAudiences, scopeLabels, type AudienceDirectory, type ScopeGroup } from '../../lib/bank-workbench'
+import { bankVisibility, emptyScopeGroup, groupsToCategories, scopeLabels, type AudienceDirectory, type ScopeGroup } from '../../lib/bank-workbench'
 
 export function DirectorySelectors({ value, onChange, multipleGrades = false, disabled = false, prefix }: {
   value: ScopeGroup
@@ -24,41 +24,33 @@ export function DirectorySelectors({ value, onChange, multipleGrades = false, di
   </div>
 }
 
-export function ScopeEditor({ scopeType, groups, onTypeChange, onChange, disabled }: {
-  scopeType: 'ALL' | 'TARGETED'
+export function ScopeEditor({ groups, onChange, disabled }: {
   groups: ScopeGroup[]
-  onTypeChange: (type: 'ALL' | 'TARGETED') => void
   onChange: (groups: ScopeGroup[]) => void
   disabled: boolean
 }) {
-  const audiences = groupsToAudiences(groups)
-  const directory = useScopeDirectory(audiences)
-  const labels = scopeLabels({ scopeType, audiences }, directory)
+  const categories = groupsToCategories(groups)
+  const directory = useScopeDirectory(categories)
+  const labels = scopeLabels({ categories }, directory)
   return <div className="bw-scope-editor">
-    <h3>哪些学生可以看到这个题库？</h3>
-    <Radio.Group className="bw-scope-mode" value={scopeType} disabled={disabled} onChange={onTypeChange}>
-      <Radio value="ALL">全校可见</Radio><Radio value="TARGETED">指定范围</Radio>
-    </Radio.Group>
-    {scopeType === 'ALL' ? <Alert type="info" content="向全校学生展示，不限定学院、专业和当前年级。" /> : <>
-      <p className="muted">每组条件同时满足，多组之间满足任意一组即可。下级选择“全部”表示不限定，面向全校请选择上方“全校可见”。</p>
+    <h3>题库分类</h3>
+      <p className="muted">分类用于学生自由筛选。每组内同时匹配，多组取并集；留空表示通用题库。</p>
       {groups.map((group, index) => <div className="bw-scope-group" key={group.id}>
-        <div className="bw-scope-group-heading"><span>展示对象 {index + 1}</span><Button aria-label={`移除展示对象 ${index + 1}`} type="text" status="danger" icon={<IconDelete />} disabled={disabled} onClick={() => onChange(groups.filter((g) => g.id !== group.id))} /></div>
-        <DirectorySelectors value={group} multipleGrades prefix={`展示对象${index + 1}`} disabled={disabled} onChange={(next) => onChange(groups.map((g) => g.id === group.id ? next : g))} />
+        <div className="bw-scope-group-heading"><span>分类 {index + 1}</span><Button aria-label={`移除分类 ${index + 1}`} type="text" status="danger" icon={<IconDelete />} disabled={disabled} onClick={() => onChange(groups.filter((g) => g.id !== group.id))} /></div>
+        <DirectorySelectors value={group} multipleGrades prefix={`分类${index + 1}`} disabled={disabled} onChange={(next) => onChange(groups.map((g) => g.id === group.id ? next : g))} />
       </div>)}
-      <Button type="dashed" long icon={<IconPlus />} disabled={disabled} onClick={() => onChange([...groups, emptyScopeGroup()])}>添加一组展示范围</Button>
-    </>}
-    <div className="bw-scope-summary"><span>范围摘要</span>{labels.map((label) => <p key={label}>{label}</p>)}</div>
-    <p className="bw-form-note">学生修改并保存院系资料后，重新匹配题库列表；已有学习记录保留。已停用分类可供原有归属学生匹配。</p>
+      <Button type="dashed" long icon={<IconPlus />} disabled={disabled} onClick={() => onChange([...groups, emptyScopeGroup()])}>添加分类</Button>
+    <div className="bw-scope-summary"><span>分类摘要</span>{labels.map((label) => <p key={label}>{label}</p>)}</div>
   </div>
 }
 
 export function ScopePreview({ bank, subjects }: { bank: QuestionBank; directory: AudienceDirectory; subjects: Subject[] }) {
   const [profile, setProfile] = useState<ScopeGroup>({ id: 'preview', grades: [] })
   const result = bankVisibility(bank, { collegeId: profile.collegeId, majorId: profile.majorId, grade: profile.grades[0] }, subjects)
-  const selected = bank.scopeType === 'ALL' || Boolean(profile.collegeId || profile.majorId || profile.grades.length)
+  const selected = true
   return <section className="bw-scope-preview">
-    <div className="bw-section-heading"><h3><IconEye /> 学生资料匹配预览</h3><Tag color="arcoblue">预览</Tag></div>
-    <p className="muted">选择一组学生资料，检查这个题库是否会出现在他的列表中。</p>
+    <div className="bw-section-heading"><h3><IconEye /> 分类筛选预览</h3><Tag color="arcoblue">预览</Tag></div>
+    <p className="muted">选择分类，检查题库是否出现在筛选结果中。</p>
     <DirectorySelectors value={profile} onChange={setProfile} prefix="预览" />
     <div className={`bw-preview-result ${selected && result.visible ? 'is-visible' : ''}`} role="status">
       {selected ? <><Tag color={result.visible ? 'green' : result.matches ? 'orange' : 'gray'}>{result.visible ? '会展示' : result.matches ? '范围匹配' : '不展示'}</Tag><span>{result.message}</span></> : <span>请选择学生资料后查看匹配结果。</span>}

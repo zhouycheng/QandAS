@@ -11,11 +11,6 @@ export interface ManagedUser extends Versioned {
   email: string
   wechatBound: boolean
   avatarUrl?: string | null
-  collegeId: string
-  majorId: string
-  grade?: number
-  collegeName?: string
-  majorName?: string
   registeredAt?: string
   status: UserStatus
   answeredCount?: number
@@ -28,16 +23,10 @@ export interface UpdateManagedUserInput {
   nickname: string
   accountCode: string
   email: string | null
-  collegeId: string | null
-  majorId: string | null
-  currentGrade: number | null
 }
 export interface UserQuery extends PageQuery {
   keyword?: string
-  collegeId?: string
-  majorId?: string
   status?: UserStatus
-  grade?: number
 }
 
 export interface AdminAccount extends Versioned {
@@ -150,9 +139,6 @@ export interface ForegroundSession { userId: string; platform: LoginPlatform; se
 export interface ActivityQuery extends PageQuery {
   period?: 'DAY' | 'WEEK' | 'MONTH' | 'ALL'
   periodDate?: string
-  collegeId?: string
-  majorId?: string
-  grade?: number
   sort?: 'ACTIVE_DAYS' | 'ANSWERED_COUNT' | 'DURATION'
 }
 export interface ActivitySummary {
@@ -165,8 +151,7 @@ export interface ActivitySummary {
   updatedAt: string
   records: { date: string; activeUsers: number }[]
 }
-export interface RankingRow { rank: number; userId: string; nickname: string; accountCode: string; collegeName?: string; majorName?: string; currentGrade?: number; activeDays: number; answeredCount: number; correctCount: number; durationSeconds: number; lastActiveAt?: string }
-export interface SubjectAccess { userId: string; nickname: string; accountCode: string; createdAt: string }
+export interface RankingRow { rank: number; userId: string; nickname: string; accountCode: string; activeDays: number; answeredCount: number; correctCount: number; durationSeconds: number; lastActiveAt?: string }
 export interface ImportQuestionsInput {
   questionBankId: string
   questions: CreateQuestionInput[]

@@ -99,7 +99,7 @@ export function AdminLayout() {
   const navigation = (
     <>
       <Link className="brand" to="/dashboard">
-        QandA
+        题小搭
       </Link>
       <nav aria-label="管理导航">
         {groups.map((group) => (
@@ -179,7 +179,7 @@ export function AdminLayout() {
         <main className="admin-content">
           <Outlet />
         </main>
-        <footer className="environment-bar">QandA V1.0.0</footer>
+        <footer className="environment-bar">题小搭 V1.0.0</footer>
       </div>
     </div>
   )

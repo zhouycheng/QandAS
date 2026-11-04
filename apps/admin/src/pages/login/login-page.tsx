@@ -36,7 +36,7 @@ export function LoginPage() {
   if (isAuthenticated()) return <Navigate to="/dashboard" replace />
   return (
     <main className="login-page">
-      <div className="login-brand">QandA</div>
+      <div className="login-brand">题小搭</div>
       <section className="login-art">
         <img src={illustration} alt="问答与学习" />
       </section>

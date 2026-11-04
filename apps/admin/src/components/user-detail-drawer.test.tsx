@@ -37,7 +37,7 @@ function form(nodes: ReactElement[]) {
 }
 beforeEach(() => {
   harness.states = []; harness.cursor = 0; harness.mutate.mockClear()
-  harness.profile = { id: 'student', version: 1, name: '原昵称', account: 'QA001', email: 'old@example.test', collegeId: '', majorId: '', wechatBound: false, status: 'ACTIVE' }
+  harness.profile = { id: 'student', version: 1, name: '原昵称', account: 'QA001', email: 'old@example.test', wechatBound: false, status: 'ACTIVE' }
   vi.spyOn(Form, 'useForm').mockReturnValue([{} as ReturnType<typeof Form.useForm>[0]])
 })
 it('keeps the edit snapshot across query refreshes and uses fresh data only after reopening', () => {

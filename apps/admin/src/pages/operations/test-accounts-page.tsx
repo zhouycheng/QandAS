@@ -54,7 +54,7 @@ function TestAccountEditor({ onClose, onSaved }: { onClose: () => void; onSaved:
       <Form.Item label="有效天数" required><InputNumber aria-label="有效天数" min={1} max={365} value={days} onChange={setDays} /></Form.Item>
       <p className="muted">{expiry ? `预计到期时间：${testAccountDate(expiry)}（北京时间）` : '请输入有效天数'}；以创建成功后的时间为准。</p>
       <Form.Item label="计入运营统计"><Switch aria-label="计入运营统计" checked={included} onChange={setIncluded} /></Form.Item>
-      <p className="muted">开启后计入用户量、活跃度和答题等运营统计。账号与密码由系统自动生成，到期自动停用并保留学习记录。</p>
+      <p className="muted">开启后计入用户量、活跃度和答题等运营统计。账号和16位测试登录码由系统生成，到期自动停用并保留学习记录。</p>
     </Form>
   </Modal>
 }
@@ -77,13 +77,13 @@ function CredentialsDialog({ id, onClose }: { id: string; onClose: () => void })
   }, [gateway, id])
   const copy = async () => {
     if (!credentials || Date.parse(credentials.expiresAt) <= Date.now()) { setCredentials(undefined); setError('测试账号已到期'); return }
-    try { await navigator.clipboard.writeText(`账号：${credentials.email}\n密码：${credentials.password}`); Message.success('账号和密码已复制') }
+    try { await navigator.clipboard.writeText(`账号：${credentials.email}\n测试登录码：${credentials.password}`); Message.success('账号和测试登录码已复制') }
     catch { Message.error('复制失败，请手动复制') }
   }
   return <Modal visible style={{ maxWidth: 'calc(100vw - 32px)' }} title="测试账号凭据" onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>}>
     {error ? <Alert type="error" content={error} /> : credentials ? <>
-      <Descriptions column={1} data={[{ label: '登录账号', value: credentials.email }, { label: '密码', value: credentials.password }, { label: '到期时间（北京时间）', value: testAccountDate(credentials.expiresAt) }]} />
-      <Button type="primary" onClick={() => void copy()}>复制账号和密码</Button>
+      <Descriptions column={1} data={[{ label: '登录账号', value: credentials.email }, { label: '测试登录码', value: credentials.password }, { label: '到期时间（北京时间）', value: testAccountDate(credentials.expiresAt) }]} />
+      <Button type="primary" onClick={() => void copy()}>复制账号和测试登录码</Button>
     </> : <p>正在读取凭据…</p>}
   </Modal>
 }

@@ -1,4 +1,4 @@
-import type { BankAudience, College, Major, QuestionBank, Subject } from '../types/admin'
+import type { BankCategory, College, Major, QuestionBank, Subject } from '../types/admin'
 import { gradeLabel } from '../types/admin'
 import { matchesAudience } from './recommendations'
 
@@ -10,10 +10,10 @@ export interface AudienceDirectory {
 export interface ScopeGroup { id: string; collegeId?: string; majorId?: string; grades: number[] }
 export const emptyScopeGroup = (): ScopeGroup => ({ id: crypto.randomUUID(), grades: [] })
 
-export function audienceGroups(audiences: BankAudience[], directory: AudienceDirectory): ScopeGroup[] {
+export function audienceGroups(categories: BankCategory[], directory: AudienceDirectory): ScopeGroup[] {
   const grouped = new Map<string, ScopeGroup>()
   const unlimited = new Set<string>()
-  for (const audience of audiences) {
+  for (const audience of categories) {
     const collegeId = audience.collegeId ?? directory.majors.find((m) => m.id === audience.majorId)?.collegeId
     const key = `${collegeId ?? ''}/${audience.majorId ?? ''}`
     const group = grouped.get(key) ?? { id: key, collegeId, majorId: audience.majorId, grades: [] }
@@ -24,19 +24,16 @@ export function audienceGroups(audiences: BankAudience[], directory: AudienceDir
   return [...grouped.values()]
 }
 
-export function groupsToAudiences(groups: ScopeGroup[]): BankAudience[] {
-  const audiences = groups.flatMap((group) => {
+export function groupsToCategories(groups: ScopeGroup[]): BankCategory[] {
+  const categories = groups.flatMap((group) => {
     const base = { ...(group.collegeId ? { collegeId: group.collegeId } : {}), ...(group.majorId ? { majorId: group.majorId } : {}) }
     return group.grades.length ? group.grades.map((grade) => ({ ...base, grade })) : Object.keys(base).length ? [base] : []
   })
-  return [...new Map(audiences.map((a) => [JSON.stringify(a), a])).values()]
+  return [...new Map(categories.map((a) => [JSON.stringify(a), a])).values()]
 }
 
-export function getScopeError(scopeType: string, audiences: BankAudience[], directory: AudienceDirectory, required = true) {
-  if (!['ALL', 'TARGETED'].includes(scopeType)) return '请选择展示范围类型。'
-  if (scopeType === 'ALL') return
-  if (!audiences.length && required) return '请至少添加一条有效展示条件。'
-  for (const audience of audiences) {
+export function getScopeError(categories: BankCategory[], directory: AudienceDirectory) {
+  for (const audience of categories) {
     if (!audience.collegeId && !audience.majorId && audience.grade === undefined)
       return '每条展示条件至少填写一个条件。'
     if (audience.collegeId && !directory.colleges.some((c) => c.id === audience.collegeId))
@@ -48,21 +45,20 @@ export function getScopeError(scopeType: string, audiences: BankAudience[], dire
   }
 }
 
-export function scopeLabels(bank: Pick<QuestionBank, 'scopeType' | 'audiences'>, directory: AudienceDirectory) {
-  if (bank.scopeType === 'ALL') return ['全校可见']
-  if (!bank.audiences.length) return ['展示范围待配置']
-  return bank.audiences.map((audience) => {
+export function scopeLabels(bank: Pick<QuestionBank, 'categories'>, directory: AudienceDirectory) {
+  if (!bank.categories.length) return ['通用题库']
+  return bank.categories.map((audience) => {
     const major = directory.majors.find((m) => m.id === audience.majorId)
     const college = directory.colleges.find((c) => c.id === (audience.collegeId ?? major?.collegeId))
     return [college?.name || (audience.collegeId ? '所选学院' : ''), major?.name || (audience.majorId ? '所选专业' : ''), audience.grade ? gradeLabel(audience.grade) : undefined].filter(Boolean).join(' · ') || '展示范围待配置'
   })
 }
 
-export function bankVisibility(bank: QuestionBank, profile: Pick<BankAudience, 'collegeId' | 'majorId' | 'grade'>, subjects: Subject[]) {
-  const matches = bank.scopeType === 'ALL' || bank.audiences.some((a) => matchesAudience({ collegeId: profile.collegeId ?? '', majorId: profile.majorId ?? '', grade: profile.grade }, a))
-  if (!matches) return { matches, visible: false, message: '该学生资料不在题库的展示范围内。' }
-  if (bank.publicationStatus !== 'PUBLISHED') return { matches, visible: false, message: '资料匹配；题库发布后才会在学生列表中展示。' }
-  if (!subjects.some((s) => s.id === bank.subjectId && s.status === 'ACTIVE')) return { matches, visible: false, message: '资料匹配，但所属课程已停用，暂不展示。' }
-  if (bank.status !== 'ACTIVE' || !bank.activeQuestionCount) return { matches, visible: false, message: '资料匹配，但当前没有可练习的启用题目。' }
-  return { matches, visible: true, message: '该学生将在答题端看到这个题库。' }
+export function bankVisibility(bank: QuestionBank, profile: Pick<BankCategory, 'collegeId' | 'majorId' | 'grade'>, subjects: Subject[]) {
+  const matches = !bank.categories.length || bank.categories.some((a) => matchesAudience(profile, a))
+  if (!matches) return { matches, visible: false, message: '题库不匹配当前筛选；仍可通过公开链接打开。' }
+  if (bank.publicationStatus !== 'PUBLISHED') return { matches, visible: false, message: '分类匹配；题库发布后进入公开目录。' }
+  if (!subjects.some((s) => s.id === bank.subjectId && s.status === 'ACTIVE')) return { matches, visible: false, message: '分类匹配，但所属课程已停用，暂不展示。' }
+  if (bank.status !== 'ACTIVE' || !bank.activeQuestionCount) return { matches, visible: false, message: '分类匹配，但当前没有可练习的启用题目。' }
+  return { matches, visible: true, message: '题库匹配当前筛选，并可公开浏览。' }
 }

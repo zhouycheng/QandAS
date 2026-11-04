@@ -1,5 +1,4 @@
-import type { BankAudience } from '../types/admin'
-import type { ManagedUser } from '../types/operations'
+import type { BankCategory } from '../types/admin'
 
 export const publicationLabels = {
   DRAFT: '草稿',
@@ -27,13 +26,13 @@ export const courseRequestStatusLabels = {
 }
 
 export function matchesAudience(
-  user: Pick<ManagedUser, 'collegeId' | 'majorId' | 'grade'>,
-  audience: BankAudience,
+  user: BankCategory,
+  audience: BankCategory,
 ) {
   return (
     Boolean(audience.collegeId || audience.majorId || audience.grade) &&
-    (!audience.collegeId || audience.collegeId === user.collegeId) &&
-    (!audience.majorId || audience.majorId === user.majorId) &&
-    (!audience.grade || audience.grade === user.grade)
+    (!user.collegeId || !audience.collegeId || audience.collegeId === user.collegeId) &&
+    (!user.majorId || !audience.majorId || audience.majorId === user.majorId) &&
+    (!user.grade || !audience.grade || audience.grade === user.grade)
   )
 }

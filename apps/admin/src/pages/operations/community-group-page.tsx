@@ -10,7 +10,7 @@ export function CommunityGroupPreview() {
   const query = useQuery({ queryKey: ['community-group'], queryFn: () => gateway.getCommunityGroup(), staleTime: 0 })
   if (query.error) return <ErrorState message={query.error.message} onRetry={() => void query.refetch()} />
   return query.data?.available && query.data.expiresAt && Date.parse(query.data.expiresAt) > Date.now()
-    ? <img src={gateway.communityGroupImage(query.data.version)} alt="QandA 用户交流群二维码" style={{ display: 'block', maxWidth: '100%', maxHeight: 480, margin: '16px auto' }} />
+    ? <img src={gateway.communityGroupImage(query.data.version)} alt="题小搭用户交流群二维码" style={{ display: 'block', maxWidth: '100%', maxHeight: 480, margin: '16px auto' }} />
     : <p>{query.isFetching ? '正在读取群二维码…' : '群二维码更新中，请稍后再试'}</p>
 }
 

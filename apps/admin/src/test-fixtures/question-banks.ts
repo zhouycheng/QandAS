@@ -13,8 +13,8 @@ export const questionBankFixtures: QuestionBank[] = [
     maintainerIds: ['admin-2'],
     contentVersion: 1,
     publicationStatus: 'PUBLISHED',
-    scopeType: 'TARGETED',
-    audiences: [{ majorId: 'major-computer-science' }, { majorId: 'major-software-engineering' }],
+
+    categories: [{ majorId: 'major-computer-science' }, { majorId: 'major-software-engineering' }],
     createdAt: '2026-09-04T08:00:00.000Z',
     updatedAt: '2026-09-04T08:00:00.000Z',
   },
@@ -30,8 +30,8 @@ export const questionBankFixtures: QuestionBank[] = [
     maintainerIds: ['admin-2'],
     contentVersion: 1,
     publicationStatus: 'PUBLISHED',
-    scopeType: 'ALL',
-    audiences: [],
+
+    categories: [],
     createdAt: '2026-09-05T08:00:00.000Z',
     updatedAt: '2026-09-05T08:00:00.000Z',
   },

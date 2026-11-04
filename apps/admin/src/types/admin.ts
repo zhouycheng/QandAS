@@ -7,10 +7,10 @@ export interface PageQuery { page?: number; pageSize?: number }
 export interface Versioned { version: number }
 export const GRADE_OPTIONS = ['大一', '大二', '大三', '大四', '已毕业'].map((label, index) => ({ label, value: index + 1 }))
 export const gradeLabel = (grade?: number) => GRADE_OPTIONS.find(option => option.value === grade)?.label ?? '未填写'
-export interface DirectorySummary { collegeCount: number; majorCount: number; studentCount: number; grades: { grade: number; studentCount: number }[] }
+export interface DirectorySummary { collegeCount: number; majorCount: number }
 export interface PublicationCheck { label: string; passed: boolean; detail: string }
 
-export interface BankAudience {
+export interface BankCategory {
   collegeId?: string
   majorId?: string
   grade?: number
@@ -31,7 +31,6 @@ export interface College extends Versioned {
   status: ContentStatus
   createdAt: string
   updatedAt: string
-  studentCount?: number
 }
 
 export interface Major extends Versioned {
@@ -42,7 +41,6 @@ export interface Major extends Versioned {
   status: ContentStatus
   createdAt: string
   updatedAt: string
-  studentCount?: number
 }
 
 export interface Subject extends Versioned {
@@ -65,8 +63,7 @@ export interface QuestionBank extends Versioned {
   maintainerIds: string[]
   contentVersion: number
   publicationStatus: BankPublicationStatus
-  scopeType: 'ALL' | 'TARGETED'
-  audiences: BankAudience[]
+  categories: BankCategory[]
   createdAt: string
   updatedAt: string
 }
@@ -121,7 +118,7 @@ export type CreateMajorInput = Pick<Major, 'collegeId' | 'name' | 'code' | 'stat
 export type UpdateMajorInput = CreateMajorInput & { expectedVersion: number }
 
 export type CreateQuestionBankInput = Pick<QuestionBank, 'subjectId' | 'name' | 'description' | 'status'> &
-  Partial<Pick<QuestionBank, 'textbook' | 'maintainerIds' | 'scopeType' | 'audiences'>>
+  Partial<Pick<QuestionBank, 'textbook' | 'maintainerIds' | 'categories'>>
 export type UpdateQuestionBankInput = CreateQuestionBankInput & { expectedVersion: number }
 
 export type CreateQuestionInput = QuestionContent & Pick<Question, 'questionBankId' | 'chapterId' | 'status'>

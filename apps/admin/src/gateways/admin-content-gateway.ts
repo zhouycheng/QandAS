@@ -1,6 +1,6 @@
 import type { TestAccount, TestAccountInput, TestAccountCredentials, TestAccountQuery } from '../types/operations'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, SubjectAccess, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UpdateManagedUserInput, UserQuery } from '../types/operations'
+import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UpdateManagedUserInput, UserQuery } from '../types/operations'
 
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
 import type { CommunityGroup } from '../types/operations'
@@ -52,9 +52,6 @@ export interface AdminContentGateway {
   previewImport(input: ImportQuestionsInput): Promise<{ acceptedCount: number }>
   getDashboardSummary(): Promise<DashboardSummary>
   getDirectorySummary(query?: { collegeId?: string; majorId?: string }): Promise<DirectorySummary>
-  listSubjectAccess(id: string, query?: PageQuery): Promise<Page<SubjectAccess>>
-  grantSubjectAccess(id: string, userId: string, expectedVersion: number): Promise<void>
-  revokeSubjectAccess(id: string, userId: string, expectedVersion: number): Promise<void>
   uploadImage(bankId: string, file: File): Promise<{ id: string }>
   imageUrl(id: string): Promise<string>
   listColleges(query?: CollegeQuery): Promise<Page<College>>
