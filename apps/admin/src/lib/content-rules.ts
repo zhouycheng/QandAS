@@ -128,8 +128,3 @@ export function parseQuestionFile(text: string, questionBankId: string): CreateQ
   if (countQuestions(questions) > 3000) throw new Error('每个文件最多 3000 道题，阅读理解按小题计数。')
   return questions
 }
-
-export async function hashPassword(password: string) {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password))
-  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('')
-}

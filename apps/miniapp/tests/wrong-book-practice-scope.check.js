@@ -17,7 +17,7 @@ async function main() {
   const result = await vm.createPracticeCommand()
   assert.strictEqual(requestedScope.questionBankId, 'bank-1')
   assert.strictEqual(requestedScope.selectionKind, 'WRONG')
-  assert.strictEqual(requestedScope.count, 1000)
+  assert.strictEqual(requestedScope.count, 20)
   assert(result.command.url.includes('count=2'))
   assert.strictEqual(vm.toggleManage(), null, '错题本不进入收藏管理模式')
   assert.strictEqual(vm.removeItem('question'), null)

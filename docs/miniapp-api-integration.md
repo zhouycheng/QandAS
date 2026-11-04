@@ -1,18 +1,18 @@
 # 接口接入台账
 
-合同版本为 **1.0.0**，当前包含 **143 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
+合同版本为 **1.0.0**，当前包含 **137 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
 
 ## 调用与身份
 
 小程序通过 Page、ViewModel、Repository 和统一请求层调用接口。普通用户使用邮箱验证码或微信首次验证后直接取得会话；`POST /auth/sessions` 仅接受实际存在、启用且未到期的测试账号固定登录码。账号绑定冲突明确拒绝，邮箱更换验证新旧身份并撤销旧会话。资料只包含昵称、头像与绑定信息。
 
-首页、题库、复盘、我的保留四个 Tab 和中央动作按钮。题库搜索框下的学院、专业、年级筛选保存在本机，查询参数、分页和缓存共同使用相同条件；切换账号保留筛选，私人学习数据继续隔离。公开 ID 直达读取不受分类筛选限制。
+首页、题库、复盘、我的使用四个等宽 Tab，首页答题卡提供续答与创建入口。题库搜索框下的学院、专业、年级筛选保存在本机，查询参数、分页和缓存共同使用相同条件；切换账号保留筛选，私人学习数据继续隔离。公开 ID 直达读取不受分类筛选限制。
 
 管理端通过 `AdminContentGateway → HttpAdminContentGateway` 调用 `/api/v1`。版本检查、幂等键、固定设备写凭据、不可变修订、确认序号与交卷屏障沿用现有协议。异步进度返回 202 后保留本机命令，收到 COMMITTED 回执才清理对应序号。
 
 ## 写入检测与注销
 
-昵称、头像、反馈及管理员对用户展示的内容使用绑定当前会话、对象、内容摘要和业务版本的检测结果，写入引用 `X-Content-Safety-Request`。小程序通过新鲜微信 code 建立独立检测上下文；管理员通过一次性确认请求在小程序确认。待检测媒体仅允许临时受限取件，检测通过后才保存或发布。接口路径和 DTO 见下表及[内容安全](content-safety.md)。
+用户提交的昵称、头像、反馈及缺课需求使用绑定当前会话、对象、内容摘要和业务版本的检测结果，写入引用 `X-Content-Safety-Request`。小程序通过新鲜微信 code 建立独立检测上下文。待检测媒体仅允许临时受限取件，检测通过后才保存。接口路径和 DTO 见下表及[内容安全](content-safety.md)。
 
 `POST /me/deletion-confirmations` 复核当前登录身份，返回限时、一次性的注销证明。`DELETE /me` 使用证明、明确确认及幂等键完成注销；回执允许在会话已撤销后重试。调用方随后清理当前设备上该账号的私人数据。
 
@@ -106,16 +106,12 @@
 
 | 方法与路径 | operationId | 访问凭据 |
 | --- | --- | --- |
-| `POST /api/v1/admin/content-safety/requests` | `ContentSafety_prepare_POST_admin_content_safety_requests` | 管理员会话 |
-| `GET /api/v1/admin/content-safety/requests/{id}` | `ContentSafety_status_GET_admin_content_safety_requests_id` | 管理员会话 |
-| `POST /api/v1/content-safety/confirmations` | `ContentSafety_confirm_POST` | 一次性确认凭据 |
-| `POST /api/v1/content-safety/confirmations/inspection` | `ContentSafety_invitation_POST` | 一次性确认凭据 |
 | `GET /api/v1/content-safety/media/{id}` | `ContentSafety_media_GET` | 限时取件凭据 |
 | `GET /api/v1/content-safety/wechat-callback` | `ContentSafety_echo_GET` | 微信签名／加密消息 |
 | `POST /api/v1/content-safety/wechat-callback` | `ContentSafety_callback_POST` | 微信签名／加密消息 |
 | `POST /api/v1/me/content-safety/contexts` | `ContentSafety_context_POST` | 用户会话 |
-| `POST /api/v1/me/content-safety/requests` | `ContentSafety_prepare_POST_me_content_safety_requests` | 用户会话 |
-| `GET /api/v1/me/content-safety/requests/{id}` | `ContentSafety_status_GET_me_content_safety_requests_id` | 用户会话 |
+| `POST /api/v1/me/content-safety/requests` | `ContentSafety_prepare_POST` | 用户会话 |
+| `GET /api/v1/me/content-safety/requests/{id}` | `ContentSafety_status_GET` | 用户会话 |
 
 ### discovery
 
@@ -130,12 +126,10 @@
 
 | 方法与路径 | operationId | 访问凭据 |
 | --- | --- | --- |
-| `POST /api/v1/admin/question-banks/excel/content-safety` | `Excel_contentSafety_POST_admin_question_banks_excel_content_safety` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/excel/export` | `Excel_export_GET_admin_question_banks_excel_export` | 管理员会话 |
 | `POST /api/v1/admin/question-banks/excel/imports` | `Excel_import_POST_admin_question_banks_excel_imports` | 管理员会话 |
 | `POST /api/v1/admin/question-banks/excel/preview` | `Excel_preview_POST_admin_question_banks_excel_preview` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/excel/template` | `Excel_template_GET_admin_question_banks_excel_template` | 管理员会话 |
-| `POST /api/v1/admin/users/excel/content-safety` | `Excel_contentSafety_POST_admin_users_excel_content_safety` | 管理员会话 |
 | `GET /api/v1/admin/users/excel/export` | `Excel_export_GET_admin_users_excel_export` | 管理员会话 |
 | `POST /api/v1/admin/users/excel/imports` | `Excel_import_POST_admin_users_excel_imports` | 管理员会话 |
 | `POST /api/v1/admin/users/excel/preview` | `Excel_preview_POST_admin_users_excel_preview` | 管理员会话 |

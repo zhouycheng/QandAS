@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HttpAdminContentGateway } from './http-admin-gateway'
 import { questionFromWire, questionToWire } from './question-wire'
-import { questionImportExamples } from '../lib/question-import-examples'
+import { questionImportExamples } from '../test-fixtures/question-import-examples'
 const json = (body: unknown, status = 200, headers?: Record<string, string>) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
 const page = { items: [], total: 0, page: 1, pageSize: 20 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
@@ -82,10 +82,9 @@ describe('HTTP 管理合同', () => {
     expect(fetcher.mock.calls[0][0]).toBe('/api/v1/admin/test-accounts/test-account/status')
     expect(fetcher.mock.calls[0][1]?.method).toBe('PUT')
   })
-  it('内容写入响应丢失及临时失败复用同一检测结果，成功后重新检测', async () => {
-    let checks = 0, writes = 0
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
-      if (String(url).endsWith('/admin/content-safety/requests')) return json({ id: 'check-' + (++checks), state: 'PASSED', expiresAt: new Date(Date.now() + 60000).toISOString() })
+  it('管理员内容写入直接提交，失败重试保留幂等键', async () => {
+    let writes = 0
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
       writes++
       if (writes === 1) throw new Error('response lost')
       if (writes === 2) return json({ code: 'SERVER_ERROR' }, 503)
@@ -98,12 +97,13 @@ describe('HTTP 管理合同', () => {
     await expect(send()).rejects.toMatchObject({ status: 503 })
     await expect(send()).rejects.toMatchObject({ status: 429 })
     await send()
-    expect(checks).toBe(1)
     const attempts = fetcher.mock.calls.filter(([url]) => String(url).endsWith('/admin/colleges'))
     expect(new Set(attempts.map(([, init]) => (init?.headers as Record<string, string>)['Idempotency-Key'])).size).toBe(1)
-    expect(attempts.every(([, init]) => (init?.headers as Record<string, string>)['X-Content-Safety-Request'] === 'check-1')).toBe(true)
+    expect(fetcher.mock.calls).toHaveLength(4)
+    expect(attempts).toHaveLength(4)
+    expect(attempts.every(([, init]) => !Object.hasOwn(init?.headers ?? {}, 'X-Content-Safety-Request'))).toBe(true)
     await send()
-    expect(checks).toBe(2)
+    expect(fetcher.mock.calls).toHaveLength(5)
   })
   it('账号切换拒收旧响应，旧请求认证失败不清除新账号', async () => {
     let token = 'old', finish!: (response: Response) => void

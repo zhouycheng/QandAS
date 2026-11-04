@@ -200,7 +200,7 @@ async function main() {
   chapterVm.load('subject')
   const sheet = await chapterVm.openBankConfig('subject', 'bank', 'chapter')
   assert.strictEqual(sheet.data.rows[0].title, '真实章节')
-  assert.strictEqual(sheet.data.configSubtitle, '真实题库 · 真实章节 · 2 题')
+  assert.strictEqual(sheet.data.configSubtitle, '真实题库 · 真实章节 · 共 2 题')
   assert.strictEqual(sheet.data.showBankTitles, false)
   assert.strictEqual(chapterVm.setSheetChapter('missing'), null)
   chapterVm.setSheetChapter('chapter')

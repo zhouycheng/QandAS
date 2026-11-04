@@ -35,7 +35,7 @@ const VALID_SESSION_STATUS = Object.keys(SESSION_STATUS)
 const VALID_SYNC_STATUS = Object.keys(SYNC_STATUS)
 const VALID_QUESTION_STATES = [QUESTION_STATE.UNANSWERED, QUESTION_STATE.CORRECT, QUESTION_STATE.WRONG, QUESTION_STATE.UNSCORED]
 
-const CONFIG_KEYS = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'durationMinutes', 'title', 'ids', 'feedback']
+const CONFIG_KEYS = ['mode', 'scope', 'subjectId', 'bankId', 'count', 'seed', 'durationMinutes', 'title', 'ids', 'feedback', 'autoShowExplanation', 'autoNextWhenCorrect']
 
 /**
  * 生成 sessionId。

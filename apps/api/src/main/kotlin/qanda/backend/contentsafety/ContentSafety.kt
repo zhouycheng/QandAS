@@ -12,10 +12,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import qanda.backend.identity.*
 import qanda.backend.identity.api.WechatCodeExchange
-import qanda.backend.catalog.*
-import qanda.backend.content.*
 import qanda.backend.operations.*
-import qanda.backend.announcements.AnnouncementInput
 import qanda.backend.platform.files.*
 import qanda.backend.platform.http.*
 import qanda.backend.platform.http.conflict
@@ -28,39 +25,25 @@ import java.util.Base64
 import java.util.UUID
 
 data class SafetyContextView(val id: UUID,val expiresAt: Instant)
-data class SafetyInput(val operation: String="",val payload: JsonNode,val contextId: UUID?=null,val method: String?=null,val path: String?=null,val contentType: String?=null)
-data class SafetyView(val id: UUID,val state: String,val expiresAt: Instant,val confirmationToken: String?=null,val errorCode: String?=null)
-data class SafetyInvitation(val title: String,val preview: List<String>,val expiresAt: Instant)
+data class SafetyInput(val operation: String="",val payload: JsonNode,val contextId: UUID?=null,val method: String?=null,val path: String?=null)
+data class SafetyView(val id: UUID,val state: String,val expiresAt: Instant,val errorCode: String?=null)
 
 @Service
 class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMapper,private val sessions: Sessions,
     private val crypto: IdentityCrypto,private val wechat: WechatCodeExchange,private val checks: WechatContentChecks,
-    private val files: FileService,private val environment: Environment,private val clock: Clock,manager: PlatformTransactionManager): qanda.backend.platform.security.ContentMutationGuard {
+    private val environment: Environment,private val clock: Clock,manager: PlatformTransactionManager): qanda.backend.platform.security.ContentMutationGuard {
     private val tx=TransactionTemplate(manager)
     private val log=org.slf4j.LoggerFactory.getLogger(javaClass)
     private val textFields=setOf("nickname","name","subject","title","summary","description","textbook","stem","explanation","content","referenceAnswer","answers","scoringPoints","passage","body","response","courseName")
-    fun required(operation: String,input: Any): Boolean = type(operation)!=null &&
-        (operation.substringBefore(':')!="PUBLISH_BANK" || json.valueToTree<JsonNode>(input).path("status").asText()=="PUBLISHED")
-    private fun type(operation: String): Class<*>?=when(operation.substringBefore(':')) {
+    fun required(operation: String): Boolean = type(operation)!=null
+    private fun type(operation: String): Class<*>?=when(operation) {
         "UPDATE_PROFILE" -> ProfileInput::class.java
-        "UPDATE_USER_PROFILE" -> AdminProfileInput::class.java
-        "CREATE_COLLEGE","UPDATE_COLLEGE" -> CollegeInput::class.java
-        "CREATE_MAJOR","UPDATE_MAJOR" -> MajorInput::class.java
-        "CREATE_SUBJECT","UPDATE_SUBJECT" -> SubjectInput::class.java
-        "CREATE_BANK","UPDATE_BANK" -> BankInput::class.java
-        "CREATE_CHAPTER","UPDATE_CHAPTER" -> ChapterInput::class.java
-        "CREATE_QUESTION","UPDATE_QUESTION" -> QuestionInput::class.java
-        "IMPORT_QUESTIONS" -> ImportInput::class.java
-        "PUBLISH_BANK" -> PublicationInput::class.java
-        "CREATE_ANNOUNCEMENT","UPDATE_ANNOUNCEMENT" -> AnnouncementInput::class.java
         "SUBMIT_FEEDBACK" -> FeedbackInput::class.java
         "REQUEST_COURSE" -> CourseRequestInput::class.java
-        "HANDLE_FEEDBACK","HANDLE_REQUEST" -> HandleInput::class.java
-        "COMMUNITY_GROUP" -> CommunityGroupInput::class.java
-        "EXCEL_IMPORT" -> JsonNode::class.java
         else -> null
     }
     fun context(actor: Actor,code: String): SafetyContextView {
+        if(actor.kind!="USER") forbidden()
         val identity=wechat.exchange(code)
         val id=UUID.randomUUID();val expires=clock.instant().plusSeconds(300)
         tx.executeWithoutResult {
@@ -75,36 +58,18 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
         value.isArray -> json.createArrayNode().also { result -> value.forEach { result.add(canonical(it)) } }
         else -> value
     }
-    private fun material(actor: Actor,operation: String,payload: JsonNode): ObjectNode {
+    private fun material(operation: String,payload: JsonNode): ObjectNode {
         val dto=type(operation) ?: invalid("/operation")
         val input=try { json.valueToTree<JsonNode>(json.treeToValue(payload,dto)) } catch(_: Exception) { invalid("/payload") }
         val result=json.createObjectNode().set<JsonNode>("input",input) as ObjectNode
-        if(operation.startsWith("PUBLISH_BANK:")) {
-            if(actor.kind!="ADMIN") forbidden()
-            val bank=runCatching { UUID.fromString(operation.substringAfter(':')) }.getOrElse { invalid("/operation") }
-            val metadata=jdbc.queryForList("SELECT name,description,textbook,version,content_version FROM question_bank WHERE id=?",bank).singleOrNull() ?: missing()
-            val questions=jdbc.queryForList("SELECT q.id::text,q.version,r.stem,r.explanation,r.reference_answer AS \"referenceAnswer\",r.content_data FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE q.bank_id=? AND question_active(q.id) ORDER BY q.id",bank)
-                .map { row -> row.toMutableMap().apply { this["contentData"]=json.readTree(remove("content_data") as String) } }
-            val options=jdbc.queryForList("SELECT o.content FROM question_option o JOIN question q ON q.current_revision_id=o.revision_id WHERE q.bank_id=? AND question_active(q.id) ORDER BY q.id,o.sort_order",bank)
-            val assets=jdbc.queryForList("SELECT DISTINCT a.file_id FROM question_attachment a JOIN question q ON q.current_revision_id=a.revision_id WHERE q.bank_id=? AND question_active(q.id) ORDER BY a.file_id",UUID::class.java,bank)
-            result.set<JsonNode>("snapshot",json.valueToTree(mapOf("bank" to metadata,"questions" to questions,"options" to options,"assetIds" to assets)))
-        }
         return canonical(result) as ObjectNode
     }
     private fun digest(value: JsonNode)=crypto.tokenDigest(json.writeValueAsString(canonical(value)))
     fun prepare(actor: Actor,input: SafetyInput): SafetyView {
-        if(input.method!=null || input.path!=null) return prepare(actor,input.copy(operation=ContentMutations.operation(input.method ?: "",input.path ?: "",input.contentType) ?: invalid("/path"),method=null,path=null))
-        if(input.operation.startsWith("EXCEL_IMPORT:")) forbidden()
-        return create(actor,input,emptyList())
-    }
-    fun prepareImport(actor: Actor,kind: String,payload: JsonNode,images: List<ByteArray>): SafetyView {
-        if(actor.kind!="ADMIN" || kind !in setOf("users","banks")) forbidden()
-        return create(actor,SafetyInput("EXCEL_IMPORT:$kind",payload),images)
-    }
-    private fun create(actor: Actor,input: SafetyInput,images: List<ByteArray>): SafetyView {
-        if(input.operation.length>200 || !required(input.operation,input.payload)) invalid("/operation")
-        if(actor.kind=="USER" && input.operation !in setOf("UPDATE_PROFILE","SUBMIT_FEEDBACK","REQUEST_COURSE")) forbidden()
-        val value=material(actor,input.operation,input.payload)
+        if(actor.kind!="USER") forbidden()
+        if(input.method!=null || input.path!=null) return prepare(actor,input.copy(operation=ContentMutations.operation(input.method ?: "",input.path ?: "") ?: invalid("/path"),method=null,path=null))
+        if(!required(input.operation)) invalid("/operation")
+        val value=material(input.operation,input.payload)
         fun validateMedia(node: JsonNode,field: String="") {
             when {
                 node.isObject -> node.fields().forEachRemaining { validateMedia(it.value,it.key) }
@@ -119,20 +84,15 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
         }
         validateMedia(value)
         if(json.writeValueAsBytes(value).size>8*1024*1024) invalid("/payload")
-        val id=UUID.randomUUID();val confirmation=if(actor.kind=="ADMIN") crypto.randomToken() else null
+        val id=UUID.randomUUID()
         val expires=clock.instant().plusSeconds(1800)
         tx.executeWithoutResult {
             sessions.checkInTransaction(actor)
-            if(actor.kind=="USER") checkContext(actor,input.contextId ?: invalid("/contextId"))
-            jdbc.update("INSERT INTO content_safety_request(id,actor_id,session_id,actor_kind,operation,payload_json,payload_digest,context_id,confirmation_digest,state,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                id,actor.id,actor.sessionId,actor.kind,input.operation,json.writeValueAsString(value),digest(value),input.contextId,
-                confirmation?.let(crypto::tokenDigest),if(confirmation==null) "CHECKING" else "WAITING_CONFIRMATION",Timestamp.from(expires))
-            images.forEach { bytes ->
-                jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,'image/png',?,?,now(),'PENDING')",
-                    UUID.randomUUID(),id,bytes,java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)),crypto.tokenDigest(crypto.randomToken()))
-            }
+            checkContext(actor,input.contextId ?: invalid("/contextId"))
+            jdbc.update("INSERT INTO content_safety_request(id,actor_id,session_id,actor_kind,operation,payload_json,payload_digest,context_id,state,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                id,actor.id,actor.sessionId,actor.kind,input.operation,json.writeValueAsString(value),digest(value),input.contextId,"CHECKING",Timestamp.from(expires))
         }
-        return view(actor,id).copy(confirmationToken=confirmation)
+        return view(actor,id)
     }
     private fun checkContext(actor: Actor,id: UUID): Map<String,Any> {
         val row=jdbc.queryForList("SELECT * FROM content_safety_context WHERE id=? AND actor_id=? AND session_id=? AND actor_kind=? AND expires_at>now()",id,actor.id,actor.sessionId,actor.kind).singleOrNull() ?: conflict("CONTENT_CONTEXT_EXPIRED","请重新获取微信内容检查凭证")
@@ -141,34 +101,6 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
     private fun renewWorker(id: UUID,workerToken: UUID) {
         if(jdbc.update("UPDATE content_safety_request SET worker_heartbeat_at=now() WHERE id=? AND state='RUNNING' AND worker_token=?",id,workerToken)!=1)
             throw ApiException(HttpStatus.CONFLICT,"CONTENT_CHECK_INTERRUPTED","内容检查任务已转交处理")
-    }
-    fun confirm(id: UUID,token: String,code: String): SafetyView {
-        if(!token.matches(Regex("[A-Za-z0-9_-]{43}"))) invalid("/token")
-        val row=jdbc.queryForList("SELECT * FROM content_safety_request WHERE id=?",id).singleOrNull() ?: missing()
-        if(row["actor_kind"]!="ADMIN" || row["state"]!="WAITING_CONFIRMATION" || !(row["expires_at"] as Timestamp).toInstant().isAfter(clock.instant()) ||
-            !crypto.matches(crypto.tokenDigest(token),row["confirmation_digest"] as ByteArray)) conflict("CONTENT_CONFIRMATION_INVALID","确认请求已失效")
-        val actor=Actor(row["actor_id"] as UUID,row["session_id"] as UUID,"ADMIN","MINI_PROGRAM", "SUPER_ADMIN")
-        val context=context(actor,code)
-        val changed=jdbc.update("UPDATE content_safety_request SET context_id=?,confirmation_digest=NULL,state='CHECKING' WHERE id=? AND state='WAITING_CONFIRMATION'",context.id,id)
-        if(changed!=1) conflict("CONTENT_CONFIRMATION_INVALID","确认请求已使用")
-        return view(actor,id)
-    }
-    fun invitation(id: UUID,token: String): SafetyInvitation {
-        if(!token.matches(Regex("[A-Za-z0-9_-]{43}"))) invalid("/token")
-        val row=jdbc.queryForList("SELECT * FROM content_safety_request WHERE id=? AND actor_kind='ADMIN' AND state='WAITING_CONFIRMATION' AND expires_at>now()",id).singleOrNull() ?: missing()
-        if(!crypto.matches(crypto.tokenDigest(token),row["confirmation_digest"] as ByteArray)) missing()
-        tx.executeWithoutResult { sessions.checkInTransaction(Actor(row["actor_id"] as UUID,row["session_id"] as UUID,"ADMIN","MINI_PROGRAM","SUPER_ADMIN")) }
-        val preview=mutableListOf<String>()
-        fun visit(node: JsonNode,field: String="") {
-            if(preview.size>=20) return
-            when {
-                node.isObject -> node.fields().forEachRemaining { visit(it.value,it.key) }
-                node.isArray -> node.forEach { visit(it,field) }
-                node.isTextual && field in textFields && node.asText().isNotBlank() -> preview+=node.asText().take(1000)
-            }
-        }
-        visit(json.readTree(row["payload_json"] as String))
-        return SafetyInvitation("确认本次内容检查",preview,(row["expires_at"] as Timestamp).toInstant())
     }
     private fun inspect(id: UUID,actor: Actor,contextId: UUID,workerToken: UUID) {
         try {
@@ -199,7 +131,6 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
             val pendingMedia=storedMedia.filter { it["trace_id"]==null }.toMutableList()
             fun media(node: JsonNode,field: String="") {
                 if(node.isObject) node.fields().forEachRemaining { media(it.value,it.key) }
-                else if(node.isArray && field=="assetIds" && !(row["operation"] as String).startsWith("EXCEL_IMPORT:")) node.forEach { images+=files.read(actor,UUID.fromString(it.asText())) to "image/png" }
                 else if(node.isArray) node.forEach { media(it,field) }
                 else if(node.isTextual && field in setOf("avatar","image")) {
                     val uri=node.asText();if(field=="avatar") profileAvatar(uri)
@@ -209,11 +140,6 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
                 }
             }
             media(value)
-            if((row["operation"] as String).startsWith("UPLOAD_IMAGE:")) {
-                val bytes=value["input"].binaryValue()
-                val normalized=ImageNormalizer.normalize(bytes,ImageLimits((row["operation"] as String).substringAfterLast(':')))
-                images+=normalized.bytes to "image/png"
-            }
             images.distinctBy { java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(it.first)) }.forEach { (bytes,contentType) ->
                 val hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
                 if(knownHashes.add(hash)) {
@@ -266,15 +192,11 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
         return SafetyView(id,if(expires.isAfter(clock.instant())) row["state"] as String else "EXPIRED",expires,errorCode=row["error_code"] as? String)
     }
     override fun consume(actor: Actor,operation: String,input: Any,id: UUID?) {
-        if(!required(operation,input)) return
+        if(actor.kind!="USER" || !required(operation)) return
         if(id==null) conflict("CONTENT_CHECK_REQUIRED","请先完成内容检查")
-        if(operation.startsWith("PUBLISH_BANK:") || operation.startsWith("IMPORT_QUESTIONS:")) {
-            // Serialize the checked snapshot with every revision change before recomputing its digest.
-            jdbc.queryForList("SELECT id FROM question_bank WHERE id=? FOR UPDATE",UUID.fromString(operation.substringAfter(':')))
-        }
         val row=jdbc.queryForList("SELECT * FROM content_safety_request WHERE id=? FOR UPDATE",id).singleOrNull() ?: conflict("CONTENT_CHECK_REQUIRED","请重新检查内容")
         if(row["actor_id"]!=actor.id || row["session_id"]!=actor.sessionId || row["actor_kind"]!=actor.kind || row["operation"]!=operation || row["state"]!="PASSED" || !(row["expires_at"] as Timestamp).toInstant().isAfter(clock.instant()) ||
-            !crypto.matches(row["payload_digest"] as ByteArray,digest(material(actor,operation,json.valueToTree(input))))) conflict("CONTENT_CHECK_STALE","内容或账号状态已变化，请重新检查")
+            !crypto.matches(row["payload_digest"] as ByteArray,digest(material(operation,json.valueToTree(input))))) conflict("CONTENT_CHECK_STALE","内容或账号状态已变化，请重新检查")
         jdbc.update("UPDATE content_safety_request SET state='CONSUMED',consumed_at=now() WHERE id=?",id)
     }
     fun media(id: UUID,token: String): Pair<ByteArray,String> {
@@ -296,7 +218,7 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
             jdbc.update("DELETE FROM account_deletion_proof WHERE expires_at<now()")
         }
         val pending=tx.execute {
-            jdbc.queryForList("SELECT * FROM content_safety_request WHERE state='CHECKING' AND expires_at>now() ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED").singleOrNull()?.let {
+            jdbc.queryForList("SELECT * FROM content_safety_request WHERE actor_kind='USER' AND state='CHECKING' AND expires_at>now() ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED").singleOrNull()?.let {
                 val workerToken=UUID.randomUUID()
                 jdbc.update("UPDATE content_safety_request SET state='RUNNING',worker_token=?,worker_heartbeat_at=now() WHERE id=?",workerToken,it["id"])
                 it + ("worker_token" to workerToken)

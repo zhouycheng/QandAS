@@ -1,0 +1,38 @@
+<view class="secondary-page secondary-page-fill">
+  <page-header title="点击章节时使用的配置" />
+  <scroll-view class="presets-scroll" scroll-y>
+    <view class="settings-detail presets-page page-with-bottom-bar">
+      <view class="preset-card" wx:for="{{presets}}" wx:key="id">
+        <view class="preset-card-main"><text class="settings-label preset-name">{{item.name}}</text><text class="preset-default" wx:if="{{item.isDefault}}">默认</text></view>
+        <text class="settings-note">{{item.summary}}</text>
+        <view class="preset-actions">
+          <button class="q-button q-button--text" wx:if="{{!item.isDefault}}" data-id="{{item.id}}" bindtap="handleDefault" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">设为默认</button>
+          <button class="q-button q-button--text" data-id="{{item.id}}" bindtap="handleEdit" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">编辑</button>
+          <button class="q-button q-button--text preset-delete" wx:if="{{!item.isDefault}}" data-id="{{item.id}}" bindtap="handleDelete" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">删除</button>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+  <view class="bottom-bar" wx:if="{{!editing}}">
+    <button class="q-button q-button--primary" bindtap="handleEdit" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">新增预设</button>
+  </view>
+  <bottom-sheet visible="{{editing}}" title="{{draft.id ? '编辑预设' : '新增预设'}}" fixed-footer bind:close="handleCancel">
+    <view class="settings-detail preset-editor">
+      <text class="settings-label">预设名称</text>
+      <input class="settings-input" value="{{draft.name}}" maxlength="30" data-key="name" bindinput="handleInput" placeholder="例如：日常练习" aria-label="预设名称" />
+      <text class="settings-label field-label">答题模式</text>
+      <view class="preset-choices"><button wx:for="{{modeOptions}}" wx:key="value" class="q-button preset-choice {{draft.mode === item.value ? 'selected' : ''}}" data-key="mode" data-value="{{item.value}}" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button></view>
+      <text class="settings-label field-label">每次题量</text>
+      <view class="preset-choices"><button class="q-button preset-choice {{draft.count !== 'ALL' ? 'selected' : ''}}" data-key="count" data-value="20" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">指定题数</button><button class="q-button preset-choice {{draft.count === 'ALL' ? 'selected' : ''}}" data-key="count" data-value="ALL" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">全部</button></view>
+      <input wx:if="{{draft.count !== 'ALL'}}" class="settings-input" type="number" value="{{draft.countInput}}" data-key="countInput" bindinput="handleInput" placeholder="1～1000 题" aria-label="题量" />
+      <view wx:if="{{draft.mode !== 'view'}}">
+        <text class="settings-label field-label">答题时间</text>
+        <view class="preset-choices"><button wx:for="{{durationOptions}}" wx:key="value" class="q-button preset-choice {{!customDuration && draft.duration === item.value ? 'selected' : ''}}" data-value="{{item.value}}" bindtap="handleDuration" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button><button class="q-button preset-choice {{customDuration ? 'selected' : ''}}" data-value="custom" bindtap="handleDuration" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">自定义</button></view>
+        <input wx:if="{{customDuration}}" class="settings-input" type="number" value="{{draft.durationInput}}" data-key="durationInput" bindinput="handleInput" placeholder="1～1440 分钟" aria-label="自定义分钟数" />
+      </view>
+      <text wx:if="{{error}}" class="preset-error" aria-live="polite">{{error}}</text>
+    </view>
+    <view slot="footer" class="preset-editor-actions"><button class="q-button" bindtap="handleCancel" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">取消</button><button class="q-button q-button--primary" bindtap="handleSave" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">保存预设</button></view>
+  </bottom-sheet>
+  <text wx:if="{{error && !editing}}" class="preset-error preset-list-error" aria-live="polite">{{error}}</text>
+</view>

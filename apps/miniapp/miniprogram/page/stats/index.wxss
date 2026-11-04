@@ -30,8 +30,8 @@ page { background: var(--card); }
 .review-lock { display: flex; align-items: center; justify-content: center; width: 112rpx; height: 112rpx; border-radius: 50%; background: var(--brand-soft); }
 .review-lock .mi-icon { width: 60rpx; height: 60rpx; }
 .review-access-title { margin-top: 28rpx; font-size: var(--font-body); font-weight: 600; color: var(--text-main); }
-.review-access-desc { margin-top: 16rpx; font-size: var(--font-caption); color: var(--text-sub); line-height: 1.6; }
-.review-login { min-width: 320rpx;   margin-top: 36rpx;       }
+.review-access-desc { margin-top: var(--space-sm); font-size: var(--font-secondary); color: var(--text-sub); line-height: var(--leading-secondary); }
+.review-login { align-self: stretch; margin-top: var(--space-md); }
 
 .page-head-main {
   flex: 1;
@@ -46,8 +46,8 @@ page { background: var(--card); }
 .segmented {
   display: flex;
   align-items: center;
-  height: 63rpx;
-  margin-top: 24rpx;
+  min-height: 44px;
+  margin-top: var(--space-lg);
   padding: 6rpx;
   box-sizing: border-box;
   border-radius: var(--radius-card);
@@ -60,10 +60,10 @@ page { background: var(--card); }
   justify-content: center;
   flex: 1;
   min-width: 0;
-  height: 51rpx;
+  min-height: 36px;
   border-radius: var(--radius-tag);
-  font-size: var(--font-caption);
-  line-height: 1.5;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   font-weight: 500;
   color: var(--text-sub);
   text-align: center;
@@ -86,7 +86,7 @@ page { background: var(--card); }
 .metric-row {
   display: flex;
   align-items: flex-start;
-  margin-top: 40rpx;
+  margin-top: var(--space-lg);
   padding-bottom: 14rpx;
 }
 
@@ -99,7 +99,7 @@ page { background: var(--card); }
 .metric-label {
   display: block;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -113,7 +113,7 @@ page { background: var(--card); }
 
 .metric-num {
   font-size: var(--font-display);
-  line-height: 1.5;
+  line-height: var(--leading-display);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -121,7 +121,7 @@ page { background: var(--card); }
 .metric-unit {
   margin-left: 3rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -184,7 +184,7 @@ page { background: var(--card); }
 
 .entry-title {
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 600;
   color: var(--text-sub);
 }
@@ -197,7 +197,7 @@ page { background: var(--card); }
 
 .entry-num {
   font-size: var(--font-title);
-  line-height: 1.5;
+  line-height: var(--leading-title);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -205,7 +205,7 @@ page { background: var(--card); }
 .entry-unit {
   margin-left: 4rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -213,8 +213,8 @@ page { background: var(--card); }
 .entry-caption {
   display: block;
   margin-top: 4rpx;
-  font-size: var(--font-caption);
-  line-height: 1.5;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   font-weight: 500;
   color: var(--text-sub);
   overflow: hidden;
@@ -225,9 +225,9 @@ page { background: var(--card); }
 /* ---------- 图表容器 ---------- */
 
 .block {
-  margin-top: 26rpx;
-  padding: 26rpx 26rpx 22rpx;
-  border: 2rpx solid var(--page-bg);
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
   background: var(--card);
 }
@@ -240,7 +240,7 @@ page { background: var(--card); }
 
 .block-title {
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -248,7 +248,7 @@ page { background: var(--card); }
 .block-caption {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -259,13 +259,15 @@ page { background: var(--card); }
   width: 100%;
 }
 
-/* 趋势图给固定高度：mode="widthFix" 会让 640x240 的图在 600rpx 宽时压得很扁，
-   曲线糊成一条。190rpx ≈ 设计稿里 100px 的绘图区高度。 */
+/* 图形保持原始比例，原生日期标签位于图形下方。 */
 .trend-chart {
   display: block;
   width: 100%;
-  height: 190rpx;
 }
+.chart-axis { position: relative; height: var(--leading-caption); margin-top: var(--space-xs); color: var(--text-sub); font-size: var(--font-caption); line-height: var(--leading-caption); }
+.chart-axis-label { position: absolute; top: 0; white-space: nowrap; }
+.chart-axis-center { transform: translateX(-50%); }
+.chart-axis-end { transform: translateX(-100%); }
 
 /* ---------- 热力图图例 ---------- */
 
@@ -278,7 +280,7 @@ page { background: var(--card); }
 
 .legend-text {
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   color: var(--text-sub);
 }
 
@@ -312,11 +314,9 @@ page { background: var(--card); }
 /* ---------- 空态 ---------- */
 
 .chart-empty {
-  padding: 40rpx 0;
-  font-size: var(--font-caption);
-  line-height: 1.5;
+  padding: var(--space-lg) 0;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
   text-align: center;
 }
-
-.review-login { margin-top: var(--space-md); }

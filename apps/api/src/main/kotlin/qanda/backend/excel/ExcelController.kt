@@ -10,7 +10,6 @@ import qanda.backend.application.ExcelService
 import qanda.backend.platform.http.invalid
 import qanda.backend.platform.security.requestId
 import java.util.zip.ZipInputStream
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -42,16 +41,9 @@ class ExcelController(private val service: ExcelService,private val sessions: Se
         val resource=request.requestURI.split('/')[4];val actor=sessions.admin()
         return try { service.preview(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java)) } catch(e: IllegalArgumentException) { ExcelPreview(false,0,emptyList(),listOf(ExcelIssue("上传文件","文件",1,"",e.message ?: "文件无效"))) }
     }
-    @PostMapping(value=["/users/excel/content-safety","/question-banks/excel/content-safety"],consumes=["multipart/form-data"],produces=["application/json"])
-    fun contentSafety(@RequestParam files: List<MultipartFile>,@RequestParam(defaultValue="{}") options: String,request: HttpServletRequest): qanda.backend.contentsafety.SafetyView {
-        val resource=request.requestURI.split('/')[4]
-        return try { service.prepareContentCheck(sessions.admin(),kind(resource),input(files),json.readValue(options,ExcelOptions::class.java)) }
-        catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
-    }
     @PostMapping(value=["/users/excel/imports","/question-banks/excel/imports"],consumes=["multipart/form-data"],produces=["application/json"])
     fun import(@RequestParam files: List<MultipartFile>,@RequestParam(defaultValue="{}") options: String,request: HttpServletRequest): ExcelResult {
         val resource=request.requestURI.split('/')[4];val actor=sessions.admin()
-        val proof=request.getHeader("X-Content-Safety-Request")?.let { runCatching { UUID.fromString(it) }.getOrElse { invalid("/contentSafetyRequest") } }
-        return try { service.import(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java),request.requestId(),proof) } catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
+        return try { service.import(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java),request.requestId()) } catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
     }
 }

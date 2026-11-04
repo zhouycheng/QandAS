@@ -20,7 +20,7 @@
 
 客观得分为 `round(100 × 答对 / 客观总题数)`，未答占分母；客观正确率为 `答对 / (答对 + 答错)`。主观题计入完成量，独立自评，不进入上述分母或客观错题本。全部主观时得分为 `null`，显示“已完成”、题量和用时，最高分保持原值。正确率没有客观作答时显示 `—`。
 
-学习偏好提供“交卷后显示自评”开关，默认显示可选自评入口。关闭时隐藏选择按钮；未选择保持“未自评”，既不算掌握也不算未掌握，历史自评保持原值。
+主观题交卷后提供可选自评入口；未选择保持“未自评”，既不算掌握也不算未掌握，历史自评保持原值。自评入口随作答状态显示。
 
 
 ## 反馈、草稿与导航
@@ -58,6 +58,6 @@ Prism 将代码转换成文本和标记节点，支持 C、C++、Java、Python�
 | 管理端内容、导入、预览、网关 | `pnpm --dir apps/admin test`、`pnpm --dir apps/admin build` |
 | 导入示例与图片映射 | `npm --prefix apps/admin run validate:bank -- docs/question-bank-import/examples/six-types.json docs/question-bank-import/examples/code-content.json docs/question-bank-import/examples/image-and-table.json` |
 | 小程序完整回归与官方 WXML/WXSS 编译 | `npm --prefix apps/miniapp test` |
-| API 单元及独立 PostgreSQL/消息队列验收 | 在 `apps/api` 执行 `./mvnw verify`，用 `QANDA_QUALITY_EVIDENCE_DIR` 将证据写入独立目录 |
+| API 单元及独立 PostgreSQL/消息队列验收 | 在仓库根目录执行 `node apps/api/scripts/backend.mjs verify`，用 `QANDA_QUALITY_EVIDENCE_DIR` 将证据写入独立目录 |
 
 共用样例覆盖候选答案、大小写、Unicode 首尾空白、内部空格、混合计分、全主观、全未答和舍入。小程序回归覆盖确认矩阵、草稿恢复、存储失败、重复提交和自动前进取消；API 验收覆盖修订锁定、整卷草稿提交、参考内容时机、自评统计、背题和游客快照。

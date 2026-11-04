@@ -21,10 +21,10 @@
 }
 
 .hero-brand {
-  font-size: var(--font-display);
+  font-size: var(--font-title);
   font-weight: 600;
-  letter-spacing: 1rpx;
-  line-height: 1.25;
+  letter-spacing: 0;
+  line-height: var(--leading-title);
   color: var(--card);
 }
 

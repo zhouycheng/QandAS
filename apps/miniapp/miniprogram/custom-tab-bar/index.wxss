@@ -63,9 +63,8 @@
 
 .tab-text {
   margin-top: 4rpx;
-  font-size: 11px;
   font-size: var(--font-caption);
-  color: #667085;
+  line-height: var(--leading-caption);
   color: var(--text-sub);
 }
 

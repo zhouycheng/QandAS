@@ -1,11 +1,10 @@
+const { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText } = require('../models/bank-detail-presentation.js');
 const practiceRepository = require('../repositories/practice-repository.js');
+const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
+const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
-const CN_NUMBERS = [
-    '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'
-];
 const MAX_KEYWORD_LENGTH = 20;
-const { DEFAULT_DURATION_MINUTES, MODE_OPTIONS, ORDER_OPTIONS, DURATION_OPTIONS, DEFAULT_SHEET, resolveModeValue, resolveOrderValue, resolveRouteMode, buildPracticeConfig } = require('../models/bank-practice-config.js');
+const { DEFAULT_DURATION_MINUTES, MODE_OPTIONS, DURATION_OPTIONS, DEFAULT_SHEET, resolveModeValue, resolveRouteMode, buildPracticeConfig } = require('../models/bank-practice-config.js');
 function getInitialBankDetailViewData() {
     return {
         subjectId: '',
@@ -33,8 +32,9 @@ function getInitialBankDetailViewData() {
         configSubtitle: '',
         configTargetName: '',
         sheetMode: DEFAULT_SHEET.mode,
-        sheetOrder: DEFAULT_SHEET.order,
-        sheetTimed: DEFAULT_SHEET.timed,
+        sheetModeDescription: MODE_OPTIONS[0].description,
+        sheetAutoShowExplanation: true,
+        sheetAutoNextWhenCorrect: false,
         sheetDuration: DEFAULT_SHEET.duration,
         sheetOnlyWrong: DEFAULT_SHEET.onlyWrong,
         sheetWrongCount: 0,
@@ -42,9 +42,7 @@ function getInitialBankDetailViewData() {
         sheetAllBanksSelected: false,
         sheetSomeBanksSelected: false,
         sheetStartDisabled: false,
-        sheetOrderDisabled: false,
         modeOptions: MODE_OPTIONS,
-        orderOptions: ORDER_OPTIONS,
         durationOptions: DURATION_OPTIONS,
         sheetStartText: '开始答题',
         mode: 'order',
@@ -55,21 +53,6 @@ function getInitialBankDetailViewData() {
         routeLoadingDescription: ''
     };
 }
-function chapterTitle(index, name) {
-    const text = String(name === undefined || name === null ? '' : name).trim();
-    // 有些题库名本身就带序号（「第一单元」），再套一层就成了「第一章：第一单元」
-    if (/^第[一二三四五六七八九十百\d]+[章单元节讲]/.test(text)) {
-        return text;
-    }
-    const cn = CN_NUMBERS[index] || String(index + 1);
-    return `第${cn}章：${text}`;
-}
-function chapterMetaText(stats, hasProgress) {
-    if (!stats) {
-        return '';
-    }
-    return hasProgress ? `${stats.answered}/${stats.total}` : stats.totalText;
-}
 class BankDetailViewModel {
     constructor(options) {
         const normalizedOptions = options || {};
@@ -78,8 +61,6 @@ class BankDetailViewModel {
         this.railMode = 'subject';
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         this.sheetTarget = null;
-        // 已加载的目录条目按科目建立索引。
-        this.bankIndex = null;
     }
     refreshRemote(subjectId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
@@ -148,9 +129,6 @@ class BankDetailViewModel {
         this.loadingMoreBanks = this.refreshRemote(this.currentSubjectId).finally(() => { this.loadingMoreBanks = null; });
         return this.loadingMoreBanks;
     }
-    changeProfile() {
-        return { command: { type: 'navigate', url: this.repository.getAuth(this.storage).token ? '/page/account/index' : '/page/login/index' } };
-    }
     requestCourse() {
         return require('../utils/feedback-entry.js').feedbackEntry(this.storage, 'course');
     }
@@ -197,12 +175,7 @@ class BankDetailViewModel {
             data: this.buildViewData(this.repository.getSubjectSummaries(), detail)
         };
     }
-    /**
-     * 「最近在刷」：跳到上次练习的科目。
-     *
-     * 不额外存「最近浏览」，只认真实练习记录（进度表里 updatedAt 最新的那条），
-     * 这样它不会变成一个点了没反应、或者和真实学习状态不符的假入口。
-     */
+    /** 「最近在刷」定位到最近练习记录所属的科目。 */
     enterRecent(loaded) {
         if (!loaded) {
             return this.repository.refreshRemote(this.storage, 'recent').then(async () => {
@@ -248,9 +221,6 @@ class BankDetailViewModel {
             return {};
         }
     }
-    /**
-     * 组装左栏、统计卡、章节列表。
-     */
     buildViewData(subjects, detail) {
         this.currentSubjectId = detail.id;
         const progress = this.safeProgress();
@@ -276,93 +246,10 @@ class BankDetailViewModel {
                 }];
         });
         const recent = this.resolveRecentSubject(subjects);
-        this.bankIndex = this.buildBankIndex(subjects);
-        return Object.assign({
-            subjectId: detail.id,
-            subject: this.buildSubjectView(detail),
-            stats: subjectStats,
-            subjects: subjects.map((subject) => ({
-                id: subject.id,
-                name: subject.name,
-                theme: subject.theme,
-                active: this.railMode === 'subject' && subject.id === detail.id,
-                recentActive: this.railMode === 'recent'
-            })),
-            railMode: this.railMode,
-            recentSubjectId: recent ? recent.subjectId : '',
-            recentSubjectName: recent ? this.subjectNameOf(subjects, recent.subjectId) : '',
-            rows,
-            chapterGroups: this.groupChapterRows(rows),
-            showBankTitles: (detail.bankCount > 1 || detail.banks.length > 1),
-            listEmptyText: '这个科目还没有章节',
-            // 搜索面板与抽屉由用户操作驱动，重新加载时一律回到关闭态
-            searchKeyword: '',
-            searchActive: false,
-            searchResults: [],
-            searchEmptyText: '',
-            configSheetVisible: false
-        }, this.buildSheetData());
+        return buildBankView(subjects, detail, { subjectStats, rows, recent, railMode: this.railMode, chapterGroups: this.groupChapterRows(rows), sheet: this.buildSheetData() });
     }
-    buildChapterRows(detail, bank) {
-        const chapters = this.repository.getRemoteChapters(this.storage, bank.id);
-        if (!chapters)
-            return [];
-        const choices = chapters.filter(chapter => chapter.questionCount > 0);
-        if (!chapters.length || chapters.reduce((count, chapter) => count + chapter.questionCount, 0) < bank.questionCount) {
-            choices.push({ id: '', name: '全部题目', questionCount: bank.questionCount, progress: bank.progress });
-        }
-        return choices.map(chapter => {
-            const stats = summarizeBankProgress({}, chapter);
-            return {
-                id: bank.id + ':' + chapter.id, bankId: bank.id, chapterId: chapter.id, subjectId: detail.id,
-                title: chapter.name,
-                questionCount: chapter.questionCount, metaText: chapterMetaText(stats, stats.hasProgress),
-                answered: stats.answered, progressPercent: stats.progressPercent, hasProgress: stats.hasProgress,
-                isComplete: chapter.questionCount > 0 && stats.answered >= chapter.questionCount
-            };
-        });
-    }
-    groupChapterRows(rows) {
-        const detail = this.repository.getSubjectDetail(this.currentSubjectId);
-        return (detail && detail.banks || []).map(bank => ({ id: bank.id, name: bank.name, rows: rows.filter(row => row.bankId === bank.id) })).filter(group => group.rows.length);
-    }
-    buildSubjectView(detail) {
-        return {
-            id: detail.id,
-            name: detail.name,
-            theme: detail.theme,
-            description: detail.description,
-            bankCount: detail.bankCount,
-            questionCount: detail.questionCount
-        };
-    }
-    subjectNameOf(subjects, subjectId) {
-        const matched = (subjects || []).find((subject) => subject.id === subjectId);
-        return matched ? matched.name : '';
-    }
-    /** 搜索索引：跨科目搜章节名 / 科目名，命中后能直接跳到那一章 */
-    buildBankIndex(subjects) {
-        const index = [];
-        (subjects || []).forEach((subject) => {
-            const detail = this.repository.getSubjectDetail(subject.id);
-            if (!detail) {
-                return;
-            }
-            (detail.banks || []).forEach((bank, position) => {
-                index.push({
-                    id: bank.id,
-                    bankId: bank.id,
-                    subjectId: detail.id,
-                    subjectName: detail.name,
-                    title: bank.name,
-                    chapterTitle: chapterTitle(position, bank.name),
-                    metaText: bank.questionText || `${bank.questionCount} 题`,
-                    progressPercent: bank.progressPercent || 0
-                });
-            });
-        });
-        return index;
-    }
+    buildChapterRows(detail, bank) { return buildChapterRows(detail, bank, this.repository.getRemoteChapters(this.storage, bank.id)); }
+    groupChapterRows(rows) { return groupChapterRows(rows, this.repository.getSubjectDetail(this.currentSubjectId)); }
     updateSearch(keyword, nextPage) {
         const request = this.searchRequest = (this.searchRequest || 0) + 1;
         const text = String(keyword === undefined || keyword === null ? '' : keyword)
@@ -390,39 +277,12 @@ class BankDetailViewModel {
             });
         }
         this.remoteSearchText = '';
-        if (!text) {
-            return {
-                data: {
-                    searchKeyword: '',
-                    searchActive: false,
-                    searchResults: [],
-                    searchEmptyText: ''
-                }
-            };
-        }
-        const pool = Array.isArray(this.bankIndex) ? this.bankIndex : [];
-        const lower = text.toLowerCase();
-        const results = pool
-            .filter((item) => {
-            const haystack = `${item.subjectName}${item.title}${item.chapterTitle}`.toLowerCase();
-            return haystack.indexOf(lower) >= 0;
-        })
-            .slice(0, 12)
-            .map((item) => ({
-            id: item.id,
-            bankId: item.bankId,
-            subjectId: item.subjectId,
-            subjectName: item.subjectName,
-            title: item.title,
-            chapterTitle: item.chapterTitle,
-            metaText: item.metaText
-        }));
         return {
             data: {
-                searchKeyword: text,
-                searchActive: true,
-                searchResults: results,
-                searchEmptyText: results.length ? '' : `没有匹配「${text}」的章节`
+                searchKeyword: '',
+                searchActive: false,
+                searchResults: [],
+                searchEmptyText: ''
             }
         };
     }
@@ -444,30 +304,18 @@ class BankDetailViewModel {
         if (!detail) {
             return null;
         }
-        if (normalized.type === 'bank') {
-            const bank = (detail.banks || []).find((item) => item.id === normalized.bankId);
-            if (!bank) {
-                return null;
-            }
-            this.sheetTarget = {
-                type: 'bank',
-                subjectId: detail.id,
-                bankId: bank.id,
-                name: bank.name,
-                title: bank.name,
-                questionCount: bank.questionCount || 0
-            };
+        const bank = (detail.banks || []).find((item) => item.id === normalized.bankId);
+        if (!bank) {
+            return null;
         }
-        else {
-            this.sheetTarget = {
-                type: 'subject',
-                subjectId: detail.id,
-                bankId: '',
-                name: detail.name,
-                title: detail.name,
-                questionCount: detail.questionCount || 0
-            };
-        }
+        this.sheetTarget = {
+            type: 'bank',
+            subjectId: detail.id,
+            bankId: bank.id,
+            name: bank.name,
+            title: bank.name,
+            questionCount: bank.questionCount || 0
+        };
         this.sheet = sheet;
         return this.buildConfigOpenResult();
     }
@@ -499,8 +347,9 @@ class BankDetailViewModel {
             return null;
         this.sheet.mode = pending.mode === 'test' ? 'test' : pending.mode === 'view' ? 'view' : 'practice';
         this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random';
-        this.sheet.timed = !!pending.duration || pending.mode === 'test';
-        this.sheet.duration = Number(pending.duration) || DEFAULT_DURATION_MINUTES;
+        this.sheet.duration = Number(pending.duration) || 0;
+        this.sheet.presetId = '';
+        this.sheet.presetName = '自定义';
         this.sheet.onlyWrong = pending.selectionKind === 'WRONG';
         this.setSheetChapter(pending.chapterId || '');
         this.storage.remove('qandaPendingPractice');
@@ -550,6 +399,12 @@ class BankDetailViewModel {
         return (this.sheetTarget && this.sheetTarget.banks || []).filter(bank => (this.sheet.bankIds || []).includes(bank.id));
     }
     buildConfigOpenResult() {
+        if (!this.sheet.presets) {
+            const preferences = this.repository.getPreferences(this.storage);
+            const preset = defaultPreset(preferences);
+            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, order: preferences.practiceOrder, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
+        }
+        if (this.mockSelection) Object.assign(this.sheet, { mode: 'test', count: 'ALL', duration: 45, onlyWrong: false, durationError: '' });
         this.remoteSearchText = '';
         const subjects = this.repository.getSubjectSummaries();
         const detail = this.repository.getSubjectDetail(this.sheetTarget.subjectId);
@@ -564,6 +419,7 @@ class BankDetailViewModel {
         };
     }
     closeConfig() {
+        this.scopeRevision = (this.scopeRevision || 0) + 1;
         this.sheetTarget = null;
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         return {
@@ -572,46 +428,60 @@ class BankDetailViewModel {
             }
         };
     }
+    customSheet() { this.sheet.presetId = ''; this.sheet.presetName = '自定义'; }
     setSheetCount(count) {
-        if (![20, 50, 100, 1000].includes(count)) return null;
-        this.sheet.count = count;
+        if (!validCount(count)) return null;
+        this.sheet.count = count; this.customSheet();
         return { data: this.buildSheetData() };
     }
     setSheetMode(mode) {
-        this.sheet.mode = resolveModeValue(mode);
-        this.sheet.timed = this.sheet.mode === 'test' ? true : this.sheet.timed;
-        return {
-            data: this.buildSheetData()
-        };
+        if (this.mockSelection) return null;
+        this.sheet.mode = resolveModeValue(mode); this.sheet.durationError = ''; this.customSheet();
+        return { data: this.buildSheetData() };
     }
-    setSheetOrder(order) {
-        this.sheet.order = resolveOrderValue(order);
-        return {
-            data: this.buildSheetData()
-        };
+    selectSheetPreset(index) {
+        const preset = (this.sheet.presets || [])[index];
+        if (!preset) return null;
+        Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, durationCustom: false, durationError: '' });
+        return { data: this.buildSheetData() };
     }
     setSheetChapter(id) {
-        if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id)))
-            return null;
+        if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id))) return null;
         this.sheet.chapterId = id || '';
         return { data: this.buildSheetData() };
     }
-    setSheetTimed(timed) {
-        this.sheet.timed = !!timed;
-        this.sheet.duration = this.sheet.duration || DEFAULT_DURATION_MINUTES;
-        return {
-            data: this.buildSheetData()
-        };
-    }
     selectDuration(value) {
-        const duration = Number(value);
-        if (!Number.isFinite(duration) || duration <= 0) {
-            return null;
+        this.customSheet();
+        this.sheet.durationCustom = value === 'custom';
+        if (value !== 'custom') {
+            if (!validDuration(Number(value))) return null;
+            this.sheet.duration = Number(value); this.sheet.durationError = '';
+        } else if (!this.sheet.duration) this.sheet.durationError = '请输入 1～1440 的整数分钟';
+        return { data: this.buildSheetData() };
+    }
+    setCustomDuration(value) {
+        this.sheet.duration = Number(value); this.customSheet();
+        this.sheet.durationError = /^\d+$/.test(value) && validDuration(Number(value)) && Number(value) > 0 ? '' : '请输入 1～1440 的整数分钟';
+        return { data: { sheetDurationError: this.sheet.durationError, sheetStartDisabled: this.buildSheetData().sheetStartDisabled } };
+    }
+    async refreshSheetScope() {
+        const target = this.sheetTarget;
+        if (!target) return null;
+        const selected = this.selectedBanks();
+        if (target.banks && !selected.length) { this.sheet.availableCount = 0; return { data: this.buildSheetData() }; }
+        const revision = this.scopeRevision = (this.scopeRevision || 0) + 1;
+        const bankId = selected.length ? selected[0].id : target.bankId;
+        this.sheet.scopeLoading = true; this.sheet.scopeError = '';
+        try {
+            const preview = await this.repository.previewRemotePracticeScope(this.storage, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], count: 1, completeFirstGroup: !this.sheet.onlyWrong, order: 'SEQUENTIAL', selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' });
+            if (revision !== this.scopeRevision || target !== this.sheetTarget) return null;
+            this.sheet.availableCount = preview.availableCount === undefined ? preview.selectedCount : preview.availableCount;
+        } catch (error) {
+            if (revision !== this.scopeRevision || target !== this.sheetTarget) return null;
+            this.sheet.scopeError = error.message;
         }
-        this.sheet.duration = duration;
-        return {
-            data: this.buildSheetData()
-        };
+        this.sheet.scopeLoading = false;
+        return { data: this.buildSheetData() };
     }
     setSheetOnlyWrong(onlyWrong) {
         const target = this.sheetTarget;
@@ -644,85 +514,32 @@ class BankDetailViewModel {
         return scope && scope.progress && scope.progress.wrongBookCount || 0;
     }
     buildSheetData() {
+        this.sheet.mockSelection = !!this.mockSelection;
         return buildPracticeConfig(this.sheet, this.sheetTarget, this.selectedBanks(), this.wrongCountFor(this.sheetTarget));
     }
     resolveRouteMode() {
         return resolveRouteMode(this.sheet);
     }
-    confirmConfig(currentState) {
-        const state = currentState || {};
-        const target = this.sheetTarget || {
-            type: 'subject',
-            subjectId: state.subjectId || '',
-            bankId: '',
-            name: '',
-            title: '',
-            questionCount: (state.stats && state.stats.total) || 0
-        };
-        const routeMode = this.resolveRouteMode();
-        const query = [];
+    confirmConfig() {
+        const target = this.sheetTarget;
+        if (!target) return null;
         const selected = this.selectedBanks();
-        if (target.banks && !selected.length)
-            return { command: { type: 'toast', title: '请至少选择一个题库' } };
-        if (selected.length > 100)
-            return { command: { type: 'toast', title: '每次最多选择 100 个题库' } };
+        if (target.banks && !selected.length) return { command: { type: 'toast', title: '请至少选择一个题库' } };
+        if (selected.length > 100) return { command: { type: 'toast', title: '每次最多选择 100 个题库' } };
+        if (this.sheet.durationError && this.sheet.mode !== 'view') return { command: { type: 'toast', title: this.sheet.durationError } };
+        return this.createConfiguredPractice(target, selected);
+    }
+    async createConfiguredPractice(target, selected) {
         const bankId = selected.length ? selected[0].id : target.bankId;
-        if (target.banks) {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`, `bankId=${encodeURIComponent(bankId)}`, `bankIds=${encodeURIComponent(selected.map(bank => bank.id).join(','))}`, `title=${encodeURIComponent(target.title)}`);
-        }
-        else if (target.type === 'bank') {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`);
-            query.push(`bankId=${encodeURIComponent(target.bankId)}`);
-            if (this.sheet.chapterId)
-                query.push(`chapterId=${encodeURIComponent(this.sheet.chapterId)}`);
-        }
-        else {
-            query.push(`subjectId=${encodeURIComponent(target.subjectId)}`);
-            query.push('scope=subject');
-        }
-        if (this.sheet.onlyWrong)
-            query.push('selectionKind=WRONG');
-        query.push(`mode=${encodeURIComponent(routeMode)}`);
-        if (this.sheet.timed && routeMode !== 'view') {
-            query.push(`duration=${encodeURIComponent(this.sheet.duration)}`);
-        }
-        query.push(`seed=${Date.now()}`);
-        const buildCommand = (count) => ({
-            data: {
-                configSheetVisible: false
-            },
-            command: {
-                type: 'openRouteWithLoading',
-                payload: {
-                    url: `/page/practice/index?${query.join('&')}`,
-                    title: routeMode === 'test' ? '正在生成试卷' : (routeMode === 'view' ? '正在打开题目' : '正在开始练习'),
-                    description: this.sheet.timed && routeMode !== 'view'
-                        ? `${count} 题 / ${this.sheet.duration} 分钟`
-                        : `${count} 题 · ${target.title || target.name || '全部题目'}`
-                }
-            }
-        });
-        if (bankId) {
-            return this.repository.previewRemotePracticeScope(this.storage, {
-                questionBankId: bankId,
-                ...(target.banks ? { questionBankIds: selected.map(bank => bank.id) } : {}),
-                chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [],
-                count: this.sheet.onlyWrong ? 1000 : (this.sheet.count || 20),
-                ...(!this.sheet.onlyWrong && (this.sheet.count || 20) === 20 ? { completeFirstGroup: true } : {}),
-                order: ['practice', 'test'].includes(routeMode) ? 'RANDOM' : 'SEQUENTIAL',
-                selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL',
-                collectionChip: 'all'
-            }).then(preview => {
-                const availableCount = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000);
-                if (!availableCount)
-                    return { command: { type: 'toast', title: '当前范围没有可练习的题目' } };
-                query.push(`count=${availableCount}`);
-                if (preview.selectionKey)
-                    query.push(`selectionKey=${preview.selectionKey}`);
-                return buildCommand(availableCount);
-            });
-        }
-        return buildCommand(target.questionCount || 0);
+        const preferences = this.repository.getPreferences(this.storage);
+        const route = routeForPreset(this.sheet, preferences);
+        const result = await preparePracticeRoute(this.storage, this.repository, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' }, route);
+        Object.assign(result.route, { subjectId: target.subjectId });
+        if (target.banks) result.route.bankIds = selected.map(b => b.id).join(',');
+        if (this.sheet.chapterId) result.route.chapterId = this.sheet.chapterId;
+        if (this.sheet.onlyWrong) result.route.selectionKind = 'WRONG';
+        this.mockSelection = false;
+        return { data: { configSheetVisible: false, mockSelection: false }, command: { type: 'openRouteWithLoading', payload: { url: '/page/practice/index?' + routeQuery(result.route), title: result.adjusted ? `保留完整阅读题组，实际 ${result.count} 题` : '正在开始答题' } } };
     }
     getShareMessage(subjectId, bankId) {
         const subject = this.repository.getSubjectDetail(subjectId);
@@ -736,5 +553,4 @@ module.exports = {
     BankDetailViewModel,
     DEFAULT_DURATION_MINUTES,
     MODE_OPTIONS,
-    ORDER_OPTIONS
 };

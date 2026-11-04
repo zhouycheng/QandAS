@@ -47,4 +47,15 @@ for (const count of [20, 100, 1000]) {
   measurements.push({ count, fullBytes: Buffer.byteLength(JSON.stringify(next)), patchBytes: Buffer.byteLength(JSON.stringify(patch)) })
 }
 assert.deepEqual(viewPatch({ value: 1 }, { value: 1 }), {})
+const overview = session()
+overview.selectOption(0)
+let overviewProjections = 0
+const projectOverview = overview.getOverviewItems.bind(overview)
+overview.getOverviewItems = (...args) => { overviewProjections += 1; return projectOverview(...args) }
+const card = overview.openQuestionOverview().data
+assert.equal(overviewProjections, 1, '打开答题卡复用同一份条目计算待确认数')
+assert.equal(card.overviewItems[0].answered, true)
+assert.equal(card.overviewItems[0].isCorrect, false, '交卷前答题卡不投影对错')
+assert.equal(card.overviewItems[1].answered, false)
+assert.equal(card.pendingConfirmationCount, 0)
 console.log('result rules and sparse view updates passed', JSON.stringify(measurements))

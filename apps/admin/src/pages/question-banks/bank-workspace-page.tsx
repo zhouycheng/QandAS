@@ -1,11 +1,10 @@
 import { ExcelTransfer } from '../../components/excel-transfer'
 import { useEffect, useState } from 'react'
-import { Alert, Button, Dropdown, Input, Menu, Message, Modal, Space, Spin, Tabs, Tag } from '@arco-design/web-react'
+import { Alert, Button, Dropdown, Input, Menu, Message, Modal, Spin, Tabs, Tag } from '@arco-design/web-react'
 import { IconArrowLeft, IconBook, IconMore, IconPlus } from '@arco-design/web-react/icon'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../../components/error-state'
-import { PageTitle } from '../../components/page-title'
 import { useAdminGateway } from '../../gateways/gateway-context'
 import { scopeLabels } from '../../lib/bank-workbench'
 import { formatDate } from '../../lib/format'
@@ -65,13 +64,19 @@ export function BankWorkspacePage() {
     Modal.confirm({ title: '删除空章节？', content: `确认删除“${chapter.name}”？`, okText: '确认删除', cancelText: '取消',
       onOk: async () => { try { await gateway.deleteChapter(chapter); if (chapterId === chapter.id) selectChapter(); refresh(); Message.success('空章节已删除') } catch (error) { Message.error((error as Error).message); throw error } } })
   }
-  return <section className="bw-page bw-bank-detail" aria-label="题库内容工作台"><ExcelTransfer resource="question-banks" bankId={id} onImported={() => refreshWorkbench(client)} />
-    <Link className="bw-back" to={`/question-banks?course=${encodeURIComponent(bank.subjectId)}`}><IconArrowLeft /> 返回{course?.name ?? '课程'}题库</Link>
-    <div className="bw-detail-hero"><div><div className="bw-location"><IconBook /> {course?.name}</div><PageTitle title={bank.name} description={bank.textbook || '补充教材和版本说明，帮助学生找到合适的复习内容。'} /></div><Space wrap>
-      <Dropdown trigger="click" droplist={<Menu onClickMenuItem={(key) => key === 'archive' ? changePublication(true) : setSettings('basic')}><Menu.Item key="settings">题库设置</Menu.Item>{bank.publicationStatus !== 'ARCHIVED' && <Menu.Item key="archive">归档题库</Menu.Item>}</Menu>}><Button icon={<IconMore />} aria-label="更多题库操作" /></Dropdown>
-      {bank.publicationStatus === 'PUBLISHED' ? <Button status="warning" onClick={() => changePublication()}>下架题库</Button> : <Button type="primary" onClick={() => setPublishing(true)}>检查并发布</Button>}
-    </Space></div>
-    <div className="bw-detail-meta"><Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag><span>{bank.questionCount} 道题</span><span>{chapterRows.length} 个章节</span><span>{bank.activeQuestionCount ?? 0} 道已启用</span><span className="bw-detail-scope">{bank.categories.length ? `${bank.categories.length} 组分类` : '通用题库'}</span></div>
+  return <section className="bw-page bw-bank-detail" aria-label="题库内容工作台">
+    <Link className="bw-back" to={`/question-banks?course=${encodeURIComponent(bank.subjectId)}`}><IconArrowLeft /> 返回课程题库</Link>
+    <header className="bw-detail-header">
+      <div className="bw-detail-hero">
+        <div><h1>{bank.name}</h1>{bank.textbook && <p>{bank.textbook}</p>}</div>
+        <div className="bw-detail-actions">
+          <ExcelTransfer resource="question-banks" bankId={id} onImported={refresh} />
+          <Dropdown trigger="click" droplist={<Menu onClickMenuItem={(key) => key === 'archive' ? changePublication(true) : setSettings('basic')}><Menu.Item key="settings">题库设置</Menu.Item>{bank.publicationStatus !== 'ARCHIVED' && <Menu.Item key="archive">归档题库</Menu.Item>}</Menu>}><Button icon={<IconMore />} aria-label="更多题库操作" /></Dropdown>
+          {bank.publicationStatus === 'PUBLISHED' ? <Button status="warning" onClick={() => changePublication()}>下架题库</Button> : <Button type="primary" onClick={() => setPublishing(true)}>检查并发布</Button>}
+        </div>
+      </div>
+      <div className="bw-detail-meta"><Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag><span>课程：{course.name}</span><span>{bank.questionCount} 道题</span><span>{chapterRows.length} 个章节</span><span>{bank.activeQuestionCount ?? 0} 道已启用</span><span className="bw-detail-scope">{bank.categories.length ? `${bank.categories.length} 组分类` : '通用题库'}</span></div>
+    </header>
     {course?.status !== 'ACTIVE' && <Alert className="bw-detail-alert" type="warning" content="所属课程已停用，题库暂不在学生列表中展示。请到课程目录恢复启用。" />}
     <Tabs className="bw-detail-tabs" activeTab={tab} onChange={(value) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); return next })}>
       <Tabs.TabPane key="questions" title="题目管理">

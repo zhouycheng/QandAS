@@ -3,12 +3,23 @@ package qanda.backend
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import qanda.backend.identity.profileAvatar
+import qanda.backend.identity.DefaultAvatars
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.Base64
 import javax.imageio.ImageIO
 
 class ProfileAvatarTest {
+    @Test fun `all six default avatars meet the existing image limits`() {
+        assertEquals(6,DefaultAvatars.values.size)
+        assertEquals(6,DefaultAvatars.values.distinct().size)
+        DefaultAvatars.values.forEach { avatar ->
+            assertEquals(avatar,profileAvatar(avatar))
+            val image=ImageIO.read(Base64.getDecoder().decode(avatar.substringAfter(',')).inputStream())
+            assertEquals(160,image.width);assertEquals(160,image.height)
+        }
+        repeat(20) { assertTrue(DefaultAvatars.random() in DefaultAvatars.values) }
+    }
     private fun image(size: Int=160): String {
         val output=ByteArrayOutputStream()
         ImageIO.write(BufferedImage(size,size,BufferedImage.TYPE_INT_RGB),"png",output)

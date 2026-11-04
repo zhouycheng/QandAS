@@ -458,16 +458,6 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         ],
         "requestBody": {
@@ -1354,16 +1344,6 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         ],
         "requestBody": {
@@ -2246,16 +2226,6 @@
             "name": "Idempotency-Key",
             "in": "header",
             "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -3156,16 +3126,6 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         ],
         "requestBody": {
@@ -4062,16 +4022,6 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         ],
         "requestBody": {
@@ -4955,16 +4905,6 @@
             "name": "Idempotency-Key",
             "in": "header",
             "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "X-Content-Safety-Request",
-            "in": "header",
-            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
-            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid"

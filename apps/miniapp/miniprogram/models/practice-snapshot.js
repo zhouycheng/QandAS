@@ -9,7 +9,7 @@ function mapQuestion(item, grading) {
     contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem, isMultiple: q.type === 'MULTIPLE_CHOICE', isShortAnswer: q.type === 'SHORT_ANSWER',
     isFillBlank: q.type === 'FILL_BLANK', blankCount: q.blankCount || 0, blanks: g.blanks || [], blankMatch: g.blankMatch || {},
     scoringPoints: g.scoringPoints || [], material: q.material || null, imagePaths: q.imagePaths || [],
-    options: boolean ? [{ key: 'true', label: '对', text: '正确' }, { key: 'false', label: '错', text: '错误' }] : (q.options || []).map(o => ({ key: o.key, label: o.key, text: o.content })),
+    options: boolean ? [{ key: 'true', label: 'A', text: '正确' }, { key: 'false', label: 'B', text: '错误' }] : (q.options || []).map(o => ({ key: o.key, label: o.key, text: o.content })),
     answerKeys: boolean ? [String(g.correctValue)] : (g.correctAnswer || []),
     referenceAnswer: g.referenceAnswer || '', explanation: g.explanation || '', assetIds: q.assetIds || []
   }

@@ -20,9 +20,7 @@ const TIP_ACTIONS = {
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
-/* 时段要首尾相接，不能留缝：
-   早期版本写 5~11 / 11~13 / 13~18 / 18~23，13 点整、18 点整这种整点会掉到「夜深了」。
-   现在 18 点算傍晚而不是深夜，23 点之后才是夜深。 */
+// 相邻时段使用左闭右开区间，23:00 至次日 05:00 显示夜间问候。
 const PERIODS = [
   { from: 5, to: 11, text: '早上好' },
   { from: 11, to: 13, text: '中午好' },
@@ -63,12 +61,7 @@ function getDateText(timestamp) {
   return `${date.getMonth() + 1} 月 ${date.getDate()} 日 ${WEEKDAYS[date.getDay()]}`
 }
 
-/**
- * 时段档位（决定用哪张封面图）。
- * 5~11 早、11~18 中、18~次日 5 晚。首尾相接、不留缝：
- * 早期 PERIODS 用 5~11 / 11~13 / 13~18 相邻端点同值时，
- * 11 点整会同时满足两段，靠 find 的先后顺序兜住——这里干脆写成显式区间。
- */
+/** 封面时段：05–11 时为早间，11–18 时为午间，其余为晚间。 */
 function getDayPart(timestamp) {
   const hour = new Date(toTimestamp(timestamp)).getHours()
 

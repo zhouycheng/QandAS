@@ -23,7 +23,7 @@ import java.util.zip.*
 @Service
 class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper,private val catalog: CatalogService,private val content: ContentService,
     private val accounts: UserAccountMapper,private val admin: AdminService,private val access: ContentAccess,private val files: FileService,private val commands: Commands,
-    private val safety: qanda.backend.contentsafety.ContentSafety,private val sessions: Sessions) {
+    private val sessions: Sessions) {
     private fun id(value: String)=UUID.nameUUIDFromBytes(("qanda-excel-1:"+value).toByteArray())
     private fun exists(table: String,value: UUID)=jdbc.queryForObject("SELECT count(*) FROM $table WHERE id=?",Int::class.java,value)!!>0
     private fun target(doc: JsonNode,options: ExcelOptions)=options.targets[doc.path("fileId").asText()] ?: ExcelTarget()
@@ -132,30 +132,14 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
     private fun checkPayload(kind: String,input: List<ExcelFile>,options: ExcelOptions): JsonNode = json.valueToTree(mapOf(
         "kind" to kind,"documents" to documents(input,kind).map { (_,doc) -> mapOf("document" to doc,"target" to target(doc,options)) },
         "assets" to input.filter { !it.name.endsWith(".xlsx",true) }.sortedBy { it.name }.map { mapOf("path" to it.name,"sha256" to java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(it.bytes))) }))
-    fun prepareContentCheck(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions): qanda.backend.contentsafety.SafetyView {
-        val docs=documents(input,kind)
-        if(docs.all { (_,doc) -> imported(actor,kind,doc) }) return qanda.backend.contentsafety.SafetyView(UUID(0,0),"PASSED",Instant.now().plusSeconds(600))
-        if(kind=="banks") docs.forEach { (_,doc) ->
-            val t=target(doc,options)
-            if(t.bankId!=null) requireVersion(t.expectedContentVersion ?: invalid("/expectedContentVersion"),content.bank(actor,t.bankId).contentVersion)
-        }
-        val check=preview(actor,kind,input,options)
-        if(!check.valid) invalid("/files","EXCEL_IMPORT_CONFLICT",check.issues.joinToString("；") { it.message })
-        val images=input.filter { !it.name.endsWith(".xlsx",true) }.map { ImageNormalizer.normalize(it.bytes,ImageLimits(media(it.name))).bytes }
-        return safety.prepareImport(actor,kind,checkPayload(kind,input,options),images)
-    }
-    private fun imported(actor: Actor,kind: String,doc: JsonNode): Boolean = jdbc.queryForObject("SELECT count(*) FROM command_receipt WHERE scope=? AND operation=? AND command_id=?",Int::class.java,"${actor.kind}:${actor.id}","EXCEL_FILE:$kind",id(doc.path("fileId").asText()))!!>0
     @Transactional
-    fun import(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions,requestId: UUID,contentSafetyId: UUID?=null): ExcelResult {
+    fun import(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions,requestId: UUID): ExcelResult {
         sessions.checkInTransaction(actor)
         jdbc.execute("SELECT pg_advisory_xact_lock(hashtextextended('qanda-excel-import',0))")
         val docs=documents(input,kind)
         val checkedPayload=checkPayload(kind,input,options)
         val count=docs.sumOf { (_,d) -> if(kind=="users") d.path("users").size() else d.path("questions").sumOf { if(it.path("type").asText()=="READING") it.path("subQuestions").size() else 1 } }
         require(count in 1..3000) { "每批最多 3000 条用户或作答题" }
-        if(docs.any { (_,doc) -> !imported(actor,kind,doc) }) {
-            safety.consume(actor,"EXCEL_IMPORT:$kind",checkedPayload,contentSafetyId)
-        }
         // Existing receipts are checked inside the transaction so network retries return the original result.
         var total=0
         val initialBankVersions=mutableMapOf<UUID,Long>()

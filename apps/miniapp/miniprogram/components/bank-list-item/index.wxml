@@ -7,8 +7,8 @@
 >
   <view class="chapter-body">
     <text class="chapter-title">{{bank.title}}</text>
+    <text class="chapter-meta">{{bank.metaText}}</text>
   </view>
 
-  <text class="chapter-meta">{{bank.metaText}}</text>
-  <text class="chapter-arrow">›</text>
+  <button wx:if="{{showConfig}}" class="config-icon" catchtap="handleConfigureTap" aria-label="配置本次答题" hover-class="config-icon-hover" hover-start-time="0" hover-stay-time="80"><image class="config-icon-image" src="/assets/icons/tiaojie.svg" mode="aspectFit" aria-hidden="true" /></button>
 </view>

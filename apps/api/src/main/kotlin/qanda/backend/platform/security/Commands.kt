@@ -32,7 +32,7 @@ class Commands(private val sql: SystemMapper, private val receipts: CommandRecei
             if(!digests.matches(expected,old.payloadDigest)) conflict("IDEMPOTENCY_CONFLICT","同一请求标识的内容不同")
             return json.readValue(old.responseJson,resultType)
         }
-        actor?.let {
+        actor?.takeIf { it.kind=="USER" }?.let {
             val request=(org.springframework.web.context.request.RequestContextHolder.getRequestAttributes() as? org.springframework.web.context.request.ServletRequestAttributes)?.request
             val proof=request?.getHeader("X-Content-Safety-Request")?.let { value -> runCatching { UUID.fromString(value) }.getOrElse { invalid("/contentSafetyRequest") } }
             safety.consume(it,operation,input,proof)

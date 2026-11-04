@@ -7,6 +7,7 @@ import { getAdminSession, isAuthenticated, logout, touchAdminSession } from '../
 import { useUiStore } from '../stores/ui-store'
 import { useAdminGateway } from '../gateways/gateway-context'
 import { DesignIcon } from '../components/design-icon'
+import appIcon from '../assets/app-icon.jpg'
 
 const groups = [
   {
@@ -98,8 +99,9 @@ export function AdminLayout() {
   }, [navigate, timeoutMinutes])
   const navigation = (
     <>
-      <Link className="brand" to="/dashboard">
-        题小搭
+      <Link className="brand" to="/dashboard" aria-label="题小搭" title="题小搭">
+        <img className="brand-logo" src={appIcon} alt="" />
+        <span className="brand-label">题小搭</span>
       </Link>
       <nav aria-label="管理导航">
         {groups.map((group) => (

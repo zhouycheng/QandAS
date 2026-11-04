@@ -1,6 +1,6 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
 <!-- 答题页：顶部导航、题目模块与底部操作共用练习模板。 -->
-<view class="page practice-page font-{{preferences.fontSize}}">
+<view class="page practice-page pra-viewport {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
   <light-toast id="practice-hint" />
   <include src="../../templates/practice-head.wxml" />
   <view wx:if="{{trialNotice}}" class="load-note">{{trialNotice}}</view>
@@ -9,9 +9,9 @@
   <view wx:if="{{loadError}}" class="pra-modal"><view class="pra-modal-panel"><text>{{loadError}}</text><button class="q-button  pra-btn" bindtap="returnBankDetail" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回题库</button></view></view>
   <block wx:if="{{!isCompleted && !loadingPractice && !loadError}}">
     <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
-    <scroll-view class="pra-body" scroll-y enhanced bounces show-scrollbar="{{false}}" scroll-top="{{questionScrollTop}}" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection">
+    <view class="pra-body" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection" bind:contentready="scheduleMeasure">
       <include src="../../templates/practice-content.wxml" />
-    </scroll-view>
+    </view>
     <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>
 
     <!-- 未答完的二次确认：居中卡片，两个按钮等宽 -->
@@ -200,16 +200,13 @@
           </view>
           <view class="res-item-line" wx:if="{{item.scoringPoints.length}}">
             <text class="res-item-label">参考要点</text>
-            <view class="res-scoring-point" wx:for="{{item.scoringPoints}}" wx:for-item="point" wx:for-index="pointIndex" wx:key="*this">
-              <text class="res-point-number">{{pointIndex + 1}}.</text>
-              <rich-content class="res-point-content" text="{{(point) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
-            </view>
+            <rich-content class="res-scoring-point" wx:for="{{item.scoringPoints}}" wx:for-item="point" wx:for-index="pointIndex" wx:key="*this" text="{{(pointIndex + 1) + '. ' + (point || '')}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
           </view>
           <view class="res-self-assessment" wx:if="{{item.isShortAnswer && item.answered}}">
-            <text class="res-item-label">自评：{{item.selfAssessment === 'CORRECT' ? '掌握' : (item.selfAssessment === 'WRONG' ? '待复习' : '未自评')}}</text>
-            <view class="res-assessment-actions" wx:if="{{preferences.showSelfAssessment}}">
-              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">掌握</button>
-              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">待复习</button>
+            <text class="res-item-label">这道题掌握了吗？{{item.selfAssessment === 'CORRECT' ? '已掌握' : (item.selfAssessment === 'WRONG' ? '还需复习' : '')}}</text>
+            <view class="res-assessment-actions">
+              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="CORRECT" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">已掌握</button>
+              <button class="q-button  q-button--compact res-assessment-option {{item.selfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{item.id}}" data-value="WRONG" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">还需复习</button>
             </view>
           </view>
           <view class="res-item-line">

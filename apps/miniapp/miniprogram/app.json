@@ -10,11 +10,11 @@
     "page/login/index",
     "page/wrong-book/index",
     "page/settings/index",
+    "page/practice-presets/index",
     "page/practice-layout/index",
     "page/exam-countdown/index",
     "page/account/index",
     "page/account-security/index",
-    "page/content-confirm/index",
     "page/account-deletion/index",
     "page/legal/index",
     "page/feedback/index"

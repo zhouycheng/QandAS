@@ -24,14 +24,14 @@ class ContentSafetyPostgresTest: PostgresFixture() {
         eventually { state(s,ticket)["state"].asText()=="PASSED" }
     }
 
-    @Test fun `interrupted import checks retain their stored media for recovery`() {
-        val actor=sessionService.authenticate(adminToken)
+    @Test fun `interrupted avatar checks retain their stored media for recovery`() {
+        val actor=sessionService.authenticate(student().token)
         val context=contentSafety.context(actor,"local-learner-1:${UUID.randomUUID()}")
         val requestId=UUID.randomUUID();val mediaId=UUID.randomUUID();val workerToken=UUID.randomUUID()
         val bytes=ByteArrayOutputStream().also { ImageIO.write(BufferedImage(16,16,BufferedImage.TYPE_INT_RGB),"png",it) }.toByteArray()
         val hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
         org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult {
-            jdbc.update("INSERT INTO content_safety_request(id,actor_id,session_id,actor_kind,operation,payload_json,payload_digest,context_id,state,expires_at,worker_token,worker_heartbeat_at) VALUES(?,?,?,'ADMIN','EXCEL_IMPORT:banks','{}',?,?, 'RUNNING',now()+interval '30 minutes',?,now()-interval '2 minutes')",
+            jdbc.update("INSERT INTO content_safety_request(id,actor_id,session_id,actor_kind,operation,payload_json,payload_digest,context_id,state,expires_at,worker_token,worker_heartbeat_at) VALUES(?,?,?,'USER','UPDATE_PROFILE','{}',?,?, 'RUNNING',now()+interval '30 minutes',?,now()-interval '2 minutes')",
                 requestId,actor.id,actor.sessionId,byteArrayOf(1),context.id,workerToken)
             jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,'image/png',?,?,now()+interval '10 minutes','PENDING')",
                 mediaId,requestId,bytes,hash,byteArrayOf(2))
@@ -83,16 +83,23 @@ class ContentSafetyPostgresTest: PostgresFixture() {
         assertEquals("新版本",call("GET","/me",token=s.token)["nickname"].asText())
     }
 
-    @Test fun `publication checks bind the exact bank revision and administrator session`() {
-        val f=fixture();val bank=call("GET","/admin/question-banks/${f.bank}")
-        val input=mapOf("expectedVersion" to bank["version"].asLong(),"status" to "PUBLISHED")
-        val ticket=call("POST","/admin/content-safety/requests",mapOf("operation" to "PUBLISH_BANK:${f.bank}","payload" to input))
-        assertEquals("WAITING_CONFIRMATION",ticket["state"].asText())
-        assertEquals(409,raw("POST","/content-safety/confirmations",mapOf("requestId" to id(ticket),"token" to "a".repeat(43),"code" to "local-learner-1:${UUID.randomUUID()}"),null).statusCode())
-        approveContentTicket(ticket,adminToken)
-        call("PUT","/admin/questions/${f.questions.first()}",question(f.bank,"SINGLE_CHOICE")+mapOf("expectedVersion" to 1,"stem" to "新修订"))
-        val response=raw("PUT","/admin/question-banks/${f.bank}/publication",input,extraHeaders=mapOf("X-Content-Safety-Request" to id(ticket).toString()))
-        assertEquals(409,response.statusCode());assertEquals("CONTENT_CHECK_STALE",json.readTree(response.body())["code"].asText())
+    @Test fun `administrators edit and publish with permissions and versions`() {
+        val f=fixture()
+        val input=question(f.bank,"SINGLE_CHOICE")+mapOf("expectedVersion" to 1,"stem" to "新修订")
+        assertEquals(401,raw("PUT","/admin/questions/${f.questions.first()}",input,null).statusCode())
+        assertEquals(403,raw("PUT","/admin/questions/${f.questions.first()}",input,student().token).statusCode())
+        val updated=raw("PUT","/admin/questions/${f.questions.first()}",input)
+        assertEquals(200,updated.statusCode(),updated.body())
+        val bank=call("GET","/admin/question-banks/${f.bank}")
+        val publication=mapOf("expectedVersion" to bank["version"].asLong(),"status" to "PUBLISHED")
+        assertEquals(200,raw("PUT","/admin/question-banks/${f.bank}/publication",publication).statusCode())
+        assertEquals(409,raw("PUT","/admin/questions/${f.questions.first()}",input).statusCode())
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM content_safety_request WHERE actor_id=?",Int::class.java,platformId))
+        assertEquals(404,raw("POST","/admin/content-safety/requests",emptyMap<String,String>()).statusCode())
+        for(path in listOf("/content-safety/confirmations","/content-safety/confirmations/inspection")) {
+            assertEquals(401,raw("POST",path,emptyMap<String,String>(),null).statusCode(),path)
+            assertEquals(403,raw("POST",path,emptyMap<String,String>()).statusCode(),path)
+        }
     }
 
     @Test fun `private pending avatars reject replayed risk callbacks and erasure prevents late writes`() {

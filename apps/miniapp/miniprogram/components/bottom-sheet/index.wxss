@@ -6,6 +6,10 @@
   top: 0;
   bottom: 0;
   z-index: 10000;
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  line-height: var(--leading-body);
 }
 
 .mask {
@@ -22,6 +26,10 @@
   left: 0;
   right: 0;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: 85vh;
   background: var(--card);
   border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
   padding-bottom: env(safe-area-inset-bottom);
@@ -64,7 +72,7 @@
 
 /* 居中弹窗里的头部：去掉底部分隔线，改成更轻的分组 */
 .panel-center .panel-header {
-  padding: 30rpx 32rpx 8rpx;
+  padding: 8rpx 32rpx;
   border-bottom: none;
 }
 
@@ -74,21 +82,47 @@
 
 .panel-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  padding: 28rpx 32rpx;
+  padding: 8rpx 32rpx 16rpx;
   border-bottom: 1rpx solid var(--line);
 }
 
 .panel-title {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-title);
+  line-height: var(--leading-title);
   font-weight: 600;
   color: var(--text-main);
 }
 
 .panel-body {
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  width: 100%;
   max-height: 62vh;
   padding: 24rpx 32rpx 32rpx;
 }
 
-.panel-close { flex: none; }
+.panel-grip { flex: none; width: 72rpx; height: 8rpx; margin: 16rpx auto 0; border-radius: 999rpx; background: var(--line); }
+.panel-footer { flex: none; padding: 16rpx 32rpx 28rpx; }
+
+.panel-header .panel-close.panel-close {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  margin: 0 -11px 0 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.panel-close::after { border: 0; }
+.panel-close-image { display: block; width: 20px; height: 20px; }

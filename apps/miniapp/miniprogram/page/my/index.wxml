@@ -77,7 +77,7 @@
   placement="center"
   bind:close="handleSheetClose"
 >
-  <text class="sheet-text">{{sheetBody}}</text>
+  <text class="sheet-text" user-select>{{sheetBody}}</text>
 
   <view class="sheet-actions">
     <button

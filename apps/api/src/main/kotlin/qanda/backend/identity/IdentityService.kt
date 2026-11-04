@@ -66,7 +66,7 @@ class IdentityService(private val users: UserAccountMapper,private val bindings:
         if(user.status!="ACTIVE") unauthenticated()
         return issueSession(user,input.deviceId,"WECHAT")
     }
-    private fun newUser(display: String)=UserAccount().apply { id=UUID.randomUUID();accountCode=crypto.accountCode();nickname=display;createdAt=clock.instant();updatedAt=createdAt }
+    private fun newUser(display: String)=UserAccount().apply { id=UUID.randomUUID();accountCode=crypto.accountCode();nickname=display;avatar=DefaultAvatars.random();createdAt=clock.instant();updatedAt=createdAt }
     private fun issueSession(user: UserAccount,device: UUID,method: String): TokenView {
         val current=sql.lockUser(user.id!!) ?: unauthenticated()
         if(current.status!="ACTIVE" || current.credentialVersion!=user.credentialVersion) unauthenticated()

@@ -1,12 +1,13 @@
 const repository = require('../repositories/practice-repository.js');
 const { buildPreferenceView } = require('../utils/preferences.js');
+const { defaultPreset, describePreset } = require('../utils/practice-presets.js');
 const FONT_PREVIEW_TEXT = '预览：下列关于我国根本政治制度的表述，正确的一项是？';
 class SettingsViewModel {
     constructor(options) { this.repository = options.repository || repository; this.storage = options.storage; }
     static getInitialData() { return { switches: [], choices: [], fontSize: 'normal', fontPreviewText: FONT_PREVIEW_TEXT }; }
     load() {
         const preferences = this.repository.getPreferences(this.storage);
-        return { data: Object.assign(SettingsViewModel.getInitialData(), buildPreferenceView(preferences), { fontSize: preferences.fontSize }) };
+        return { data: Object.assign(SettingsViewModel.getInitialData(), buildPreferenceView(preferences), { fontSize: preferences.fontSize, presetSummary: defaultPreset(preferences).name + ' · ' + describePreset(defaultPreset(preferences)) }) };
     }
     save(action) {
         try {

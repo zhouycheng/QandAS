@@ -6,14 +6,7 @@ const { formatStudyDuration } = require('../utils/study-time.js');
 const { getRecentDays, formatDateKey, shiftDays } = require('../utils/daily-log.js');
 const { describeAuth } = require('../utils/auth-session.js');
 const { buildAreaTrendSvg, buildHeatmapSvg, toDataUri, COLORS } = require('../utils/chart-svg.js');
-/**
- * 复盘页（设计稿 Figma「统计」画板；tab 文案叫「复盘」）。
- *
- * 历史包袱：文件与类名还叫 stats / StatsViewModel，因为路由 `page/stats/index`
- * 是 tabBar 的注册项，改名要同步 app.json、深链和 4 个自检文件，收益为零。
- * 但这一页的内容已经换了：不再是一张「成绩总表」（环形进度 + 六维雷达 + 科目进度 +
- * 历史最佳），而是回答「这段时间我练得怎么样」—— 区间切换 + 三个数字 + 活跃度 + 趋势。
- */
+/** 复盘页展示分区间指标、学习活跃度和答题趋势。 */
 const HEATMAP_DAYS = 182; // 26 周，正好是设计稿说的「近半年」
 const HEATMAP_WEEKS = HEATMAP_DAYS / 7;
 /** 答题量 → 热力档位。固定阈值而不是按最大值归一：同样的量永远同一个颜色 */
@@ -93,11 +86,13 @@ function getInitialStatsViewData() {
         // 学习活动热力图（始终是近半年，不随区间变）
         activity: {
             dataUri: '',
+            labels: [],
             hasData: false,
             legend: ['lv-0', 'lv-1', 'lv-2', 'lv-3', 'lv-4']
         },
         trend: {
             dataUri: '',
+            labels: [],
             hasData: false,
             caption: '答题量'
         },
@@ -254,16 +249,13 @@ class StatsViewModel {
             metrics: this.buildMetrics(option, cache),
             trend: {
                 dataUri: trend.hasData ? toDataUri(trend.svg) : '',
+                labels: trend.labels,
                 hasData: trend.hasData,
                 caption: '答题量'
             }
         };
     }
-    /**
-     * 三个数字。
-     * 近 7 天 / 近 30 天从每日日志里加总；累计直接用做题进度的全量与总时长，
-     * 因为日志只留半年，拿它算「累计」会漏掉更早的记录。
-     */
+    /** 指标读取对应 WEEK、MONTH、ALL 服务端统计，图表窗口独立计算。 */
     buildMetrics(option, cache) {
         const statistics = this.repository.getRemoteStatistics(this.storage, option.days === 7 ? 'WEEK' : option.days === 30 ? 'MONTH' : 'ALL');
         return { distinct: statistics && statistics.distinctQuestionCount || 0, selfRated: statistics && statistics.selfRatedCount || 0, selfCorrect: statistics && statistics.selfRatedCorrectCount || 0, selfWrong: statistics && statistics.selfRatedWrongCount || 0, answered: `${statistics && statistics.answerAttemptCount || 0}`, accuracy: statistics && statistics.objectiveAccuracy != null ? `${Math.round(statistics.objectiveAccuracy * 100)}` : '—', duration: `${Math.floor((statistics && statistics.durationSeconds || 0) / 60)}` };
@@ -275,10 +267,7 @@ class StatsViewModel {
         }
         return getRecentDays(this.repository.getDailyLog(this.storage), HEATMAP_DAYS);
     }
-    /**
-     * 身份副标题：学院 · 昵称。
-     * 未登录时不给空字符串 —— 设计稿那一行是页面标题的延伸，空着像渲染失败。
-     */
+    /** 身份副标题使用当前账号展示资料，未登录时提示登录。 */
     buildIdentity() {
         try {
             const view = describeAuth(this.repository.getAuth(this.storage));
@@ -305,7 +294,7 @@ class StatsViewModel {
     buildActivity(days) {
         const total = days.length;
         if (!total) {
-            return { dataUri: '', hasData: false, legend: getInitialStatsViewData().activity.legend };
+            return { dataUri: '', labels: [], hasData: false, legend: getInitialStatsViewData().activity.legend };
         }
         const lastDay = days[total - 1];
         const [lastYear, lastMonth, lastDate] = lastDay.key.split('-').map(Number);
@@ -338,9 +327,10 @@ class StatsViewModel {
         }
         // 第一列的月份可能只剩几天，标签会贴在左边缘；留出 2 列余量就不打
         const trimmed = months.filter((month, index) => index > 0 || month.col <= 2);
-        const svg = buildHeatmapSvg({ columns, months: trimmed });
+        const svg = buildHeatmapSvg({ columns });
         return {
             dataUri: svg ? toDataUri(svg) : '',
+            labels: trimmed.map((month, index) => ({ text: month.text, left: month.col * 100 / HEATMAP_WEEKS, align: index === 0 ? 'start' : month.col >= HEATMAP_WEEKS - 2 ? 'end' : 'center' })),
             hasData: days.some((day) => day.answered > 0),
             legend: getInitialStatsViewData().activity.legend
         };
@@ -359,7 +349,7 @@ class StatsViewModel {
         const points = window.map((day, index) => ({
             value: day.answered,
             // 首尾必标，中间按步长标
-            label: index === 0 || index === window.length - 1 || index % labelStep === 0 ? day.monthDayText : ''
+            label: index === 0 || index === window.length - 1 || (index % labelStep === 0 && window.length - 1 - index >= Math.ceil(labelStep / 2)) ? day.monthDayText : ''
         }));
         return this.renderTrend(points);
     }
@@ -384,9 +374,10 @@ class StatsViewModel {
     renderTrend(points) {
         const hasData = points.some((point) => point.value > 0);
         if (!hasData) {
-            return { svg: '', hasData: false };
+            return { svg: '', labels: [], hasData: false };
         }
-        return { svg: buildAreaTrendSvg(points, { width: 640, height: 240 }), hasData: true };
+        const labels = points.flatMap((point, index) => point.label ? [{ text: point.label, left: index * 100 / Math.max(1, points.length - 1), align: index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'center' }] : []);
+        return { svg: buildAreaTrendSvg(points, { width: 640, height: 240 }), labels, hasData: true };
     }
 }
 module.exports = {

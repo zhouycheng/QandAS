@@ -288,10 +288,6 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.closeAnnouncement())
   },
 
-  handleRouteLoadingHide() {
-    this.applyViewModelResult(this.viewModel.closeRouteLoading())
-  },
-
   applyViewModelResult(result) {
     if (result && typeof result.then === 'function') {
       return result.then((value) => this.applyViewModelResult(value)).catch((error) => wx.showToast({ title: error.message || '请求失败', icon: 'none' }))
@@ -307,27 +303,6 @@ Page(withPageLifecycle({
     if (result.command) {
       this.handleViewModelCommand(result.command)
     }
-  },
-
-  chooseBank(command, offset) {
-    const banks = command.banks || []
-    if (!banks.length && command.hasMore) return this.applyViewModelResult(this.viewModel.loadMockChoices(command.remotePage + 1))
-    if (!banks.length) return wx.showToast({ title: '当前没有可练习题库', icon: 'none' })
-    const start = offset || 0
-    const page = banks.slice(start, start + 5)
-    const more = banks.length > 5 || command.hasMore || command.remotePage > 1
-    wx.showActionSheet({
-      itemList: page.map((bank) => bank.name).concat(more ? ['更多题库'] : []),
-      success: (result) => {
-        if (result.tapIndex === page.length) {
-          if (start + 5 < banks.length) return this.chooseBank(command, start + 5)
-          if (command.remotePage) return this.applyViewModelResult(this.viewModel.loadMockChoices(command.hasMore ? command.remotePage + 1 : 1))
-          return this.chooseBank(command, 0)
-        }
-        const bank = page[result.tapIndex]
-        if (bank) this.applyViewModelResult(this.viewModel.openMock(bank.id))
-      }
-    })
   },
 
   choosePractice(command, offset) {
@@ -346,7 +321,6 @@ Page(withPageLifecycle({
 
   handleViewModelCommand(command) {
     if (command.type === 'choosePractice') return this.choosePractice(command, 0)
-    if (command.type === 'chooseBank') return this.chooseBank(command, 0)
 
     if (command.type === 'toast') {
       wx.showToast({

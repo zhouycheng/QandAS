@@ -1,8 +1,11 @@
+const { getDefaultPracticeRoute } = require('../repositories/preference-repository.js');
+const { routeQuery } = require('../utils/practice-presets.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const onlinePractice = require('../repositories/online-practice.js');
 const trials = require('../repositories/trial-practice.js');
-const { DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, PracticeSession, getInitialPracticeViewData } = require('../models/practice-session.js');
+const { DEFAULT_TEST_DURATION_MINUTES, PracticeSession, getInitialPracticeViewData } = require('../models/practice-session.js');
 const { SESSION_STATUS, SYNC_STATUS } = require('../models/practice-session-state.js');
+const { normalizePracticeOptions } = require('../utils/preferences.js');
 function decodeOptionValue(value) {
     return value ? decodeURIComponent(value) : '';
 }
@@ -38,7 +41,7 @@ class PracticeViewModel {
         const quiz = this.online.quiz(snapshot);
         const restored = this.online.restored(snapshot);
         this.session = new PracticeSession({ quiz, restored, mode: snapshot.configuration && snapshot.configuration.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : (this.routeOptions.mode || 'practice')), feedback: snapshot.feedback,
-            config: snapshot.route, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage),
+            config: snapshot.route, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : snapshot.route.duration === '0' ? false : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage),
             favoriteQuestionIds: snapshot.favoriteQuestionIds || [] });
         this.session.reset();
         this.session.restore(restored);
@@ -104,7 +107,7 @@ class PracticeViewModel {
         }
         this.routeOptions = snapshot.route;
         const restored = trials.restored(snapshot);
-        this.session = new PracticeSession({ quiz: trials.quiz(snapshot), restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', feedback: snapshot.feedback, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) });
+        this.session = new PracticeSession({ quiz: trials.quiz(snapshot), restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', feedback: snapshot.feedback, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : snapshot.route.duration === '0' ? false : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) });
         this.session.reset();
         this.session.restore(restored);
         if (restored.status === SESSION_STATUS.SUBMITTED)
@@ -171,7 +174,8 @@ class PracticeViewModel {
         if (!ids.length) {
             return null;
         }
-        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&mode=practice&ids=${encodeURIComponent(ids.join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } };
+        const route = getDefaultPracticeRoute(this.storage);
+        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&${routeQuery(route)}&ids=${encodeURIComponent(ids.join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } };
     }
     updateTimer(timerSeconds) {
         if (!this.session) {
@@ -517,6 +521,7 @@ class PracticeViewModel {
             return null;
         }
         const preferences = this.repository.getPreferences(this.storage);
+        Object.assign(preferences, normalizePracticeOptions(this.session.meta.config, preferences));
         this.session.preferences = preferences;
         this.session.state.preferences = preferences;
         this.session.state.layoutRanks = require('../utils/practice-layout.js').ranks(preferences.moduleOrder);

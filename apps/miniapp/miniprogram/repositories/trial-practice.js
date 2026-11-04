@@ -1,5 +1,8 @@
+const { timeLimitSeconds } = require('../utils/practice-presets.js')
 const http = require('./http-gateway.js')
 const projection = require('../models/practice-snapshot.js')
+const { getPreferences } = require('./preference-repository.js')
+const { normalizePracticeOptions } = require('../utils/preferences.js')
 const KEY = 'qandaTrialPractice'
 const LIMIT = 2
 let creating = null
@@ -26,7 +29,16 @@ async function required(method, path, body) {
 }
 function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
-  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved)
+  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(snapshot => {
+    const options = normalizePracticeOptions(snapshot.route, getPreferences(storage))
+    if (Object.keys(options).some(key => !snapshot.route || snapshot.route[key] !== options[key])) {
+      snapshot.route = Object.assign({}, snapshot.route, options)
+      const record = read(storage)
+      record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item)
+      storage.set(KEY, record)
+    }
+    return snapshot
+  })
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))
   if (creating) return creating
   creating = create(storage, options).finally(() => { creating = null })
@@ -44,10 +56,10 @@ async function create(storage, options) {
   let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(storage, options.selectionKey, bankIds) : null
   if (!preview && bankIds.length > 1) preview = await required('POST', '/practice/scope-preview', scope)
   if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: options.mode === 'view' ? null : options.duration || options.mode === 'test' ? (Number(options.duration) || 10) * 60 : null })
+  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options) })
   if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
   await require('./question-assets.js').completeSnapshot(storage, snapshot)
-  snapshot.route = Object.assign({}, options, { bankId: snapshot.questionBankId })
+  snapshot.route = Object.assign({}, options, normalizePracticeOptions(null, getPreferences(storage)), { bankId: snapshot.questionBankId })
   snapshot.title = options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name)
   snapshot.status = 'IN_PROGRESS'
   snapshot.currentIndex = 0

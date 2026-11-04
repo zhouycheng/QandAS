@@ -108,7 +108,7 @@ async function settingsChecks() {
   global.Page = page => { definition = page }
   global.getApp = () => ({ globalData: { version: '1.0.0' } })
   global.wx = Object.assign(global.wx, { getStorageSync: key => values[key], setStorageSync: (key, value) => { values[key] = value }, getStorageInfoSync: () => ({ keys: [] }), request() { requests++ } })
-  for (const name of ['settings', 'practice-layout', 'exam-countdown']) {
+  for (const name of ['settings', 'practice-layout', 'exam-countdown', 'practice-presets']) {
     require('../miniprogram/page/' + name + '/index.js')
     const page = Object.assign({}, definition, { data: Object.assign({}, definition.data), measure() {}, setData(patch, done) { Object.assign(this.data, patch); if (done) done() } })
     page.onLoad({}); page.onShow(); page.onReady()
@@ -116,6 +116,18 @@ async function settingsChecks() {
     if (name === 'settings') {
       assert.equal(page.data.choices.length, 1)
       assert.equal(page.data.exam, undefined, '答题偏好只加载自身设置')
+    }
+    if (name === 'practice-presets') {
+      page.handleEdit({ currentTarget: { dataset: {} } })
+      assert.equal(page.data.editing, true, '新增打开预设弹层')
+      page.handleInput({ currentTarget: { dataset: { key: 'name' } }, detail: { value: '临时草稿' } })
+      page.handleCancel()
+      assert.equal(page.data.editing, false)
+      assert.equal(page.viewModel.draft, null, '取消清除草稿')
+      page.handleEdit({ currentTarget: { dataset: { id: 'daily' } } })
+      assert.equal(page.data.draft.name, '日常练习', '取消新增不改写已保存的预设')
+      page.onHide()
+      assert.equal(page.data.editing, false, '隐藏页面关闭预设弹层')
     }
     assert(Object.values(page.data).every(value => value !== undefined), name + ' 展示字段均有默认值')
     page.onUnload()

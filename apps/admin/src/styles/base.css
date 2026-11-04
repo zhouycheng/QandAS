@@ -78,22 +78,23 @@ select {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  min-height: 82px;
-  padding: 0 28px;
+  gap: 10px;
+  min-height: 72px;
+  padding: 0 24px;
   color: var(--primary);
-  font-size: 32px;
-  font-weight: 750;
-  letter-spacing: -1px;
+  font-size: 22px;
+  font-weight: 650;
+  white-space: nowrap;
 }
+.brand-logo { width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; }
 .nav-group {
-  margin: 14px 10px 24px;
+  margin: 4px 10px 24px;
 }
 .nav-group-title {
   display: flex;
   align-items: center;
-  margin: 0 16px 8px;
+  margin: 0 17px 8px;
   min-height: 28px;
-  padding-left: 41px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
@@ -151,7 +152,7 @@ select {
   flex-shrink: 0;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
-  background: var(--canvas);
+  background: var(--surface);
 }
 .admin-header .arco-avatar {
   color: var(--primary);
@@ -193,9 +194,10 @@ select {
   --sidebar-width: 76px;
 }
 .sidebar-collapsed .brand {
-  font-size: 17px;
-  padding: 0 8px;
+  justify-content: center;
+  padding: 0;
 }
+.sidebar-collapsed .brand-label { display: none; }
 .sidebar-collapsed .nav-link {
   justify-content: center;
   padding: 10px 0;
@@ -207,29 +209,6 @@ select {
 .sidebar-collapsed .nav-group-title { display: none; }
 .sidebar-collapsed .nav-group {
   margin: 10px 8px;
-}
-.page-title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 26px;
-}
-.page-title h1 {
-  margin: 0 0 7px;
-  font-size: 32px;
-  line-height: 1.3;
-  color: #081638;
-  letter-spacing: -0.6px;
-}
-.page-title p {
-  margin: 0;
-  color: #72829b;
-  font-size: 15px;
-  line-height: 1.65;
-}
-.page-title > .arco-btn {
-  margin-top: 6px;
 }
 .page-loading {
   display: grid;

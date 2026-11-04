@@ -20,7 +20,7 @@
 
 .page-head-title {
   font-size: var(--font-title);
-  line-height: 1.5;
+  line-height: var(--leading-title);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -29,7 +29,7 @@
 
 .profile {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   padding-top: 26rpx;
 }
 
@@ -37,7 +37,7 @@
   flex: none;
   width: 104rpx;
   height: 104rpx;
-  margin-top: 9rpx;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -72,7 +72,7 @@
 .profile-name {
   display: block;
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -81,7 +81,7 @@
   display: block;
   margin-top: 4rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-main);
   overflow: hidden;
@@ -93,7 +93,7 @@
   display: block;
   margin-top: 4rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
   overflow: hidden;
@@ -120,7 +120,7 @@
 
 .pill-row-label {
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 500;
   color: var(--text-main);
 }
@@ -128,7 +128,7 @@
 .pill-row-value {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -142,7 +142,7 @@
 .group-title {
   display: block;
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 600;
   color: var(--text-main);
 }
@@ -168,7 +168,7 @@
 .row-label {
   display: block;
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 500;
   color: var(--text-main);
 }
@@ -177,7 +177,7 @@
   display: block;
   margin-top: 3rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -186,7 +186,7 @@
   flex: none;
   margin-left: 22rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -195,7 +195,7 @@
   flex: none;
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--brand);
 }
@@ -227,7 +227,7 @@
 
 .link {
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -253,7 +253,7 @@
   display: block;
   margin-top: 22rpx;
   font-size: var(--font-secondary);
-  line-height: 1.5;
+  line-height: var(--leading-secondary);
   font-weight: 500;
   color: var(--text-main);
 }
@@ -265,7 +265,7 @@
   border-radius: var(--radius-tag);
   background: var(--page-bg);
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   color: var(--text-main);
 }
 
@@ -282,7 +282,7 @@
 .info-label {
   display: block;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-main);
 }
@@ -295,7 +295,7 @@
 
 .info-value {
   font-size: var(--font-body);
-  line-height: 1.5;
+  line-height: var(--leading-body);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -303,7 +303,7 @@
 .info-action {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--brand);
 }
@@ -312,7 +312,7 @@
   display: block;
   margin-top: 11rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -374,7 +374,7 @@
 .exam-date {
   margin-left: auto;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
 }
@@ -387,7 +387,7 @@
   border-radius: 7rpx;
   background: var(--page-bg);
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-sub);
   text-align: center;
@@ -409,7 +409,7 @@
   border-radius: var(--radius-tag);
   background: var(--page-bg);
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--brand);
   text-align: center;
@@ -465,7 +465,7 @@
 .checkbox-label {
   margin-left: 11rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   font-weight: 500;
   color: var(--text-main);
 }
@@ -474,7 +474,7 @@
   display: block;
   margin-top: 15rpx;
   font-size: var(--font-caption);
-  line-height: 1.5;
+  line-height: var(--leading-caption);
   color: var(--text-sub);
 }
 
@@ -483,8 +483,8 @@
 .sheet-text {
   display: block;
   padding: 8rpx 0 24rpx;
-  font-size: var(--font-caption);
-  line-height: 1.7;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
   white-space: pre-wrap;
 }

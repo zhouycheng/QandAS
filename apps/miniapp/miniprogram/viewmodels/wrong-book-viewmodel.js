@@ -1,18 +1,8 @@
+const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const practiceRepository = require('../repositories/practice-repository.js');
-const { getPendingIds, getMasteredIds, getSubjectiveIds } = require('../utils/wrong-book.js');
-/**
- * 错题本 / 收藏本：设计稿「错题本」「收藏本」两张画板。
- *
- * 同一个页面类承载两种模式，靠 `type` 区分（路由仍是 page/wrong-book/index）：
- *   type=wrong    错题本：错题统计 + 反复错 / 近 7 天更新筛选 + 「开始错题练习」
- *   type=favorite 收藏本：收藏统计 + 待练习 / 已练习筛选 + 「开始收藏练习」
- *
- * 为什么不是两个页面：两页的骨架（统计卡 → 科目分布 → 筛选 → 列表 → 分页 → 底部按钮）
- * 完全一样，只在文案、指标口径与筛选项上分叉。两份代码会立刻长歪。
- */
+// 错题与收藏共用页面，列表、筛选及统计由服务端提供。
 const TYPE_WRONG = 'wrong';
 const TYPE_FAVORITE = 'favorite';
-/** 每页几道。设计稿是 3 道一页，26 道就翻了 9 页 —— 手机上翻页太碎，这里给 5 道 */
 const PAGE_SIZE = 5;
 const CHIPS = {
     wrong: [
@@ -27,8 +17,6 @@ const CHIPS = {
         { key: 'practiced', text: '已练习' }
     ]
 };
-/** 反复错的门槛：错 2 次以上才叫「反复」，错 1 次是手滑 */
-const REPEAT_THRESHOLD = 2;
 const SORT_OPTIONS = {
     wrong: [
         { key: 'urgent', text: '最需复习' },
@@ -204,200 +192,10 @@ class WrongBookViewModel {
     refresh(patch) {
         this.state = Object.assign({}, this.state, patch || {});
         const data = this.buildViewData();
-        // items 同步回 state，供「清空当前列表」取 id
-        this.state.items = data.items;
         return { data };
-    }
-    // ---------- 数据 ----------
-    readSources() {
-        const wrongBook = this.repository.getWrongBook(this.storage);
-        const favorites = this.repository.getFavorites(this.storage);
-        const favoriteIds = this.repository.getFavoriteIds
-            ? this.repository.getFavoriteIds(favorites)
-            : (favorites && favorites.ids ? favorites.ids : []);
-        const progress = this.repository.getProgress(this.storage);
-        const answeredIds = this.collectAnsweredIds(progress);
-        return { wrongBook, favorites, favoriteIds, answeredIds };
-    }
-    collectAnsweredIds(progress) {
-        const answered = {};
-        Object.keys(progress || {}).forEach((scopeKey) => {
-            const entry = progress[scopeKey];
-            if (!entry || !entry.answers) {
-                return;
-            }
-            Object.keys(entry.answers).forEach((questionId) => {
-                answered[questionId] = true;
-            });
-        });
-        return answered;
-    }
-    /**
-     * 错题本自己的正确率：只看本子里这些题的答对/答错次数。
-     *
-     * 不能用全站近 7 天正确率 —— 那会把「错题本里全是难题」显示成 80% 正确率，
-     * 数字看着漂亮但和这一页的主题（这些题我还没掌握）自相矛盾。
-     * 记录里 wrongCount / rightCount 只统计进入错题本之后的作答，正是这里要的口径。
-     */
-    readBookAccuracy(items) {
-        let right = 0;
-        let wrong = 0;
-        items.forEach((item) => {
-            right += Number(item.rightCount) || 0;
-            wrong += Number(item.wrongCount) || 0;
-        });
-        const total = right + wrong;
-        return total ? Math.round((right / total) * 100) : '—';
     }
     buildViewData() {
         return this.buildRemoteView();
-    }
-    /**
-     * 错题条目：只取「待复习」的（攻克的不算错题，和设计稿的 26 道口径一致）。
-     * 存储里没有逐条收藏时间，所以「最近更新」用 wrongBook 记录的 updatedAt。
-     */
-    buildWrongItems(sources) {
-        const pendingIds = getPendingIds(sources.wrongBook).concat(getSubjectiveIds(sources.wrongBook));
-        if (!pendingIds.length) {
-            return [];
-        }
-        return this.repository.findQuestionEntries(pendingIds).map((entry) => {
-            const record = sources.wrongBook[entry.id] || {};
-            const updatedAt = Number(record.updatedAt) || 0;
-            return {
-                id: entry.id,
-                subjectId: entry.subjectId,
-                bankId: entry.bankId,
-                bankName: entry.bankName,
-                subjectName: entry.subjectName,
-                title: `${entry.subjectName} · ${entry.bankName}`,
-                stem: entry.question.stem,
-                blankInputs: entry.question.isFillBlank ? [] : null,
-                contentFormat: entry.question.contentFormat || 'PLAIN_TEXT',
-                typeText: entry.question.typeText,
-                wrongCount: Number(record.wrongCount) || 0,
-                rightCount: Number(record.rightCount) || 0,
-                subjective: !!record.subjective,
-                streak: Number(record.streak) || 0,
-                updatedAt,
-                dateText: formatMonthDay(updatedAt),
-                badgeText: record.subjective ? '主观待复习 · 不计分' : `错 ${Number(record.wrongCount) || 0} 次`,
-                badgeTone: 'wrong'
-            };
-        });
-    }
-    /** 收藏条目：收藏夹只存 id（后收藏的在前），练习状态拿进度表反查 */
-    buildFavoriteItems(sources) {
-        if (!sources.favoriteIds.length) {
-            return [];
-        }
-        return this.repository.findQuestionEntries(sources.favoriteIds).map((entry) => {
-            const practiced = !!sources.answeredIds[entry.id];
-            return {
-                id: entry.id,
-                subjectId: entry.subjectId,
-                bankId: entry.bankId,
-                bankName: entry.bankName,
-                subjectName: entry.subjectName,
-                title: `${entry.subjectName} · ${entry.bankName}`,
-                stem: entry.question.stem,
-                blankInputs: entry.question.isFillBlank ? [] : null,
-                contentFormat: entry.question.contentFormat || 'PLAIN_TEXT',
-                typeText: entry.question.typeText,
-                practiced,
-                wrongCount: 0,
-                dateText: '',
-                badgeText: practiced ? '已练习' : '待练习',
-                badgeTone: practiced ? 'done' : 'todo'
-            };
-        });
-    }
-    // ---------- 统计 ----------
-    buildWrongStats(items, subjectiveCount) {
-        return [
-            { key: 'total', label: '客观错题', value: `${items.length}`, unit: '道' },
-            { key: 'accuracy', label: '正确率', value: `${this.readBookAccuracy(items)}`, unit: this.readBookAccuracy(items) === '—' ? '' : '%' },
-            { key: 'subjective', label: '主观待复习', value: `${subjectiveCount || 0}`, unit: '道' }
-        ];
-    }
-    buildFavoriteStats(items) {
-        const practiced = items.filter((item) => item.practiced).length;
-        return [
-            { key: 'total', label: '收藏题', value: `${items.length}`, unit: '道' },
-            { key: 'practiced', label: '已练习', value: `${practiced}`, unit: '道' },
-            { key: 'pending', label: '待练习', value: `${items.length - practiced}`, unit: '道' }
-        ];
-    }
-    buildFavoriteDoneRate(items) {
-        if (!items.length) {
-            return 0;
-        }
-        return Math.round((items.filter((item) => item.practiced).length / items.length) * 100);
-    }
-    /** 科目分布：按数量降序，前 4 个上色，其余并进「其它」 */
-    buildDist(items) {
-        const buckets = {};
-        const order = [];
-        items.forEach((item) => {
-            const name = item.subjectName || '未分类';
-            if (!buckets[name]) {
-                buckets[name] = 0;
-                order.push(name);
-            }
-            buckets[name] += 1;
-        });
-        const sorted = order
-            .map((name) => ({ name, count: buckets[name] }))
-            .sort((left, right) => right.count - left.count);
-        if (!sorted.length) {
-            return [];
-        }
-        const total = sorted.reduce((sum, item) => sum + item.count, 0);
-        const head = sorted.slice(0, 4);
-        const rest = sorted.slice(4);
-        const merged = rest.length
-            ? head.concat([{ name: '其它', count: rest.reduce((sum, item) => sum + item.count, 0) }])
-            : head;
-        return merged.map((item, index) => ({
-            name: item.name,
-            count: item.count,
-            percent: total ? Math.max(Math.round((item.count / total) * 100), 4) : 0,
-            tone: DIST_TONES[index % DIST_TONES.length]
-        }));
-    }
-    // ---------- 筛选 ----------
-    buildChips(isWrong, items) {
-        const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        const source = CHIPS[isWrong ? 'wrong' : 'favorite'];
-        const counters = {
-            all: items.filter(item => !isWrong || !item.subjective).length,
-            subjective: items.filter(item => item.subjective).length,
-            repeat: items.filter((item) => item.wrongCount >= REPEAT_THRESHOLD).length,
-            recent: items.filter((item) => !item.subjective && item.updatedAt >= since).length,
-            pending: items.filter((item) => !item.practiced).length,
-            practiced: items.filter((item) => item.practiced).length
-        };
-        return source.map((chip) => ({
-            key: chip.key,
-            text: `${chip.text} ${counters[chip.key] || 0}`
-        }));
-    }
-    buildSubjectOptions(isWrong, items) {
-        const seen = {};
-        const options = [{ id: 'all', name: '全部科目' }];
-        items.forEach((item) => {
-            if (item.subjectId && !seen[item.subjectId]) {
-                seen[item.subjectId] = true;
-                options.push({ id: item.subjectId, name: item.subjectName });
-            }
-        });
-        items.forEach((item) => {
-            if (item.bankId && !seen[`bank:${item.bankId}`]) {
-                seen[`bank:${item.bankId}`] = true;
-                options.push({ id: `bank:${item.bankId}`, name: `${item.subjectName} · ${item.bankName}` });
-            }
-        });
-        return options;
     }
     getSubjectFilterText(options) {
         const matched = options.find((option) => option.id === this.state.subjectFilter);
@@ -407,33 +205,6 @@ class WrongBookViewModel {
         const list = SORT_OPTIONS[this.state.type] || SORT_OPTIONS.wrong;
         const matched = list.find((option) => option.key === this.state.sort);
         return matched ? matched.text : list[0].text;
-    }
-    applyFilters(items, isWrong) {
-        const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        let result = isWrong ? items.filter(item => this.state.activeChip === 'subjective' ? item.subjective : !item.subjective) : items;
-        if (this.state.subjectFilter !== 'all') {
-            result = result.filter((item) => this.state.subjectFilter.indexOf('bank:') === 0 ? `bank:${item.bankId}` === this.state.subjectFilter : item.subjectId === this.state.subjectFilter);
-        }
-        if (this.state.activeChip === 'repeat') {
-            result = result.filter((item) => item.wrongCount >= REPEAT_THRESHOLD);
-        }
-        else if (this.state.activeChip === 'recent') {
-            result = result.filter((item) => item.updatedAt >= since);
-        }
-        else if (this.state.activeChip === 'pending') {
-            result = result.filter((item) => !item.practiced);
-        }
-        else if (this.state.activeChip === 'practiced') {
-            result = result.filter((item) => item.practiced);
-        }
-        if (isWrong) {
-            if (this.state.sort === 'urgent') {
-                return result.slice().sort((left, right) => (right.wrongCount - left.wrongCount) || (right.updatedAt - left.updatedAt));
-            }
-            return result.slice().sort((left, right) => right.updatedAt - left.updatedAt);
-        }
-        // 收藏夹本身就是「后收藏的在前」，最早收藏就是原序倒过来
-        return this.state.sort === 'old' ? result.slice().reverse() : result;
     }
     getEmptyText(isWrong, total) {
         if (!total) {
@@ -508,7 +279,7 @@ class WrongBookViewModel {
         result.command = { type: 'toast', title };
         return result;
     }
-    /** 线上由服务端选择完整筛选范围；本地样例通过自定义卷组题。 */
+    /** 服务端按当前筛选范围完整选题。 */
     createPracticeCommand() {
         const isWrong = this.state.type === TYPE_WRONG;
         const options = this.remoteOptions();
@@ -518,22 +289,14 @@ class WrongBookViewModel {
             return { command: { type: 'toast', title: '当前没有可练习的题目' } };
         if (facets.length !== 1)
             return { command: { type: 'toast', title: '请先筛选同一题库的题目进行练习' } };
-        return this.repository.previewRemotePracticeScope(this.storage, {
-            questionBankId: facets[0].questionBankId,
-            count: 1000,
-            selectionKind: options.kind,
-            collectionChip: options.chip
-        }).then(preview => {
-            const count = Math.min(Number(preview.selectedCount === undefined ? preview.availableCount : preview.selectedCount) || 0, 1000);
-            if (!count)
-                return { command: { type: 'toast', title: '当前没有可练习的题目' } };
-            return { command: { type: 'navigate', url: `/page/practice/index?bankId=${facets[0].questionBankId}&subjectId=${facets[0].subjectId}&selectionKind=${options.kind}&collectionChip=${options.chip}&count=${count}${preview.selectionKey ? '&selectionKey=' + preview.selectionKey : ''}` } };
+        return preparePracticeRoute(this.storage, this.repository, { questionBankId: facets[0].questionBankId, selectionKind: options.kind, collectionChip: options.chip }).then(result => {
+            Object.assign(result.route, { subjectId: facets[0].subjectId, selectionKind: options.kind, collectionChip: options.chip });
+            return { command: { type: 'navigate', url: '/page/practice/index?' + routeQuery(result.route) } };
         });
     }
 }
 module.exports = {
     PAGE_SIZE,
-    REPEAT_THRESHOLD,
     TYPE_FAVORITE,
     TYPE_WRONG,
     WrongBookViewModel,

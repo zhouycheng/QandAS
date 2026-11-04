@@ -1,5 +1,6 @@
 Component({
   properties: {
+    showConfig: { type: Boolean, value: true },
     /**
      * 章节行数据，由题库页的 ViewModel 组装：
      * { bankId, title, metaText, isComplete, progressPercent, ... }
@@ -12,6 +13,7 @@ Component({
   },
 
   methods: {
+    handleConfigureTap() { this.triggerEvent('configure', { bank: this.data.bank }) },
     handleOpenTap() {
       this.triggerEvent('open', {
         bank: this.data.bank

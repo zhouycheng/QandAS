@@ -6,26 +6,18 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import qanda.backend.identity.Sessions
 import java.util.UUID
-import jakarta.servlet.http.HttpServletRequest
 
 data class SafetyContextInput(val code: String)
-data class SafetyConfirmation(val requestId: UUID,val token: String,val code: String)
-data class SafetyInvitationInput(val requestId: UUID,val token: String)
 
 @RestController
 @RequestMapping("/api/v1",produces=["application/json"])
 class ContentSafetyController(private val safety: ContentSafety,private val sessions: Sessions,private val callbacks: WechatCallback) {
-    private fun actor(request: HttpServletRequest)=if(request.requestURI.startsWith("/api/v1/admin/")) sessions.admin() else sessions.student()
     @PostMapping("/me/content-safety/contexts")
     fun context(@RequestBody input: SafetyContextInput): SafetyContextView=safety.context(sessions.student(),input.code)
-    @PostMapping("/me/content-safety/requests","/admin/content-safety/requests")
-    fun prepare(@RequestBody input: SafetyInput,request: HttpServletRequest): SafetyView=safety.prepare(actor(request),input)
-    @GetMapping("/me/content-safety/requests/{id}","/admin/content-safety/requests/{id}")
-    fun status(@PathVariable id: UUID,request: HttpServletRequest): SafetyView=safety.view(actor(request),id)
-    @PostMapping("/content-safety/confirmations")
-    fun confirm(@RequestBody input: SafetyConfirmation): SafetyView=safety.confirm(input.requestId,input.token,input.code)
-    @PostMapping("/content-safety/confirmations/inspection")
-    fun invitation(@RequestBody input: SafetyInvitationInput): SafetyInvitation=safety.invitation(input.requestId,input.token)
+    @PostMapping("/me/content-safety/requests")
+    fun prepare(@RequestBody input: SafetyInput): SafetyView=safety.prepare(sessions.student(),input)
+    @GetMapping("/me/content-safety/requests/{id}")
+    fun status(@PathVariable id: UUID): SafetyView=safety.view(sessions.student(),id)
     @GetMapping("/content-safety/media/{id}")
     fun media(@PathVariable id: UUID,@RequestParam token: String): ResponseEntity<ByteArray> {
         val (bytes,type)=safety.media(id,token)

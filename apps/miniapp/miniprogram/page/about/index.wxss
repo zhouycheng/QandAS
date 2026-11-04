@@ -1,17 +1,31 @@
 @import "../../styles/settings-detail.wxss";
+
 page { background: var(--card); }
-.about-brand { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: var(--space-sm) 0 var(--space-md); }
-.about-name { color: var(--brand); font-size: var(--font-display); line-height: 1.4; font-weight: 600; }
-.about-description { margin: 0; font-size: var(--font-secondary); line-height: var(--leading-secondary); color: var(--text-sub); }
-.about-version { margin: 0; font-size: var(--font-secondary); line-height: var(--leading-secondary); color: var(--text-sub); }
-.about-row { display: flex; align-items: center; justify-content: space-between; min-height: 101rpx; border-bottom: 2rpx solid var(--page-bg); color: var(--text-main); font-size: var(--font-secondary); }
-.about-section { padding: var(--space-md) 0; }
-.about-heading { display: block; margin-bottom: var(--space-md); color: var(--text-main); font-size: var(--font-body); font-weight: 400; }
-.about-paragraph { display: block; margin-bottom: var(--space-md); color: var(--text-sub); font-size: var(--font-secondary); line-height: 1.65; }
-.about-paragraph:last-child { margin-bottom: 0; }
-.team-grid { display: flex; gap: 16rpx; }
-.team-member { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 12rpx 0; }
+.about-page { padding-top: var(--space-md); }
+.about-brand { padding: var(--space-lg); border-radius: var(--radius-card); background: var(--brand-soft); }
+.about-brand-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.about-brand-copy { min-width: 0; }
+.about-name { display: block; color: var(--text-main); font-size: var(--font-metric); line-height: var(--leading-metric); font-weight: 600; }
+.about-description { display: block; margin-top: var(--space-xs); color: var(--text-sub); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.about-version { display: inline-block; margin-top: var(--space-md); padding: 4rpx 16rpx; border-radius: var(--radius-tag); background: var(--card); color: var(--text-sub); font-size: var(--font-caption); line-height: var(--leading-caption); }
+.about-logo-frame { position: relative; flex: none; width: 184rpx; height: 184rpx; margin: 8rpx; }
+.about-logo-frame::before { content: ''; position: absolute; inset: 0; border-radius: 32rpx; background: var(--card); transform: rotate(10deg); }
+.about-logo { position: relative; display: block; width: 100%; height: 100%; border-radius: 32rpx; transform: rotate(-6deg); }
+.about-brand-note { display: block; margin-top: var(--space-lg); padding-top: var(--space-md); border-top: 1rpx solid rgba(37, 99, 235, .12); color: var(--brand-dark); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.about-section { padding-top: var(--space-xl); }
+.about-heading { display: block; margin-bottom: var(--space-md); color: var(--text-main); font-size: var(--font-body); line-height: var(--leading-body); font-weight: 600; }
+.about-paragraph { display: block; margin-bottom: var(--space-md); color: var(--text-sub); font-size: var(--font-secondary); line-height: 1.8; }
+.about-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); margin-top: var(--space-lg); }
+.about-feature { padding: var(--space-md); border-radius: var(--radius-card); background: var(--page-bg); }
+.about-feature-title { display: block; color: var(--text-main); font-size: var(--font-body); line-height: var(--leading-body); font-weight: 500; }
+.about-feature-note { display: block; margin-top: var(--space-xs); color: var(--text-sub); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.about-team { padding-bottom: var(--space-lg); }
+.about-team .about-heading { margin-bottom: 4rpx; }
+.about-team-note { display: block; color: var(--text-sub); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.team-grid { display: flex; gap: var(--space-sm); margin: var(--space-md) 0; }
+.team-member { flex: 1; min-width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; padding: 12rpx 0; border-radius: var(--radius-control); }
 .team-avatar { width: 100rpx; height: 100rpx; border-radius: 50%; background: var(--page-bg); }
+.team-name { margin-top: 8rpx; color: var(--text-main); font-size: var(--font-secondary); line-height: var(--leading-secondary); text-align: center; }
 .donation-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-md); margin-top: var(--space-md); }
 .donation-card { flex: 1 1 260rpx; max-width: 320rpx; padding: var(--space-md); border: 1rpx solid var(--line); border-radius: var(--radius-control); box-sizing: border-box; }
 .donation-code { display: block; width: 100%; }

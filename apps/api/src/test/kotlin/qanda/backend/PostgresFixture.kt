@@ -163,10 +163,9 @@ abstract class PostgresFixture {
     }
     protected fun call(method: String,path: String,body: Any?=null,token: String?=adminToken,status: Int=200,key: UUID?=UUID.randomUUID()): JsonNode {
         val operation=qanda.backend.contentsafety.ContentMutations.operation(method,path)
-        val proof=if(status in setOf(200,201,409,422,500) && token!=null && body!=null && operation!=null && contentSafety.required(operation,body)) {
-            val actor=sessionService.authenticate(token)
-            val prefix=if(actor.kind=="ADMIN") "/admin" else "/me"
-            val context=if(actor.kind=="USER") json.readTree(raw("POST","$prefix/content-safety/contexts",mapOf("code" to "local-learner-1:${UUID.randomUUID()}"),token).body())["id"].asText() else null
+        val proof=if(status in setOf(200,201,409,422,500) && token!=null && body!=null && operation!=null && contentSafety.required(operation)) {
+            val prefix="/me"
+            val context=json.readTree(raw("POST","$prefix/content-safety/contexts",mapOf("code" to "local-learner-1:${UUID.randomUUID()}"),token).body())["id"].asText()
             val prepared=raw("POST","$prefix/content-safety/requests",mapOf("operation" to operation,"payload" to body,"contextId" to context),token)
             if(status==422 && prepared.statusCode()==422) return json.readTree(prepared.body())
             assertEquals(200,prepared.statusCode(),prepared.body())
@@ -182,11 +181,7 @@ abstract class PostgresFixture {
     protected fun approveContentTicket(request: JsonNode,token: String): UUID {
         val requestId=id(request)
         if(request["state"].asText()=="PASSED") return requestId
-        val actor=sessionService.authenticate(token);val prefix=if(actor.kind=="ADMIN") "/admin" else "/me"
-        if(actor.kind=="ADMIN") {
-            val confirmed=raw("POST","/content-safety/confirmations",mapOf("requestId" to requestId,"token" to request["confirmationToken"].asText(),"code" to "local-learner-1:"+UUID.randomUUID()),null)
-            assertEquals(200,confirmed.statusCode(),confirmed.body())
-        }
+        val prefix="/me"
         eventually {
             val state=json.readTree(raw("GET",prefix+"/content-safety/requests/"+requestId,token=token).body())
             assertTrue(state["state"].asText() !in setOf("REJECTED","EXPIRED"),state.toString())

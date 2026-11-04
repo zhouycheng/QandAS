@@ -101,7 +101,7 @@ function checkSettings() {
 
   assert('设置 - 选大后回传 large', large.data.fontSize === 'large', large.data.fontSize)
   assert('设置 - 选大后选中态跟着变',
-    large.data.choices[0].options.find((item) => item.value === 'large').selected === true)
+    large.data.choices.find(item => item.key === 'fontSize').options.find((item) => item.value === 'large').selected === true)
   assert('设置 - 选大落盘',
     preferenceUtils.normalizePreferences(storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY)).fontSize === 'large')
 

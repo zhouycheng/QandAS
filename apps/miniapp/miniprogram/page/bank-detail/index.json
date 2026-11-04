@@ -7,6 +7,7 @@
   "navigationBarBackgroundColor": "#FFFFFF",
   "navigationBarTextStyle": "black",
   "usingComponents": {
+    "bottom-sheet": "/components/bottom-sheet/index",
     "bank-list-item": "/components/bank-list-item/index",
     "route-loading": "/components/route-loading/index"
   }

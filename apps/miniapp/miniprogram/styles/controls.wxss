@@ -37,7 +37,7 @@
 .q-button.q-button--block { width: 100%; }
 .q-button-hover { opacity: .86; }
 .q-button.q-button--primary.q-button-hover { background: var(--brand-dark); opacity: 1; }
-.q-button.q-button--disabled, .q-button.is-disabled {
+.q-button.q-button.q-button--disabled, .q-button.q-button.is-disabled {
   background: var(--disabled-bg);
   color: var(--text-disabled);
   border-color: transparent;

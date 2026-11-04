@@ -2,22 +2,18 @@
      同一份结构承载两种模式：type=wrong 进错题本，type=favorite 进收藏本（由 ViewModel 决定文案与口径）。
      顶部返回由共享导航栏提供，正文保留标题与管理操作。 -->
 <view class="secondary-page">
-<page-header />
+<page-header title="{{title}}" />
 <view class="list-page wb-page">
   <view class="load-note" wx:if="{{collectionLoading}}">正在读取列表…</view>
   <view class="load-note" wx:if="{{collectionError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{collectionError}} · 点击重试</view>
-  <view class="wb-head">
-    <view class="wb-head-spacer"></view>
-    <text class="wb-title">{{title}}</text>
-    <view
-      wx:if="{{type === 'favorite'}}"
-      class="wb-manage {{manage ? 'is-on' : ''}}"
+  <view class="wb-head" wx:if="{{type === 'favorite'}}">
+    <button
+      class="q-button q-button--text wb-manage {{manage ? 'is-on' : ''}}"
       bindtap="handleManageTap"
       hover-class="wb-manage-hover"
       hover-start-time="0"
       hover-stay-time="80"
-    >{{manage ? '完成' : '管理'}}</view>
-    <view class="wb-head-spacer" wx:else></view>
+    >{{manage ? '完成' : '管理'}}</button>
   </view>
 
   <!-- ① 统计卡：标题 + 三指标 + 科目分布条 -->
@@ -127,15 +123,15 @@
       <view class="q-body">
         <view class="q-top">
           <text class="q-title">{{item.title}}</text>
-          <view
-            class="q-remove"
+          <button
+            class="q-button q-button--text q-remove"
             wx:if="{{manage && type === 'favorite'}}"
             data-id="{{item.id}}"
             catchtap="handleRemoveTap"
             hover-class="q-remove-hover"
             hover-start-time="0"
             hover-stay-time="80"
-          >移除</view>
+          >移除</button>
           <view class="q-chevron" wx:else></view>
         </view>
         <rich-content class="q-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />

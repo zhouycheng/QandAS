@@ -7,6 +7,7 @@ Page(withPageLifecycle({
   onAnswerFocus() {},
   onAnswerBlur() {},
   onKeyboardHeight() {},
+  onPaneScroll() {},
   onLoad() {
     this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() })
     this.applyViewModelResult(this.viewModel.load())

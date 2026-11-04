@@ -1,7 +1,8 @@
+@import "../../styles/config-icon.wxss";
 @import "../../styles/controls.wxss";
 /* 两栏背景铺满视口；滚动内容末尾为悬浮底栏留出可滚动空间。 */
 page { background: var(--card); }
-.bk-navigation { display: flex; align-items: center; padding-left: 10rpx; padding-right: 210rpx; }
+.bk-navigation { display: flex; align-items: center; padding-left: 4rpx; padding-right: 210rpx; }
 .bank-detail-page {
   box-sizing: border-box;
   height: 100vh;
@@ -14,7 +15,7 @@ page { background: var(--card); }
 /* ---------- 页内标题 + 搜索 + 筛选 ---------- */
 .bk-head {
   flex: none;
-  padding: 0 26rpx 20rpx;
+  padding: 0 var(--space-lg) var(--space-md);
   background: var(--card);
 }
 
@@ -59,18 +60,19 @@ page { background: var(--card); }
   padding: 0 26rpx 272rpx;
   padding-bottom: calc(272rpx + env(safe-area-inset-bottom));
   color: var(--text-sub);
-  font-size: var(--font-caption);
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   text-align: center;
 }
 
-.bank-group-title { display: block; margin: 28rpx 4rpx 16rpx; color: var(--text-sub); font-size: var(--font-body); font-weight: 600; line-height: 1.5; }
+.bank-group-title { display: block; margin: 28rpx 4rpx 16rpx; color: var(--text-sub); font-size: var(--font-body); font-weight: 600; line-height: var(--leading-body); }
 
 .bk-title {
   font-size: var(--font-title);
-  line-height: 1.5;
+  line-height: var(--leading-title);
   font-weight: 600;
   color: var(--text-main);
-  letter-spacing: 1rpx;
+  letter-spacing: 0;
 }
 
 .bk-tools {
@@ -124,7 +126,7 @@ page { background: var(--card); }
   flex: none;
   width: 44rpx;
   height: 44rpx;
-  line-height: 1.5;
+  line-height: var(--leading-body);
   text-align: center;
   font-size: var(--font-body);
   color: var(--text-sub);
@@ -215,7 +217,7 @@ page { background: var(--card); }
 
 .rail-name {
   font-size: var(--font-secondary);
-  line-height: 1.3;
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
 }
 
@@ -265,10 +267,9 @@ page { background: var(--card); }
 
 /* ---------- 统计卡 ---------- */
 .stat-card {
-  padding: 22rpx 20rpx 26rpx;
+  padding: var(--space-md);
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand) 100%);
-  box-shadow: 0 12rpx 30rpx rgba(70, 107, 255, 0.28);
+  background: var(--brand);
   transition: opacity 100ms ease;
 }
 
@@ -285,11 +286,15 @@ page { background: var(--card); }
 }
 
 .stat-scope {
+  flex: 1;
+  min-width: 0;
+  margin-right: 12rpx;
   font-size: var(--font-caption);
   color: rgba(255, 255, 255, 0.86);
 }
 
 .stat-more {
+  white-space: nowrap;
   font-size: var(--font-caption);
   color: rgba(255, 255, 255, 0.72);
 }
@@ -310,7 +315,7 @@ page { background: var(--card); }
 .stat-value {
   font-size: var(--font-title);
   font-weight: 600;
-  line-height: 1.1;
+  line-height: var(--leading-title);
   color: var(--card);
 }
 
@@ -398,73 +403,44 @@ page { background: var(--card); }
   color: var(--text-sub);
 }
 
-/* ---------- 答题配置抽屉 ---------- */
-.config-sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 10000;
-}
-
-.config-mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.config-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 16rpx 32rpx calc(28rpx + env(safe-area-inset-bottom));
-  border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
-  background: var(--card);
-  animation: config-rise 0.22s ease-out;
-}
-
-@keyframes config-rise {
-  from {
-    transform: translateY(100%);
-  }
-
-  to {
-    transform: translateY(0);
-  }
-}
-
-.config-grip {
-  width: 72rpx;
-  height: 8rpx;
-  margin: 0 auto;
-  border-radius: 999rpx;
-  background: var(--line);
-}
-
-.config-head {
-  padding: 22rpx 4rpx 6rpx;
-}
-
-.config-title {
-  font-size: var(--font-title);
-  font-weight: 600;
-  color: var(--text-main);
-}
-
+/* ---------- 答题配置内容 ---------- */
 .config-sub {
   display: block;
   margin-top: 10rpx;
-  font-size: var(--font-caption);
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
   color: var(--text-sub);
 }
 
 .config-rows {
   margin-top: 10rpx;
+}
+
+.config-note {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-caption);
+  line-height: var(--leading-secondary);
+  color: var(--text-sub);
+}
+
+.config-row.config-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24rpx 0;
+}
+
+.config-row-stacked .seg-group {
+  margin-top: 18rpx;
+}
+
+.config-row-stacked .seg-chip:first-child {
+  margin-left: 0;
+}
+
+.config-option-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .config-row {
@@ -510,10 +486,12 @@ page { background: var(--card); }
 }
 
 .seg-chip {
-  height: 56rpx;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
   margin-left: 12rpx;
   padding: 0 24rpx;
-  line-height: 1.5;
+  line-height: var(--leading-secondary);
   border-radius: var(--radius-tag);
   font-size: var(--font-secondary);
   color: var(--text-sub);
@@ -532,7 +510,6 @@ page { background: var(--card); }
 }
 
 .config-actions {
-  margin-top: 26rpx;
   display: flex;
 }
 
@@ -549,4 +526,18 @@ page { background: var(--card); }
 .config-banks { width: 100%; margin: 18rpx 0 8rpx; white-space: nowrap; }
 .config-bank-list { display: inline-flex; padding: 2rpx 4rpx 10rpx; }
 .bank-chip { display: inline-flex; align-items: center; flex-shrink: 0; margin-left: 0; margin-right: 14rpx; }
-.bank-check { width: 24rpx; height: 24rpx; line-height: 1.5; margin-right: 10rpx; border: 2rpx solid currentColor; border-radius: 6rpx; text-align: center; font-size: var(--font-caption); }
+.bank-check { width: 24rpx; height: 24rpx; line-height: var(--leading-caption); margin-right: 10rpx; border: 2rpx solid currentColor; border-radius: 6rpx; text-align: center; font-size: var(--font-caption); }
+
+.mock-selection { display: flex; align-items: center; justify-content: space-between; }
+.stat-more { flex: none; }
+.mock-selection { padding: 16rpx 32rpx; background: var(--page-bg); }
+.mock-selection-main { flex: 1; min-width: 0; }
+.mock-selection .q-button.q-button--text { flex: none; width: auto; margin-left: 16rpx; white-space: nowrap; }
+.config-wrap { flex-wrap: wrap; gap: 16rpx; }
+.config-wrap .seg-chip { margin: 0; }
+.config-wrap .q-button.seg-chip { flex: none; width: auto; }
+.config-preset { flex: 1; min-width: 0; margin-right: 20rpx; }
+.preset-picker { min-height: 44px; display: flex; align-items: center; gap: 8rpx; color: var(--text-sub); font-size: var(--font-secondary); }
+.preset-picker-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.preset-picker-arrow { display: block; flex: none; width: 14px; height: 14px; }
+.duration-input { box-sizing: border-box; width: 100%; height: 44px; margin-top: 20rpx; padding: 0 20rpx; background: var(--page-bg); border-radius: var(--radius-control); font-size: var(--font-body); }

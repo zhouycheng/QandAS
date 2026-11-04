@@ -1,6 +1,6 @@
 <view class="secondary-page secondary-page-fill">
 <page-header title="题目详情" />
-<view class="page detail-page font-{{fontSize}}">
+<view class="detail-page font-{{fontSize}}">
   <view wx:if="{{!ready}}" class="detail-loading">
     <text>加载中…</text>
   </view>
@@ -51,7 +51,7 @@
       <view wx:if="{{explanation}}" class="explain-card card">
         <text class="section-title">解析</text>
         <rich-content class="explain-text" text="{{(explanation) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
-        <rich-content wx:for="{{scoringPoints}}" wx:key="*this" text="{{(item) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
+        <rich-content class="detail-scoring" wx:for="{{scoringPoints}}" wx:key="*this" text="{{(index + 1) + '. ' + (item || '')}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
       </view>
 
       <button

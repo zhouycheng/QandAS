@@ -4,6 +4,8 @@
  * qandaPreferences 使用平铺字段，normalizePreferences 校验并补全缺省值。
  */
 
+const { normalizePresets } = require('./practice-presets.js')
+
 const PREFERENCE_STORAGE_KEY = 'qandaPreferences'
 const { DEFAULT_ORDER, normalizeOrder } = require('./practice-layout.js')
 const { normalizeExamList } = require('./exam-countdown.js')
@@ -22,13 +24,11 @@ const DEFAULT_PREFERENCES = {
   autoAddWrongBook: true,
   // 即时反馈中客观题确认答对后自动翻题
   autoNextWhenCorrect: false,
-  showSelfAssessment: true,
-  // 答题页顶部是否显示答题卡入口
-  showOverviewEntry: true,
   // 作答时是否轻微震动。**默认关闭**：vibrateShort 会让整台设备震一下，
   // 答题时被感知成「整个页面在颤抖」，且只有点选项会触发（其它按钮没有），
   // 用户很难把它和「点击动效」区分开。想开的人可在「我的 · 学习偏好」里打开。
   vibrateOnAnswer: false,
+  practiceOrder: 'order',
   fontSize: 'normal',
   moduleOrder: DEFAULT_ORDER,
   examCountdowns: [],
@@ -37,45 +37,28 @@ const DEFAULT_PREFERENCES = {
   examDate: ''
 }
 
-/** 布尔型偏好，设置页按这个列表渲染开关，新增一项只需加一行 */
+/** 设置页的长期答题习惯。 */
 const PREFERENCE_SWITCHES = [
-  {
-    key: 'autoShowExplanation',
-    label: '答题后自动显示解析',
-    description: '关闭后，解析在交卷回顾中查看'
-  },
+  { key: 'autoNextWhenCorrect', label: '答对后自动跳到下一题', description: '仅练习模式：答对后等待 0.8 秒，自动进入下一题' },
   {
     key: 'autoAddWrongBook',
-    label: '答错自动加入错题本',
-    description: '关闭后不收录新错题，已有错题照常更新'
-  },
-  {
-    key: 'autoNextWhenCorrect',
-    label: '答对后自动进入下一题',
-    description: '答对后约 0.8 秒翻题，仅练习模式生效'
-  },
-  {
-    key: 'showSelfAssessment',
-    label: '交卷后显示主观题自评',
-    description: '可标记“掌握”或“待复习”，也可跳过'
-  },
-  {
-    key: 'showOverviewEntry',
-    label: '显示答题卡入口',
-    description: '点击顶部题号打开答题卡'
+    label: '自动收录错题',
+    description: '交卷后，将答错的题加入错题本。关闭后不收录新错题，已有错题照常更新'
   },
   {
     key: 'vibrateOnAnswer',
-    label: '答题震动反馈',
+    label: '答题时振动',
     description: '轻微震动，效果受设备及系统设置影响'
-  }
+  },
+  { key: 'practiceOrder', label: '练习时随机出题' },
+  { key: 'autoShowExplanation', label: '练习时答完即显示解析' }
 ]
 
 /** 选择型偏好 */
 const PREFERENCE_CHOICES = [
   {
     key: 'fontSize',
-    label: '题目字号',
+    label: '题目文字大小',
     description: '影响题干、选项与解析的字号',
     options: FONT_SIZE_OPTIONS,
     available: true
@@ -107,8 +90,13 @@ function normalizePreferences(rawPreferences) {
   Object.keys(DEFAULT_PREFERENCES).forEach((key) => {
     const value = raw[key]
 
+    if (key === 'practiceOrder') {
+      next[key] = value === 'random' ? 'random' : 'order'
+      return
+    }
+
     if (key === 'fontSize') {
-      next[key] = pickOptionValue(FONT_SIZE_OPTIONS, value, DEFAULT_PREFERENCES[key])
+      next[key] = pickOptionValue(PREFERENCE_CHOICES.find(item => item.key === key).options, value, DEFAULT_PREFERENCES[key])
       return
     }
 
@@ -132,18 +120,30 @@ function normalizePreferences(rawPreferences) {
     ? raw.examCountdowns
     : [{ id: 'legacy-exam', examName: next.examName, examDate: next.examDate }])
 
+  Object.assign(next, normalizePresets(raw.practicePresets, raw.defaultPracticePresetId))
   return next
+}
+
+function normalizePracticeOptions(raw, preferences) {
+  const defaults = normalizePreferences(preferences)
+  const options = {}
+  for (const key of ['autoShowExplanation', 'autoNextWhenCorrect']) {
+    const value = raw && raw[key]
+    options[key] = value === true || value === '1' ? true : value === false || value === '0' ? false : defaults[key]
+  }
+  return options
 }
 
 /** 开关型偏好的更新：只接受布尔值 */
 function setPreferenceSwitch(preferences, key, value) {
   const current = normalizePreferences(preferences)
 
-  if (!isBoolean(value) || !isBoolean(current[key])) {
+  if (!isBoolean(value)) {
     return current
   }
 
-  current[key] = value
+  if (key === 'practiceOrder') current[key] = value ? 'random' : 'order'
+  else if (isBoolean(current[key])) current[key] = value
 
   return current
 }
@@ -190,7 +190,7 @@ function buildPreferenceView(preferences) {
 
   return {
     switches: PREFERENCE_SWITCHES.map((item) => Object.assign({}, item, {
-      value: !!current[item.key]
+      value: item.key === 'practiceOrder' ? current.practiceOrder === 'random' : current[item.key]
     })),
     choices: PREFERENCE_CHOICES.map((item) => Object.assign({}, item, {
       value: current[item.key],
@@ -203,7 +203,7 @@ function buildPreferenceView(preferences) {
 
 /**
  * 取某个选择型偏好的当前文案。
- * 「我的」页右侧的摘要（即时答案 / 选项在下）用它，避免页面自己写死一套标签，
+ * 「我的」页右侧的文字大小摘要用它，避免页面自己写死一套标签，
  * 否则选项一改，摘要还停在旧文案上。
  */
 function describeChoiceLabel(preferences, key) {
@@ -230,6 +230,7 @@ module.exports = {
   cloneDefaultPreferences,
   describeChoiceLabel,
   normalizePreferences,
+  normalizePracticeOptions,
   setPreferenceChoice,
   setPreferenceSwitch,
   setPreferenceText

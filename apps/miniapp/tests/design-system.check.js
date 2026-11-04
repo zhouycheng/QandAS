@@ -9,6 +9,13 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 assert.equal(read('styles/theme.wxss'), generateTheme())
 assert.equal(read('styles/page-theme.wxss'), generateTheme('page'))
 assert.deepEqual(Object.values(tokens.readingSizes), [12, 14, 18])
+assert.deepEqual(Object.values(tokens.fontSizes), [11, 12, 14, 16, 18, 24])
+for (const [file, selector] of [['page/subject-list/index.wxss', 'hero-brand'], ['page/bank-detail/index.wxss', 'bk-title'], ['page/stats/index.wxss', 'page-head-title'], ['page/my/index.wxss', 'page-head-title']]) {
+  const rule = readStyles(path.join(root, file)).match(new RegExp('\\.' + selector + '\\s*\\{([^}]+)'))[1]
+  assert.ok(rule.includes('font-size: var(--font-title)'), file + ' navigation size')
+  assert.ok(rule.includes('line-height: var(--leading-title)'), file + ' navigation line height')
+  assert.ok(rule.includes('font-weight: 600'), file + ' navigation weight')
+}
 function luminance(hex) {
   const rgb = hex.slice(1).match(/../g).map(x => parseInt(x, 16) / 255)
   return rgb.map(x => x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4).reduce((v, x, i) => v + x * [.2126, .7152, .0722][i], 0)

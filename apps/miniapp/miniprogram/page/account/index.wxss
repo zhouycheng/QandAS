@@ -1,5 +1,4 @@
 @import "../../styles/list-page.wxss";
-@import "../../styles/profile-selectors.wxss";
 @import "../../styles/settings-detail.wxss";
 
 button.avatar-button[size="mini"] {
@@ -38,4 +37,4 @@ button.avatar-button[size="mini"] {
 .account-page .info-value-highlight { color: var(--brand); }
 .account-page .section-note { display: block; margin-top: var(--space-md); font-size: var(--font-secondary); font-weight: 400; }
 .account-page .row-label { font-weight: 400; }
-.q-button.account-delete { width: auto; margin: var(--space-md) auto 0; padding: 8px 24px; background: var(--danger); color: var(--card); }
+.q-button.account-delete { width: 80px; min-width: 0; min-height: 44px; margin: 0 auto; padding: 8px 0 4px; align-items: flex-end; color: var(--danger); }
