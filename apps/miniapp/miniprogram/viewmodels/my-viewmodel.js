@@ -71,7 +71,8 @@ class MyViewModel {
     load() {
         const preferences = normalizePreferences(this.repository.getPreferences(this.storage));
         const auth = this.readAuthView();
-        const testAccount = auth.loggedIn && auth.email.toLowerCase().endsWith('@qanda.mail');
+        const account = this.repository.getAuth(this.storage);
+        const testAccount = account.loggedIn && account.email.toLowerCase().endsWith('@qanda.mail');
         return {
             data: Object.assign(getInitialMyViewData(), {
                 auth,
@@ -148,8 +149,8 @@ class MyViewModel {
         }
         if (key === 'countdown') return { command: { type: 'navigate', url: '/page/exam-countdown/index' } };
         if (key === 'content-confirm') {
-            const auth = this.readAuthView();
-            if (!auth.loggedIn || !auth.email.toLowerCase().endsWith('@qanda.mail')) return null;
+            const account = this.repository.getAuth(this.storage);
+            if (!account.loggedIn || !account.email.toLowerCase().endsWith('@qanda.mail')) return null;
             return { command: { type: 'navigate', url: '/page/content-confirm/index' } };
         }
         if (key === 'about') {
