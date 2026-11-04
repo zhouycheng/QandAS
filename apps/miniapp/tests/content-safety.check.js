@@ -1,14 +1,10 @@
 const assert = require('node:assert/strict')
 const safety = require('../miniprogram/repositories/content-safety-repository.js')
-const confirmation = require('../miniprogram/repositories/content-confirmation-repository.js')
 const api = require('../miniprogram/repositories/api-transport.js')
 async function main() {
   assert(safety.requiresCheck('PUT', '/me/profile'))
   assert(safety.requiresCheck('POST', '/me/question-feedback'))
   assert(!safety.requiresCheck('POST', '/practice/sessions'))
-  const code = '11111111-1111-4111-8111-111111111111.' + 'a'.repeat(43)
-  assert.equal(confirmation.parse(code).token, 'a'.repeat(43))
-  assert.throws(() => confirmation.parse(code + '.extra'))
   const calls = [], payload = { expectedVersion: 2, nickname: '昵称' }
   let verdict = 'PASSED', token = 'session', issued = 0
   global.wx = { login: input => { issued++; input.success({ code: 'fresh-' + issued }) } }

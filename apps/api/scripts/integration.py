@@ -120,17 +120,13 @@ def request(config, method, path, body=None, token=None, key=None, expected=None
         data = json.loads(raw) if raw else None
     except ValueError:
         raise RuntimeError(f"{method} {path.split('?')[0]}: HTTP {response.code}，响应格式异常") from None
-    if response.code == 409 and isinstance(data, dict) and data.get("code") == "CONTENT_CHECK_REQUIRED" and token and body and not safety_id:
+    if response.code == 409 and isinstance(data, dict) and data.get("code") == "CONTENT_CHECK_REQUIRED" and token and body and not safety_id and path.startswith("/me/"):
         settings = dict(line.split("=", 1) for line in (PRIVATE / "backend.env").read_text().splitlines() if "=" in line and not line.startswith("#"))
         if settings.get("BACKEND_MODE") not in ("local", "test") or settings.get("BACKEND_CONTENT_SAFETY_PROVIDER") != "local" or settings.get("BACKEND_WECHAT_PROVIDER") != "local":
-            raise RuntimeError("此联调脚本的内容写入需要显式本地检测配置；官方检测请通过配套小程序和管理端完成确认")
-        prefix = "/admin" if path.startswith("/admin/") else "/me"
-        context = None
-        if prefix == "/me":
-            context = request(config, "POST", "/me/content-safety/contexts", {"code": "local-learner-1:" + str(uuid.uuid4())}, token)["id"]
+            raise RuntimeError("此联调脚本的内容写入需要显式本地检测配置；官方检测请通过小程序提交内容")
+        prefix = "/me"
+        context = request(config, "POST", "/me/content-safety/contexts", {"code": "local-learner-1:" + str(uuid.uuid4())}, token)["id"]
         ticket = request(config, "POST", prefix + "/content-safety/requests", {"method": method, "path": path, "payload": body, "contextId": context}, token)
-        if prefix == "/admin":
-            request(config, "POST", "/content-safety/confirmations", {"requestId": ticket["id"], "token": ticket["confirmationToken"], "code": "local-learner-1:" + str(uuid.uuid4())})
         deadline = time.monotonic() + 40
         while time.monotonic() < deadline:
             state = request(config, "GET", prefix + "/content-safety/requests/" + ticket["id"], token=token)

@@ -65,9 +65,9 @@ class OpenApiConfiguration {
             operation.parameters=operation.parameters.orEmpty().filterNot { it.name=="X-Content-Safety-Request" }.toMutableList()
             val candidate=path.replace(Regex("\\{[^}]+}"),"00000000-0000-0000-0000-000000000001")
             val mutation=qanda.backend.contentsafety.ContentMutations.operation(method.name,candidate)
-            if(mutation!=null && !mutation.startsWith("UPLOAD_IMAGE:") || method.name=="POST" && candidate.matches(Regex("/api/v1/admin/(users|question-banks)/excel/imports"))) {
+            if(mutation!=null) {
                 operation.addParametersItem(io.swagger.v3.oas.models.parameters.Parameter().name("X-Content-Safety-Request").`in`("header").required(false)
-                    .description("写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。")
+                    .description("写入对应的已通过内容检测请求 ID，与当前用户会话及待保存内容绑定，在保存事务中消费。")
                     .schema(StringSchema().format("uuid")))
             }
         } }
@@ -153,7 +153,7 @@ object PublicRoutes {
     private const val ID="(?:[0-9a-fA-F-]+|\\{id})"
     fun permits(method: String,path: String): Boolean =
         method=="DELETE" && path=="/api/v1/me" ||
-        method=="POST" && path in setOf("/api/v1/content-safety/confirmations","/api/v1/content-safety/confirmations/inspection","/api/v1/content-safety/wechat-callback") ||
+        method=="POST" && path=="/api/v1/content-safety/wechat-callback" ||
         method=="GET" && (path=="/api/v1/content-safety/wechat-callback" || path.matches(Regex("/api/v1/content-safety/media/$ID"))) ||
         method=="GET" && (
         path in setOf("/api/v1/colleges","/api/v1/health","/api/v1/subjects","/api/v1/question-banks","/api/v1/questions","/api/v1/search","/api/v1/community/group","/api/v1/community/group/image") ||

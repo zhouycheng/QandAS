@@ -547,6 +547,14 @@
     "body": null
   },
   {
+    "operationId": "ContentSafety_prepare_POST",
+    "method": "POST",
+    "path": "/api/v1/me/content-safety/requests",
+    "body": {
+      "payload": "示例内容"
+    }
+  },
+  {
     "operationId": "ContentSafety_context_POST",
     "method": "POST",
     "path": "/api/v1/me/content-safety/contexts",
@@ -567,56 +575,15 @@
     "body": "示例内容"
   },
   {
-    "operationId": "ContentSafety_confirm_POST",
-    "method": "POST",
-    "path": "/api/v1/content-safety/confirmations",
-    "body": {
-      "requestId": "{{requestId}}",
-      "token": "{{token}}",
-      "code": "{{code}}"
-    }
-  },
-  {
-    "operationId": "ContentSafety_invitation_POST",
-    "method": "POST",
-    "path": "/api/v1/content-safety/confirmations/inspection",
-    "body": {
-      "requestId": "{{requestId}}",
-      "token": "{{token}}"
-    }
-  },
-  {
-    "operationId": "ContentSafety_prepare_POST_me_content_safety_requests",
-    "method": "POST",
-    "path": "/api/v1/me/content-safety/requests",
-    "body": {
-      "payload": "示例内容"
-    }
-  },
-  {
-    "operationId": "ContentSafety_prepare_POST_admin_content_safety_requests",
-    "method": "POST",
-    "path": "/api/v1/admin/content-safety/requests",
-    "body": {
-      "payload": "示例内容"
-    }
-  },
-  {
-    "operationId": "ContentSafety_media_GET",
-    "method": "GET",
-    "path": "/api/v1/content-safety/media/{id}",
-    "body": null
-  },
-  {
-    "operationId": "ContentSafety_status_GET_me_content_safety_requests_id",
+    "operationId": "ContentSafety_status_GET",
     "method": "GET",
     "path": "/api/v1/me/content-safety/requests/{id}",
     "body": null
   },
   {
-    "operationId": "ContentSafety_status_GET_admin_content_safety_requests_id",
+    "operationId": "ContentSafety_media_GET",
     "method": "GET",
-    "path": "/api/v1/admin/content-safety/requests/{id}",
+    "path": "/api/v1/content-safety/media/{id}",
     "body": null
   },
   {
@@ -665,18 +632,6 @@
     "operationId": "Excel_import_POST_admin_question_banks_excel_imports",
     "method": "POST",
     "path": "/api/v1/admin/question-banks/excel/imports",
-    "body": null
-  },
-  {
-    "operationId": "Excel_contentSafety_POST_admin_question_banks_excel_content_safety",
-    "method": "POST",
-    "path": "/api/v1/admin/question-banks/excel/content-safety",
-    "body": null
-  },
-  {
-    "operationId": "Excel_contentSafety_POST_admin_users_excel_content_safety",
-    "method": "POST",
-    "path": "/api/v1/admin/users/excel/content-safety",
     "body": null
   },
   {

@@ -78,13 +78,7 @@ class ExcelPostgresTest: PostgresFixture() {
         }
         bytes.write("--$boundary\r\nContent-Disposition: form-data; name=\"options\"\r\n\r\n$options\r\n--$boundary--\r\n".toByteArray())
         val path="/admin/${if(kind=="users") "users" else "question-banks"}/excel/"
-        var headers=emptyMap<String,String>()
-        if(action=="imports" && token!=null) {
-            val prepared=raw("POST",path+"content-safety",bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary")
-            if(prepared.statusCode()!=200) return prepared.statusCode() to json.readTree(prepared.body())
-            headers=mapOf("X-Content-Safety-Request" to approveContentTicket(json.readTree(prepared.body()),token).toString())
-        }
-        val response=raw("POST",path+action,bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary",extraHeaders=headers)
+        val response=raw("POST",path+action,bytes.toByteArray(),token,contentType="multipart/form-data; boundary=$boundary")
         return response.statusCode() to json.readTree(response.body())
     }
     @Test fun `multi file failure rolls back preceding account and receipt writes`() {

@@ -8,7 +8,6 @@ import { countQuestions } from '../lib/question-content'
 import { ApiError } from './api-error'
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
 import { watchSyncStream } from './sync-stream'
-import { needsContentCheck, openContentSafetyPrompt, type SafetyTicket } from '../lib/content-safety'
 export { ApiError } from './api-error'
 
 type Mutation = { id: string; version: number }
@@ -21,7 +20,6 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   private pending = new Map<string, string>()
   private provisionalToken = ''
   private imageKeys = new WeakMap<File, string>()
-  private safetyTickets = new Map<string, SafetyTicket>()
   constructor(private baseUrl = '', private fetcher: typeof fetch = globalThis.fetch.bind(globalThis), private token = () => getAdminSession()?.accessToken ?? '') {
     this.baseUrl = baseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '')
   }
@@ -37,38 +35,12 @@ export class HttpAdminContentGateway implements AdminContentGateway {
     if (token) headers.Authorization = `Bearer ${token}`
     if (raw !== undefined && !(body instanceof FormData)) headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json'
     if (key) headers['Idempotency-Key'] = key
-    const excelImport = method === 'POST' && /^\/admin\/(users|question-banks)\/excel\/imports$/.test(path)
-    const checkKey = key && !excelImport ? JSON.stringify([identity, method, path, key, raw]) : undefined
-    if (needsContentCheck(method, path, body) || excelImport) {
-      for (const [fingerprint, ticket] of this.safetyTickets) if (Date.parse(ticket.expiresAt) <= Date.now()) this.safetyTickets.delete(fingerprint)
-      const payload = body instanceof Blob ? btoa(Array.from(new Uint8Array(await body.arrayBuffer()), byte => String.fromCharCode(byte)).join('')) : body
-      const ticket = checkKey && this.safetyTickets.get(checkKey) || (excelImport ? await this.request<SafetyTicket>('POST', path.replace(/\/imports$/, '/content-safety'), body)
-        : await this.request<SafetyTicket>('POST', '/admin/content-safety/requests', { method, path, payload, contentType: body instanceof Blob ? body.type : undefined }))
-      checkIdentity()
-      let cancelled = false
-      const close = ticket.state === 'PASSED' ? () => {} : openContentSafetyPrompt(ticket, () => { cancelled = true })
-      try {
-        let state = ticket
-        while (['WAITING_CONFIRMATION', 'CHECKING', 'RUNNING', 'PENDING'].includes(state.state)) {
-          if (cancelled) throw new Error('已取消本次内容检查')
-          checkIdentity()
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          state = await this.request<SafetyTicket>('GET', '/admin/content-safety/requests/' + segment(ticket.id))
-        }
-        if (state.state !== 'PASSED') throw new Error(state.state === 'EXPIRED' ? '内容检查已超时，请重试' : '内容未通过检查，请修改或重试')
-        checkIdentity()
-        if (cancelled) throw new Error('已取消本次内容检查')
-        if (checkKey) this.safetyTickets.set(checkKey, state)
-        headers['X-Content-Safety-Request'] = ticket.id
-      } finally { close() }
-    }
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
     try {
       const response = await this.fetcher(`${this.baseUrl}/api/v1${path}${params.size ? '?' + params : ''}`, { method, headers, body: raw, signal: controller.signal })
       checkIdentity()
       if (!response.ok) {
-        if (checkKey && response.status < 500 && response.status !== 429) this.safetyTickets.delete(checkKey)
         const error = await response.json().catch(() => ({}))
         checkIdentity()
         if (response.status === 401 && !path.startsWith('/admin/auth/')) {
@@ -81,7 +53,6 @@ export class HttpAdminContentGateway implements AdminContentGateway {
       }
       const result = binary ? await response.blob() : response.status === 204 ? undefined : await response.json()
       checkIdentity()
-      if (checkKey) this.safetyTickets.delete(checkKey)
       return result as T
     } catch (error) {
       if (error instanceof ApiError) throw error

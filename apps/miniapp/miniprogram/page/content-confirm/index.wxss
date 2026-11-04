@@ -1,6 +1,0 @@
-@import "../../styles/controls.wxss";
-.confirmation-page { padding: 36rpx; display: flex; flex-direction: column; gap: 28rpx; }
-.confirmation-code { width: 100%; box-sizing: border-box; padding: 24rpx; height: 180rpx; background: var(--page-bg); border-radius: var(--radius-card); font-size: var(--font-body); }
-.confirmation-preview { display: flex; flex-direction: column; gap: 24rpx; }
-.confirmation-excerpt { padding: 20rpx; background: var(--page-bg); border-radius: var(--radius-tag); white-space: pre-wrap; }
-.confirmation-error { color: var(--danger); }

@@ -91,10 +91,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1476,10 +1472,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1727,10 +1719,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1971,10 +1959,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2132,10 +2116,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2291,10 +2271,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -2467,10 +2443,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -2654,10 +2626,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2832,10 +2800,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -3389,10 +3353,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -3630,10 +3590,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -3719,10 +3675,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -3899,10 +3851,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -4072,10 +4020,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -4259,10 +4203,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -4347,10 +4287,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -4592,10 +4528,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -5327,6 +5259,88 @@
       "name": "contentsafety",
       "item": [
         {
+          "name": "ContentSafety_prepare_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/content-safety/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "content-safety",
+                "requests"
+              ],
+              "query": []
+            },
+            "description": "ContentSafety_prepare_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payload\": \"示例内容\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "ContentSafety_context_POST",
           "request": {
             "method": "POST",
@@ -5586,166 +5600,13 @@
           ]
         },
         {
-          "name": "ContentSafety_confirm_POST",
+          "name": "ContentSafety_status_GET",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
                 "key": "X-Request-Id",
                 "value": "{{$guid}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/content-safety/confirmations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "content-safety",
-                "confirmations"
-              ],
-              "query": []
-            },
-            "description": "ContentSafety_confirm_POST",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"token\": \"{{token}}\",\n  \"code\": \"{{code}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "ContentSafety_invitation_POST",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/content-safety/confirmations/inspection",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "content-safety",
-                "confirmations",
-                "inspection"
-              ],
-              "query": []
-            },
-            "description": "ContentSafety_invitation_POST",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"token\": \"{{token}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "ContentSafety_prepare_POST_me_content_safety_requests",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "auth": {
@@ -5759,7 +5620,7 @@
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/api/v1/me/content-safety/requests",
+              "raw": "{{baseUrl}}/api/v1/me/content-safety/requests/{{id}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -5768,20 +5629,12 @@
                 "v1",
                 "me",
                 "content-safety",
-                "requests"
+                "requests",
+                "{{id}}"
               ],
               "query": []
             },
-            "description": "ContentSafety_prepare_POST_me_content_safety_requests",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"payload\": \"示例内容\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "ContentSafety_status_GET"
           },
           "event": [
             {
@@ -5806,88 +5659,6 @@
                   "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
                   "const session=b;",
                   "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "ContentSafety_prepare_POST_admin_content_safety_requests",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{adminToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/content-safety/requests",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "content-safety",
-                "requests"
-              ],
-              "query": []
-            },
-            "description": "ContentSafety_prepare_POST_admin_content_safety_requests",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"payload\": \"示例内容\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
                   "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
                   "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
@@ -5956,146 +5727,6 @@
                   "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
                   "const session=b;",
                   "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "ContentSafety_status_GET_me_content_safety_requests_id",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              }
-            ],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/me/content-safety/requests/{{id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "me",
-                "content-safety",
-                "requests",
-                "{{id}}"
-              ],
-              "query": []
-            },
-            "description": "ContentSafety_status_GET_me_content_safety_requests_id"
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "ContentSafety_status_GET_admin_content_safety_requests_id",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              }
-            ],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{adminToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/content-safety/requests/{{id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "content-safety",
-                "requests",
-                "{{id}}"
-              ],
-              "query": []
-            },
-            "description": "ContentSafety_status_GET_admin_content_safety_requests_id"
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
                   "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
                   "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
@@ -6633,10 +6264,6 @@
               {
                 "key": "X-Request-Id",
                 "value": "{{$guid}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               }
             ],
             "auth": {
@@ -6728,10 +6355,6 @@
               {
                 "key": "X-Request-Id",
                 "value": "{{$guid}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               }
             ],
             "auth": {
@@ -6766,188 +6389,6 @@
               ]
             },
             "description": "Excel_import_POST_admin_question_banks_excel_imports",
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "files",
-                  "type": "file",
-                  "src": "{{excelFile}}"
-                },
-                {
-                  "key": "options",
-                  "type": "text",
-                  "value": "{}"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Excel_contentSafety_POST_admin_question_banks_excel_content_safety",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              }
-            ],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{adminToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/question-banks/excel/content-safety",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "question-banks",
-                "excel",
-                "content-safety"
-              ],
-              "query": [
-                {
-                  "key": "options",
-                  "value": "示例内容",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Excel_contentSafety_POST_admin_question_banks_excel_content_safety",
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "files",
-                  "type": "file",
-                  "src": "{{excelFile}}"
-                },
-                {
-                  "key": "options",
-                  "type": "text",
-                  "value": "{}"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const base=pm.environment.get('baseUrl');",
-                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
-                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
-                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
-                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
-                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
-                  "const session=b;",
-                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
-                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
-                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
-                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
-                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Excel_contentSafety_POST_admin_users_excel_content_safety",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}"
-              }
-            ],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{adminToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/users/excel/content-safety",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "users",
-                "excel",
-                "content-safety"
-              ],
-              "query": [
-                {
-                  "key": "options",
-                  "value": "示例内容",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Excel_contentSafety_POST_admin_users_excel_content_safety",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -9396,10 +8837,6 @@
                 "value": "{{effectiveCommandKey}}"
               },
               {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -9485,10 +8922,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
@@ -10238,10 +9671,6 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{effectiveCommandKey}}"
-              },
-              {
-                "key": "X-Content-Safety-Request",
-                "value": "{{contentSafetyRequestId}}"
               },
               {
                 "key": "Content-Type",
