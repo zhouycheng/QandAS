@@ -1,9 +1,9 @@
 ---
 name: qanda-question-bank
-description: Extract or author a QandA question bank from documents, tables, images, web pages, or media. Use when converting source material into an import-ready QandA v1.0 JSON package with verified answers, five-part Chinese teaching explanations, provenance, assets, and a review report.
+description: Extract or author a 题小搭 question bank from documents, tables, images, web pages, or media. Use when converting source material into an import-ready 题小搭 v1.0 JSON package with verified answers, five-part Chinese teaching explanations, provenance, assets, and a review report.
 ---
 
-# QandA question-bank extraction
+# 题小搭 question-bank extraction
 
 Read `../../../docs/question-bank-import.md`, `../../../docs/question-bank-import/schema.json`, and the six-type example before producing output. Resolve these paths from this skill directory. Use the repository's parser and validator; do not invent a second wire format or write database IDs into portable files.
 

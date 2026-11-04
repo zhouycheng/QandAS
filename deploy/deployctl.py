@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restricted single-host QandA deployment. Configuration and state are root-owned."""
+"""Restricted single-host 题小搭 deployment. Configuration and state are root-owned."""
 import fcntl
 import hashlib
 import json
@@ -153,7 +153,7 @@ def apply(request):
     try:
         if current:
             mark('stopping')
-            # Stop only QandA application roles. Infrastructure and persistent volumes stay running.
+            # Stop only 题小搭 application roles. Infrastructure and persistent volumes stay running.
             stopped = True
             compose(current, 'stop', '--timeout', '120', *services())
         if request['action'] == 'deploy' and node_role() != 'frontend':

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://qanda.local/schemas/question-bank-1.0.json",
-  "title": "QandA 题库导入协议 v1.0",
+  "title": "题小搭题库导入协议 v1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [

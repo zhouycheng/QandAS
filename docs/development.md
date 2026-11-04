@@ -2,7 +2,7 @@
 
 项目包含微信原生 JavaScript 小程序、React 管理端及 Kotlin / Spring Boot / MyBatis-Plus / PostgreSQL 后端。应用和接口合同版本统一为 `1.0.0`，接口前缀为 `/api/v1`。
 
-设计参考：[QandA Figma 设计稿](https://www.figma.com/design/WWbHe9aOlf65LEwbUANxyn/QandA?node-id=1-2&t=7uv0uiEbx0WhNMtA-1)。
+设计参考：[题小搭 Figma 设计稿](https://www.figma.com/design/WWbHe9aOlf65LEwbUANxyn/QandA?node-id=1-2&t=7uv0uiEbx0WhNMtA-1)。
 
 ## 依赖与前端
 
@@ -30,7 +30,7 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 私有配置保存在 `apps/api/.env.backend`，权限为 `600`。首管命令通过终端读取账号和密码。API、worker、monitor、PostgreSQL、RabbitMQ、Prometheus 和本地邮件捕获由 Compose 管理；gateway 提供统一入口。
 
-普通重建保留数据卷。数据库初始化依次执行 V1 的 `schema.sql`、监控权限脚本和后续增量迁移，启动时核对结构。本次学习资料与可见范围规则由 V2 提供。已有开发库可在备份后通过本机数据库管理入口执行同一 V2 SQL；生产由 Flyway 增量迁移，V1 基线保持原校验内容。需要重建开发数据时，先停止业务进程，重置该环境的数据库、关联队列及客户端账号缓存和草稿，再启动相同代码版本。学习偏好、布局和游客试答额度独立保留。数据库命令的运行模式、名称和本机地址保护继续有效。
+普通重建保留数据卷。空库初始化执行统一 V1 的 `schema.sql` 和监控权限脚本，启动时核对结构。`build`、`test`、`verify` 先清理 Maven 构建产物，防止已删除的迁移脚本残留在包中。本次重构直接调整 V1，不提供旧数据升级脚本；已有库与新代码结构不一致时必须停止，不能通过修复校验和继续运行。需要重建专用开发／测试数据时，先核实目标环境、停止业务进程，重置该环境的数据库、关联队列及客户端账号缓存和草稿，再启动相同代码版本。学习偏好、布局和游客试答额度独立保留。数据库命令的运行模式、名称和本机地址保护继续有效。
 
 官方微信和真实邮件采用仓库外的私有提供端配置。自动检查使用测试身份和本地邮件捕获。腾讯云 SES 私有配置位于 `~/.config/qanda/tencent-ses.env`，权限为 `600`，仅由明确的实发操作使用。
 

@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Inspect Git changes, prepare coherent commits, and perform explicitly authorized commits, task-branch pushes, and pull-request actions using QandA's single-main workflow.
+description: Inspect Git changes, prepare coherent commits, and perform explicitly authorized commits, task-branch pushes, and pull-request actions using 题小搭's single-main workflow.
 ---
 
 # Git Workflow
