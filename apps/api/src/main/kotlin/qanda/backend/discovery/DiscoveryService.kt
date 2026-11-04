@@ -25,7 +25,6 @@ class DiscoveryService(private val sql: DiscoveryMapper,private val catalog: Cat
         return MutationResult(id,1)
     }
     fun recommendations(actor: Actor,p: PageSpec): Page<Recommendation> {
-        val user=identity.view(actor.id)
         val ids=sql.recommendedSubjects(actor.id,p.offset,p.pageSize)
         val subjects=catalog.subjectsByIds(ids).associateBy { it.id }
         val selected=if(ids.isEmpty()) emptyList() else sql.recommendationBanks(actor.id,ids)
@@ -34,12 +33,7 @@ class DiscoveryService(private val sql: DiscoveryMapper,private val catalog: Cat
         val items=ids.map { subject ->
             Recommendation(subjects.getValue(subject),grouped[subject].orEmpty().map { row ->
                 val bank=banks.getValue(row.bankId!!)
-                val reasons=if(bank.scopeType=="ALL") listOf("全校通用") else bank.audiences.filter {
-                    user.collegeId==null || (it.collegeId==null || it.collegeId==user.collegeId) &&
-                        (user.majorId==null || it.majorId==null || it.majorId==user.majorId) &&
-                        (user.majorId==null || user.currentGrade==null || it.grade==null || it.grade==user.currentGrade)
-                }.flatMap { listOfNotNull(if(user.majorId!=null && it.majorId!=null) "符合所选专业" else if(user.collegeId!=null && it.collegeId!=null) "符合所选学院" else null,
-                    if(user.majorId!=null && user.currentGrade!=null && it.grade!=null) "符合当前年级" else null) }.distinct().ifEmpty { listOf(if(user.collegeId==null) "可浏览题库" else "课程已向你开放") }
+                val reasons=listOf(if(bank.categories.isEmpty()) "通用题库" else "公开题库")
                 RecommendedBank(bank,reasons)
             })
         }

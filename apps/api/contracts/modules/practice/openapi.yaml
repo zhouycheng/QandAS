@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "QandA practice API",
+    "title": "题小搭 practice API",
     "version": "1.0.0"
   },
   "servers": [
@@ -487,6 +487,7 @@
           "practice"
         ],
         "operationId": "Practice_trialSnapshot_POST",
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2234,6 +2235,7 @@
           "practice"
         ],
         "operationId": "Practice_preview_POST",
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {

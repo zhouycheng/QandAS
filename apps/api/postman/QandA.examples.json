@@ -239,21 +239,6 @@
     }
   },
   {
-    "operationId": "Catalog_userAccess_GET",
-    "method": "GET",
-    "path": "/api/v1/admin/subjects/{id}/user-access",
-    "body": null
-  },
-  {
-    "operationId": "Catalog_grant_POST",
-    "method": "POST",
-    "path": "/api/v1/admin/subjects/{id}/user-access",
-    "body": {
-      "userId": "{{userId}}",
-      "expectedVersion": "{{expectedVersion}}"
-    }
-  },
-  {
     "operationId": "Catalog_allMajors_GET",
     "method": "GET",
     "path": "/api/v1/admin/majors",
@@ -312,12 +297,6 @@
     "operationId": "Catalog_directory_GET",
     "method": "GET",
     "path": "/api/v1/admin/directory-summary",
-    "body": null
-  },
-  {
-    "operationId": "Catalog_revoke_DELETE",
-    "method": "DELETE",
-    "path": "/api/v1/admin/subjects/{id}/user-access/{userId}",
     "body": null
   },
   {
@@ -520,6 +499,12 @@
     }
   },
   {
+    "operationId": "Search_search_GET",
+    "method": "GET",
+    "path": "/api/v1/search",
+    "body": null
+  },
+  {
     "operationId": "Content_search_GET",
     "method": "GET",
     "path": "/api/v1/questions",
@@ -562,6 +547,79 @@
     "body": null
   },
   {
+    "operationId": "ContentSafety_context_POST",
+    "method": "POST",
+    "path": "/api/v1/me/content-safety/contexts",
+    "body": {
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "ContentSafety_echo_GET",
+    "method": "GET",
+    "path": "/api/v1/content-safety/wechat-callback",
+    "body": null
+  },
+  {
+    "operationId": "ContentSafety_callback_POST",
+    "method": "POST",
+    "path": "/api/v1/content-safety/wechat-callback",
+    "body": "示例内容"
+  },
+  {
+    "operationId": "ContentSafety_confirm_POST",
+    "method": "POST",
+    "path": "/api/v1/content-safety/confirmations",
+    "body": {
+      "requestId": "{{requestId}}",
+      "token": "{{token}}",
+      "code": "{{code}}"
+    }
+  },
+  {
+    "operationId": "ContentSafety_invitation_POST",
+    "method": "POST",
+    "path": "/api/v1/content-safety/confirmations/inspection",
+    "body": {
+      "requestId": "{{requestId}}",
+      "token": "{{token}}"
+    }
+  },
+  {
+    "operationId": "ContentSafety_prepare_POST_me_content_safety_requests",
+    "method": "POST",
+    "path": "/api/v1/me/content-safety/requests",
+    "body": {
+      "payload": "示例内容"
+    }
+  },
+  {
+    "operationId": "ContentSafety_prepare_POST_admin_content_safety_requests",
+    "method": "POST",
+    "path": "/api/v1/admin/content-safety/requests",
+    "body": {
+      "payload": "示例内容"
+    }
+  },
+  {
+    "operationId": "ContentSafety_media_GET",
+    "method": "GET",
+    "path": "/api/v1/content-safety/media/{id}",
+    "body": null
+  },
+  {
+    "operationId": "ContentSafety_status_GET_me_content_safety_requests_id",
+    "method": "GET",
+    "path": "/api/v1/me/content-safety/requests/{id}",
+    "body": null
+  },
+  {
+    "operationId": "ContentSafety_status_GET_admin_content_safety_requests_id",
+    "method": "GET",
+    "path": "/api/v1/admin/content-safety/requests/{id}",
+    "body": null
+  },
+  {
     "operationId": "Discovery_favorite_PUT",
     "method": "PUT",
     "path": "/api/v1/me/favorites/{id}",
@@ -586,49 +644,61 @@
     "body": null
   },
   {
-    "operationId": "Excel_preview_POST",
+    "operationId": "Excel_preview_POST_admin_question_banks_excel_preview",
     "method": "POST",
     "path": "/api/v1/admin/question-banks/excel/preview",
     "body": null
   },
   {
-    "operationId": "Excel_preview_POST_1",
+    "operationId": "Excel_preview_POST_admin_users_excel_preview",
     "method": "POST",
     "path": "/api/v1/admin/users/excel/preview",
     "body": null
   },
   {
-    "operationId": "Excel_import_POST",
+    "operationId": "Excel_import_POST_admin_users_excel_imports",
     "method": "POST",
     "path": "/api/v1/admin/users/excel/imports",
     "body": null
   },
   {
-    "operationId": "Excel_import_POST_1",
+    "operationId": "Excel_import_POST_admin_question_banks_excel_imports",
     "method": "POST",
     "path": "/api/v1/admin/question-banks/excel/imports",
     "body": null
   },
   {
-    "operationId": "Excel_template_GET",
+    "operationId": "Excel_contentSafety_POST_admin_question_banks_excel_content_safety",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/excel/content-safety",
+    "body": null
+  },
+  {
+    "operationId": "Excel_contentSafety_POST_admin_users_excel_content_safety",
+    "method": "POST",
+    "path": "/api/v1/admin/users/excel/content-safety",
+    "body": null
+  },
+  {
+    "operationId": "Excel_template_GET_admin_users_excel_template",
     "method": "GET",
     "path": "/api/v1/admin/users/excel/template",
     "body": null
   },
   {
-    "operationId": "Excel_template_GET_1",
+    "operationId": "Excel_template_GET_admin_question_banks_excel_template",
     "method": "GET",
     "path": "/api/v1/admin/question-banks/excel/template",
     "body": null
   },
   {
-    "operationId": "Excel_export_GET",
+    "operationId": "Excel_export_GET_admin_users_excel_export",
     "method": "GET",
     "path": "/api/v1/admin/users/excel/export",
     "body": null
   },
   {
-    "operationId": "Excel_export_GET_1",
+    "operationId": "Excel_export_GET_admin_question_banks_excel_export",
     "method": "GET",
     "path": "/api/v1/admin/question-banks/excel/export",
     "body": null
@@ -652,17 +722,6 @@
     }
   },
   {
-    "operationId": "Identity_changePassword_PUT",
-    "method": "PUT",
-    "path": "/api/v1/me/password",
-    "body": {
-      "expectedVersion": "{{expectedVersion}}",
-      "challengeId": "{{challengeId}}",
-      "code": "{{code}}",
-      "newPassword": "{{newPassword}}"
-    }
-  },
-  {
     "operationId": "Identity_changeEmail_PUT",
     "method": "PUT",
     "path": "/api/v1/me/email-binding",
@@ -671,12 +730,6 @@
       "newChallengeId": "{{newChallengeId}}",
       "newCode": "{{newCode}}"
     }
-  },
-  {
-    "operationId": "Identity_acknowledgeProfileSetup_POST",
-    "method": "POST",
-    "path": "/api/v1/me/profile-setup/acknowledgement",
-    "body": null
   },
   {
     "operationId": "Identity_requestOwnEmailChallenge_POST",
@@ -691,9 +744,15 @@
     "method": "POST",
     "path": "/api/v1/me/email-challenges/{id}/verification",
     "body": {
-      "purpose": "CHANGE_PASSWORD",
+      "purpose": "CHANGE_EMAIL_OLD",
       "code": "{{code}}"
     }
+  },
+  {
+    "operationId": "AccountDeletion_prepare_POST",
+    "method": "POST",
+    "path": "/api/v1/me/deletion-confirmations",
+    "body": {}
   },
   {
     "operationId": "Identity_heartbeat_POST",
@@ -711,14 +770,6 @@
     }
   },
   {
-    "operationId": "Identity_registerWechat_POST",
-    "method": "POST",
-    "path": "/api/v1/auth/wechat-registrations",
-    "body": {
-      "registrationToken": "{{registrationToken}}"
-    }
-  },
-  {
     "operationId": "Identity_login_POST",
     "method": "POST",
     "path": "/api/v1/auth/sessions",
@@ -726,26 +777,6 @@
       "email": "{{email}}",
       "password": "{{password}}",
       "deviceId": "{{deviceId}}"
-    }
-  },
-  {
-    "operationId": "Identity_resetPassword_POST",
-    "method": "POST",
-    "path": "/api/v1/auth/password-resets",
-    "body": {
-      "challengeId": "{{challengeId}}",
-      "code": "{{code}}",
-      "newPassword": "{{newPassword}}"
-    }
-  },
-  {
-    "operationId": "Identity_registerEmail_POST",
-    "method": "POST",
-    "path": "/api/v1/auth/email-registrations",
-    "body": {
-      "challengeId": "{{challengeId}}",
-      "code": "{{code}}",
-      "password": "{{password}}"
     }
   },
   {
@@ -771,6 +802,15 @@
     "method": "GET",
     "path": "/api/v1/me",
     "body": null
+  },
+  {
+    "operationId": "AccountDeletion_erase_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/me",
+    "body": {
+      "proof": "{{proof}}",
+      "confirmed": false
+    }
   },
   {
     "operationId": "Identity_logout_DELETE",

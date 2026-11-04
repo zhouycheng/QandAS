@@ -14,7 +14,7 @@
     (SELECT count(*) FROM course_request WHERE status IN ('OPEN','IN_PROGRESS')) pending_course_request_count,
     (SELECT count(*) FROM question_bank WHERE publication_status='PUBLISHED') published_bank_count,
     (SELECT count(*) FROM question_bank WHERE publication_status='DRAFT') draft_bank_count,
-    (SELECT count(*) FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE NOT q.is_group AND q.status='ACTIVE' AND btrim(r.explanation)='') missing_explanation_count,
+    (SELECT count(*) FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE NOT q.is_group AND question_active(q.id) AND btrim(r.explanation)='') missing_explanation_count,
     (SELECT count(*) FROM question WHERE NOT is_group AND chapter_id IS NULL) unassigned_question_count,
     (SELECT count(*) FROM question_bank b WHERE NOT EXISTS(SELECT 1 FROM question q WHERE q.bank_id=b.id AND NOT q.is_group)) empty_bank_count
   </select>

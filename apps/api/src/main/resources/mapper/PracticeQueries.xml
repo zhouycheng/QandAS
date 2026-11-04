@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.practice.PracticeQueries">
-  <sql id="eligibleFilter">WHERE <choose><when test="scope.questionBankIds.size > 0">q.bank_id IN <foreach collection="scope.questionBankIds" item="id" open="(" close=")" separator=",">#{id}</foreach></when><otherwise>q.bank_id=#{scope.questionBankId}</otherwise></choose> AND q.status='ACTIVE' AND NOT q.is_group
+  <sql id="eligibleFilter">WHERE <choose><when test="scope.questionBankIds.size > 0">q.bank_id IN <foreach collection="scope.questionBankIds" item="id" open="(" close=")" separator=",">#{id}</foreach></when><otherwise>q.bank_id=#{scope.questionBankId}</otherwise></choose> AND question_active(q.id) AND NOT q.is_group
     AND (q.reading_parent_id IS NULL OR EXISTS(SELECT 1 FROM question parent WHERE parent.id=q.reading_parent_id AND parent.status='ACTIVE'))
     <if test="scope.questionIds.size > 0">AND q.id IN <foreach collection="scope.questionIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     <if test="scope.chapterIds.size > 0">AND q.chapter_id IN <foreach collection="scope.chapterIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
@@ -22,7 +22,7 @@
     groups AS(SELECT group_id,min(group_created) created_at,min(requested_position) requested_position,count(*) size FROM candidates GROUP BY group_id),
     ordered AS(SELECT *,row_number() OVER(ORDER BY <choose><when test="scope.questionIds.size > 0">requested_position,</when><when test="scope.order == 'RANDOM'">random(),</when></choose>created_at,group_id) position FROM groups),
     limits AS(SELECT *,sum(size) OVER(ORDER BY position) total FROM ordered)
-    SELECT c.* FROM candidates c JOIN limits g ON g.group_id=c.group_id WHERE g.total &lt;= #{scope.count} ORDER BY g.position,c.reading_order,c.id
+    SELECT c.* FROM candidates c JOIN limits g ON g.group_id=c.group_id WHERE (g.total &lt;= #{scope.count}<if test="scope.completeFirstGroup and scope.selectionKind == 'NORMAL'"> OR (g.position=1 AND g.size&lt;=1000)</if>) ORDER BY g.position,c.reading_order,c.id
   </select>
   <select id="eligibleCount" resultType="long"><if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/></if> SELECT count(*) FROM question q <include refid="eligibleFilter"/></select>
   <select id="lockSession" resultType="qanda.backend.practice.PracticeSession">SELECT * FROM practice_session WHERE id=#{id} FOR UPDATE</select>

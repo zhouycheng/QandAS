@@ -15,13 +15,13 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun chapterCounts(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean,@Param("userId") userId: UUID?=null): List<ChapterCount>
     fun favoriteQuestionIds(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
     fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<BankListFacts>
-    fun bankAudiences(@Param("ids") ids: List<UUID>): List<BankAudience>
+    fun bankCategories(@Param("ids") ids: List<UUID>): List<BankCategory>
     fun bankMaintainers(@Param("ids") ids: List<UUID>): List<BankMaintainerRow>
     fun questionSummaries(@Param("ids") ids: List<UUID>): List<QuestionSummaryRow>
     fun bank(@Param("id") id: UUID,@Param("userId") userId: UUID?=null): QuestionBank?
     fun lockBank(@Param("id") id: UUID): QuestionBank?
-    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): List<QuestionBank>
-    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null): Long
+    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): List<QuestionBank>
+    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): Long
     fun questionCount(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean): Long
     fun questions(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): List<Question>
     fun filteredQuestionCount(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): Long
@@ -33,7 +33,7 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun attach(@Param("revisionId") revisionId: UUID,@Param("fileId") fileId: UUID)
     fun clearMaintainers(@Param("bankId") bankId: UUID)
     fun addMaintainer(@Param("bankId") bankId: UUID,@Param("adminId") adminId: UUID)
-    fun clearAudiences(@Param("bankId") bankId: UUID)
+    fun clearCategories(@Param("bankId") bankId: UUID)
     fun bumpBank(@Param("id") id: UUID)
     fun updateQuestion(@Param("id") id: UUID,@Param("chapterId") chapterId: UUID?,@Param("status") status: String,@Param("revisionId") revisionId: UUID)
     fun chapterQuestions(@Param("id") id: UUID): Long

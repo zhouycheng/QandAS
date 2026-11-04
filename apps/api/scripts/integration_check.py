@@ -26,14 +26,9 @@ def main():
     check("游客可见已发布题库", {bank, restricted}.issubset({item["id"] for item in guest_banks["items"]}))
     r("GET", "/question-banks/" + resource("draftBank"), expected=404)
     check("游客无法读取未发布题库", resource("draftBank") not in {item["id"] for item in guest_banks["items"]})
-    r("GET", "/question-banks/" + restricted, token=second, expected=404)
-    profile = r("GET", "/me", token=second)
-    try:
-        r("PUT", "/me/profile", {"expectedVersion": profile["version"], "nickname": profile["nickname"], "majorId": resource("major0"), "currentGrade": 2}, token=second)
-        check("修改专业立即更新题库范围", r("GET", "/question-banks/" + restricted, token=second)["id"] == restricted)
-    finally:
-        current = r("GET", "/me", token=second)
-        r("PUT", "/me/profile", {"expectedVersion": current["version"], "nickname": profile["nickname"], "majorId": resource("major1"), "currentGrade": 2}, token=second)
+    check("不同账号均可按 ID 打开分类题库", r("GET", "/question-banks/" + restricted, token=second)["id"] == restricted)
+    selected = r("GET", "/question-banks?majorId=" + resource("major1"), token=second)
+    check("分类只影响目录筛选", restricted not in {item["id"] for item in selected["items"]})
     check("已发布公告可读取", any(item["id"] == resource("announcement") for item in r("GET", "/announcements", token=student)["items"]))
 
     scope = {"questionBankId": bank, "count": 7, "order": "SEQUENTIAL"}

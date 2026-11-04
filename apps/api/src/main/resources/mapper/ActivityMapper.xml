@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.monitoring.ActivityMapper">
-  <sql id="gradeFilter"><if test="f.grade != null">AND u.current_grade=#{f.grade}</if></sql>
-  <sql id="studentScope"><if test="f.userId == null">AND u.include_in_statistics</if><if test="f.userId != null">AND u.user_id=#{f.userId}</if><if test="f.collegeId != null">AND u.college_id=#{f.collegeId}</if><if test="f.majorId != null">AND u.major_id=#{f.majorId}</if><include refid="gradeFilter"/></sql>
+  <sql id="studentScope"><if test="f.userId == null">AND u.include_in_statistics</if><if test="f.userId != null">AND u.user_id=#{f.userId}</if></sql>
   <sql id="practiceFilter">s.submitted_at &gt;= #{f.start} AND s.submitted_at &lt; #{f.end}<include refid="studentScope"/></sql>
   <sql id="activityJoin">FROM user_activity a JOIN monitoring_student u ON u.user_id=a.user_id</sql>
-  <sql id="activityScope"><if test="f.userId == null">AND u.include_in_statistics</if><if test="f.userId != null">AND a.user_id=#{f.userId} </if><if test="f.collegeId != null">AND u.college_id=#{f.collegeId} </if><if test="f.majorId != null">AND u.major_id=#{f.majorId} </if><include refid="gradeFilter"/></sql>
+  <sql id="activityScope"><if test="f.userId == null">AND u.include_in_statistics</if><if test="f.userId != null">AND a.user_id=#{f.userId} </if></sql>
   <sql id="activityFilter">a.activity_date &gt;= (CAST(#{f.start} AS timestamptz) AT TIME ZONE 'Asia/Shanghai')::date AND a.activity_date &lt; (CAST(#{f.end} AS timestamptz) AT TIME ZONE 'Asia/Shanghai')::date <include refid="activityScope"/></sql>
   <select id="activeCount" resultType="long">SELECT count(DISTINCT a.user_id) <include refid="activityJoin"/> WHERE <include refid="activityFilter"/></select>
   <select id="activityDays" resultType="qanda.backend.monitoring.ActivityRow">SELECT a.activity_date AS "day",count(DISTINCT a.user_id) active_users,count(DISTINCT a.user_id) FILTER(WHERE (u.created_at AT TIME ZONE 'Asia/Shanghai')::date=a.activity_date) new_users <include refid="activityJoin"/> WHERE <include refid="activityFilter"/> GROUP BY a.activity_date ORDER BY a.activity_date</select>
@@ -23,7 +22,7 @@
       FROM visits v FULL JOIN learning l ON l.user_id=v.user_id)
   </sql>
   <select id="ranking" resultType="qanda.backend.monitoring.RankingRow">
-    <include refid="rankingFacts"/> SELECT r.*,u.nickname,u.account_code,u.college_id,u.college_name,u.major_id,u.major_name,u.current_grade
+    <include refid="rankingFacts"/> SELECT r.*,u.nickname,u.account_code
     FROM ranking r JOIN monitoring_student u ON u.user_id=r.user_id
     ORDER BY <choose><when test="f.sort == 'ANSWERED_COUNT'">r.answered_count DESC,r.active_days DESC</when><when test="f.sort == 'DURATION'">r.duration_seconds DESC,r.answered_count DESC</when><otherwise>r.active_days DESC,r.answered_count DESC</otherwise></choose>,r.user_id LIMIT #{limit} OFFSET #{offset}
   </select>

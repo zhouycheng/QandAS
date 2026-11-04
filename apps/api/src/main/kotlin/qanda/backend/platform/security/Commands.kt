@@ -11,10 +11,12 @@ import qanda.backend.platform.persistence.*
 import java.util.UUID
 
 data class Actor(val id: UUID, val sessionId: UUID, val kind: String, val clientType: String, val role: String? = null)
+interface ContentMutationGuard { fun consume(actor: Actor,operation: String,input: Any,id: UUID?) }
 
 @Service
 class Commands(private val sql: SystemMapper, private val receipts: CommandReceiptMapper, private val audit: AuditLogMapper,
-               private val digests: CommandDigests, private val json: ObjectMapper, private val sessions: Sessions) {
+               private val digests: CommandDigests, private val json: ObjectMapper, private val sessions: Sessions,
+               private val safety: ContentMutationGuard) {
     fun recordAdminRead(adminId: UUID,operation: String,requestId: UUID) {
         audit.insert(AuditLog().apply { id=UUID.randomUUID();actorAdminId=adminId;this.operation=operation;this.requestId=requestId })
     }
@@ -29,6 +31,11 @@ class Commands(private val sql: SystemMapper, private val receipts: CommandRecei
             val expected = digests.digest("POST",digestPath,"application/json",bytes,old.digestKeyVersion)
             if(!digests.matches(expected,old.payloadDigest)) conflict("IDEMPOTENCY_CONFLICT","同一请求标识的内容不同")
             return json.readValue(old.responseJson,resultType)
+        }
+        actor?.let {
+            val request=(org.springframework.web.context.request.RequestContextHolder.getRequestAttributes() as? org.springframework.web.context.request.ServletRequestAttributes)?.request
+            val proof=request?.getHeader("X-Content-Safety-Request")?.let { value -> runCatching { UUID.fromString(value) }.getOrElse { invalid("/contentSafetyRequest") } }
+            safety.consume(it,operation,input,proof)
         }
         val result = work()
         receipts.insert(CommandReceipt().apply {

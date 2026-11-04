@@ -23,24 +23,24 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
         val user=actorId?.let { users.selectById(it) ?: unauthenticated() }
         if(actorId!=null && sql.testAccountAccess(actorId)!=null) fixedTestCredentials()
         val address=when(input.purpose) {
-            "REGISTER","RESET_PASSWORD","LOGIN" -> { if(user!=null) invalid("purpose"); email(input.email ?: invalid("email")) }
+            "LOGIN" -> { if(user!=null) invalid("purpose"); email(input.email ?: invalid("email")) }
             "BIND_EMAIL","CHANGE_EMAIL_NEW" -> { if(user==null) unauthenticated();email(input.email ?: invalid("email")) }
-            "CHANGE_PASSWORD","CHANGE_EMAIL_OLD" -> email(user?.email ?: invalid("email"))
+            "CHANGE_EMAIL_OLD","DELETE_ACCOUNT" -> email(user?.email ?: invalid("email"))
             else -> invalid("purpose")
         }
-        if(address.key.endsWith("@qanda.invalid")) fixedTestCredentials()
-        system.lock("email:${address.key}")
-        sql.recentChallenge(address.key)?.let { if(it.plusSeconds(60).isAfter(clock.instant())) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请稍后再发送",details=ErrorDetails(retryAfterSeconds=60)) }
+        if(isTestEmail(address.key)) fixedTestCredentials()
+        if(actorId==null) system.lock("email:${address.key}") else system.identityAvailable("email:${address.key}")
         val owner=sql.userByEmail(address.key)
+        if(input.purpose in setOf("BIND_EMAIL","CHANGE_EMAIL_NEW") && owner!=null) conflict("EMAIL_UNAVAILABLE","该邮箱已被其他账号使用")
+        sql.recentChallenge(address.key)?.let { if(it.plusSeconds(60).isAfter(clock.instant())) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请稍后再发送",details=ErrorDetails(retryAfterSeconds=60)) }
         val eligible=when(input.purpose) {
-            "REGISTER" -> owner==null
-            "RESET_PASSWORD","LOGIN" -> owner?.status=="ACTIVE"
+            "LOGIN" -> owner==null || owner.status=="ACTIVE"
             "BIND_EMAIL" -> owner==null && user?.email==null
             "CHANGE_EMAIL_NEW" -> owner==null
             else -> user?.status=="ACTIVE"
         }
         val code=crypto.randomCode()
-        val row=EmailChallenge().apply { id=UUID.randomUUID();userId=if(input.purpose in setOf("RESET_PASSWORD","LOGIN")) owner?.id else user?.id
+        val row=EmailChallenge().apply { id=UUID.randomUUID();userId=if(input.purpose in setOf("LOGIN")) owner?.id else user?.id
             purpose=input.purpose;email=address.display;emailKey=address.key;codeMac=crypto.proofMac(id!!,purpose,code);keyVersion=crypto.activeVersion
             this.eligible=eligible;credentialVersion=(user?:owner)?.credentialVersion;createdAt=clock.instant().truncatedTo(ChronoUnit.MILLIS);expiresAt=createdAt.plusSeconds(600) }
         rows.insert(row)
@@ -49,7 +49,7 @@ class ChallengeService(private val sql: IdentityMapper, private val rows: EmailC
     }
 
     fun verifyOwn(id: UUID, input: ChallengeVerificationInput, actorId: UUID): ChallengeVerificationView {
-        if(input.purpose !in setOf("CHANGE_PASSWORD","CHANGE_EMAIL_OLD")) invalid("purpose")
+        if(input.purpose !in setOf("CHANGE_EMAIL_OLD","DELETE_ACCOUNT")) invalid("purpose")
         return ChallengeVerificationView(verify(id,input.code,actorId,input.purpose))
     }
 

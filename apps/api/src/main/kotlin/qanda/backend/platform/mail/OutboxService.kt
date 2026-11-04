@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
@@ -28,7 +29,7 @@ class MailRuntimeConfiguration {
 
 @Service
 class OutboxService internal constructor(private val rows: MailDeliveryMapper,private val sql: MailQueries,private val cryptos: ObjectProvider<MailCrypto>,private val transports: ObjectProvider<IdentityMailTransport>,
-                    private val environment: Environment,manager: PlatformTransactionManager) {
+                    private val environment: Environment,private val jdbc: JdbcTemplate,manager: PlatformTransactionManager) {
     private val tx=TransactionTemplate(manager)
     private val log=LoggerFactory.getLogger(javaClass)
     fun enqueue(challenge: EmailChallenge,code: String) {
@@ -47,11 +48,18 @@ class OutboxService internal constructor(private val rows: MailDeliveryMapper,pr
         val transport=transports.ifAvailable ?: return false
         val lease=UUID.randomUUID()
         val row=tx.execute { sql.sweep();sql.claim()?.also { sql.lease(it.id!!,lease) } } ?: return false
-        val result=try {
-            val material=cryptos.getObject().decrypt(PreparedMailEnvelope(row.challengeId!!,row.templateCode,row.templateVersion,row.expiresAt,row.ciphertext,row.nonce,row.keyVersion))
-            transport.send(row.id!!,material)
-        } catch(_: Exception) { SendResult(SendState.UNKNOWN,errorCode="TRANSPORT_RESULT_UNKNOWN") }
-        tx.executeWithoutResult { sql.record(row.id!!,lease,result.state.name,result.providerMessageId,result.errorCode) }
+        tx.executeWithoutResult {
+            val emailKey=jdbc.queryForList("SELECT email_key FROM email_challenge WHERE id=?",String::class.java,row.challengeId).singleOrNull() ?: return@executeWithoutResult
+            // Erasure waits for an already-started dispatch and cancels every message still waiting.
+            jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))","mail:$emailKey")
+            val valid=jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM mail_delivery d JOIN email_challenge c ON c.id=d.challenge_id LEFT JOIN user_account u ON u.id=c.user_id WHERE d.id=? AND d.lease_id=? AND d.state='SENDING' AND c.consumed_at IS NULL AND c.eligible AND c.failed_attempts<5 AND c.expires_at>now() AND (c.user_id IS NULL OR (u.status='ACTIVE' AND u.credential_version=c.credential_version)))",Boolean::class.java,row.id,lease)==true
+            if(!valid) { sql.record(row.id!!,lease,"CANCELLED",null,"CHALLENGE_INVALID");return@executeWithoutResult }
+            val result=try {
+                val material=cryptos.getObject().decrypt(PreparedMailEnvelope(row.challengeId!!,row.templateCode,row.templateVersion,row.expiresAt,row.ciphertext,row.nonce,row.keyVersion))
+                transport.send(row.id!!,material)
+            } catch(_: Exception) { SendResult(SendState.UNKNOWN,errorCode="TRANSPORT_RESULT_UNKNOWN") }
+            sql.record(row.id!!,lease,result.state.name,result.providerMessageId,result.errorCode)
+        }
         return true
     }
 }

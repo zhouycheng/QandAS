@@ -44,6 +44,7 @@ internal fun checkTestAccount(access: TestAccountAccess?,now: Instant) {
     if(access!=null && (access.disabledAt!=null || !access.expiresAt.isAfter(now))) unauthenticated("测试账号已停用或到期")
 }
 internal fun fixedTestCredentials(): Nothing = conflict("TEST_ACCOUNT_FIXED_CREDENTIALS","测试账号的登录凭据由管理员管理")
+internal fun isTestEmail(value: String): Boolean = value.matches(Regex("qandatest[0-9]+@qanda\\.mail",RegexOption.IGNORE_CASE))
 
 @TableName("test_account")
 class TestAccount {
@@ -53,11 +54,14 @@ class TestAccount {
     var createdBy: UUID? = null
     var disabledAt: Instant? = null
     var disableReason: String? = null
+    var loginCodeHash: String? = null
     var passwordCiphertext: String? = null
     var passwordNonce: String? = null
     var passwordKeyVersion: Int? = null
 }
 @Mapper interface TestAccountMapper: BaseMapper<TestAccount> {
+    fun nextNumber(): Long
+    fun loginCodeHash(@Param("id") id: UUID): String?
     fun page(@Param("keyword") keyword: String?,@Param("status") status: String?,@Param("now") now: Instant,@Param("offset") offset: Int,@Param("limit") limit: Int): List<TestAccountView>
     fun count(@Param("keyword") keyword: String?,@Param("status") status: String?,@Param("now") now: Instant): Long
     fun disable(@Param("id") id: UUID,@Param("now") now: Instant,@Param("reason") reason: String)
@@ -104,7 +108,7 @@ class TestAccountCrypto(private val environment: Environment) {
 
 @Service
 @Transactional
-class TestAccountService(private val rows: TestAccountMapper,private val users: UserAccountMapper,private val profiles: UserProfileMapper,
+class TestAccountService(private val rows: TestAccountMapper,private val users: UserAccountMapper,
     private val identity: IdentityMapper,private val crypto: IdentityCrypto,private val secrets: TestAccountCrypto,private val clock: Clock,private val audit: Commands) {
     fun list(keyword: String?,status: String?,page: PageSpec): Page<TestAccountView> {
         if((keyword?.length ?: 0)>100) invalid("keyword")
@@ -115,11 +119,13 @@ class TestAccountService(private val rows: TestAccountMapper,private val users: 
     fun create(input: TestAccountInput,adminId: UUID): TestAccountView {
         if(input.validDays !in 1..365) invalid("validDays")
         val now=clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);val id=UUID.randomUUID();val password=secrets.password()
-        val record=TestAccount().apply { userId=id;expiresAt=now.plusSeconds(input.validDays*86400L);includeInStatistics=input.includeInStatistics;createdBy=adminId }
+        val record=TestAccount().apply { userId=id;expiresAt=now.plusSeconds(input.validDays*86400L);includeInStatistics=input.includeInStatistics;createdBy=adminId
+            loginCodeHash=crypto.prepareTestLoginCode(password).encoded }
         secrets.encrypt(record,password)
-        val user=UserAccount().apply { this.id=id;accountCode=crypto.accountCode();nickname="测试账号";email="test_${id.toString().replace("-","")}@qanda.invalid";emailKey=email
-            passwordHash=crypto.prepareStudentPassword(password).encoded;createdAt=now;updatedAt=now }
-        users.insert(user);profiles.insert(UserProfile().apply { userId=id });rows.insert(record)
+        val number=rows.nextNumber().toString().padStart(3,'0')
+        val user=UserAccount().apply { this.id=id;accountCode=crypto.accountCode();nickname="测试账号";email="QANDATEST$number@qanda.mail";emailKey=email!!.lowercase(java.util.Locale.ROOT)
+            createdAt=now;updatedAt=now }
+        users.insert(user);rows.insert(record)
         return TestAccountView(id,user.email!!,now,record.expiresAt,"ACTIVE",record.includeInStatistics,user.version)
     }
     fun credentials(id: UUID,adminId: UUID,requestId: UUID): TestAccountCredentials {

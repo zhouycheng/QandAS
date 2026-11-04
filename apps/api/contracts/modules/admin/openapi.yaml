@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "QandA admin API",
+    "title": "题小搭 admin API",
     "version": "1.0.0"
   },
   "servers": [
@@ -454,6 +454,16 @@
             "name": "Idempotency-Key",
             "in": "header",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Content-Safety-Request",
+            "in": "header",
+            "description": "写入对应的已通过内容检测请求 ID；发布状态 PUBLISHED 时必须提供。与当前会话、对象及待保存内容绑定，在保存事务中消费。",
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -1826,6 +1836,7 @@
           "admin"
         ],
         "operationId": "Admin_policy_GET",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -4465,6 +4476,7 @@
           "admin"
         ],
         "operationId": "Admin_login_POST",
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4886,6 +4898,7 @@
           "admin"
         ],
         "operationId": "Admin_logout_POST",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",
@@ -6199,38 +6212,11 @@
             }
           },
           {
-            "name": "collegeId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "majorId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
             "name": "status",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "grade",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
             }
           },
           {
@@ -7095,6 +7081,7 @@
           "admin"
         ],
         "operationId": "Admin_me_GET",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",

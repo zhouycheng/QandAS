@@ -20,7 +20,7 @@ class ChallengePrecisionPostgresTest : PostgresFixture() {
             context.getBean(UserAccountMapper::class.java), context.getBean(IdentityCrypto::class.java), outbox,
             context.getBean(TransactionLocks::class.java), Clock.fixed(Instant.parse("2030-01-01T00:00:00.123999999Z"), ZoneOffset.UTC), transactionManager)
         val issued = TransactionTemplate(transactionManager).execute {
-            service.issue(ChallengeInput("REGISTER", "${UUID.randomUUID()}@example.test"), null)
+            service.issue(ChallengeInput("LOGIN", "${UUID.randomUUID()}@example.test"), null)
         }!!
         val persisted = jdbc.queryForObject("SELECT expires_at FROM email_challenge WHERE id=?",
             { row, _ -> row.getTimestamp(1).toInstant() }, issued.id)

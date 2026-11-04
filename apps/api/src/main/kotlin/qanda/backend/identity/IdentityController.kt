@@ -14,27 +14,14 @@ class IdentityController(private val service: IdentityService,private val sessio
     @PostMapping("/auth/email-challenges") @ResponseStatus(HttpStatus.CREATED)
     fun requestPublicEmailChallenge(@RequestBody input: ChallengeInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): ChallengeView =
         commands.run(null,key,"AUTH_CHALLENGE",input,ChallengeView::class.java,request.requestId()) { challenges.issue(input,null) }
-    @PostMapping("/auth/email-registrations") @ResponseStatus(HttpStatus.CREATED)
-    fun registerEmail(@RequestBody input: RegistrationInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
-        commands.run(null,key,"REGISTER_EMAIL",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.register(input) }
-    @PostMapping("/auth/wechat-registrations") @ResponseStatus(HttpStatus.CREATED)
-    fun registerWechat(@RequestBody input: WechatRegistrationInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
-        commands.run(null,key,"REGISTER_WECHAT",input,MutationResult::class.java,request.requestId()) { service.registerWechat(input) }
     @PostMapping("/auth/sessions") fun login(@RequestBody input: LoginInput): TokenView = service.login(input)
     @PostMapping("/auth/email-code-sessions")
     fun emailCodeLogin(@RequestBody input: EmailCodeLoginInput): TokenView {
         challenges.verify(input.challengeId,input.code)
         return service.emailCodeLogin(input)
     }
-    @PostMapping("/auth/wechat-sessions") fun wechatLogin(@RequestBody input: WechatLoginInput): WechatLoginView = service.wechatLogin(input)
-    @PostMapping("/auth/password-resets")
-    fun resetPassword(@RequestBody input: ResetPasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult =
-        commands.run(null,key,"RESET_PASSWORD",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.reset(input) }
+    @PostMapping("/auth/wechat-sessions") fun wechatLogin(@RequestBody input: WechatLoginInput): TokenView = service.wechatLogin(input)
     @GetMapping("/me") fun me(): UserView = service.view(sessions.student().id)
-    @PostMapping("/me/profile-setup/acknowledgement")
-    fun acknowledgeProfileSetup(@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
-        val actor=sessions.student();return commands.run(actor,key,"ACK_PROFILE_SETUP",emptyMap<String,String>(),MutationResult::class.java,request.requestId()) { service.acknowledgeProfileSetup(actor) }
-    }
     @PostMapping("/me/activity/heartbeat") fun heartbeat(): HeartbeatView = service.heartbeat(sessions.student())
     @PutMapping("/me/profile")
     fun updateProfile(@RequestBody input: ProfileInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
@@ -43,10 +30,6 @@ class IdentityController(private val service: IdentityService,private val sessio
     @PostMapping("/me/email-challenges")
     fun requestOwnEmailChallenge(@RequestBody input: ChallengeInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): ChallengeView {
         val actor=sessions.student();return commands.run(actor,key,"OWN_CHALLENGE",input,ChallengeView::class.java,request.requestId()) { challenges.issue(input,actor.id) }
-    }
-    @PutMapping("/me/password")
-    fun changePassword(@RequestBody input: PasswordInput,@RequestHeader("Idempotency-Key") key: UUID,request: HttpServletRequest): MutationResult {
-        val actor=sessions.student();return commands.run(actor,key,"CHANGE_PASSWORD",input,MutationResult::class.java,request.requestId()) { challenges.verify(input.challengeId,input.code);service.changePassword(actor,input) }
     }
     @PostMapping("/me/email-challenges/{id}/verification")
     fun verifyOwnEmailChallenge(@PathVariable id: UUID,@RequestBody input: ChallengeVerificationInput): ChallengeVerificationView =

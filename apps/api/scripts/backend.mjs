@@ -85,7 +85,7 @@ try {
     await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', ...args]);
   } else if (['build', 'test', 'verify', 'postgresTest'].includes(command)) {
     const goal = { build: 'package', test: 'test', verify: 'verify', postgresTest: 'verify' }[command];
-    await run('./mvnw', ['-s', mavenSettings(), goal, ...process.argv.slice(3)]);
+    await run('./mvnw', ['-s', mavenSettings(), 'clean', goal, ...process.argv.slice(3)]);
   } else if (['start', 'bootstrap', 'db-init', 'db-reset'].includes(command)) {
     await run(join(environment().JAVA_HOME, 'bin/java'), ['-Xmx512m', '-jar', 'target/qanda-backend-1.0.0.jar', ...(command === 'start' ? [] : [command])]);
   } else throw new Error('命令：init deps stop-deps capture build test verify start bootstrap db-init db-reset docker-build docker-up docker-stop docker-logs docker-bootstrap');

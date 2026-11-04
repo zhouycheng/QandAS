@@ -10,7 +10,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1",produces=["application/json"])
 class ContentController(private val service: ContentService,private val sessions: Sessions,private val commands: Commands) {
-    @GetMapping("/question-banks") fun banks(@RequestParam(required=false) subjectId: UUID?,@RequestParam(required=false) keyword: String?,@RequestParam(defaultValue="false") includeProgress: Boolean,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<BankView> = service.banks(sessions.studentOrGuest(),subjectId,keyword,PageSpec(page,pageSize),includeProgress)
+    @GetMapping("/question-banks") fun banks(@org.springdoc.core.annotations.ParameterObject @ModelAttribute filter: qanda.backend.catalog.CategoryFilter,@RequestParam(required=false) subjectId: UUID?,@RequestParam(required=false) keyword: String?,@RequestParam(defaultValue="false") includeProgress: Boolean,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<BankView> = service.banks(sessions.studentOrGuest(),subjectId,keyword,PageSpec(page,pageSize),includeProgress,filter=filter)
     @GetMapping("/question-banks/{id}") fun bank(@PathVariable id: UUID): BankView=service.bank(sessions.studentOrGuest(),id)
     @GetMapping("/question-banks/{id}/chapters") fun chapters(@PathVariable id: UUID): List<ChapterView> = service.chapters(sessions.studentOrGuest(),id)
     @GetMapping("/questions") fun search(@RequestParam keyword: String,@RequestParam(defaultValue="full") view: String,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<QuestionView> = service.search(sessions.studentOrGuest(),keyword,PageSpec(page,pageSize),view)

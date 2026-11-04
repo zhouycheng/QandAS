@@ -10,6 +10,7 @@ import qanda.backend.application.ExcelService
 import qanda.backend.platform.http.invalid
 import qanda.backend.platform.security.requestId
 import java.util.zip.ZipInputStream
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -33,7 +34,7 @@ class ExcelController(private val service: ExcelService,private val sessions: Se
     }
     private fun binary(value: ExcelDownload)=ResponseEntity.ok().cacheControl(CacheControl.noStore()).header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(value.name,Charsets.UTF_8).build().toString()).contentType(MediaType.parseMediaType(value.mediaType)).body(value.bytes)
     @GetMapping(value=["/users/excel/template","/question-banks/excel/template"],produces=["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]) fun template(request: HttpServletRequest): ResponseEntity<ByteArray> {
-        val resource=request.requestURI.split('/')[4];sessions.admin();return binary(ExcelDownload("QandA-${resource}-模板.xlsx",service.template(kind(resource)),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        val resource=request.requestURI.split('/')[4];sessions.admin();return binary(ExcelDownload("题小搭-${resource}-模板.xlsx",service.template(kind(resource)),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
     }
     @GetMapping(value=["/users/excel/export","/question-banks/excel/export"],produces=["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/zip"]) fun export(request: HttpServletRequest,@RequestParam query: Map<String,String>): ResponseEntity<ByteArray> = binary(service.export(sessions.admin(),kind(request.requestURI.split('/')[4]),query))
     @PostMapping(value=["/users/excel/preview","/question-banks/excel/preview"],consumes=["multipart/form-data"],produces=["application/json"])
@@ -41,9 +42,16 @@ class ExcelController(private val service: ExcelService,private val sessions: Se
         val resource=request.requestURI.split('/')[4];val actor=sessions.admin()
         return try { service.preview(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java)) } catch(e: IllegalArgumentException) { ExcelPreview(false,0,emptyList(),listOf(ExcelIssue("上传文件","文件",1,"",e.message ?: "文件无效"))) }
     }
+    @PostMapping(value=["/users/excel/content-safety","/question-banks/excel/content-safety"],consumes=["multipart/form-data"],produces=["application/json"])
+    fun contentSafety(@RequestParam files: List<MultipartFile>,@RequestParam(defaultValue="{}") options: String,request: HttpServletRequest): qanda.backend.contentsafety.SafetyView {
+        val resource=request.requestURI.split('/')[4]
+        return try { service.prepareContentCheck(sessions.admin(),kind(resource),input(files),json.readValue(options,ExcelOptions::class.java)) }
+        catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
+    }
     @PostMapping(value=["/users/excel/imports","/question-banks/excel/imports"],consumes=["multipart/form-data"],produces=["application/json"])
     fun import(@RequestParam files: List<MultipartFile>,@RequestParam(defaultValue="{}") options: String,request: HttpServletRequest): ExcelResult {
         val resource=request.requestURI.split('/')[4];val actor=sessions.admin()
-        return try { service.import(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java),request.requestId()) } catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
+        val proof=request.getHeader("X-Content-Safety-Request")?.let { runCatching { UUID.fromString(it) }.getOrElse { invalid("/contentSafetyRequest") } }
+        return try { service.import(actor,kind(resource),input(files),json.readValue(options,ExcelOptions::class.java),request.requestId(),proof) } catch(e: IllegalArgumentException) { invalid("/files","EXCEL_INVALID",e.message ?: "文件无效") }
     }
 }

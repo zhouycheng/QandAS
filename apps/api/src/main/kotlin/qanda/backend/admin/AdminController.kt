@@ -26,10 +26,10 @@ class AdminController(private val service: AdminService,private val sessions: Se
         val actor=sessions.admin();return commands.run(actor,key,"UPDATE_ADMIN:$id",input,MutationResult::class.java,request.requestId()) { service.save(id,input) }
     }
     @GetMapping("/users")
-    fun users(@RequestParam(required=false) keyword: String?,@RequestParam(required=false) collegeId: UUID?,@RequestParam(required=false) majorId: UUID?,@RequestParam(required=false) status: String?,
-              @RequestParam(required=false) grade: Int?,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<UserView> {
+    fun users(@RequestParam(required=false) keyword: String?,@RequestParam(required=false) status: String?,
+              @RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<UserView> {
         sessions.admin();val p=PageSpec(page,pageSize)
-        return service.listUsers(keyword,collegeId,majorId,status,p,grade)
+        return service.listUsers(keyword,status,p)
     }
     @GetMapping("/users/{id}") fun user(@PathVariable id: UUID): UserView { sessions.admin();return service.user(id) }
     @PutMapping("/users/{id}")

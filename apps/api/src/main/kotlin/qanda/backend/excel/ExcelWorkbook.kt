@@ -77,7 +77,7 @@ object ExcelWorkbook {
             val style=book.createCellStyle().apply { fillForegroundColor=IndexedColors.DARK_TEAL.index;fillPattern=FillPatternType.SOLID_FOREGROUND;setFont(book.createFont().apply { bold=true;color=IndexedColors.WHITE.index }) }
             val text=book.createCellStyle().apply { dataFormat=book.createDataFormat().getFormat("@");wrapText=true;verticalAlignment=VerticalAlignment.TOP }
             val info=book.createSheet("填写说明")
-            listOf("QandA Excel 1.0 · $kind","文件编号",document.path("fileId").asText(UUID.randomUUID().toString()),"只新增；冲突记录请修正后导入。编号必须保持稳定。","用户：邮箱、昵称必填；状态 ACTIVE / DISABLED；注册时间使用 ISO 8601（包含时区）。","题型：SINGLE_CHOICE / MULTIPLE_CHOICE / TRUE_FALSE / FILL_BLANK / SHORT_ANSWER / READING。","多选标准选项用逗号分隔，例如 A,C；判断答案 true / false。","阅读小题填写题组编号；填空答案每行一个候选，空位编号从 1 开始。","正文格式 MARKDOWN / PLAIN_TEXT；展示方式 STANDARD / CONCEPT / CODE_ANALYSIS。","长文本按工作表、记录编号、字段和片段序号原样拼接；普通单元格保持空白。","图片在附件表填写相对文件路径，并随 Excel 提交原始文件。","示例：题目 Q1 / SINGLE_CHOICE / 题干示例 / 标准选项 A；在选项表填写 Q1、A、选项内容。")
+            listOf("题小搭 Excel 1.0 · $kind","文件编号",document.path("fileId").asText(UUID.randomUUID().toString()),"只新增；冲突记录请修正后导入。编号必须保持稳定。","用户：邮箱、昵称必填；状态 ACTIVE / DISABLED；注册时间使用 ISO 8601（包含时区）。","题型：SINGLE_CHOICE / MULTIPLE_CHOICE / TRUE_FALSE / FILL_BLANK / SHORT_ANSWER / READING。","多选标准选项用逗号分隔，例如 A,C；判断答案 true / false。","阅读小题填写题组编号；填空答案每行一个候选，空位编号从 1 开始。","正文格式 MARKDOWN / PLAIN_TEXT；展示方式 STANDARD / CONCEPT / CODE_ANALYSIS。","长文本按工作表、记录编号、字段和片段序号原样拼接；普通单元格保持空白。","图片在附件表填写相对文件路径，并随 Excel 提交原始文件。","示例：题目 Q1 / SINGLE_CHOICE / 题干示例 / 标准选项 A；在选项表填写 Q1、A、选项内容。")
                 .forEachIndexed { i,v -> info.createRow(i).createCell(0).apply { setCellValue(v);cellStyle=text } }
             info.setColumnWidth(0,120*256)
             tables.forEach { (name,rows) ->
@@ -96,7 +96,7 @@ object ExcelWorkbook {
         require(bytes.size<=8*1024*1024) { "Excel 文件最多 8 MiB" }
         org.apache.poi.openxml4j.util.ZipSecureFile.setMaxEntrySize(16L*1024*1024)
         XSSFWorkbook(bytes.inputStream()).use { book ->
-            require(book.getSheet("填写说明")?.getRow(0)?.getCell(0)?.stringCellValue=="QandA Excel 1.0 · $kind") { "模板类型或版本不匹配" }
+            require(book.getSheet("填写说明")?.getRow(0)?.getCell(0)?.stringCellValue in setOf("题小搭 Excel 1.0 · $kind","QandA Excel 1.0 · $kind")) { "模板类型或版本不匹配" }
             require(book.packagePart.`package`.parts.filter { !it.isRelationshipPart }.none { p -> p.relationships.any { it.targetMode==org.apache.poi.openxml4j.opc.TargetMode.EXTERNAL } }) { "不支持外部链接" }
             require(book.getExternalLinksTable().isEmpty()) { "不支持外部链接" }
             require(book.packagePart.`package`.parts.none { it.partName.name.contains("vbaProject",true) || it.partName.name.contains("externalLink",true) }) { "不支持宏或外部链接" }

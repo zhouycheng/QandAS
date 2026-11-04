@@ -22,7 +22,8 @@ import java.util.zip.*
 
 @Service
 class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper,private val catalog: CatalogService,private val content: ContentService,
-    private val accounts: UserAccountMapper,private val profiles: UserProfileMapper,private val admin: AdminService,private val access: ContentAccess,private val files: FileService,private val commands: Commands) {
+    private val accounts: UserAccountMapper,private val admin: AdminService,private val access: ContentAccess,private val files: FileService,private val commands: Commands,
+    private val safety: qanda.backend.contentsafety.ContentSafety,private val sessions: Sessions) {
     private fun id(value: String)=UUID.nameUUIDFromBytes(("qanda-excel-1:"+value).toByteArray())
     private fun exists(table: String,value: UUID)=jdbc.queryForObject("SELECT count(*) FROM $table WHERE id=?",Int::class.java,value)!!>0
     private fun target(doc: JsonNode,options: ExcelOptions)=options.targets[doc.path("fileId").asText()] ?: ExcelTarget()
@@ -105,22 +106,11 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
         val local=r.path("id").asText();require(local.isNotBlank() && local.length<=80) { "记录编号必填，最多 80 字" }
         val address=email(r.path("email").asText());val account=r.path("accountCode").asText().ifBlank { "QA"+id(doc.path("fileId").asText()+":"+local).toString().replace("-","").take(10).uppercase() }
         require(account.matches(Regex("[A-Za-z0-9_-]{2,12}"))) { "账号格式不正确" }
-        profile(r)
+        if(isTestEmail(address.key)) fixedTestCredentials()
         return UserAccount().apply { id=id(doc.path("fileId").asText()+":"+local);email=address.display;emailKey=address.key;nickname=nickname(r.path("nickname").asText());accountCode=account
             status=r.path("status").asText().ifBlank { "ACTIVE" };require(status in setOf("ACTIVE","DISABLED")) { "状态须为 ACTIVE / DISABLED" }
             createdAt=r.path("registeredAt").asText().takeIf { it.isNotBlank() }?.let { Instant.parse(it) } ?: Instant.now();updatedAt=createdAt
         }
-    }
-    private fun profile(r: JsonNode): UserProfile {
-        fun lookup(table: String,value: String,parent: UUID?=null): UUID? {
-            if(value.isBlank()) return null
-            val result=if(parent==null) jdbc.queryForList("SELECT id FROM $table WHERE name=? AND status='ACTIVE'",UUID::class.java,value) else jdbc.queryForList("SELECT id FROM major WHERE name=? AND college_id=? AND status='ACTIVE'",UUID::class.java,value,parent)
-            require(result.size==1) { "学院或专业名称不存在、停用或不唯一" };return result.single()
-        }
-        val college=lookup("college",r.path("college").asText());val major=lookup("major",r.path("major").asText(),college)
-        val grade=r.path("currentGrade").asText().takeIf { it.isNotBlank() }?.toInt()
-        require(grade==null || grade in 1..5) { "年级须为 1–5" }
-        return UserProfile().apply { collegeId=if(major==null) college else null;majorId=major;this.grade=grade;gradeAcademicYear=grade?.let { AcademicGrade.academicYear(LocalDate.now(ZoneId.of("Asia/Shanghai"))) } }
     }
     private fun resolveSubject(doc: JsonNode,t: ExcelTarget,create: Boolean): UUID? {
         if(t.subjectId!=null) return catalog.subject(t.subjectId,false).id
@@ -139,18 +129,40 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
         }))
         return json.treeToValue(node,QuestionInput::class.java)
     }
+    private fun checkPayload(kind: String,input: List<ExcelFile>,options: ExcelOptions): JsonNode = json.valueToTree(mapOf(
+        "kind" to kind,"documents" to documents(input,kind).map { (_,doc) -> mapOf("document" to doc,"target" to target(doc,options)) },
+        "assets" to input.filter { !it.name.endsWith(".xlsx",true) }.sortedBy { it.name }.map { mapOf("path" to it.name,"sha256" to java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(it.bytes))) }))
+    fun prepareContentCheck(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions): qanda.backend.contentsafety.SafetyView {
+        val docs=documents(input,kind)
+        if(docs.all { (_,doc) -> imported(actor,kind,doc) }) return qanda.backend.contentsafety.SafetyView(UUID(0,0),"PASSED",Instant.now().plusSeconds(600))
+        if(kind=="banks") docs.forEach { (_,doc) ->
+            val t=target(doc,options)
+            if(t.bankId!=null) requireVersion(t.expectedContentVersion ?: invalid("/expectedContentVersion"),content.bank(actor,t.bankId).contentVersion)
+        }
+        val check=preview(actor,kind,input,options)
+        if(!check.valid) invalid("/files","EXCEL_IMPORT_CONFLICT",check.issues.joinToString("；") { it.message })
+        val images=input.filter { !it.name.endsWith(".xlsx",true) }.map { ImageNormalizer.normalize(it.bytes,ImageLimits(media(it.name))).bytes }
+        return safety.prepareImport(actor,kind,checkPayload(kind,input,options),images)
+    }
+    private fun imported(actor: Actor,kind: String,doc: JsonNode): Boolean = jdbc.queryForObject("SELECT count(*) FROM command_receipt WHERE scope=? AND operation=? AND command_id=?",Int::class.java,"${actor.kind}:${actor.id}","EXCEL_FILE:$kind",id(doc.path("fileId").asText()))!!>0
     @Transactional
-    fun import(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions,requestId: UUID): ExcelResult {
+    fun import(actor: Actor,kind: String,input: List<ExcelFile>,options: ExcelOptions,requestId: UUID,contentSafetyId: UUID?=null): ExcelResult {
+        sessions.checkInTransaction(actor)
         jdbc.execute("SELECT pg_advisory_xact_lock(hashtextextended('qanda-excel-import',0))")
         val docs=documents(input,kind)
+        val checkedPayload=checkPayload(kind,input,options)
         val count=docs.sumOf { (_,d) -> if(kind=="users") d.path("users").size() else d.path("questions").sumOf { if(it.path("type").asText()=="READING") it.path("subQuestions").size() else 1 } }
         require(count in 1..3000) { "每批最多 3000 条用户或作答题" }
+        if(docs.any { (_,doc) -> !imported(actor,kind,doc) }) {
+            safety.consume(actor,"EXCEL_IMPORT:$kind",checkedPayload,contentSafetyId)
+        }
         // Existing receipts are checked inside the transaction so network retries return the original result.
         var total=0
         val initialBankVersions=mutableMapOf<UUID,Long>()
         docs.forEach { (file,doc) ->
             val fileId=doc.path("fileId").asText()
-            val result=commands.run(actor,id(fileId),"EXCEL_FILE:$kind",mapOf("document" to doc,"target" to target(doc,options)),ExcelResult::class.java,requestId) {
+            val assetPaths=doc.path("assets").map { it.path("path").asText() }.toSet()
+            val result=commands.run(actor,id(fileId),"EXCEL_FILE:$kind",mapOf("document" to doc,"target" to target(doc,options),"assets" to checkedPayload["assets"].filter { it["path"].asText() in assetPaths }),ExcelResult::class.java,requestId) {
                 val t=target(doc,options)
                 val checkedOptions=if(kind!="users" && t.bankId!=null) {
                     val bank=access.bank(actor,t.bankId,true)
@@ -161,7 +173,7 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
                 val check=preview(actor,kind,input.filter { it===file || !it.name.endsWith(".xlsx",true) },checkedOptions)
                 if(!check.valid) invalid("/files","EXCEL_IMPORT_CONFLICT",check.issues.joinToString("；") { "${it.sheet}!${it.row} ${it.message}" })
                 if(kind=="users") {
-                    doc.path("users").forEach { r -> val u=user(doc,r);accounts.insert(u);profiles.insert(profile(r).apply { userId=u.id }) }
+                    doc.path("users").forEach { r -> val u=user(doc,r);accounts.insert(u) }
                 } else {
                     val subject=if(t.bankId==null) resolveSubject(doc,t,true) else null
                     val bank=t.bankId ?: content.saveBank(actor,null,BankInput(subject ?: invalid("/subjectId"),doc.path("bank").path("name").asText(),doc.path("bank").path("description").asText(),doc.path("bank").path("textbook").asText())).id
@@ -187,8 +199,8 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
         if(kind=="users") {
             var page=1;var part=1;val rows=mutableListOf<JsonNode>()
             while(true) {
-                val result=admin.listUsers(query["keyword"],uuid("collegeId"),uuid("majorId"),query["status"],PageSpec(page++,100),query["grade"]?.toInt())
-                result.items.forEach { u -> rows.add(json.createObjectNode().put("id",u.id.toString()).put("systemId",u.id.toString()).put("email",u.email ?: "").put("accountCode",u.accountCode).put("nickname",u.nickname).put("status",u.status).put("registeredAt",u.registeredAt.toString()).put("college",u.collegeName ?: "").put("major",u.majorName ?: "").put("currentGrade",u.currentGrade?.toString() ?: "")) }
+                val result=admin.listUsers(query["keyword"],query["status"],PageSpec(page++,100))
+                result.items.forEach { u -> rows.add(json.createObjectNode().put("id",u.id.toString()).put("systemId",u.id.toString()).put("email",u.email ?: "").put("accountCode",u.accountCode).put("nickname",u.nickname).put("status",u.status).put("registeredAt",u.registeredAt.toString())) }
                 if(result.items.size<100) break
             }
             var chunk=mutableListOf<JsonNode>()
@@ -223,6 +235,6 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
     private fun download(output: List<ExcelFile>): ExcelDownload {
         if(output.size==1 && output[0].name.endsWith(".xlsx")) return ExcelDownload(output[0].name,output[0].bytes,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         val bytes=ByteArrayOutputStream();ZipOutputStream(bytes).use { zip -> output.distinctBy { it.name }.forEach { zip.putNextEntry(ZipEntry(it.name));zip.write(it.bytes);zip.closeEntry() } }
-        return ExcelDownload("QandA-Excel导出.zip",bytes.toByteArray(),"application/zip")
+        return ExcelDownload("题小搭-Excel导出.zip",bytes.toByteArray(),"application/zip")
     }
 }

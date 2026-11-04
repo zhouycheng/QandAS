@@ -28,7 +28,7 @@ internal class LocalCaptureTransport(environment: Environment) : IdentityMailTra
             val message = sender.createMimeMessage()
             message.setFrom(InternetAddress("qanda-local@example.test"))
             message.setRecipient(jakarta.mail.Message.RecipientType.TO, InternetAddress(material.recipient, true))
-            message.setSubject("QandA 邮箱验证码", "UTF-8")
+            message.setSubject("题小搭邮箱验证码", "UTF-8")
             message.setText("您的验证码：${material.code}\n验证码由服务端验证并按挑战期限失效。", "UTF-8")
             message.setHeader("X-Qanda-Delivery-Id", deliveryId.toString())
             sender.send(message)

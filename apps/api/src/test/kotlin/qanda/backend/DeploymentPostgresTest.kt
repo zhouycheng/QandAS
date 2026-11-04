@@ -31,7 +31,8 @@ class DeploymentPostgresTest : PostgresFixture() {
             assertEquals(1,flyway().migrate().migrationsExecuted)
             java.sql.DriverManager.getConnection(database.jdbcUrl,database.username,database.password).use { connection ->
                 connection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT profile_setup_seen FROM user_account LIMIT 0").close()
+                    statement.executeQuery("SELECT auth_method FROM user_session LIMIT 0").close()
+                    statement.executeQuery("SELECT college_id,major_id,grade FROM bank_category LIMIT 0").close()
                     statement.executeQuery("SELECT expires_at FROM test_account LIMIT 0").close()
                     statement.executeQuery("SELECT include_in_statistics FROM monitoring_student LIMIT 0").close()
                     statement.executeQuery("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='email_challenge_purpose_check'").use { row ->

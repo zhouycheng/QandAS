@@ -1,4 +1,4 @@
-# QandA 后端
+# 题小搭后端
 
 Kotlin、Spring Boot、MyBatis-Plus 与 PostgreSQL 后端，提供业务 API、可靠同步消费者和独立监控。
 

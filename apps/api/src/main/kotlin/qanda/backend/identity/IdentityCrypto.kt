@@ -39,7 +39,6 @@ internal fun email(value: String, field: String = "email"): Email {
 }
 internal fun code(value: String) { if (!value.matches(Regex("[0-9]{6}"))) invalid("code") }
 internal fun wechatCode(value: String) { if (value.length !in 1..512 || value.any { it.code < 32 || it.code == 127 }) invalid("code") }
-internal fun token(value: String) { if (!value.matches(Regex("[A-Za-z0-9_-]{43}"))) invalid("registrationToken") }
 
 @Component
 class IdentityCrypto(private val environment: Environment) {
@@ -83,13 +82,12 @@ class IdentityCrypto(private val environment: Environment) {
         validatePassword(raw,12..128,"password")
         return encodePassword(raw)
     }
-    fun prepareStudentPassword(raw: String, field: String = "password"): PreparedPassword {
-        validateStudentPassword(raw,field)
+    fun prepareTestLoginCode(raw: String, field: String = "password"): PreparedPassword {
+        validateTestLoginCode(raw,field)
         return encodePassword(raw)
     }
-    private fun validateStudentPassword(raw: String, field: String) {
-        validatePassword(raw,8..16,field)
-        if (raw.none { it in 'A'..'Z' || it in 'a'..'z' } || raw.none { it in '0'..'9' }) invalid(field)
+    private fun validateTestLoginCode(raw: String, field: String) {
+        if(!raw.matches(Regex("(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{16}"))) invalid(field)
     }
     private fun encodePassword(raw: String): PreparedPassword {
         val salt = ByteArray(16).also(random::nextBytes)
@@ -99,8 +97,8 @@ class IdentityCrypto(private val environment: Environment) {
         validatePassword(raw,12..128,"password")
         return matchesPassword(raw,encoded)
     }
-    fun verifyStudentPassword(raw: String, encoded: String?): Boolean {
-        validateStudentPassword(raw,"password")
+    fun verifyTestLoginCode(raw: String, encoded: String?): Boolean {
+        validateTestLoginCode(raw,"password")
         return matchesPassword(raw,encoded)
     }
     private fun matchesPassword(raw: String, encoded: String?): Boolean {

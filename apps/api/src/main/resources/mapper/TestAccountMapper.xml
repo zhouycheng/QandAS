@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.identity.TestAccountMapper">
+  <select id="nextNumber" resultType="long">SELECT nextval('test_account_number')</select>
+  <select id="loginCodeHash" resultType="string">SELECT login_code_hash FROM test_account WHERE user_id=#{id}</select>
   <sql id="filter">FROM test_account t JOIN user_account u ON u.id=t.user_id
     <where>
       <if test="keyword != null">AND (u.email_key ILIKE '%'||#{keyword}||'%' OR u.account_code ILIKE '%'||#{keyword}||'%')</if>
@@ -15,6 +17,6 @@
     <include refid="filter"/> ORDER BY u.created_at DESC,u.id LIMIT #{limit} OFFSET #{offset}
   </select>
   <select id="count" resultType="long">SELECT count(*) <include refid="filter"/></select>
-  <update id="disable">UPDATE test_account SET disabled_at=#{now},disable_reason=#{reason},password_ciphertext=NULL,password_nonce=NULL,password_key_version=NULL WHERE user_id=#{id} AND disabled_at IS NULL</update>
+  <update id="disable">UPDATE test_account SET disabled_at=#{now},disable_reason=#{reason},login_code_hash=NULL,password_ciphertext=NULL,password_nonce=NULL,password_key_version=NULL WHERE user_id=#{id} AND disabled_at IS NULL</update>
   <select id="due" resultType="java.util.UUID">SELECT user_id FROM test_account WHERE disabled_at IS NULL AND expires_at &lt;= #{now} ORDER BY expires_at,user_id LIMIT 100</select>
 </mapper>

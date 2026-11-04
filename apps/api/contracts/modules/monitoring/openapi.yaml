@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "QandA monitoring API",
+    "title": "题小搭 monitoring API",
     "version": "1.0.0"
   },
   "servers": [
@@ -33,33 +33,6 @@
             "schema": {
               "type": "string",
               "format": "date"
-            }
-          },
-          {
-            "name": "collegeId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "majorId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "grade",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
             }
           },
           {
@@ -508,33 +481,6 @@
         ],
         "operationId": "OnlineUsers_list_GET",
         "parameters": [
-          {
-            "name": "collegeId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "majorId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "grade",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          },
           {
             "name": "keyword",
             "in": "query",
@@ -997,33 +943,6 @@
               "type": "string",
               "format": "date"
             }
-          },
-          {
-            "name": "collegeId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "majorId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "grade",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
           }
         ],
         "responses": {
@@ -1441,6 +1360,7 @@
           "monitoring"
         ],
         "operationId": "Monitoring_stream_GET",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "SSE 同步健康快照；每 5 秒更新",
@@ -1856,6 +1776,7 @@
           "monitoring"
         ],
         "operationId": "Monitoring_health_GET",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",

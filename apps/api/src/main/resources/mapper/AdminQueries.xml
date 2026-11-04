@@ -5,9 +5,9 @@
   <select id="lockControl" resultType="java.time.Instant">SELECT bootstrap_completed_at FROM admin_control WHERE id=1 FOR UPDATE</select>
   <update id="completeBootstrap">UPDATE admin_control SET bootstrap_completed_at=now() WHERE id=1 AND bootstrap_completed_at IS NULL</update>
   <select id="activeAdminCount" resultType="long">SELECT count(*) FROM admin_account WHERE status='ACTIVE'</select>
-  <sql id="userFilter">FROM user_account u LEFT JOIN user_profile p ON p.user_id=u.id LEFT JOIN major m ON m.id=p.major_id
+  <sql id="userFilter">FROM user_account u
     <where><if test="keyword != null">AND (u.nickname ILIKE '%'||#{keyword}||'%' OR u.account_code ILIKE '%'||#{keyword}||'%' OR u.email_key ILIKE '%'||#{keyword}||'%') </if>
-    <if test="collegeId != null">AND coalesce(p.college_id,m.college_id)=#{collegeId} </if><if test="majorId != null">AND p.major_id=#{majorId} </if><if test="status != null">AND u.status=#{status} </if><if test="grade != null">AND current_grade(p.grade,p.grade_academic_year,(now() AT TIME ZONE 'Asia/Shanghai')::date)=#{grade} </if></where>
+    <if test="status != null">AND u.status=#{status} </if></where>
   </sql>
   <select id="userPage" resultType="qanda.backend.identity.UserAccount">SELECT u.* <include refid="userFilter"/> ORDER BY u.created_at DESC,u.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="userCount" resultType="long">SELECT count(*) <include refid="userFilter"/></select>

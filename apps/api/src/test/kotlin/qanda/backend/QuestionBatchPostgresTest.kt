@@ -19,8 +19,11 @@ class QuestionBatchPostgresTest : PostgresFixture() {
     @Intercepts(Signature(type=StatementHandler::class,method="prepare",args=[Connection::class,Integer::class]))
     class Statements : Interceptor {
         val count=ThreadLocal<Int>()
+        val httpCount=java.util.concurrent.atomic.AtomicInteger()
         override fun intercept(invocation: Invocation): Any? {
             count.get()?.let { count.set(it+1) }
+            val request=(org.springframework.web.context.request.RequestContextHolder.getRequestAttributes() as? org.springframework.web.context.request.ServletRequestAttributes)?.request
+            if(request?.getHeader("X-Perf-Measure")=="true") httpCount.incrementAndGet()
             return invocation.proceed()
         }
     }
@@ -48,6 +51,19 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 assertEquals(single,batch);assertEquals(4,batchSql);assertEquals(size*4,singleSql)
                 assertTrue(batch.all { it.correctAnswer==listOf("A") && it.options.size==2 })
                 println("QUESTION_BATCH_EVIDENCE size=$size singleSql=$singleSql batchSql=$batchSql singleMs=${singleNanos/1000000} batchMs=${batchNanos/1000000}")
+                val learner=student()
+                val scope=mapOf("questionBankId" to f.bank,"questionIds" to selected.map { it.questionId },"count" to size,"order" to "SEQUENTIAL")
+                val preview=call("POST","/practice/scope-preview",scope,learner.token)
+                statements.httpCount.set(0)
+                val httpStart=System.nanoTime()
+                val deviceId=UUID.randomUUID()
+                val created=raw("POST","/practice/sessions",mapOf("scope" to scope,"expectedContentVersion" to preview["contentVersion"].asLong(),"deviceId" to deviceId),learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true"))
+                assertEquals(200,created.statusCode(),created.body())
+                val session=json.readTree(created.body())
+                val snapshot=raw("GET","/practice/sessions/${id(session)}/snapshot?deviceId=$deviceId",token=learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true","X-Practice-Writer" to session["writer"]["writerToken"].asText()))
+                assertEquals(200,snapshot.statusCode(),snapshot.body())
+                assertEquals(size,json.readTree(snapshot.body())["items"].size())
+                println("PRACTICE_PAYLOAD_EVIDENCE size=$size requests=2 mybatisSql=${statements.httpCount.get()} createBytes=${created.body().toByteArray().size} snapshotBytes=${snapshot.body().toByteArray().size} elapsedMs=${(System.nanoTime()-httpStart)/1000000}")
             }
         } finally { statements.count.remove() }
     }

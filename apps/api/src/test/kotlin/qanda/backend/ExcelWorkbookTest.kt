@@ -7,6 +7,22 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.ByteArrayOutputStream
 
 class ExcelWorkbookTest {
+    @Test fun `new product templates import alongside legacy templates with strict type and version checks`() {
+        for(kind in listOf("users","banks")) {
+            val doc=ExcelWorkbook.json.readTree(if(kind=="users") """{"fileId":"brand","users":[]}""" else """{"fileId":"brand","subject":"课程","bank":{"name":"题库"},"questions":[]}""")
+            val bytes=ExcelWorkbook.write(doc,kind)
+            XSSFWorkbook(bytes.inputStream()).use { book ->
+                val title=book.getSheet("填写说明").getRow(0).getCell(0)
+                assertEquals("题小搭 Excel 1.0 · $kind",title.stringCellValue)
+                for(name in listOf("题小搭 Excel 1.0 · $kind","QandA Excel 1.0 · $kind","题小搭 Excel 2.0 · $kind","QandA Excel 1.0 · other")) {
+                    title.setCellValue(name)
+                    val out=ByteArrayOutputStream().also { book.write(it) }.toByteArray()
+                    if(name in setOf("题小搭 Excel 1.0 · $kind","QandA Excel 1.0 · $kind")) assertEquals("brand",ExcelWorkbook.read(out,kind)["fileId"].asText())
+                    else assertThrows(IllegalArgumentException::class.java) { ExcelWorkbook.read(out,kind) }
+                }
+            }
+        }
+    }
     @Test fun `related sheet multiline fields retain their own target rows`() {
         val j=ExcelWorkbook.json
         val doc=j.readTree("""{"fileId":"related","subject":"课程","bank":{"name":"题库"},"questions":[{"id":"q1","type":"SINGLE_CHOICE","stem":"选择","options":[{"key":"A","content":"placeholder"},{"key":"B","content":"second"}],"correctAnswer":["A"]},{"id":"q2","type":"SHORT_ANSWER","stem":"简答","referenceAnswer":"参考","scoringPoints":[]}]}""")
