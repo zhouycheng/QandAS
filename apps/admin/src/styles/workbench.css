@@ -1,11 +1,3 @@
-.page-title > div:first-child {
-  min-width: 0;
-  flex: 1 1 280px;
-}
-.page-title p {
-  max-width: 780px;
-  line-height: 1.8;
-}
 .nav-group {
   margin-bottom: 15px;
 }

@@ -1,5 +1,7 @@
 import type { QuestionContent, QuestionType } from '../types/admin'
 
+// 内容校验和 HTTP Gateway 测试共用的题型样例。
+
 const single: QuestionContent = {
   type: 'SINGLE_CHOICE', stem: '1 + 1 等于？', options: [{ key: 'A', content: '2' }, { key: 'B', content: '3' }], correctAnswer: ['A'], explanation: '1 + 1 = 2。',
 }

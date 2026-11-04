@@ -158,7 +158,6 @@ export class HttpAdminContentGateway implements AdminContentGateway {
     const result = await this.write(id ? 'PUT' : 'POST', '/admin/administrators' + (id ? '/' + segment(id) : ''), input)
     return { id: result.id, version: result.version, username: input.username.trim().toLowerCase(), name: input.name.trim().normalize('NFC'), status: input.status ?? 'ACTIVE', role: 'SUPER_ADMIN' as const, createdAt: '' }
   }
-  async disableAdminAccount(id: string, expectedVersion: number) { await this.write('DELETE', '/admin/administrators/' + segment(id), undefined, { expectedVersion }) }
   listAnnouncements(query?: PageQuery) { return this.page<Announcement>('/admin/announcements', query) }
   async saveAnnouncement(id: string | undefined, input: AnnouncementInput) { const result = await this.write(id ? 'PUT' : 'POST', '/admin/announcements' + (id ? '/' + segment(id) : ''), input); return { ...input, ...result, updatedAt: new Date().toISOString() } }
   async deleteAnnouncement(id: string, expectedVersion: number) { await this.write('DELETE', '/admin/announcements/' + segment(id), undefined, { expectedVersion }) }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CreateQuestionInput, QuestionContent } from '../types/admin'
 import { parseQuestionFile, validateQuestion } from './content-rules'
 import { answerSummary, contentFingerprint, countQuestions, missingExplanations, questionSearchText } from './question-content'
-import { questionImportExamples as examples } from './question-import-examples'
+import { questionImportExamples as examples } from '../test-fixtures/question-import-examples'
 
 const input = (content: QuestionContent): CreateQuestionInput => ({ ...structuredClone(content), questionBankId: 'bank-calculus', status: 'ACTIVE' })
 

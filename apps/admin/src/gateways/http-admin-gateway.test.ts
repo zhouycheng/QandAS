@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HttpAdminContentGateway } from './http-admin-gateway'
 import { questionFromWire, questionToWire } from './question-wire'
-import { questionImportExamples } from '../lib/question-import-examples'
+import { questionImportExamples } from '../test-fixtures/question-import-examples'
 const json = (body: unknown, status = 200, headers?: Record<string, string>) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
 const page = { items: [], total: 0, page: 1, pageSize: 20 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
