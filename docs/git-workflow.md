@@ -21,10 +21,10 @@ develop → main → 手动运行生产部署 Actions
 ```bash
 git status
 git fetch origin --prune
-git switch --no-track -c feat/your-task origin/develop
+git switch --no-track -c zhouycheng/feat/your-task origin/develop
 ```
 
-推荐名称包括 feat/question-list、fix/session-restore、chore/workspace-bootstrap。推荐格式是 type/description，使用能说明任务的名称；不把命名格式作为 CI 或 Agent 的硬性门禁。
+当前工作区任务分支使用 `zhouycheng/type/description`，例如 `zhouycheng/feat/question-list`、`zhouycheng/fix/session-restore`。描述说明实际任务；用户指定名称时使用指定值。
 
 --no-track 用来避免把任务分支的 upstream 误设成 origin/main。首次推送之前没有 upstream 是正常状态，不阻止本地提交。
 

@@ -1,6 +1,6 @@
 # 小程序页面加载与状态管理
 
-核对日期：2026-11-04。应用与接口合同版本为 `1.0.0`。路由使用微信原生 API，共享资源使用 `mobx-miniprogram@6.12.3` 和 `mobx-miniprogram-bindings@7.0.1`。锁定版本及 npm 构建入口见 `apps/miniapp/package.json`。
+核对日期：2026-11-05。应用与接口合同版本为 `1.0.0`。路由使用微信原生 API，共享资源使用 `mobx-miniprogram@6.12.3` 和 `mobx-miniprogram-bindings@7.0.1`。锁定版本及 npm 构建入口见 `apps/miniapp/package.json`。
 
 ## 页面加载矩阵
 
@@ -92,19 +92,19 @@ Repository 的 `resource-cache.js` 按用户、资源、查询参数和页码保
 
 全小程序的按压反馈使用统一节奏：触摸立即开始，松手后保留 80 ms；列表行轻微改变底色，卡片、按钮、标签和图标轻微改变透明度。按压时保持位置与尺寸稳定，持续选中、表单校验和答题对错各自保留对应颜色。共享规则放在 `app.wxss`，底栏、章节行和答题卡组件维护相同的反馈方式。`preview-my.cjs` 提供静止与按压状态的并排预览。
 
-## 接口变更
+## 接口调用
 
 | 能力 | 调用约束 |
 | --- | --- |
-| `GET /me/learning-overview` | 新增聚合读取：学习计数、时长、可见目录总数、最近可续答摘要；页面用答题/正确计数计算正确率 |
-| `GET /me/question-collections/summary?kind=WRONG/FAVORITE` | 新增集合统计：筛选计数、科目/题库分布；与列表分页分开 |
-| 收藏、错题列表 | 新增可选科目、题库、chip、sort 参数；附带来源名称和练习状态 |
+| `GET /me/learning-overview` | 聚合读取学习计数、时长、可见目录总数、最近可续答摘要；页面用答题/正确计数计算正确率 |
+| `GET /me/question-collections/summary?kind=WRONG/FAVORITE` | 集合统计包含筛选计数、科目/题库分布；与列表分页分开 |
+| 收藏、错题列表 | 可选科目、题库、chip、sort 参数；附带来源名称和练习状态 |
 | 科目、题库列表与单科目 | 可选 `includeProgress`；批量读取计数，避免逐题库查询 |
 | 题目列表、搜索 | 可选 `view=summary`；默认响应保持原行为；摘要不读取答案、解析和选项 |
-| 账号资料 | 可选院校、专业名称 |
-| 练习快照 | 可选收藏题目 ID；配置新增 `collectionChip`，分页与练习范围分别表达 |
+| 账号资料 | 昵称、头像、邮箱和微信绑定；目录分类独立保存在本机 |
+| 练习快照 | 可选收藏题目 ID；配置使用 `collectionChip`，分页与练习范围分别表达 |
 | 公开内容读取 | 科目、题库、章节、题目和范围预览支持游客；图片校验所属内容发布状态，私人快照图片按原所有权读取 |
-| `POST /practice/trial-snapshots` | 新增只读快照能力，返回配置、题序、修订和独立判题数据；不创建账号或正式练习 |
+| `POST /practice/trial-snapshots` | 只读快照能力，返回配置、题序、修订和独立判题数据；不创建账号或正式练习 |
 
 
 

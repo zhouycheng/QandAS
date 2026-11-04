@@ -1,6 +1,6 @@
 # 数据库设计
 
-应用与 API 版本为 `1.0.0`。数据库使用 V1 初始化入口，结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控只读权限由同目录 `monitoring-permissions.sql` 定义。下表根据隔离 PostgreSQL 实际初始化后的结构整理，共 45 张业务表。已有数据库与本次结构需配套重建，操作前核实专用开发／测试用途及恢复条件。
+应用与 API 版本为 `1.0.0`。数据库使用 V1 初始化入口，结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控只读权限由同目录 `monitoring-permissions.sql` 定义。下表根据隔离 PostgreSQL 实际初始化后的结构整理，共 45 张业务表。启动时校验既有 V1 结构；结构不一致时停止启动，按[开发与运行](development.md)核实专用开发／测试环境及恢复条件后处理。
 
 普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。公开条件由 `bank_visible` 与 `question_active` 统一计算；分类列表使用 `bank_matches_category`。
 
@@ -363,11 +363,15 @@
 | `expires_at` | `timestamp with time zone` | 否 | — |
 | `consumed_at` | `timestamp with time zone` | 是 | — |
 | `error_code` | `character varying(64)` | 是 | — |
+| `worker_token` | `uuid` | 是 | — |
+| `worker_heartbeat_at` | `timestamp with time zone` | 是 | — |
 | `created_at` | `timestamp with time zone` | 否 | `now()` |
 
 | 约束 | 定义 |
 | --- | --- |
 | `content_safety_request_actor_kind_check` | `CHECK (((actor_kind)::text = ANY ((ARRAY['USER'::character varying, 'ADMIN'::character varying])::text[])))` |
+| `content_safety_request_check` | `CHECK (((worker_token IS NULL) = (worker_heartbeat_at IS NULL)))` |
+| `content_safety_request_check1` | `CHECK ((((state)::text = 'RUNNING'::text) = (worker_token IS NOT NULL)))` |
 | `content_safety_request_context_id_fkey` | `FOREIGN KEY (context_id) REFERENCES content_safety_context(id)` |
 | `content_safety_request_pkey` | `PRIMARY KEY (id)` |
 | `content_safety_request_state_check` | `CHECK (((state)::text = ANY ((ARRAY['WAITING_CONFIRMATION'::character varying, 'CHECKING'::character varying, 'RUNNING'::character varying, 'PENDING'::character varying, 'PASSED'::character varying, 'REJECTED'::character varying, 'EXPIRED'::character varying, 'CONSUMED'::character varying])::text[])))` |

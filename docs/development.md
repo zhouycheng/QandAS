@@ -34,6 +34,8 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 官方微信和真实邮件采用仓库外的私有提供端配置。自动检查使用测试身份和本地邮件捕获。腾讯云 SES 私有配置位于 `~/.config/qanda/tencent-ses.env`，权限为 `600`，仅由明确的实发操作使用。
 
+后端测试需要可访问的 Docker daemon。运行脚本会识别默认 Colima socket；使用其他已运行的本机 Colima 实例时，为本次命令设置 `DOCKER_HOST` 指向该实例的 socket，并设置 `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`。Testcontainers 创建独立测试容器，运行结束后清理。
+
 ## 日常维护
 
 修改代码后运行 `rebuild.mjs`，再执行 `backend.mjs docker-up`。日志使用 `docker-logs`，停止使用 `docker-stop`。健康接口为 `/api/v1/health`，Swagger 为 `/swagger-ui/index.html`，运行时合同为 `/v3/api-docs`。

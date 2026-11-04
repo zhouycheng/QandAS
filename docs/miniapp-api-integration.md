@@ -1,12 +1,12 @@
 # 接口接入台账
 
-合同版本为 **1.0.0**，当前包含 **143 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
+合同版本为 **1.0.0**，当前包含 **137 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
 
 ## 调用与身份
 
 小程序通过 Page、ViewModel、Repository 和统一请求层调用接口。普通用户使用邮箱验证码或微信首次验证后直接取得会话；`POST /auth/sessions` 仅接受实际存在、启用且未到期的测试账号固定登录码。账号绑定冲突明确拒绝，邮箱更换验证新旧身份并撤销旧会话。资料只包含昵称、头像与绑定信息。
 
-首页、题库、复盘、我的保留四个 Tab 和中央动作按钮。题库搜索框下的学院、专业、年级筛选保存在本机，查询参数、分页和缓存共同使用相同条件；切换账号保留筛选，私人学习数据继续隔离。公开 ID 直达读取不受分类筛选限制。
+首页、题库、复盘、我的使用四个等宽 Tab，首页答题卡提供续答与创建入口。题库搜索框下的学院、专业、年级筛选保存在本机，查询参数、分页和缓存共同使用相同条件；切换账号保留筛选，私人学习数据继续隔离。公开 ID 直达读取不受分类筛选限制。
 
 管理端通过 `AdminContentGateway → HttpAdminContentGateway` 调用 `/api/v1`。版本检查、幂等键、固定设备写凭据、不可变修订、确认序号与交卷屏障沿用现有协议。异步进度返回 202 后保留本机命令，收到 COMMITTED 回执才清理对应序号。
 
