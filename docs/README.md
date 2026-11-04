@@ -1,6 +1,7 @@
 # 项目文档
 
 - [产品规则](product-rules.md)
+- [用户协议与隐私政策](legal-documents.md)
 - [重构实施记录](refactor-implementation.md)
 - [开发与运行](development.md)
 - [前端架构](frontend-architecture.md)

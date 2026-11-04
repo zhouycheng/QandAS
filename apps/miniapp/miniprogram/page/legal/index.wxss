@@ -1,2 +1,2 @@
 @import "../../styles/controls.wxss";
-.legal-body { padding: 32rpx; white-space: pre-wrap; line-height: 1.9; color: var(--text-sub); font-size: var(--font-secondary); }
+.legal-body { padding: var(--space-md) var(--space-lg) calc(var(--space-lg) + env(safe-area-inset-bottom)); white-space: pre-wrap; line-height: 1.65; color: var(--text-main); font-size: var(--font-body); }
