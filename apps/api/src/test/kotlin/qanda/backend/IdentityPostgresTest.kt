@@ -169,9 +169,31 @@ class IdentityPostgresTest : PostgresFixture() {
         assertFalse(first.has("registrationToken"));val token=first["accessToken"].asText()
         val user=call("GET","/me",token=token)
         assertTrue(user["wechatBound"].asBoolean());assertFalse(user.has("profileComplete"));assertFalse(user.has("collegeId"))
+        assertTrue(user["avatarUrl"].asText() in DefaultAvatars.values)
         val second=call("POST","/auth/wechat-sessions",mapOf("code" to "local-learner-1:"+UUID.randomUUID(),"deviceId" to UUID.randomUUID()),null)
-        assertEquals(user["id"],call("GET","/me",token=second["accessToken"].asText())["id"])
+        val again=call("GET","/me",token=second["accessToken"].asText())
+        assertEquals(user["id"],again["id"]);assertEquals(user["avatarUrl"],again["avatarUrl"])
         call("POST","/auth/wechat-sessions",mapOf("code" to code,"deviceId" to UUID.randomUUID()),null,401)
+    }
+
+    @Test fun `email registration assigns an avatar once and existing avatars survive login`() {
+        val s=student();val first=call("GET","/me",token=s.token)
+        assertTrue(first["avatarUrl"].asText() in DefaultAvatars.values)
+        fun loginAgain(): JsonNode {
+            jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",s.email)
+            val proof=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to s.email),null,201)
+            val session=call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(proof),"code" to code(id(proof)),"deviceId" to UUID.randomUUID()),null)
+            return call("GET","/me",token=session["accessToken"].asText())
+        }
+        assertEquals(first["avatarUrl"],loginAgain()["avatarUrl"])
+        val bytes=ByteArrayOutputStream().also { ImageIO.write(BufferedImage(16,16,BufferedImage.TYPE_INT_RGB),"png",it) }.toByteArray()
+        val custom="data:image/png;base64,"+Base64.getEncoder().encodeToString(bytes)
+        for(avatar in listOf(null,custom)) {
+            jdbc.update("UPDATE user_account SET avatar=? WHERE id=?",avatar,s.id)
+            val again=loginAgain()
+            assertEquals(s.id.toString(),again["id"].asText())
+            assertEquals(avatar,again["avatarUrl"]?.takeUnless { it.isNull }?.asText())
+        }
     }
 
     @Test fun `category directory and chapter ordering remain independent of user profiles`() {
