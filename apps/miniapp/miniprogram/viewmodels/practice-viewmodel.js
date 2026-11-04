@@ -175,7 +175,7 @@ class PracticeViewModel {
             return null;
         }
         const route = getDefaultPracticeRoute(this.storage);
-        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&${routeQuery(route)}&ids=${encodeURIComponent(ids.slice(0, route.count).join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } };
+        return { command: { type: 'navigate', url: `/page/practice/index?bankId=${encodeURIComponent(this.routeOptions.bankId)}${this.routeOptions.bankIds ? '&bankIds=' + encodeURIComponent(this.routeOptions.bankIds) : ''}&${routeQuery(route)}&ids=${encodeURIComponent(ids.join(','))}${this.online ? '&selectionKind=WRONG' : ''}` } };
     }
     updateTimer(timerSeconds) {
         if (!this.session) {

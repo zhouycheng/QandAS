@@ -66,6 +66,10 @@ async function main() {
   assert.equal(bank.sheet.mode, 'test'); assert.equal(bank.setSheetMode('view'), null)
   const launched = await preparePracticeRoute(store, bank.repository, { questionBankId: 'bank', selectionKind: 'NORMAL' })
   assert.equal(launched.route.mode, 'order'); assert.equal(launched.route.duration, '0'); assert.equal(launched.count, 8)
+  const redo = new PracticeViewModel({ storage: store }); redo.routeOptions = { bankId: 'bank' }
+  const redoUrl = new URL('https://qanda.invalid' + redo.createRedoWrongCommand(Array.from({ length: 30 }, (_, i) => 'q' + i)).command.url)
+  assert.deepEqual(redoUrl.searchParams.get('ids').split(','), Array.from({ length: 30 }, (_, i) => 'q' + i), '重练错题保留结果页列出的全部题目')
+  assert.equal(redoUrl.searchParams.get('count'), '20', '默认预设仍用于生成练习设置，但不截断已明确选择的题目')
   preferences.savePreferences(store, { practicePresets: [{ id: 'all', name: '全部', mode: 'practice', count: 'ALL', duration: 0 }] })
   await assert.rejects(preparePracticeRoute(store, { previewRemotePracticeScope: async () => ({ availableCount: 1500, selectedCount: 1000 }) }, { questionBankId: 'bank' }), /缩小范围/)
   preferences.savePreferences(store, { autoShowExplanation: false, autoNextWhenCorrect: true })
