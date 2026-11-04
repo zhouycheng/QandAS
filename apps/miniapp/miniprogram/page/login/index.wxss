@@ -49,6 +49,7 @@
 
 .login-form .field-input {
   padding: 0 28rpx;
+  border: 0;
 }
 
 .login-code-row {

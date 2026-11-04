@@ -92,7 +92,6 @@ function checkPreferences() {
   assert('偏好 - 空值给全套默认', defaults.autoShowExplanation === true &&
     defaults.autoAddWrongBook === true &&
     defaults.autoNextWhenCorrect === false &&
-    defaults.showOverviewEntry === true &&
     defaults.vibrateOnAnswer === false &&
     defaults.fontSize === 'normal' &&
     defaults.moduleOrder.length === 5,
@@ -114,6 +113,11 @@ function checkPreferences() {
   assert('偏好 - 开关可改', usingSwitch.autoNextWhenCorrect === true)
   assert('偏好 - 开关拒绝非布尔值',
     preferenceUtils.setPreferenceSwitch(defaults, 'autoNextWhenCorrect', 1).autoNextWhenCorrect === false)
+  assert('偏好 - 随机出题开关沿用顺序字段',
+    preferenceUtils.setPreferenceSwitch(defaults, 'practiceOrder', true).practiceOrder === 'random' &&
+    preferenceUtils.setPreferenceSwitch({ practiceOrder: 'random' }, 'practiceOrder', false).practiceOrder === 'order')
+  assert('偏好 - 顺序开关拒绝非布尔值',
+    preferenceUtils.setPreferenceSwitch({ practiceOrder: 'random' }, 'practiceOrder', 'false').practiceOrder === 'random')
 
   const choice = preferenceUtils.setPreferenceChoice(defaults, 'fontSize', 'large')
 
@@ -124,9 +128,12 @@ function checkPreferences() {
   const view = preferenceUtils.buildPreferenceView({ fontSize: 'large' })
   const fontChoice = view.choices.find((item) => item.key === 'fontSize')
 
-  assert('偏好 - 设置视图含 6 个开关', view.switches.length === 6, `实际 ${view.switches.length}`)
-  assert('偏好 - 设置视图只包含字号选择',
-    view.choices.length === 1, `实际 ${view.choices.length}`)
+  assert('偏好 - 设置视图包含五个开关', view.switches.length === 5, `实际 ${view.switches.length}`)
+  assert('偏好 - 设置视图提供字号选择',
+    view.choices.length === 1 && fontChoice, `实际 ${view.choices.length}`)
+  assert('偏好 - 沿用旧顺序和解析偏好显示开关',
+    preferenceUtils.buildPreferenceView({ practiceOrder: 'random', autoShowExplanation: false }).switches.find(item => item.key === 'practiceOrder').value === true &&
+    view.switches.find(item => item.key === 'autoShowExplanation').value === true)
   assert('偏好 - 字号选中态唯一',
     fontChoice.options.filter((option) => option.selected).length === 1)
   assert('偏好 - 音色配置已移除', !view.choices.some(item => item.key === 'voice'))
@@ -199,8 +206,7 @@ function checkChartSvg() {
 
   assert('图表 - 趋势图输出合法 SVG',
     trend.indexOf('<svg') === 0 && trend.indexOf('</svg>') === trend.length - 6)
-  assert('图表 - 趋势图显示日期标签',
-    points.every((point) => trend.indexOf(point.label) >= 0))
+  assert('图表 - SVG 仅绘制图形，日期使用原生文字', !trend.includes('<text'))
   assert('图表 - 趋势图少于两点不出图',
     chartSvg.buildAreaTrendSvg([]) === '' && chartSvg.buildAreaTrendSvg([{ value: 3 }]) === '')
 
@@ -217,11 +223,23 @@ function checkChartSvg() {
     months: [{ col: 0, text: '10月' }]
   })
 
-  assert('图表 - 热力图输出 SVG 且带月份标签',
-    heat.indexOf('<svg') === 0 && heat.indexOf('10月') > 0)
+  assert('图表 - 热力图输出 SVG，月份使用原生文字',
+    heat.indexOf('<svg') === 0 && !heat.includes('<text'))
   assert('图表 - 热力图忽略未来空格子',
     (heat.match(/<rect /g) || []).length === 2)
   assert('图表 - 空热力图不出图', chartSvg.buildHeatmapSvg({ columns: [] }) === '')
+
+  const vm = new StatsViewModel({ storage: createMemoryStorage() })
+  const days = dailyLogUtils.getRecentDays({}, 182, TODAY).map(day => Object.assign({}, day, { answered: 1 }))
+  vm.cache = { days }
+  const activity = vm.buildActivity(days)
+  assert('图表 - 热力图提供原生月份与边界位置', activity.labels.length >= 6 && activity.labels.every(label => label.left >= 0 && label.left <= 100))
+  for (const count of [7, 30]) {
+    const result = vm.buildTrend({ value: count + 'd', days: count })
+    assert('图表 - ' + count + ' 天原生轴保留首尾', result.labels[0].left === 0 && result.labels.at(-1).left === 100)
+    assert('图表 - ' + count + ' 天末尾标签保持间距', result.labels.at(-1).left - result.labels.at(-2).left >= 10)
+  }
+  assert('图表 - 没有答题时清空日期标签', vm.renderTrend([{ value: 0, label: '今天' }]).labels.length === 0)
 }
 
 // ---------- 五、设置页 ViewModel ----------
@@ -230,7 +248,7 @@ function checkSettingsViewModel() {
   const vm = new SettingsViewModel({ storage })
   const initial = vm.load()
 
-  assert('设置 - 初始开关非空', initial.data.switches.length === 6)
+  assert('设置 - 初始开关非空', initial.data.switches.length === 5)
   assert('设置 - 目录统计由其他页面负责', initial.data.catalog === undefined)
   // 改版后账户分组迁到「我的 → 账号管理」（设计稿 781:2123），设置页不该再有第二份账号状态
   assert('设置 - 账户分组已迁出',
@@ -239,18 +257,29 @@ function checkSettingsViewModel() {
 
   assert('设置 - 布局由独立页面编辑', !initial.data.choices.some(item => item.key === 'answerLayout'))
 
-  vm.toggleSwitch('autoShowExplanation', false)
+  vm.toggleSwitch('autoAddWrongBook', false)
 
   const stored = storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY)
 
-  assert('设置 - 开关切换落盘', stored.autoShowExplanation === false, JSON.stringify(stored))
+  assert('设置 - 开关切换落盘', stored.autoAddWrongBook === false, JSON.stringify(stored))
 
-  const afterToggle = vm.toggleSwitch('autoShowExplanation', false)
+  const afterToggle = vm.toggleSwitch('autoAddWrongBook', false)
 
   assert('设置 - 切换后回传最新视图',
-    afterToggle.data.switches.find((item) => item.key === 'autoShowExplanation').value === false)
+    afterToggle.data.switches.find((item) => item.key === 'autoAddWrongBook').value === false)
 
   assert('设置 - 非法 key 返回空', vm.toggleSwitch('', true) === null)
+
+  const random = vm.toggleSwitch('practiceOrder', true)
+  assert('设置 - 开启随机出题后记住随机顺序',
+    random.data.switches.find(item => item.key === 'practiceOrder').value === true &&
+    storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).practiceOrder === 'random')
+  vm.toggleSwitch('practiceOrder', false)
+  assert('设置 - 关闭随机出题后按题库顺序', storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).practiceOrder === 'order')
+  const explanation = vm.toggleSwitch('autoShowExplanation', false)
+  assert('设置 - 解析开关关闭后交卷查看',
+    explanation.data.switches.find(item => item.key === 'autoShowExplanation').value === false &&
+    storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).autoShowExplanation === false)
 
   const fontSize = vm.selectChoice('fontSize', 'large')
 

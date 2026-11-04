@@ -99,6 +99,7 @@
 
     <!-- 热力图是整张 SVG 背景图，没有记录时也照画（灰格子本身就是「还没开始」的信息） -->
     <image class="heatmap" wx:if="{{activity.dataUri}}" src="{{activity.dataUri}}" mode="widthFix"></image>
+    <view class="chart-axis" wx:if="{{activity.labels.length}}"><text class="chart-axis-label chart-axis-{{item.align}}" wx:for="{{activity.labels}}" wx:key="text" style="left: {{item.left}}%;">{{item.text}}</text></view>
 
     <view class="legend-row">
       <text class="legend-text">少</text>
@@ -114,7 +115,8 @@
     </view>
 
     <image class="trend-chart" wx:if="{{trend.hasData}}" src="{{trend.dataUri}}" mode="widthFix"></image>
-    <view class="chart-empty" wx:else>
+    <view class="chart-axis" wx:if="{{trend.hasData}}"><text class="chart-axis-label chart-axis-{{item.align}}" wx:for="{{trend.labels}}" wx:key="text" style="left: {{item.left}}%;">{{item.text}}</text></view>
+    <view class="chart-empty" wx:if="{{!trend.hasData}}">
       <text>这段时间还没有练习记录，做一套题就有曲线了</text>
     </view>
   </view>

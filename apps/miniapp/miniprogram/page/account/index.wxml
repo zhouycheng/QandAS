@@ -75,9 +75,9 @@
 
     <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定登录码，凭据由管理员管理。' : '邮箱与微信用于登录和验证账号操作。'}}</text>
 
-    <button class="q-button account-delete" bindtap="handleAccountDeletion" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销账号</button>
 </view>
 <view class="bottom-bar">
+  <button class="q-button q-button--text account-delete" bindtap="handleAccountDeletion" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销账号</button>
   <button
     class="{{!dirty || avatarPreparing || saving ? 'q-button--disabled' : ''}} q-button q-button--primary bottom-btn"
     bindtap="handleSaveTap"

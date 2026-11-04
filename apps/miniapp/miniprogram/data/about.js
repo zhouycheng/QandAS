@@ -1,9 +1,9 @@
 module.exports = {
   developers: [
-    { username: 'zhouycheng', avatar: '/assets/team/zhouycheng.png', url: 'https://github.com/zhouycheng' },
-    { username: 'JiangfengPang', avatar: '/assets/team/JiangfengPang.jpg', url: 'https://github.com/JiangfengPang' },
-    { username: 'Currycyber', avatar: '/assets/team/Currycyber-bf93a792d2.jpg', url: 'https://github.com/Currycyber' },
-    { username: 'hopehoudini', avatar: '/assets/team/hopehoudini.jpg', url: 'https://github.com/hopehoudini' }
+    { username: 'zhouycheng', name: 'z', avatar: '/assets/team/zhouycheng.png', url: 'https://github.com/zhouycheng' },
+    { username: 'JiangfengPang', name: 'Peter', avatar: '/assets/team/peter.jpg', url: 'https://github.com/JiangfengPang' },
+    { username: 'Currycyber', name: 'curry', avatar: '/assets/team/Currycyber-bf93a792d2.jpg', url: 'https://github.com/Currycyber' },
+    { username: 'hopehoudini', name: '福尔摩斯', avatar: '/assets/team/hopehoudini.jpg', url: 'https://github.com/hopehoudini' }
   ],
   donationCodes: [],
   paragraphs: [

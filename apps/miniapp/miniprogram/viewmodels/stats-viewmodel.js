@@ -93,11 +93,13 @@ function getInitialStatsViewData() {
         // 学习活动热力图（始终是近半年，不随区间变）
         activity: {
             dataUri: '',
+            labels: [],
             hasData: false,
             legend: ['lv-0', 'lv-1', 'lv-2', 'lv-3', 'lv-4']
         },
         trend: {
             dataUri: '',
+            labels: [],
             hasData: false,
             caption: '答题量'
         },
@@ -254,6 +256,7 @@ class StatsViewModel {
             metrics: this.buildMetrics(option, cache),
             trend: {
                 dataUri: trend.hasData ? toDataUri(trend.svg) : '',
+                labels: trend.labels,
                 hasData: trend.hasData,
                 caption: '答题量'
             }
@@ -305,7 +308,7 @@ class StatsViewModel {
     buildActivity(days) {
         const total = days.length;
         if (!total) {
-            return { dataUri: '', hasData: false, legend: getInitialStatsViewData().activity.legend };
+            return { dataUri: '', labels: [], hasData: false, legend: getInitialStatsViewData().activity.legend };
         }
         const lastDay = days[total - 1];
         const [lastYear, lastMonth, lastDate] = lastDay.key.split('-').map(Number);
@@ -338,9 +341,10 @@ class StatsViewModel {
         }
         // 第一列的月份可能只剩几天，标签会贴在左边缘；留出 2 列余量就不打
         const trimmed = months.filter((month, index) => index > 0 || month.col <= 2);
-        const svg = buildHeatmapSvg({ columns, months: trimmed });
+        const svg = buildHeatmapSvg({ columns });
         return {
             dataUri: svg ? toDataUri(svg) : '',
+            labels: trimmed.map((month, index) => ({ text: month.text, left: month.col * 100 / HEATMAP_WEEKS, align: index === 0 ? 'start' : month.col >= HEATMAP_WEEKS - 2 ? 'end' : 'center' })),
             hasData: days.some((day) => day.answered > 0),
             legend: getInitialStatsViewData().activity.legend
         };
@@ -359,7 +363,7 @@ class StatsViewModel {
         const points = window.map((day, index) => ({
             value: day.answered,
             // 首尾必标，中间按步长标
-            label: index === 0 || index === window.length - 1 || index % labelStep === 0 ? day.monthDayText : ''
+            label: index === 0 || index === window.length - 1 || (index % labelStep === 0 && window.length - 1 - index >= Math.ceil(labelStep / 2)) ? day.monthDayText : ''
         }));
         return this.renderTrend(points);
     }
@@ -384,9 +388,10 @@ class StatsViewModel {
     renderTrend(points) {
         const hasData = points.some((point) => point.value > 0);
         if (!hasData) {
-            return { svg: '', hasData: false };
+            return { svg: '', labels: [], hasData: false };
         }
-        return { svg: buildAreaTrendSvg(points, { width: 640, height: 240 }), hasData: true };
+        const labels = points.flatMap((point, index) => point.label ? [{ text: point.label, left: index * 100 / Math.max(1, points.length - 1), align: index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'center' }] : []);
+        return { svg: buildAreaTrendSvg(points, { width: 640, height: 240 }), labels, hasData: true };
     }
 }
 module.exports = {

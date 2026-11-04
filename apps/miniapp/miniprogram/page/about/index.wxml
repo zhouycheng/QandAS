@@ -1,22 +1,50 @@
 <view class="secondary-page">
-  <page-header title="关于题小搭" />
+  <page-header title="关于" />
   <view class="about-page settings-detail">
     <view class="about-brand">
-      <text class="about-name">题小搭</text>
-      <text class="about-description">课程复习与题库练习</text>
-      <text class="about-version" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">版本 {{version || '—'}}</text>
-    </view>
-    <view class="about-section" wx:if="{{developers.length}}">
-      <text class="about-heading">开发团队</text>
-      <view class="team-grid">
-        <view class="team-member" wx:for="{{developers}}" wx:key="username" data-username="{{item.username}}" bindtap="handleDeveloperTap" aria-role="button" aria-label="复制 {{item.username}} 的 GitHub 主页地址" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-          <image class="team-avatar" src="{{item.avatar}}" mode="aspectFill" />
+      <view class="about-brand-main">
+        <view class="about-brand-copy">
+          <text class="about-name">题小搭</text>
+          <text class="about-description">课程复习与题库练习</text>
+          <text class="about-version">版本 {{version || '—'}}</text>
+        </view>
+        <view class="about-logo-frame">
+          <image class="about-logo" src="/assets/brand/app-icon.jpg" mode="aspectFit" aria-label="题小搭应用图标" />
         </view>
       </view>
+      <text class="about-brand-note">陪你把每一道题，变成一点进步。</text>
     </view>
     <view class="about-section">
       <text class="about-heading">关于这个应用</text>
       <text class="about-paragraph" wx:for="{{paragraphs}}" wx:key="*this">{{item}}</text>
+      <view class="about-features">
+        <view class="about-feature">
+          <text class="about-feature-title">题库练习</text>
+          <text class="about-feature-note">按课程、章节巩固知识</text>
+        </view>
+        <view class="about-feature">
+          <text class="about-feature-title">模拟考试</text>
+          <text class="about-feature-note">计时作答，熟悉考试节奏</text>
+        </view>
+        <view class="about-feature">
+          <text class="about-feature-title">错题复习</text>
+          <text class="about-feature-note">回顾薄弱点，再练一遍</text>
+        </view>
+        <view class="about-feature">
+          <text class="about-feature-title">收藏好题</text>
+          <text class="about-feature-note">留下重点，随时温习</text>
+        </view>
+      </view>
+    </view>
+    <view class="about-section about-team" wx:if="{{developers.length}}">
+      <text class="about-heading">开发团队</text>
+      <text class="about-team-note">一起打磨你的学习搭子</text>
+      <view class="team-grid">
+        <view class="team-member" wx:for="{{developers}}" wx:key="username" data-username="{{item.username}}" bindtap="handleDeveloperTap" aria-role="button" aria-label="{{item.name}}，复制 GitHub 主页地址" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+          <image class="team-avatar" src="{{item.avatar}}" mode="aspectFill" />
+          <text class="team-name">{{item.name}}</text>
+        </view>
+      </view>
     </view>
     <community-group hide-unavailable="{{true}}" />
     <view class="donation-grid" wx:if="{{donationCodes.length}}">

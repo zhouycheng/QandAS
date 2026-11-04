@@ -6,17 +6,13 @@
  * 页面一多很容易出错。这里沿用项目已有的做法 ——
  * 内联 SVG 当背景图渲染，尺寸固定、无副作用，纯字符串函数还能在 Node 里直接断言。
  *
- * 字号说明：viewBox 宽 640 而实际显示宽度约 654rpx，
- * 缩放比约 1.02rpx/单位，因此 viewBox 里的 font-size 单位数 ≈ 最终 rpx 值。
- * 想让标签落在 24rpx 这一档，字号就写 24，不要按「画布像素」直觉去写 12。
+ * 图形使用 SVG；日期标签由页面原生文字绘制，保持各屏幕字号一致。
  */
 
-const { colors, fontSizes, blueScale } = require('./design-tokens.js')
+const { colors, blueScale } = require('./design-tokens.js')
 const { encodeBase64Utf8 } = require('./base64.js')
 
 const COLORS = { brand: colors.brand, text: colors['text-sub'], muted: colors['text-sub'] }
-
-const FONT_FAMILY = 'PingFang SC, Helvetica Neue, Helvetica, Arial, sans-serif'
 
 function round(value, digits) {
   const factor = Math.pow(10, digits === undefined ? 1 : digits)
@@ -32,18 +28,6 @@ function escapeXml(text) {
     .replace(/"/g, '&quot;')
 }
 
-function textNode(x, y, content, options) {
-  const config = options || {}
-  const anchor = config.anchor || 'middle'
-  const size = config.size || fontSizes.caption * 2
-  const weight = config.weight || 400
-  const fill = config.fill || COLORS.text
-
-  return `<text x="${round(x)}" y="${round(y)}" text-anchor="${anchor}" ` +
-    `font-family="${FONT_FAMILY}" font-size="${size}" font-weight="${weight}" ` +
-    `fill="${fill}">${escapeXml(content)}</text>`
-}
-
 function toDataUri(svg) {
   return `data:image/svg+xml;base64,${encodeBase64Utf8(svg)}`
 }
@@ -51,17 +35,14 @@ function toDataUri(svg) {
 /**
  * 学习活动热力图（设计稿「近半年」那一块）。
  *
- * 输入按「周列」组织：columns 是若干列，每列固定 7 个格子（周一到周日，缺失给 null），
- * 月份标签单独给，避免在绘制阶段反复推算日历。
+ * columns 按周排列，每列 7 个格子；月份标签由页面单独绘制。
  *
- * @param {object} options { columns, months, cell, gap }
+ * @param {object} options { columns, cell, gap }
  *   columns: Array<Array<{ level: 0-4, key, answered } | null>>
- *   months:  Array<{ col: number, text: string }> 起点所在列
  */
 function buildHeatmapSvg(options) {
   const config = options || {}
   const columns = config.columns || []
-  const months = config.months || []
   const cell = config.cell || 18
   const gap = config.gap || 5
   const radius = 4
@@ -73,8 +54,7 @@ function buildHeatmapSvg(options) {
   const step = cell + gap
   const width = columns.length * step - gap
   const gridHeight = 7 * step - gap
-  const axisHeight = months.length ? 34 : 0
-  const height = gridHeight + axisHeight
+  const height = gridHeight
 
   // 五档蓝：0 是无记录的浅灰，4 是最深的品牌蓝。档位固定，不随最大值浮动，
   // 否则「同样做了 20 题」在不同周可能显示成不同深浅，看着像数据错了。
@@ -97,17 +77,9 @@ function buildHeatmapSvg(options) {
       .join(''))
     .join('')
 
-  const monthLabels = months
-    .map((month) => textNode(month.col * step, gridHeight + 24, month.text, {
-      anchor: 'start',
-      size: fontSizes.caption * 2,
-      fill: COLORS.muted
-    }))
-    .join('')
-
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" ` +
     `width="${width}" height="${height}">` +
-    `<g>${cells}</g><g>${monthLabels}</g></svg>`
+    `<g>${cells}</g></svg>`
 }
 
 /** Catmull-Rom 转三次贝塞尔，得到「看起来是手绘曲线」而不是折线 */
@@ -152,8 +124,7 @@ function buildAreaTrendSvg(points, options) {
   const height = config.height || 240
   const paddingX = 10
   const paddingTop = 18
-  const labelHeight = 34
-  const baseline = height - labelHeight
+  const baseline = height - 10
   const plotWidth = width - paddingX * 2
 
   if (list.length < 2) {
@@ -172,20 +143,6 @@ function buildAreaTrendSvg(points, options) {
     `L ${round(coords[0].x)} ${baseline} Z`
   const last = coords[coords.length - 1]
 
-  const labels = list
-    .map((point, index) => {
-      if (!point.label) {
-        return ''
-      }
-
-      return textNode(coords[index].x, height - 6, point.label, {
-        anchor: index === 0 ? 'start' : index === list.length - 1 ? 'end' : 'middle',
-        size: fontSizes.caption * 2,
-        fill: COLORS.muted
-      })
-    })
-    .join('')
-
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" ` +
     `width="${width}" height="${height}">` +
     '<defs><linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">' +
@@ -197,7 +154,7 @@ function buildAreaTrendSvg(points, options) {
     'stroke-linecap="round" stroke-linejoin="round"/>' +
     `<circle cx="${round(last.x)}" cy="${round(last.y)}" r="5" fill="${colors.card}" ` +
     `stroke="${COLORS.brand}" stroke-width="3"/>` +
-    `<g>${labels}</g></svg>`
+    '</svg>'
 }
 
 module.exports = {

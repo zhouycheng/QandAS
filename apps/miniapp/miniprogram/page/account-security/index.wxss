@@ -1,12 +1,15 @@
 @import "../../styles/auth-form.wxss";
-.security-page { padding: 48rpx 41rpx calc(48rpx + env(safe-area-inset-bottom)); }
-.security-page .field + .field { margin-top: 36rpx; }
-.security-page .field-input { padding-left: 28rpx; padding-right: 28rpx; }
-.security-password-input { padding-left: 28rpx; }
-.security-page .code-row { padding-right: 28rpx; }
-.security-page .code-row .field-input { min-width: 0; }
-.security-email { display: block; margin: 24rpx 0 42rpx; font-size: var(--font-body); font-weight: 600; color: var(--text-main); }
-.security-note { display: block; margin-top: 24rpx; color: var(--text-sub); font-size: var(--font-caption); line-height: 1.6; }
-.security-error { display: block; margin-top: 24rpx; color: var(--danger); font-size: var(--font-secondary); line-height: 1.5; }
-.security-status { font-size: var(--font-secondary); line-height: 1.7; color: var(--text-sub); }
-.security-page button.btn { width: 100%;  box-sizing: border-box; }
+@import "../../styles/settings-detail.wxss";
+.security-page { padding-top: var(--space-md); }
+.security-page .field + .field { margin-top: var(--space-lg); }
+.security-page .field-label { margin: 0 0 var(--space-sm); font-size: var(--font-body); line-height: var(--leading-body); font-weight: 400; }
+.security-page .field-input { box-sizing: border-box; width: 100%; height: 44px; margin: 0; padding: 0 12px; border: 0; border-radius: var(--radius-control); font-size: var(--font-body); font-weight: 400; }
+.security-page .code-row { display: flex; align-items: center; gap: var(--space-sm); min-height: 44px; margin: 0; padding: 0; border: 0; background: transparent; }
+.security-page .code-row .field-input { flex: 1; width: 0; min-width: 0; }
+.security-page .security-code-button { flex: none; width: 88px; padding: 8px; font-size: var(--font-secondary); }
+.security-page .field-input-error { box-shadow: inset 0 0 0 1px var(--danger); }
+.security-email { display: block; margin: 0; font-size: var(--font-body); line-height: var(--leading-body); font-weight: 400; color: var(--text-main); }
+.security-note, .security-error, .security-status { display: block; font-size: var(--font-secondary); line-height: var(--leading-secondary); color: var(--text-sub); }
+.security-note, .security-error { margin-top: var(--space-md); }
+.security-error { color: var(--danger); }
+.security-page .btn { margin-top: var(--space-lg); }

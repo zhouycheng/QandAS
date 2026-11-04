@@ -1,4 +1,4 @@
 {
-  "navigationBarTitleText": "关于题小搭",
+  "navigationBarTitleText": "关于",
   "usingComponents": { "community-group": "/components/community-group/index" }
 }
