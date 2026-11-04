@@ -138,6 +138,10 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
         val row=jdbc.queryForList("SELECT * FROM content_safety_context WHERE id=? AND actor_id=? AND session_id=? AND actor_kind=? AND expires_at>now()",id,actor.id,actor.sessionId,actor.kind).singleOrNull() ?: conflict("CONTENT_CONTEXT_EXPIRED","请重新获取微信内容检查凭证")
         return row
     }
+    private fun renewWorker(id: UUID,workerToken: UUID) {
+        if(jdbc.update("UPDATE content_safety_request SET worker_heartbeat_at=now() WHERE id=? AND state='RUNNING' AND worker_token=?",id,workerToken)!=1)
+            throw ApiException(HttpStatus.CONFLICT,"CONTENT_CHECK_INTERRUPTED","内容检查任务已转交处理")
+    }
     fun confirm(id: UUID,token: String,code: String): SafetyView {
         if(!token.matches(Regex("[A-Za-z0-9_-]{43}"))) invalid("/token")
         val row=jdbc.queryForList("SELECT * FROM content_safety_request WHERE id=?",id).singleOrNull() ?: missing()
@@ -166,8 +170,9 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
         visit(json.readTree(row["payload_json"] as String))
         return SafetyInvitation("确认本次内容检查",preview,(row["expires_at"] as Timestamp).toInstant())
     }
-    private fun inspect(id: UUID,actor: Actor,contextId: UUID) {
+    private fun inspect(id: UUID,actor: Actor,contextId: UUID,workerToken: UUID) {
         try {
+            renewWorker(id,workerToken)
             val context=checkContext(actor,contextId)
             val row=jdbc.queryForMap("SELECT * FROM content_safety_request WHERE id=?",id)
             val value=json.readTree(row["payload_json"] as String)
@@ -181,6 +186,7 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
                         while(offset<text.length) {
                             if(!(row["expires_at"] as Timestamp).toInstant().isAfter(clock.instant())) conflict("CONTENT_CONTEXT_EXPIRED","检查已超时，请重试")
                             val end=text.offsetByCodePoints(offset,minOf(500,text.codePointCount(offset,text.length)))
+                            renewWorker(id,workerToken)
                             checks.text(context["open_id"] as String,text.substring(offset,end),scene);offset=end
                         }
                     }
@@ -214,13 +220,17 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
                 val mediaId=UUID.randomUUID();val fetch=crypto.randomToken()
                 jdbc.update("INSERT INTO content_safety_media(id,request_id,data,media_type,sha256,fetch_digest,fetch_expires_at,state) VALUES(?,?,?,?,?,?,?,'PENDING')",
                     mediaId,id,bytes,contentType,java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)),crypto.tokenDigest(fetch),Timestamp.from(clock.instant().plusSeconds(600)))
+                renewWorker(id,workerToken)
                 val trace=checks.media(context["open_id"] as String,base+"/api/v1/content-safety/media/$mediaId?token=$fetch",scene)
                 jdbc.update("UPDATE content_safety_media SET trace_id=? WHERE id=?",trace.traceId,mediaId)
             }
-            tx.executeWithoutResult { sessions.checkInTransaction(actor);jdbc.update("UPDATE content_safety_request SET state='PENDING' WHERE id=? AND state='RUNNING' AND expires_at>now()",id);settle(id) }
+            tx.executeWithoutResult {
+                sessions.checkInTransaction(actor)
+                if(jdbc.update("UPDATE content_safety_request SET state='PENDING',worker_token=NULL,worker_heartbeat_at=NULL WHERE id=? AND state='RUNNING' AND worker_token=? AND expires_at>now()",id,workerToken)==1) settle(id)
+            }
         } catch(error: Exception) {
             log.warn("Content check failed: request={}, exception={}, code={}, location={}",id,error.javaClass.simpleName,(error as? ApiException)?.code,error.stackTrace.firstOrNull())
-            jdbc.update("UPDATE content_safety_request SET state='REJECTED',error_code=? WHERE id=? AND state IN ('RUNNING','PENDING')",(error as? ApiException)?.code ?: "CONTENT_SAFETY_UNAVAILABLE",id)
+            jdbc.update("UPDATE content_safety_request SET state='REJECTED',error_code=?,worker_token=NULL,worker_heartbeat_at=NULL WHERE id=? AND state='RUNNING' AND worker_token=?",(error as? ApiException)?.code ?: "CONTENT_SAFETY_UNAVAILABLE",id,workerToken)
             if(error is ApiException) throw error
             throw ApiException(HttpStatus.SERVICE_UNAVAILABLE,"CONTENT_SAFETY_UNAVAILABLE","内容检查暂时不可用，请稍后重试")
         }
@@ -263,7 +273,8 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
     fun tick() {
         if(environment.getProperty("qanda.backend.role","api") !in setOf("worker","all")) return
         tx.executeWithoutResult {
-            jdbc.update("UPDATE content_safety_request SET state='EXPIRED',payload_json='{}',confirmation_digest=NULL WHERE expires_at<=now() AND state<>'EXPIRED'")
+            jdbc.update("UPDATE content_safety_request SET state='EXPIRED',payload_json='{}',confirmation_digest=NULL,worker_token=NULL,worker_heartbeat_at=NULL WHERE expires_at<=now() AND state<>'EXPIRED'")
+            jdbc.update("UPDATE content_safety_request SET state='CHECKING',worker_token=NULL,worker_heartbeat_at=NULL WHERE state='RUNNING' AND worker_heartbeat_at<now()-interval '60 seconds' AND expires_at>now()")
             jdbc.update("DELETE FROM content_safety_media WHERE request_id IN (SELECT id FROM content_safety_request WHERE expires_at<=now())")
             jdbc.update("DELETE FROM content_safety_request WHERE expires_at<now()-interval '1 day'")
             jdbc.update("DELETE FROM content_safety_context WHERE expires_at<now() AND NOT EXISTS(SELECT 1 FROM content_safety_request WHERE context_id=content_safety_context.id)")
@@ -271,11 +282,13 @@ class ContentSafety(private val jdbc: JdbcTemplate,private val json: ObjectMappe
             jdbc.update("DELETE FROM account_deletion_proof WHERE expires_at<now()")
         }
         val pending=tx.execute {
-            jdbc.queryForList("SELECT * FROM content_safety_request WHERE state='CHECKING' AND expires_at>now() ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED").singleOrNull()?.also {
-                jdbc.update("UPDATE content_safety_request SET state='RUNNING' WHERE id=?",it["id"])
+            jdbc.queryForList("SELECT * FROM content_safety_request WHERE state='CHECKING' AND expires_at>now() ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED").singleOrNull()?.let {
+                val workerToken=UUID.randomUUID()
+                jdbc.update("UPDATE content_safety_request SET state='RUNNING',worker_token=?,worker_heartbeat_at=now() WHERE id=?",workerToken,it["id"])
+                it + ("worker_token" to workerToken)
             }
         } ?: return
         val actor=Actor(pending["actor_id"] as UUID,pending["session_id"] as UUID,pending["actor_kind"] as String,"MINI_PROGRAM",if(pending["actor_kind"]=="ADMIN") "SUPER_ADMIN" else null)
-        try { inspect(pending["id"] as UUID,actor,pending["context_id"] as UUID) } catch(_: ApiException) { /* The request records the failure for an explicit retry. */ }
+        try { inspect(pending["id"] as UUID,actor,pending["context_id"] as UUID,pending["worker_token"] as UUID) } catch(_: ApiException) { /* The request records the failure for an explicit retry. */ }
     }
 }

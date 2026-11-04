@@ -326,7 +326,9 @@ CREATE TABLE content_safety_request (
  id uuid PRIMARY KEY, actor_id uuid NOT NULL, session_id uuid NOT NULL, actor_kind varchar(5) NOT NULL CHECK(actor_kind IN ('USER','ADMIN')),
  operation varchar(200) NOT NULL, payload_json text NOT NULL, payload_digest bytea NOT NULL, context_id uuid REFERENCES content_safety_context(id),
  confirmation_digest bytea, state varchar(24) NOT NULL CHECK(state IN ('WAITING_CONFIRMATION','CHECKING','RUNNING','PENDING','PASSED','REJECTED','EXPIRED','CONSUMED')),
- expires_at timestamptz NOT NULL, consumed_at timestamptz, error_code varchar(64), created_at timestamptz NOT NULL DEFAULT now()
+ expires_at timestamptz NOT NULL, consumed_at timestamptz, error_code varchar(64), worker_token uuid, worker_heartbeat_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ CHECK ((worker_token IS NULL) = (worker_heartbeat_at IS NULL)), CHECK ((state='RUNNING') = (worker_token IS NOT NULL))
 );
 CREATE INDEX content_safety_pending_idx ON content_safety_request(state,expires_at);
 CREATE TABLE content_safety_media (

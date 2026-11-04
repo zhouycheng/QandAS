@@ -17,6 +17,13 @@ class ContentSafetyPostgresTest: PostgresFixture() {
     private fun state(s: Student,ticket: JsonNode): JsonNode=call("GET","/me/content-safety/requests/${id(ticket)}",token=s.token)
     private fun write(s: Student,input: Any,ticket: JsonNode,key: UUID=UUID.randomUUID())=raw("PUT","/me/profile",input,s.token,key,extraHeaders=mapOf("X-Content-Safety-Request" to id(ticket).toString()))
 
+    @Test fun `stale running checks are reclaimed after a worker interruption`() {
+        val s=student();val ticket=prepare(s,mapOf("expectedVersion" to 1,"nickname" to "重启后恢复"))
+        jdbc.update("UPDATE content_safety_request SET state='RUNNING',worker_token=?,worker_heartbeat_at=now()-interval '2 minutes' WHERE id=?",UUID.randomUUID(),id(ticket))
+        contentSafety.tick()
+        eventually { state(s,ticket)["state"].asText()=="PASSED" }
+    }
+
     @Test fun `email users get session bound content contexts without acquiring login identities`() {
         val s=student();val input=mapOf("expectedVersion" to 1,"nickname" to "检测通过昵称")
         assertEquals(409,raw("PUT","/me/profile",input,s.token).statusCode())
