@@ -71,6 +71,7 @@ class MyViewModel {
     load() {
         const preferences = normalizePreferences(this.repository.getPreferences(this.storage));
         const auth = this.readAuthView();
+        const testAccount = auth.loggedIn && auth.email.toLowerCase().endsWith('@qanda.mail');
         return {
             data: Object.assign(getInitialMyViewData(), {
                 auth,
@@ -79,6 +80,7 @@ class MyViewModel {
                     { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
                     { key: 'feedback', title: '反馈与处理结果', value: '' },
                     { key: 'countdown', title: '考试倒计时', value: '' },
+                    ...(testAccount ? [{ key: 'content-confirm', title: '管理员内容确认', value: '' }] : []),
                     { key: 'about', title: '关于题小搭', value: '' }
                 ],
                 links: [
@@ -145,6 +147,11 @@ class MyViewModel {
             };
         }
         if (key === 'countdown') return { command: { type: 'navigate', url: '/page/exam-countdown/index' } };
+        if (key === 'content-confirm') {
+            const auth = this.readAuthView();
+            if (!auth.loggedIn || !auth.email.toLowerCase().endsWith('@qanda.mail')) return null;
+            return { command: { type: 'navigate', url: '/page/content-confirm/index' } };
+        }
         if (key === 'about') {
             return { command: { type: 'navigate', url: '/page/about/index' } };
         }
