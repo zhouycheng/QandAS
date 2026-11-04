@@ -1,3 +1,33 @@
+.excel-transfer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.excel-import-modal .arco-modal-content { max-height: 65vh; overflow-y: auto; }
+.excel-import-content { display: flex; flex-direction: column; gap: 20px; }
+.excel-import-section, .excel-import-file { min-width: 0; }
+.excel-import-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.excel-import-section-heading h3 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 14px; font-weight: 600; }
+.excel-import-section-heading > .arco-btn, .excel-import-section-heading > .arco-tag { flex-shrink: 0; }
+.excel-import-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.excel-import-files { margin: 12px 0 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px; }
+.excel-import-files li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.excel-import-files li + li { border-top: 1px solid var(--line); }
+.excel-import-files li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.excel-import-files small { flex-shrink: 0; margin-left: auto; color: var(--muted); font-size: 12px; }
+.excel-import-file { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; }
+.excel-import-file > .excel-import-note { margin-bottom: 16px; }
+.excel-import-file h4 { margin: 16px 0 12px; font-size: 13px; font-weight: 500; }
+.excel-import-targets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.excel-import-targets .arco-form-item { min-width: 0; margin-bottom: 0; }
+.excel-import-targets + .excel-import-targets { margin-top: 16px; }
+.excel-import-create-course { margin-top: 10px; font-size: 12px; }
+.excel-import-issues { margin-top: 12px; }
+.excel-import-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.excel-import-footer > span { color: var(--muted); font-size: 12px; }
+.excel-import-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+@media (max-width: 600px) {
+  .excel-import-targets { grid-template-columns: minmax(0, 1fr); }
+  .excel-import-footer { flex-wrap: wrap; }
+  .excel-import-actions { margin-left: auto; }
+}
+
 .donut strong {
   font-size: 28px;
   letter-spacing: -1px;
