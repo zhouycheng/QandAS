@@ -94,7 +94,7 @@ function checkPreferences() {
     defaults.autoNextWhenCorrect === false &&
     defaults.vibrateOnAnswer === false &&
     defaults.fontSize === 'normal' &&
-    defaults.moduleOrder.length === 5,
+    defaults.moduleOrder.length === 4,
     JSON.stringify(defaults))
 
   const dirty = preferenceUtils.normalizePreferences({
@@ -128,7 +128,7 @@ function checkPreferences() {
   const view = preferenceUtils.buildPreferenceView({ fontSize: 'large' })
   const fontChoice = view.choices.find((item) => item.key === 'fontSize')
 
-  assert('偏好 - 设置视图包含五个开关', view.switches.length === 5, `实际 ${view.switches.length}`)
+  assert('偏好 - 设置视图包含七个开关', view.switches.length === 7, `实际 ${view.switches.length}`)
   assert('偏好 - 设置视图提供字号选择',
     view.choices.length === 1 && fontChoice, `实际 ${view.choices.length}`)
   assert('偏好 - 沿用旧顺序和解析偏好显示开关',
@@ -248,7 +248,7 @@ function checkSettingsViewModel() {
   const vm = new SettingsViewModel({ storage })
   const initial = vm.load()
 
-  assert('设置 - 初始开关非空', initial.data.switches.length === 5)
+  assert('设置 - 初始开关非空', initial.data.switches.length === 7)
   assert('设置 - 目录统计由其他页面负责', initial.data.catalog === undefined)
   // 改版后账户分组迁到「我的 → 账号管理」（设计稿 781:2123），设置页不该再有第二份账号状态
   assert('设置 - 账户分组已迁出',

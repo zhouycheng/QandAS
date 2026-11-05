@@ -1,1 +1,14 @@
 @import "../../styles/practice.wxss";
+
+.analysis-layer { position: fixed; left: 0; right: 0; z-index: 9000; overflow: hidden; pointer-events: none; }
+.analysis-mask { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: rgba(15, 23, 42, .18); opacity: 0; pointer-events: none; }
+.analysis-sheet { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; transform: translate3d(0, -100%, 0); will-change: transform; filter: drop-shadow(0 4px 5px rgba(15, 23, 42, .14)); }
+.analysis-surface { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; border-radius: 0 0 16px 16px; background: var(--card); color: var(--text-main); overflow: hidden; pointer-events: auto; }
+.analysis-sheet-header { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 0 var(--space-lg); border-bottom: 1rpx solid var(--line); font-size: var(--font-body); font-weight: 600; }
+.analysis-close.q-button.q-button { width: 44px; min-height: 44px; height: 44px; padding: 0; font-size: 24px; margin-right: -12px; }
+.analysis-sheet-body { flex: 1; min-height: 0; box-sizing: border-box; padding: var(--space-lg); }
+.analysis-sheet .pra-analysis-head { flex-wrap: wrap; gap: var(--space-xs); }
+.analysis-sheet .pra-explanation-text { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.analysis-handle { position: absolute; top: 100%; left: 50%; width: 112px; height: 44px; margin-left: -56px; pointer-events: auto; }
+.analysis-handle-shape { position: absolute; top: -1px; width: 112px; height: 20px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 20'%3E%3Cpath fill='%23fff' d='M0 0H112V1C96 1 92 19 78 19H34C20 19 16 1 0 1Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.analysis-grip { position: absolute; top: 8px; left: 50%; width: 32px; height: 3px; margin-left: -16px; border-radius: 2px; background: #cbd2dd; }

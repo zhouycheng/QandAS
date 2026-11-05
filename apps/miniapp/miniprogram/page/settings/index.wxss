@@ -45,6 +45,7 @@
   flex: 1;
   min-width: 0;
 }
+.settings-row-disabled .menu-main { opacity: .5; }
 
 .menu-title {
   display: block;

@@ -1,0 +1,81 @@
+var SNAP_DISTANCE = 32;
+var TRANSITION = 'transform 180ms cubic-bezier(.22, 1, .36, 1)';
+
+function state(ins) {
+  var owner = ins.getState();
+  if (!owner.analysis) owner.analysis = {};
+  return owner.analysis;
+}
+function clamp(s, offset) { return Math.max(-s.height, Math.min(0, offset)); }
+function paint(s, animate) {
+  s.sheet.setStyle({ transition: animate ? TRANSITION : 'none', transform: 'translate3d(0,' + s.offset + 'px,0)' });
+  if (s.mask) s.mask.setStyle({ opacity: s.offset > -s.height ? 1 : 0, 'pointer-events': s.offset > -s.height ? 'auto' : 'none' });
+}
+function sync(value, old, ins) {
+  var s = state(ins);
+  // Position acknowledgements must not interrupt the next gesture already in flight.
+  if (old && s.version === value.version && s.height === value.height) return;
+  s.sheet = ins.selectComponent('.analysis-sheet');
+  if (!s.sheet) return;
+  s.mask = ins.selectComponent('.analysis-mask');
+  s.version = value.version;
+  s.height = value.height;
+  s.offset = clamp(s, value.offset);
+  s.touch = null;
+  s.ignoreTap = true;
+  paint(s, !!old && old.height === value.height);
+}
+function start(event, ins) {
+  var s = state(ins);
+  if (event.touches.length !== 1 || !s.sheet) return cancel(event, ins);
+  var transform = s.sheet.getComputedStyle(['transform']).transform || '';
+  if (transform.indexOf('matrix') === 0) {
+    var values = transform.slice(transform.indexOf('(') + 1, -1).split(',');
+    s.offset = clamp(s, +values[values.length === 16 ? 13 : 5]);
+  }
+  s.touch = { y: event.touches[0].clientY, offset: s.offset };
+  s.moved = false;
+  s.ignoreTap = false;
+  paint(s, false);
+  ins.callMethod('onAnalysisHandleStart', { version: s.version });
+  return false;
+}
+function move(event, ins) {
+  var s = state(ins);
+  if (!s.touch) return false;
+  if (event.touches.length !== 1) return cancel(event, ins);
+  var dy = event.touches[0].clientY - s.touch.y;
+  if (!s.moved && Math.abs(dy) < 4) return false;
+  s.moved = true;
+  s.offset = clamp(s, s.touch.offset + dy);
+  paint(s, false);
+  return false;
+}
+function finish(s, ins, animate) {
+  s.touch = null;
+  paint(s, animate);
+  ins.callMethod('onAnalysisHandleEnd', { offset: s.offset, version: s.version });
+  return false;
+}
+function end(event, ins) {
+  var s = state(ins);
+  if (!s.touch) return false;
+  if (event.changedTouches.length > 1) return cancel(event, ins);
+  if (event.changedTouches.length) move({ touches: event.changedTouches }, ins);
+  s.ignoreTap = s.moved;
+  var snap = s.moved && s.height + s.offset <= SNAP_DISTANCE;
+  if (snap) s.offset = -s.height;
+  return finish(s, ins, snap);
+}
+function cancel(event, ins) {
+  var s = state(ins);
+  s.ignoreTap = true;
+  if (!s.touch) return false;
+  s.offset = s.touch.offset;
+  return finish(s, ins, true);
+}
+function tap(event, ins) {
+  if (!state(ins).ignoreTap) ins.callMethod('toggleAnalysis', {});
+  return false;
+}
+module.exports = { sync: sync, start: start, move: move, end: end, cancel: cancel, tap: tap };

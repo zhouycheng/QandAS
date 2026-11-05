@@ -1,6 +1,6 @@
 const { viewPatch } = require('../../models/view-patch.js')
 const { swipeDirection } = require('../../utils/question-swipe.js')
-const { allocateHeights, viewportHeight, resetScroll } = require('../../utils/practice-layout.js')
+const { allocateHeights, viewportHeight, resetScroll, materialKey } = require('../../utils/practice-layout.js')
 const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { PracticeViewModel } = require('../../viewmodels/practice-viewmodel.js')
@@ -13,14 +13,23 @@ const AUTO_ADVANCE_DELAY = 800
 
 Page(withPageLifecycle({
   data: Object.assign(PracticeViewModel.getInitialData(), {
-    // 解析展开状态只属于当前题目，不进入练习快照。
-    explanationOpen: false,
+    analysisSheetOpen: false,
+    analysisSheetOffset: 0,
+    analysisSheetHeight: 0,
+    analysisAreaTop: 0,
+    analysisAreaHeight: 0,
+    analysisScrollTop: 0,
+    analysisDragging: false,
+    analysisSheetVersion: 0,
+    analysisSuspended: false,
     practiceWindowHeight: 0,
     keyboardVisible: false,
     keyboardCompact: false,
-    paneHeights: { material: 0, stem: 140, response: 220, analysis: 0 },
+    paneHeights: { material: 0, stem: 140, response: 220 },
     paneOverflow: {},
-    paneScroll: { material: 0, stem: 0, response: 0, analysis: 0 }
+    readingLayout: false,
+    readingExpanded: false,
+    paneScroll: { material: 0, stem: 0, response: 0 }
   }),
 
   onLoad(options) {
@@ -33,7 +42,7 @@ Page(withPageLifecycle({
   },
 
   onForegroundReady() { this.updateWindowHeight(); this.scheduleMeasure() },
-  onResize() { this.updateWindowHeight(); this.scheduleMeasure() },
+  onResize() { this.setData({ analysisDragging: false, analysisSheetVersion: this.data.analysisSheetVersion + 1 }); this.updateWindowHeight(); this.scheduleMeasure() },
 
   updateWindowHeight() {
     if (typeof wx.getWindowInfo !== 'function') return
@@ -60,16 +69,16 @@ Page(withPageLifecycle({
     query.select('.pra-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom', 'row-gap'] })
     query.selectAll('.module-info, .module-tools').boundingClientRect()
     query.selectAll('.pra-pane-content').boundingClientRect()
+    query.select('.pra-body').boundingClientRect()
     const currentIndex = this.data.currentIndex
     const version = this.measureVersion
     query.exec(results => {
       if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted || this.measureVersion !== version || this.data.currentIndex !== currentIndex || !results || !results[0]) return
       const [content, fixed, panes] = results
       const gap = parseFloat(content['row-gap']) || 0
-      const material = !!question.material && !this.keyboardVisible
-      const analysis = !!this.data.shouldRevealAnswer && !this.keyboardVisible
+      const material = !!question.material && !this.data.readingLayout && !this.keyboardVisible
       const response = !question.isFillBlank
-      const moduleCount = 3 + Number(response) + Number(analysis) - Number(!!this.data.keyboardCompact)
+      const moduleCount = 3 + Number(response) - Number(!!this.data.keyboardCompact)
       const fixedHeight = (fixed || []).reduce((sum, rect) => sum + rect.height, 0)
       const height = content.height - fixedHeight - (parseFloat(content['padding-top']) || 0) - (parseFloat(content['padding-bottom']) || 0) - gap * (moduleCount - 1 + Number(material))
       if (this.keyboardVisible && height < 64 && !this.data.keyboardCompact) {
@@ -79,8 +88,18 @@ Page(withPageLifecycle({
       const contentHeights = {}
       ;(panes || []).forEach(rect => { contentHeights[rect.dataset.pane] = rect.height })
       if (question.isShortAnswer) contentHeights.response = Infinity
-      const layout = allocateHeights({ height, material, analysis, response, contentHeights, keyboard: !!this.keyboardVisible })
+      const layout = allocateHeights({ height, material, response, contentHeights, keyboard: !!this.keyboardVisible, stemPercent: this.data.preferences.practiceStemPercent })
       const patch = viewPatch(this.data, { paneHeights: layout.heights, paneOverflow: layout.overflow })
+      const body = results[3]
+      if (body && !this.data.analysisDragging) {
+        const sheetHeight = Math.max(44, Math.floor(body.height * 0.7))
+        const visibleHeight = this.data.analysisSheetHeight + this.data.analysisSheetOffset
+        const offset = !this.data.analysisSheetOpen ? -sheetHeight : this.data.analysisSheetOffset === 0 ? 0 : Math.max(-sheetHeight, Math.min(0, visibleHeight - sheetHeight))
+        Object.assign(patch, viewPatch(this.data, {
+          analysisAreaTop: body.top, analysisAreaHeight: body.height,
+          analysisSheetHeight: sheetHeight, analysisSheetOffset: offset
+        }))
+      }
       if (this.keyboardScrollRestore) {
         patch.paneScroll = {}
         Object.keys(this.data.paneScroll).forEach(pane => {
@@ -111,6 +130,9 @@ Page(withPageLifecycle({
 
   onShow() {
     this.pageVisible = true
+    this.setData({ analysisSuspended: false })
+    this.textSelectionActive = false
+    this.startElapsedTimer()
     this.observeSaveStatus()
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     if (this.viewModel) {
@@ -120,6 +142,8 @@ Page(withPageLifecycle({
   },
 
   onHide() {
+    this.setData({ analysisSuspended: true, analysisSheetOpen: false, analysisDragging: false, analysisSheetOffset: -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
+    this.stopElapsedTimer()
     clearTimeout(this.measureTimer)
     if (this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
     this.keyboardVisible = false
@@ -144,6 +168,7 @@ Page(withPageLifecycle({
   },
 
   onUnload() {
+    this.stopElapsedTimer()
     clearTimeout(this.measureTimer)
     this.pageVisible = false
     this.clearAutoAdvance()
@@ -226,12 +251,34 @@ Page(withPageLifecycle({
     if (!height && this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
     this.keyboardHeight = height
     this.keyboardVisible = this.keyboardHeight > 0
+    if (this.keyboardVisible) this.closeAnalysis()
     this.ignoreSwipe()
     this.setData({ keyboardVisible: this.keyboardVisible, keyboardCompact: false }, () => { this.updateWindowHeight(); this.scheduleMeasure() })
   },
   onTextSelection() { this.textSelectionActive = true; this.ignoreSwipe() },
+  onQuestionTap() { if (this.textSelectionActive) { this.textSelectionActive = false; this.ignoreSwipe() } },
+  toggleReading() {
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ readingExpanded: !this.data.readingExpanded }, () => this.scheduleMeasure())
+  },
+  onReadingHandleStart(e) {
+    this.ignoreSwipe()
+    this.clearAutoAdvance()
+    this.readingTouch = e.touches.length === 1 ? e.touches[0].clientY : null
+  },
+  onReadingHandleEnd(e) {
+    if (this.readingTouch === null || this.readingTouch === undefined || e.changedTouches.length !== 1) return
+    const dy = e.changedTouches[0].clientY - this.readingTouch
+    this.readingTouch = null
+    if (Math.abs(dy) < 30) return
+    this.readingDraggedAt = Date.now()
+    this.setData({ readingExpanded: dy < 0 }, () => this.scheduleMeasure())
+  },
+  onReadingHandleTap() { if (!this.readingDraggedAt || Date.now() - this.readingDraggedAt > 300) this.toggleReading() },
+  onReadingHandleCancel() { this.readingTouch = null },
   canSwipe() {
-    return (this.data.isViewMode || this.data.feedback === 'AFTER_FINISH') && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive
+    return !!this.data.preferences.swipeEnabled && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive
   },
   onQuestionTouchStart(e) {
     this.swipeStart = null
@@ -254,7 +301,7 @@ Page(withPageLifecycle({
     const direction = swipeDirection(start, { x: point.clientX, y: point.clientY, at: Date.now() })
     if (direction === 1) {
       if (this.data.isLastQuestion) this.showHint('已经是最后一题了')
-      else this.goNext()
+      else { this.clearAutoAdvance(); this.applyViewModelResult(this.viewModel.goNext(true)) }
     }
     if (direction === -1) {
       if (this.data.currentIndex === 0) this.showHint('已经是第一题了')
@@ -263,6 +310,12 @@ Page(withPageLifecycle({
   },
 
   showHint(message) { this.selectComponent('#practice-hint').show(message) },
+
+  startElapsedTimer() {
+    if (this.elapsedTimer || this._pageUnloaded || this.pageVisible === false || this.data.editingLocked || this.data.isTimed || this.data.isCompleted || !this.data.questions.length) return
+    this.elapsedTimer = setInterval(() => this.applyViewModelResult(this.viewModel.tickElapsed()), 1000)
+  },
+  stopElapsedTimer() { clearInterval(this.elapsedTimer); this.elapsedTimer = null },
 
   startTestTimer() {
     if (!this.data.isTimed || this.data.isCompleted || !this.data.questions.length) {
@@ -365,11 +418,25 @@ Page(withPageLifecycle({
     this.submitPractice()
   },
 
-  /** 长解析的展开 / 收起 */
-  toggleExplanation() {
-    this.setData({
-      explanationOpen: !this.data.explanationOpen
-    }, () => this.scheduleMeasure())
+  setAnalysisOpen(open) {
+    if (open && (!this.data.shouldRevealAnswer || !this.data.hasAnswered || this.data.feedback !== 'IMMEDIATE' || this.data.isViewMode || this.data.isCompleted || this.data.analysisSuspended)) return
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ analysisSheetOpen: open, analysisDragging: false, analysisSheetOffset: open ? 0 : -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
+  },
+  closeAnalysis() { this.setAnalysisOpen(false) },
+  toggleAnalysis() { this.setAnalysisOpen(!this.data.analysisSheetOpen) },
+  blockAnalysisTouch() {},
+  onAnalysisHandleStart({ version }) {
+    if (version !== this.data.analysisSheetVersion || this._pageUnloaded || this.pageVisible === false) return
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ analysisDragging: true })
+  },
+  onAnalysisHandleEnd({ offset, version }) {
+    if (version !== this.data.analysisSheetVersion || this._pageUnloaded || this.pageVisible === false || !Number.isFinite(offset)) return
+    offset = Math.max(-this.data.analysisSheetHeight, Math.min(0, offset))
+    this.setData({ analysisSheetOffset: offset, analysisSheetOpen: offset > -this.data.analysisSheetHeight, analysisDragging: false }, () => this.scheduleMeasure())
   },
 
   toggleFavorite() {
@@ -474,20 +541,39 @@ Page(withPageLifecycle({
         delete patch.blankInputs
       }
 
-      // 换题就把解析收回去：否则上一题展开的长解析会带到下一题
-      if (patch.currentIndex !== undefined && patch.currentIndex !== this.lastQuestionIndex) {
+      const questionChanged = patch.currentIndex !== undefined && patch.currentIndex !== this.lastQuestionIndex
+      if (questionChanged) {
         this.lastQuestionIndex = patch.currentIndex
         this.clearAutoAdvance()
         this.textSelectionActive = false
-        patch.explanationOpen = !!patch.isViewMode
+        patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
+        patch.analysisDragging = false
+        patch.analysisScrollTop = this.data.analysisScrollTop === 0 ? 0.01 : 0
+        patch.analysisSheetOpen = false
+        patch.analysisSheetOffset = -this.data.analysisSheetHeight
+        patch.readingLayout = !!(patch.currentQuestion && patch.currentQuestion.material)
+        if (materialKey(this.data.currentQuestion) !== materialKey(patch.currentQuestion)) patch.readingExpanded = false
         patch.paneScroll = resetScroll(this.data.currentQuestion, patch.currentQuestion, this.data.paneScroll, this.panePositions || {})
         this.panePositions = Object.assign({}, patch.paneScroll)
         this.focusedBlank = null
         this.keyboardScrollRestore = null
       }
 
+      const next = Object.assign({}, this.data, patch)
+      if (next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && (questionChanged || !this.data.shouldRevealAnswer)) {
+        patch.analysisSheetOpen = true
+        patch.analysisSheetOffset = 0
+      }
+      if (!next.shouldRevealAnswer || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked) {
+        patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
+        patch.analysisSheetOpen = false
+        patch.analysisDragging = false
+        patch.analysisSheetOffset = -this.data.analysisSheetHeight
+      }
+
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
       const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'shouldShowExplanation', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      if (patch.analysisSheetOpen !== undefined && patch.analysisSheetOpen !== this.data.analysisSheetOpen) patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
       this.setData(viewPatch(this.data, patch), () => { runEffects(); if (layoutChanged) this.scheduleMeasure() })
       return
     }
@@ -520,6 +606,8 @@ Page(withPageLifecycle({
   },
 
   applyViewModelEffects(result) {
+    if (this.data.isCompleted || this.data.editingLocked || this.data.isTimed) this.stopElapsedTimer()
+    else this.startElapsedTimer()
     if (result.autoAdvance) this.scheduleAutoAdvance()
     if (result.stopTimer) {
       this.stopTestTimer()

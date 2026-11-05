@@ -7,7 +7,7 @@
 const { normalizePresets } = require('./practice-presets.js')
 
 const PREFERENCE_STORAGE_KEY = 'qandaPreferences'
-const { DEFAULT_ORDER, normalizeOrder } = require('./practice-layout.js')
+const { DEFAULT_ORDER, normalizeOrder, normalizeStemPercent } = require('./practice-layout.js')
 const { normalizeExamList } = require('./exam-countdown.js')
 
 const FONT_SIZE_OPTIONS = [
@@ -31,6 +31,9 @@ const DEFAULT_PREFERENCES = {
   practiceOrder: 'order',
   fontSize: 'normal',
   moduleOrder: DEFAULT_ORDER,
+  practiceStemPercent: 50,
+  swipeEnabled: true,
+  swipeDraftAction: 'save',
   examCountdowns: [],
   // 兼容已有设备的单个倒计时，读取时转换为列表。
   examName: '',
@@ -40,6 +43,8 @@ const DEFAULT_PREFERENCES = {
 /** 设置页的长期答题习惯。 */
 const PREFERENCE_SWITCHES = [
   { key: 'autoNextWhenCorrect', label: '答对后自动跳到下一题', description: '仅练习模式：答对后等待 0.8 秒，自动进入下一题' },
+  { key: 'swipeEnabled', label: '左右手势切题', description: '新练习生效：左滑下一题，右滑上一题' },
+  { key: 'swipeDraftAction', label: '左滑时先确认答案', description: '新练习生效：即时反馈的多选、填空有输入时先确认；关闭时保存草稿并切题' },
   {
     key: 'autoAddWrongBook',
     label: '自动收录错题',
@@ -104,6 +109,7 @@ function normalizePreferences(rawPreferences) {
       next[key] = normalizeOrder(value)
       return
     }
+    if (key === 'swipeDraftAction') { next[key] = value === 'confirm' ? 'confirm' : 'save'; return }
 
     // 文本型偏好（考试名称 / 日期）：只接受字符串，非字符串回落默认值
     if (typeof DEFAULT_PREFERENCES[key] === 'string') {
@@ -116,6 +122,10 @@ function normalizePreferences(rawPreferences) {
     }
   })
 
+  const weights = raw.practicePaneWeights
+  const migrated = weights && Number.isFinite(weights.stem) && weights.stem > 0 && Number.isFinite(weights.response) && weights.response > 0
+    ? Math.max(30, Math.min(70, Math.round(weights.stem / (weights.stem + weights.response) * 20) * 5)) : 50
+  next.practiceStemPercent = normalizeStemPercent(raw.practiceStemPercent === undefined ? migrated : raw.practiceStemPercent)
   next.examCountdowns = normalizeExamList(Array.isArray(raw.examCountdowns)
     ? raw.examCountdowns
     : [{ id: 'legacy-exam', examName: next.examName, examDate: next.examDate }])
@@ -127,10 +137,11 @@ function normalizePreferences(rawPreferences) {
 function normalizePracticeOptions(raw, preferences) {
   const defaults = normalizePreferences(preferences)
   const options = {}
-  for (const key of ['autoShowExplanation', 'autoNextWhenCorrect']) {
+  for (const key of ['autoShowExplanation', 'autoNextWhenCorrect', 'swipeEnabled']) {
     const value = raw && raw[key]
     options[key] = value === true || value === '1' ? true : value === false || value === '0' ? false : defaults[key]
   }
+  options.swipeDraftAction = raw && ['save', 'confirm'].includes(raw.swipeDraftAction) ? raw.swipeDraftAction : defaults.swipeDraftAction
   return options
 }
 
@@ -143,6 +154,7 @@ function setPreferenceSwitch(preferences, key, value) {
   }
 
   if (key === 'practiceOrder') current[key] = value ? 'random' : 'order'
+  else if (key === 'swipeDraftAction' && current.swipeEnabled) current[key] = value ? 'confirm' : 'save'
   else if (isBoolean(current[key])) current[key] = value
 
   return current
@@ -190,7 +202,8 @@ function buildPreferenceView(preferences) {
 
   return {
     switches: PREFERENCE_SWITCHES.map((item) => Object.assign({}, item, {
-      value: item.key === 'practiceOrder' ? current.practiceOrder === 'random' : current[item.key]
+      disabled: item.key === 'swipeDraftAction' && !current.swipeEnabled,
+      value: item.key === 'practiceOrder' ? current.practiceOrder === 'random' : item.key === 'swipeDraftAction' ? current.swipeDraftAction === 'confirm' : current[item.key]
     })),
     choices: PREFERENCE_CHOICES.map((item) => Object.assign({}, item, {
       value: current[item.key],

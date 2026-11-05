@@ -95,14 +95,14 @@ async function main() {
   assert.deepEqual(editor.save(), {}, '没有修改时不写入也不提示保存')
   const moved = move(DEFAULT_ORDER, 'tools', 0)
   assert.equal(editor.drop('tools', 0).data.layoutDirty, true, '调整顺序后启用保存')
-  assert.equal(editor.drop('tools', 4).data.layoutDirty, false, '拖回原顺序后禁用保存')
+  assert.equal(editor.drop('tools', 3).data.layoutDirty, false, '拖回原顺序后禁用保存')
   editor.drop('tools', 0)
   assert.deepEqual(repository.getPreferences(local).moduleOrder, DEFAULT_ORDER, '拖拽只更新通用布局草稿')
   const saved = editor.save()
   assert.equal(saved.command.title, '布局已保存')
   assert.equal(saved.data.layoutDirty, false, '保存成功后重新禁用')
   assert.deepEqual(repository.getPreferences(local).moduleOrder, moved)
-  editor.drop('analysis', 0)
+  editor.drop('stem', 0)
   const draft = editor.order.slice()
   local.full = true
   assert.match(editor.save().command.title, /保存失败/)
@@ -123,7 +123,7 @@ async function main() {
   assert.equal(repository.getPreferences(local).examName, '期末考试')
   const reload = new PracticeLayoutViewModel({ storage: local }).load().data
   assert.equal(reload.layoutRanks.tools, 0)
-  editor.reset(); editor.drop('info', 4)
+  editor.reset(); editor.drop('info', 3)
   assert.equal(editor.order.at(-1), 'info', '通用模板支持将任意模块拖到末尾')
   const scriptVm = require('node:vm')
   const fs = require('node:fs')
@@ -148,13 +148,20 @@ async function main() {
   assert.equal(calls.at(-1).name, 'handleDragEnd')
   assert.equal(calls.at(-1).data.y, 300, '结束事件没有坐标时使用最后拖动位置')
   assert.equal(state.id, '', '松手后清空拖动状态')
+  calls.length = 0
+  drag.start({ currentTarget: { dataset: { module: 'response' } }, touches: [{ clientY: 100 }] }, owner)
+  drag.move({ touches: [{ clientY: 103 }], timeStamp: 300 }, owner)
+  drag.end({ changedTouches: [{ clientY: 103 }] }, owner)
+  assert.equal(calls.length, 0, '轻触不触发拖拽或排序')
   let definition, edgeTick
   global.Page = value => { definition = value }
   global.wx = {}
   require('../miniprogram/page/practice-layout/index.js')
   const page = Object.assign({}, definition, { data: {}, viewModel: { order: DEFAULT_ORDER }, setData(patch) { Object.assign(this.data, patch) }, createSelectorQuery() {
-    const query = { select() { return query }, selectAll() { return query }, boundingClientRect() { return query }, exec(done) {
-      done([{ top: 100, bottom: 500, height: 400 }, DEFAULT_ORDER.map((id, i) => ({ top: 100 + i * 160, bottom: 260 + i * 160, dataset: { module: id } })), { height: 800 }])
+    const query = { select() { return query }, selectAll() { return query }, fields() { return query }, boundingClientRect() { return query }, exec: done => {
+      const viewportHeight = this.testViewportHeight || 400
+      const blocks = DEFAULT_ORDER.map((id, i) => ({ top: 100 + i * 160, bottom: 260 + i * 160, height: ['stem', 'response'].includes(id) ? (this.data.paneHeights && this.data.paneHeights[id] || 0) + 20 : 40, dataset: { module: id } }))
+      done([{ top: 100, bottom: 100 + viewportHeight, height: viewportHeight }, blocks, { height: 800, 'padding-top': '2px' }, { top: 200, height: 144 }, blocks.map(() => ({ 'margin-top': '4px', 'margin-bottom': '4px' }))])
     } }; return query
   } })
   const originalInterval = global.setInterval, originalClear = global.clearInterval
@@ -167,7 +174,7 @@ async function main() {
     assert.equal(page.data.scrollTop, 12, '初次触摸尚未滚动时即可触发边缘自动滚动')
     page.handleScroll({ detail: { scrollTop: 360, scrollHeight: 800 } })
     page.handleDragMove({ y: 490 })
-    assert.equal(page.drag.index, 4, '跨屏拖动按滚动后的模块位置计算插入目标')
+    assert.equal(page.drag.index, 3, '跨屏拖动按滚动后的模块位置计算插入目标')
     page.handleDragCancel()
     assert.equal(page.drag, null)
   } finally { global.setInterval = originalInterval; global.clearInterval = originalClear }
@@ -183,6 +190,30 @@ async function main() {
   page.handleDragCancel()
   assert.equal(page.drag, null, '取消后可以再次拖拽')
   assert.deepEqual(local.get('qandaPreferences'), savedPreferences, '取消拖动不更改已保存布局')
+  page.handleRatioTouchStart({ touches: [{ clientY: 218 }] })
+  assert.equal(page.data.stemPercent, 65, '竖向拖动按实际轨道坐标更新比例')
+  assert.equal(page.drag, null, '拖动比例滑杆不触发模块排序')
+  page.handleRatioTouchMove({ touches: [{ clientY: 344 }] })
+  assert.equal(page.data.stemPercent, 30, '向下拖到底部为最小值')
+  page.handleRatioTouchEnd({ changedTouches: [{ clientY: 200 }] })
+  assert.equal(page.data.stemPercent, 70, '向上拖到顶部为最大值')
+  assert.equal(page.ratioAdjusting, false)
+  page.handleRatioStep({ currentTarget: { dataset: { step: -5 } } })
+  assert.equal(page.data.stemPercent, 65, '按钮可按步长调节')
+  assert.deepEqual(local.get('qandaPreferences'), savedPreferences, '滑杆调节仅更新草稿')
+  page.handleRatioTouchStart({ touches: [{ clientY: 218 }] })
+  page.onHide()
+  assert.equal(page.ratioAdjusting, false, '离开页面结束比例调节')
+  assert.equal(page.data.stemPercent, 65, '结束手势后保留调节草稿')
+  page.onShow()
+  page.handleRatioStep({ currentTarget: { dataset: { step: 5 } } })
+  assert.equal(page.data.stemPercent, 70)
+  for (const height of [280, 400, 700]) {
+    page.testViewportHeight = height
+    page.measure()
+    const paneHeight = Object.values(page.data.paneHeights).reduce((a, b) => a + b, 0)
+    assert.equal(paneHeight + 2 * 20 + 2 * 40 + 4 * 8 + 2, height, '分区填满扣除模块边框、内外边距后的预览空间')
+  }
   page.handleResetLayout()
   assert.deepEqual(local.get('qandaPreferences'), savedPreferences)
   page.handleSaveLayout()

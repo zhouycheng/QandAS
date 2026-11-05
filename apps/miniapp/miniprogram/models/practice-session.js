@@ -85,7 +85,7 @@ class PracticeSession {
       subjectId: quiz ? quiz.subjectId : '',
       bankId: quiz ? quiz.bankId : '',
       practiceTitle: quiz ? quiz.title : DEFAULT_PRACTICE_TITLE,
-      practiceSubtitle: `${MODE_LABELS[mode] || '练习'} · 共 ${quiz ? quiz.questions.length : 0} 题`,
+      practiceModeText: MODE_LABELS[mode] || '练习',
       practicePath: normalizedOptions.practicePath || (quiz && quiz.sharePath) || '/page/practice/index',
       questions: quiz ? quiz.questions : [],
       total: quiz ? quiz.questions.length : 0,

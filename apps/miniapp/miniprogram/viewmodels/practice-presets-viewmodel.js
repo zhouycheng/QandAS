@@ -37,8 +37,18 @@ class PracticePresetsViewModel {
     const duration = draft.mode === 'view' ? 0 : customDuration ? Number(draft.durationInput) : Number(draft.duration)
     const error = !name || name.length > 30 ? '请输入 1～30 字的预设名称' : !validCount(count) || count !== 'ALL' && !/^\d+$/.test(draft.countInput) ? '题量应为 1～1000 的整数，或选择全部' : !validDuration(duration) || customDuration && draft.mode !== 'view' && (!/^\d+$/.test(draft.durationInput) || !duration) ? '请输入 1～1440 的整数分钟' : ''
     if (error) return { data: { error } }
+    const existing = this.repository.getPreferences(this.storage).practicePresets.find(p => p.id !== draft.id && p.mode === draft.mode && p.count === count && p.duration === duration)
+    if (existing) return { data: { error: '该配置已存在，请使用或编辑已有预设' }, existing }
     const saved = { id: draft.id || 'preset-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, mode: draft.mode, count, duration }
-    return this.write(preferences => { preferences.practicePresets = draft.id ? preferences.practicePresets.map(p => p.id === draft.id ? saved : p) : preferences.practicePresets.concat(saved) })
+    const result = this.write(preferences => { preferences.practicePresets = draft.id ? preferences.practicePresets.map(p => p.id === draft.id ? saved : p) : preferences.practicePresets.concat(saved) })
+    if (!result.data.error) result.value = saved
+    return result
+  }
+  createFromConfig(name, config) {
+    this.edit()
+    Object.assign(this.draft, { name, mode: config.mode, count: config.count, countInput: config.count === 'ALL' ? '' : String(config.count), duration: config.duration })
+    const result = this.save(false)
+    return result.existing ? { value: result.existing, duplicate: true } : result
   }
   setDefault(id) {
     return this.write(preferences => { if (!preferences.practicePresets.some(p => p.id === id)) throw new Error('预设不存在，请重新选择'); preferences.defaultPracticePresetId = id })

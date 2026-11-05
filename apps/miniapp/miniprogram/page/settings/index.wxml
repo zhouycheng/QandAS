@@ -3,9 +3,9 @@
 <view class="page settings-page settings-detail">
   <view class="menu-row settings-row" bindtap="handlePresets" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80"><view class="menu-main"><text class="menu-title settings-label">点击章节时使用的配置</text><text class="menu-desc settings-note">{{presetSummary}}</text></view><image class="menu-arrow" src="/assets/icons/arco-down.svg" mode="aspectFit" aria-hidden="true" /></view>
   <view class="menu settings-group">
-    <view class="menu-row settings-row" wx:for="{{switches}}" wx:key="key">
+    <view class="menu-row settings-row {{item.disabled ? 'settings-row-disabled' : ''}}" wx:for="{{switches}}" wx:key="key">
       <view class="menu-main"><text class="menu-title settings-label">{{item.label}}</text><text wx:if="{{item.description}}" class="menu-desc settings-note">{{item.description}}</text></view>
-      <switch class="menu-switch" checked="{{item.value}}" color="#2563EB" data-key="{{item.key}}" aria-label="{{item.label}}" bindchange="handleSwitchChange" />
+      <switch class="menu-switch" checked="{{item.value}}" disabled="{{item.disabled}}" color="#2563EB" data-key="{{item.key}}" aria-label="{{item.label}}" aria-disabled="{{item.disabled}}" bindchange="handleSwitchChange" />
     </view>
   </view>
   <view class="menu settings-group choice-card">

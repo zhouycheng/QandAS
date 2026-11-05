@@ -1,0 +1,10 @@
+<view class="pra-analysis-head">
+  <text class="pra-result-tag {{isCurrentAnswerCorrect ? 'ok' : 'no'}}">{{currentQuestion.isShortAnswer ? (currentQuestion.presentation === 'CODE_WRITING' ? '参考实现 · 不计分' : '参考思路 · 不计分') : (isViewMode ? '参考答案' : (isCurrentAnswerCorrect ? '答对啦' : '答错了'))}}</text>
+  <rich-content text="{{currentCorrectAnswerText || ''}}" format="{{(currentQuestion.isShortAnswer ? currentQuestion.contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" />
+</view>
+<rich-content class="pra-scoring" wx:for="{{currentQuestion.scoringPoints}}" wx:key="*this" text="{{(index + 1) + '. ' + (item || '')}}" format="{{currentQuestion.contentFormat || 'PLAIN_TEXT'}}" />
+<view class="pra-explanation" wx:if="{{shouldShowExplanation}}">
+  <text class="pra-side-title">解析</text>
+  <rich-content class="pra-explanation-text" text="{{currentExplanation || ''}}" format="{{currentQuestion.contentFormat || 'PLAIN_TEXT'}}" />
+</view>
+<text class="pra-explanation-muted" wx:else>解析已按偏好隐藏，可在交卷后查看</text>

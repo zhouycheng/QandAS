@@ -74,7 +74,7 @@ function getInitialPracticeViewData() {
     subjectId: '',
     bankId: '',
     practiceTitle: DEFAULT_PRACTICE_TITLE,
-    practiceSubtitle: '',
+    practiceModeText: '',
     practicePath: '/page/practice/index',
     questions: [],
     total: 0,

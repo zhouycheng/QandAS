@@ -1,7 +1,12 @@
 const { blankAnswerText } = require('../utils/fill-blank.js')
 const { formatTimer } = require('./practice-view-data.js')
+const { materialKey } = require('../utils/practice-layout.js')
 function projectPractice(session) {
     const data = Object.assign({}, session.state)
+    const key = materialKey(data.currentQuestion)
+    const group = key ? session.state.questions.filter(q => materialKey(q) === key) : []
+    data.readingGroupTotal = group.length
+    data.readingGroupNumber = group.findIndex(q => q.id === (data.currentQuestion && data.currentQuestion.id)) + 1
 
     /**
      * 结果页要显示「用时」。

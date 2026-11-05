@@ -1,4 +1,4 @@
-    <page-header title="{{isCompleted ? '练习结果' : practiceTitle}}" subtitle="{{isCompleted ? practiceTitle + ' · ' + practiceSubtitle : practiceSubtitle}}" />
+    <page-header title="{{isCompleted ? '练习结果' : practiceTitle}}" />
     <view class="pra-progress" wx:if="{{!isCompleted}}">
       <view class="pra-progress-fill" style="width: {{progressPercent}}%"></view>
     </view>
