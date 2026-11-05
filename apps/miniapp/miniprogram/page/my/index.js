@@ -39,13 +39,14 @@ Page(withPageLifecycle({
   },
 
   // 下拉刷新
+  getRefreshError() { return this.data.profileError || '' },
   onPullDownRefresh() {
     if (!this.viewModel) {
       wx.stopPullDownRefresh()
       return
     }
 
-    return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true })).finally(() => wx.stopPullDownRefresh())
+    return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true }))
   },
 
   /** 资料头：未登录去登录页，已登录进账号管理 */

@@ -28,11 +28,37 @@ function withPageLifecycle(definition) {
       if (definition.onResize) return definition.onResize.apply(this, arguments)
     }
   }
+  if (definition.onPullDownRefresh) {
+    result.onPullDownRefresh = function () {
+      if (this._pullPromise) return this._pullPromise
+      clearTimeout(this._pullStatusTimer)
+      const version = this._pullVersion = (this._pullVersion || 0) + 1
+      this.setData({ pullRefreshing: true, pullRefreshState: 'loading', pullRefreshMessage: '正在刷新…' })
+      const pending = Promise.resolve().then(() => definition.onPullDownRefresh.apply(this, arguments)).then(() => {
+        const error = this.getRefreshError && this.getRefreshError()
+        if (error) throw new Error(error)
+      }).then(() => ({ state: 'success', message: '已刷新 ' + new Date().toTimeString().slice(0, 5) }), () => ({ state: 'error', message: '刷新未完成，请下拉重试' })).then(status => {
+        if (this._pageUnloaded || version !== this._pullVersion) return
+        this.setData({ pullRefreshing: false, pullRefreshState: status.state, pullRefreshMessage: status.message })
+        if (typeof wx !== 'undefined' && wx.stopPullDownRefresh) wx.stopPullDownRefresh()
+        this._pullStatusTimer = setTimeout(() => { if (!this._pageUnloaded && version === this._pullVersion) this.setData({ pullRefreshState: '' }) }, status.state === 'error' ? 3000 : 1800)
+      }).finally(() => { if (this._pullPromise === pending) this._pullPromise = null })
+      this._pullPromise = pending
+      return pending
+    }
+  }
   ;['onLoad', 'onShow', 'onReady', 'onHide', 'onUnload'].forEach(name => {
     result[name] = function () {
       if (name === 'onLoad') this._pageUnloaded = false
       if (name === 'onUnload') this._pageUnloaded = true
-      if (name === 'onHide' || name === 'onUnload') stopBinding(this)
+      if (name === 'onHide' || name === 'onUnload') {
+        stopBinding(this)
+        clearTimeout(this._pullStatusTimer)
+        this._pullVersion = (this._pullVersion || 0) + 1
+        this._pullPromise = null
+        if (this.data.pullRefreshing && typeof wx !== 'undefined' && wx.stopPullDownRefresh) wx.stopPullDownRefresh()
+        if (name === 'onHide' && definition.onPullDownRefresh) this.setData({ pullRefreshing: false, pullRefreshState: '' })
+      }
       metrics.record(name, { route: this.route || '' })
       const value = definition[name] && definition[name].apply(this, arguments)
       if (name === 'onShow') bindViewModel(this)

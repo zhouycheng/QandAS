@@ -201,3 +201,5 @@
   </bottom-sheet>
 
 </view>
+
+<include src="../../templates/refresh-status.wxml" />

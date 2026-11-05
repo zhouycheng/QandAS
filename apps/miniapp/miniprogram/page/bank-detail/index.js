@@ -175,7 +175,8 @@ Page(withPageLifecycle({
   handleBanksMore() { return this.applyViewModelResult(this.viewModel.loadMoreBanks()) },
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
   handleRetryLoad() { return this.refreshCatalog({ force: true }) },
-  onPullDownRefresh() { return this.handleRetryLoad().finally(() => wx.stopPullDownRefresh()) },
+  getRefreshError() { return this.data.catalogError || this.data.filterError || '' },
+  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad()]) },
   onHide() {
     this.viewModel.closeConfig()
     const pages = getCurrentPages()

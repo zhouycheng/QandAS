@@ -51,7 +51,7 @@ class MyViewModel {
         this.storage = normalizedOptions.storage || createNullStorage();
     }
     refreshRemote(options) {
-        return this.repository.refreshRemote(this.storage, 'profile', options).then(() => ({ data: this.projectRemote() })).catch((error) => ({ command: { type: 'toast', title: error.message } }));
+        return this.repository.refreshRemote(this.storage, 'profile', options).then(() => ({ data: Object.assign(this.projectRemote(), { profileError: '' }) })).catch((error) => ({ data: { profileError: error.message }, command: { type: 'toast', title: error.message } }));
     }
     projectRemote() {
         require('../repositories/remote-data-repository.js').getProfile(this.storage);

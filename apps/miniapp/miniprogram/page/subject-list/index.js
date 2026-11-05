@@ -68,18 +68,20 @@ Page(withPageLifecycle({
   onShareTimeline() { return { title: '题小搭 公开题库' } },
 
   // 下拉刷新
+  getRefreshError() { return this.data.homeRefreshError || this.data.recentError || '' },
   onPullDownRefresh() {
     if (!this.viewModel) {
       wx.stopPullDownRefresh()
       return
     }
 
-    return this.refresh({ force: true }).finally(() => wx.stopPullDownRefresh())
+    return this.refresh({ force: true })
   },
 
   refresh(options) {
     this.applyViewModelResult({ data: this.viewModel.projectRemote() })
-    return Promise.all([this.applyViewModelResult(this.viewModel.refreshRemote(options)), this.loadRecentChoices(options)])
+    const group = typeof this.selectComponent === 'function' && this.selectComponent('#home-community')
+    return Promise.all([this.applyViewModelResult(this.viewModel.refreshRemote(options)), this.loadRecentChoices(options), group && group.refresh(false)])
   },
 
   async loadRecentChoices(options) {

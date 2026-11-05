@@ -1,0 +1,3 @@
+.refresh-status { position: fixed; z-index: 9999; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100vw - 64rpx); padding: 6px 12px; box-sizing: border-box; border-radius: 999px; background: rgba(31, 41, 55, .58); color: #FFFFFF; font-size: var(--font-caption); line-height: 18px; white-space: nowrap; pointer-events: none; }
+.refresh-status-spinner { flex: none; width: 10px; height: 10px; border: 1.5px solid rgba(255, 255, 255, .3); border-top-color: #FFFFFF; border-radius: 50%; animation: refresh-status-spin .8s linear infinite; }
+@keyframes refresh-status-spin { to { transform: rotate(360deg); } }

@@ -52,7 +52,7 @@
   </view>
 
   <view class="workbench" wx:if="{{subject}}">
-    <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}">
+    <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
       <view class="rail-inner">
         <view
           class="rail-item {{railMode === 'recent' ? 'is-active' : ''}}"
@@ -89,7 +89,7 @@
       </view>
     </scroll-view>
 
-    <scroll-view class="panel" scroll-y enhanced bounces show-scrollbar="{{false}}">
+    <scroll-view class="panel" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
       <view class="panel-inner">
         <!-- 搜索态：跨科目命中，点一行直接配这一章 -->
         <block wx:if="{{searchActive}}">
@@ -215,3 +215,5 @@
         </view>
   </bottom-sheet>
 </view>
+
+<include src="../../templates/refresh-status.wxml" />

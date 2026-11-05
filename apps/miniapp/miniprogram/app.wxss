@@ -1,3 +1,4 @@
+@import "./styles/refresh-status.wxss";
 @import "./styles/controls.wxss";
 @import "./styles/page-theme.wxss";
 page {

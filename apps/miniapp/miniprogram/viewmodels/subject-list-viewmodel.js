@@ -93,7 +93,12 @@ class SubjectListViewModel {
         this.searchText = '';
     }
     refreshRemote(options) {
-        return this.repository.refreshRemote(this.storage, 'home', options).then(() => ({ data: this.projectRemote() })).catch(() => ({ data: this.projectRemote() }));
+        this.homeRefreshError = '';
+        return this.repository.refreshRemote(this.storage, 'home', options).then(results => {
+            const failed = Array.isArray(results) && results.find(item => item.status === 'rejected');
+            this.homeRefreshError = failed ? failed.reason.message || '部分内容读取失败' : '';
+            return { data: this.projectRemote() };
+        }).catch(error => { this.homeRefreshError = error.message; return { data: this.projectRemote() }; });
     }
     projectRemote() {
         const data = this.load().data;
@@ -103,6 +108,7 @@ class SubjectListViewModel {
             const overview = this.repository.getRemoteResourceState('overview');
             result.overviewLoading = overview.status === 'loading' && !overview.data;
             result.overviewError = overview.error;
+            result.homeRefreshError = this.homeRefreshError || '';
         }
         return result;
     }
