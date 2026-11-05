@@ -207,7 +207,10 @@
           </view>
         </view>
         <view slot="footer" class="config-actions">
+          <view class="config-preset-row">
           <picker class="config-preset" range="{{sheetPresets}}" range-key="name" value="{{sheetPresetIndex}}" disabled="{{!sheetPresets.length}}" bindchange="handleSheetPreset"><view class="preset-picker" aria-label="选择本次答题预设"><text class="preset-picker-label">{{sheetPresets.length ? '预设：' + sheetPresetName : '暂无模拟考预设'}}</text><image wx:if="{{sheetPresets.length}}" class="preset-picker-arrow" src="/assets/icons/arco-down.svg" mode="aspectFit" aria-hidden="true" /></view></picker>
+            <button class="q-button q-button--text" bindtap="handlePresetSave" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">保存为预设</button>
+          </view>
           <button class="q-button q-button--primary config-btn" disabled="{{sheetStartDisabled}}" bindtap="handleConfigConfirm" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{sheetStartText}}</button>
         </view>
   </bottom-sheet>

@@ -1,5 +1,6 @@
 const { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText } = require('../models/bank-detail-presentation.js');
 const practiceRepository = require('../repositories/practice-repository.js');
+const { PracticePresetsViewModel } = require('./practice-presets-viewmodel.js');
 const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
@@ -444,6 +445,21 @@ class BankDetailViewModel {
         if (!preset) return null;
         Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, durationCustom: false, durationError: '' });
         return { data: this.buildSheetData() };
+    }
+    saveSheetPreset() {
+        if (!this.sheetTarget) return null;
+        if (this.sheet.mode !== 'view' && this.sheet.durationError) return { command: { type: 'toast', title: this.sheet.durationError } };
+        const config = this.buildSheetData();
+        const countLabel = config.sheetCount === 'ALL' ? '全部' : (config.countOptions.findIndex(option => option.value === config.sheetCount) + 1) + '档';
+        const modeLabel = MODE_OPTIONS.find(option => option.value === this.sheet.mode).label;
+        const durationLabel = this.sheet.mode === 'view' || !this.sheet.duration ? '不限时' : this.sheet.duration + '分钟';
+        const name = `${modeLabel} - ${countLabel} - ${durationLabel}`;
+        const editor = new PracticePresetsViewModel({ storage: this.storage, repository: this.repository });
+        const result = editor.createFromConfig(name, this.sheet);
+        if (!result.value) return { command: { type: 'toast', title: result.data.error } };
+        this.sheet.presets = this.repository.getPreferences(this.storage).practicePresets;
+        Object.assign(this.sheet, { presetId: result.value.id, presetName: result.value.name });
+        return { data: this.buildSheetData(), command: { type: 'toast', title: result.duplicate ? '该配置已存在' : '预设已保存' } };
     }
     setSheetChapter(id) {
         if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id))) return null;

@@ -511,6 +511,8 @@ page { background: var(--card); }
 
 .config-actions {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .config-btn {
@@ -541,3 +543,7 @@ page { background: var(--card); }
 .preset-picker-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .preset-picker-arrow { display: block; flex: none; width: 14px; height: 14px; }
 .duration-input { box-sizing: border-box; width: 100%; height: 44px; margin-top: 20rpx; padding: 0 20rpx; background: var(--page-bg); border-radius: var(--radius-control); font-size: var(--font-body); }
+
+.config-preset-row { display: flex; align-items: center; flex-wrap: wrap; }
+.config-preset-row .q-button { width: auto; flex: none; }
+.config-actions .config-btn { flex: none; }

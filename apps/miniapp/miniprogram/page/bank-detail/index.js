@@ -280,6 +280,7 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.setSheetMode(e.currentTarget.dataset.value))
   },
 
+  handlePresetSave() { this.applyViewModelResult(this.viewModel.saveSheetPreset()) },
   handleSheetPreset(e) { this.applyViewModelResult(this.viewModel.selectSheetPreset(Number(e.detail.value))) },
   handleCustomDuration(e) { this.applyViewModelResult(this.viewModel.setCustomDuration(e.detail.value)) },
   async refreshSheetScope() { const pending = this.viewModel.refreshSheetScope(); this.setData(this.viewModel.buildSheetData()); this.applyViewModelResult(await pending) },
