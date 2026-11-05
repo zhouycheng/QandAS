@@ -554,3 +554,9 @@
 .exam-head { flex-wrap: wrap; row-gap: 4px; }
 
 .new-practice-button { margin-top: var(--space-md); }
+
+.home-pinned { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: var(--font-secondary); color: var(--text-sub); }
+.home-pinned-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-main); }
+.notice-pin { color: var(--brand); }
+.notice-summary, .notice-date { display: block; margin-top: 8px; color: var(--text-sub); font-size: var(--font-caption); }
+.notice-list-row { min-height: 44px; }

@@ -63,6 +63,9 @@ function getInitialSubjectListViewData() {
         // 四宫格上显示的计数 / 状态徽标
         entries: STUDY_ENTRIES.map((item) => Object.assign({}, item, { badge: '', disabled: false })),
         announcements: [],
+        announcementScrollTop: 0,
+        pinnedAnnouncement: null,
+        selectedAnnouncement: null,
         hasAnnouncements: false,
         announcementSheetVisible: false,
         // 题目搜索
@@ -95,7 +98,7 @@ class SubjectListViewModel {
     projectRemote() {
         const data = this.load().data;
         const result = {};
-        ['overall', 'home', 'exam', 'entries', 'announcements', 'hasAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key]; });
+        ['overall', 'home', 'exam', 'entries', 'announcements', 'pinnedAnnouncement', 'hasAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key]; });
         if (this.repository.getRemoteResourceState) {
             const overview = this.repository.getRemoteResourceState('overview');
             result.overviewLoading = overview.status === 'loading' && !overview.data;
@@ -137,7 +140,8 @@ class SubjectListViewModel {
             studySessionCount: studyTime.sessionCount
         };
         const lastPractice = this.buildLastPractice(progress);
-        const announcements = this.repository.getRemoteAnnouncements ? this.repository.getRemoteAnnouncements(this.storage) : [];
+        const announcements = this.repository.getRemoteAnnouncements ? this.repository.getRemoteAnnouncements(this.storage).map(item => Object.assign({}, item, { dateText: (item.publishAt || item.updatedAt || '').slice(0, 10) })) : [];
+        const preview = this.repository.getRemoteAnnouncementPreview ? this.repository.getRemoteAnnouncementPreview(this.storage) : announcements[0];
         return {
             data: Object.assign(getInitialSubjectListViewData(), {
                 overall: Object.assign({}, overallStats, {
@@ -151,6 +155,7 @@ class SubjectListViewModel {
                 exam: selectHomeExam(preferences.examCountdowns),
                 entries: this.buildEntries(lastPractice),
                 announcements,
+                pinnedAnnouncement: preview && preview.pinned ? preview : null,
                 hasAnnouncements: this.repository.getRemoteAnnouncementTotal ? this.repository.getRemoteAnnouncementTotal(this.storage) > 0 : announcements.length > 0,
                 searchTotalText: overallStats.total > 0 ? `在全部 ${overallStats.total} 道题里查题干与选项` : '输入关键词搜索已发布的题目',
                 lastPractice
@@ -403,7 +408,7 @@ class SubjectListViewModel {
     }
     loadAnnouncements(page) {
         return this.repository.refreshRemote(this.storage, 'announcements', { page: page || 1 }).then(() => ({ data: {
-                announcements: this.repository.getRemoteAnnouncements(this.storage),
+                announcements: this.repository.getRemoteAnnouncements(this.storage).map(item => Object.assign({}, item, { dateText: (item.publishAt || item.updatedAt || '').slice(0, 10) })),
                 announcementPage: page || 1,
                 announcementHasMore: this.repository.getRemoteAnnouncements(this.storage).length < this.repository.getRemoteAnnouncementTotal(this.storage)
             } }));

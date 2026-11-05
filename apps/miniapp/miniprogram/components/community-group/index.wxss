@@ -4,7 +4,7 @@
 .group-entry { display: flex; align-items: center; justify-content: space-between; min-height: 88rpx; }
 .group-title { display: block; color: var(--text-main); font-size: var(--font-body); font-weight: 600; }
 .group-description { display: block; margin-top: 10rpx; color: var(--text-sub); font-size: var(--font-caption); }
-.group-arrow { margin-left: 16rpx; color: var(--text-sub); font-size: var(--font-title); }
+.group-arrow { flex: none; width: 20px; height: 20px; margin-left: 16rpx; }
 .group-qr { display: block; width: 100%; }
 .group-help { display: block; padding: 16rpx 0; color: var(--text-sub); font-size: var(--font-caption); line-height: 1.6; text-align: center; }
 .group-hover { opacity: .65; }

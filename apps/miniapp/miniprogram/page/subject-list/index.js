@@ -267,6 +267,8 @@ Page(withPageLifecycle({
   // ---------- 公告（小喇叭） ----------
 
   handleAnnouncementTap() {
+    this.announcementListScroll = 0
+    this.setData({ selectedAnnouncement: null, announcementScrollTop: 0 })
     this.applyViewModelResult(this.viewModel.openAnnouncement())
     this.setData({ announcementLoading: true, announcementError: '' })
     return this.viewModel.loadAnnouncements(1).then(result => this.applyViewModelResult(result))
@@ -274,6 +276,17 @@ Page(withPageLifecycle({
       .finally(() => this.setData({ announcementLoading: false }))
   },
 
+  handleAnnouncementScroll(e) { if (!this.data.selectedAnnouncement) this.announcementListScroll = e.detail.scrollTop },
+  handleAnnouncementDetail(e) {
+    const id = e.currentTarget.dataset.id
+    const selected = (this.data.announcements || []).concat(this.data.pinnedAnnouncement || []).find(item => item.id === id)
+    if (selected) this.setData({ selectedAnnouncement: selected, announcementSheetVisible: true, announcementScrollTop: this.data.announcementScrollTop === 0 ? 0.01 : 0 })
+  },
+  handleAnnouncementBack() {
+    this.setData({ selectedAnnouncement: null, announcementScrollTop: this.announcementListScroll || 0 })
+    if (!this.data.announcementPage) this.handleAnnouncementTap()
+  },
+  handleAnnouncementRetry() { return this.handleAnnouncementTap() },
   handleAnnouncementMore() {
     if (this.data.announcementLoading) return
     this.setData({ announcementLoading: true })
@@ -285,6 +298,7 @@ Page(withPageLifecycle({
   handleRetryLoad() { return this.refresh({ force: true }) },
 
   handleAnnouncementClose() {
+    this.setData({ selectedAnnouncement: null })
     this.applyViewModelResult(this.viewModel.closeAnnouncement())
   },
 

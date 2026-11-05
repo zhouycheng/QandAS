@@ -107,7 +107,7 @@ function checkStructure() {
   assert('结构 - 天数独立成块（字号要放大）', homeWxml.indexOf('class="exam-days"') >= 0)
   assert('结构 - 今天考试使用独立状态字号',
     homeWxml.indexOf('exam-status-today') >= 0 && /\.exam-status-today\s*\{[^}]*font-size:\s*var\(--font-title\)/.test(homeWxss))
-  assert('结构 - 倒计时卡显示有效群码入口', /<community-group compact="\{\{true\}\}" hide-unavailable="\{\{true\}\}"/.test(homeWxml))
+  assert('结构 - 进群卡片位于答题卡片下方', homeWxml.indexOf('<community-group id="home-community"') > homeWxml.indexOf('class="home-create"'))
 
   assert('结构 - 四宫格位于倒计时卡之后', homeWxml.indexOf('class="entry-grid"') > homeWxml.indexOf('class="exam-card"'))
   assert('结构 - 四宫格按 entries 渲染', /wx:for="\{\{entries\}\}"/.test(homeWxml))
@@ -125,7 +125,7 @@ function checkStructure() {
   // 公告必须是居中弹窗：底部升起的形态会被自定义 tabBar 压住（用户截图投诉过）
   assert('公告 - 用居中的弹窗形态', /announcementSheetVisible[\s\S]{0,200}?placement="center"/.test(homeWxml),
     '底部升起会被 tabBar 压住')
-  assert('公告 - 弹窗顶部带喇叭徽标', homeWxml.indexOf('notice-badge') >= 0)
+  assert('公告 - 列表与正文详情分层展示', homeWxml.includes('selectedAnnouncement') && homeWxml.includes('返回公告列表'))
 
   assert('公告 - 喇叭直接浮于透明页头', !homeWxml.includes('hero-notice-circle') && !homeWxss.includes('.hero-notice-circle'))
   assert('公告 - 喇叭素材透明且完整显示', /\.hero-notice-icon\s*\{[^}]*position:\s*absolute[^}]*width:\s*108rpx[^}]*height:\s*108rpx/.test(homeWxss) && /hero-notice-btn\s*\{[^}]*overflow:\s*visible/.test(homeWxss))

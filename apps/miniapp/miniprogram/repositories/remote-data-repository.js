@@ -11,7 +11,7 @@ let owner = ''
 let sessionToken = ''
 let scope = ''
 let activeStorage = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
@@ -142,9 +142,19 @@ function refreshProfile(storage, options) {
 }
 function refreshAnnouncements(storage, options) {
   const query = { page: options && options.page || 1, pageSize: options && options.pageSize || 20 }
-  return resource(storage, 'announcements', query, TTL.announcements, '/announcements', data => {
+  const preview = query.pageSize === 1
+  if (!preview && query.page === 1 && options && options.force) cache.invalidate('announcements:')
+  return resource(storage, preview ? 'announcementPreview' : 'announcements', query, TTL.announcements, '/announcements', data => {
+    const first = data.items[0] || null
+    if (preview) {
+      const old = state.announcementPreview
+      if (JSON.stringify([old && old.id, old && old.version, state.announcementTotal]) !== JSON.stringify([first && first.id, first && first.version, data.total])) { cache.invalidate('announcements:'); state.announcements = [] }
+      state.announcementPreview = first
+    } else {
+      state.announcements = query.page === 1 ? data.items : mergeById(state.announcements, data.items).slice(0, data.total)
+      if (query.page === 1) state.announcementPreview = first
+    }
     state.announcementTotal = data.total
-    state.announcements = query.page === 1 && query.pageSize > 1 ? data.items : mergeById(state.announcements, data.items).slice(0, data.total)
   }, options && options.force)
 }
 function refreshRecommendations(storage, options) {
@@ -197,7 +207,8 @@ function getOverview(storage) { bind(storage); return state.overview }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
 function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
 function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
-function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements : [] }
+function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements.length ? state.announcements : state.announcementPreview ? [state.announcementPreview] : [] : [] }
+function getAnnouncementPreview(storage) { bind(storage); return enabled ? state.announcementPreview || null : null }
 function getRecommendations(storage) { bind(storage); return state.recommendations }
 function getRecommendationPage(storage) { bind(storage); return { page: state.recommendationPage, total: state.recommendationTotal } }
 function getAnnouncementTotal(storage) { bind(storage); return state.announcementTotal }
@@ -328,6 +339,7 @@ function saveProfile(storage, patch) {
 }
 module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
+module.exports.getAnnouncementPreview = getAnnouncementPreview
 module.exports.getRecommendations = getRecommendations
 Object.assign(module.exports, { getRecommendationPage, refreshRecommendations })
 function invalidateCatalogFilters(next) {
