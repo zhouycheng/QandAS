@@ -170,7 +170,8 @@ function extractTaps(wxmlPath) {
     if (!selfClosed && !VOIDISH.has(name)) stack.push({ name, wxFor: ownFor, itemName: ownItemName })
 
     const handler = a.bindtap || a['bind:tap'] || a.catchtap || a['catch:tap']
-    if (!handler) continue
+    // WXS callbacks run in the sheet gesture checks, outside the fake Page runtime.
+    if (!handler || handler.includes('{{')) continue
 
     // 由内到外的作用域链：自身优先，然后逐级向上（只保留真正带 wx:for 的层）
     const frames = []

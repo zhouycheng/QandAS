@@ -68,9 +68,12 @@ function scriptWithMixins(file, seen = new Set()) {
   const source = fs.readFileSync(file, 'utf8')
   return source + [...source.matchAll(/\.\.\.require\(['"]([^'"]+)['"]\)/g)].map(match => scriptWithMixins(path.resolve(path.dirname(file), match[1]), seen)).join('\n')
 }
+function readTemplate(file) {
+  return fs.readFileSync(file, 'utf8').replace(/<(?:include|import)\s+src="([^"]+)"\s*\/>/g, (_, name) => readTemplate(path.resolve(path.dirname(file), name)))
+}
 for (const f of wxmls) {
   if (rel(f).startsWith('templates/')) continue
-  const src = fs.readFileSync(f, 'utf8').replace(/<(?:include|import)\s+src="([^"]+)"\s*\/>/g, (_, name) => fs.readFileSync(path.resolve(path.dirname(f), name), 'utf8'))
+  const src = readTemplate(f)
   const jsPath = f.replace(/\.wxml$/, '.js')
   const jsSrc = scriptWithMixins(jsPath)
 
@@ -131,19 +134,18 @@ if (missingHover.length === 0) {
 
 console.log('\n=== 3) 是否存在「隐藏但仍占位」的全屏浮层 ===\n')
 const riskyOverlay = []
+function hiddenInteractiveOverlays(src) {
+  return [...src.replace(/\/\*[\s\S]*?\*\//g, ' ').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, , body]) => /position\s*:\s*fixed/.test(body) && /opacity\s*:\s*0(?![\d.])|visibility\s*:\s*hidden/.test(body) && !/pointer-events\s*:\s*none/.test(body))
+    .map(([, selector]) => selector.trim())
+}
+require('node:assert/strict').deepEqual(hiddenInteractiveOverlays('.overlay {position:fixed;opacity:0}'), ['.overlay'])
+require('node:assert/strict').deepEqual(hiddenInteractiveOverlays('.layer {position:fixed;pointer-events:none}.mask {opacity:0}'), [])
 for (const f of all.filter((p) => p.endsWith('.wxss'))) {
   // 必须先剥注释：注释里写了 "opacity:0" 这类字样会被当成真实声明，
   // 而且注释里出现的 `}` 会把 split('}') 的块边界打乱（已因此误报过一次）。
   const src = fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ')
-  const blocks = src.split('}')
-  blocks.forEach((b, i) => {
-    if (!/position\s*:\s*fixed/.test(b)) return
-    const body = (blocks[i + 1] || '') + (blocks[i + 2] || '')
-    const sel = b.slice(b.lastIndexOf('}') + 1).trim()
-    if (/opacity\s*:\s*0(?!\.)/.test(body) || /visibility\s*:\s*hidden/.test(body)) {
-      riskyOverlay.push(`${rel(f)} → ${sel.slice(0, 60)}`)
-    }
-  })
+  hiddenInteractiveOverlays(src).forEach(selector => riskyOverlay.push(`${rel(f)} → ${selector.slice(0, 60)}`))
 }
 if (riskyOverlay.length === 0) ok('没有用 opacity:0/visibility:hidden 来藏全屏浮层（不会吃掉点击）')
 else bad(`${riskyOverlay.length} 处可疑浮层`, riskyOverlay.join('\n      '))

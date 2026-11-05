@@ -209,12 +209,12 @@ async function main() {
     page.stopElapsedTimer(); assert.equal(clears, 1)
     page.scheduleMeasure = () => {}
     page.data.currentQuestion = { material: m1 }
-    page.data.readingExpanded = true
+    page.data.readingStop = 2
     page.lastQuestionIndex = 0
     page.applyViewModelResult({ data: { currentIndex: 1, currentQuestion: { material: m1 } } })
-    assert.equal(page.data.readingExpanded, true)
+    assert.equal(page.data.readingStop, 2)
     page.applyViewModelResult({ data: { currentIndex: 2, currentQuestion: { material: m2 } } })
-    assert.equal(page.data.readingExpanded, false)
+    assert.equal(page.data.readingStop, 1)
     let advances = 0
     page.viewModel.goNext = () => { advances++ }
     page.data.isLastQuestion = true; page.showHint = () => {}

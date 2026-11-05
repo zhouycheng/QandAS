@@ -19,7 +19,7 @@
     </view>
     <view class="pra-pane pra-stem-pane" hidden="{{!editLayout && keyboardVisible && !paneHeights.stem}}" style="{{editLayout && !previewFixed ? '' : 'height:' + paneHeights.stem + 'px;'}}">
       <scroll-view class="pra-pane-scroll" scroll-y="{{!editLayout || previewFixed}}" enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{paneScroll.stem}}" data-pane="stem" bindscroll="onPaneScroll">
-        <view class="pra-pane-content" data-pane="stem"><view class="pra-stem"><rich-content text="{{(currentQuestion.stem) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{currentQuestion.isFillBlank ? blankInputs : null}}" disabled="{{answerLocked}}" managed-keyboard="{{!editLayout}}" bindblankinput="inputBlank" bindblankfocus="onAnswerFocus" bindblankblur="onAnswerBlur" bindblankkeyboard="onKeyboardHeight" /></view><question-images paths="{{(currentQuestion.imagePaths) || []}}" /><view class="pra-analysis" wx:if="{{isViewMode && !editLayout && shouldRevealAnswer}}"><include src="practice-analysis.wxml" /></view></view>
+        <view class="pra-pane-content" data-pane="stem"><include src="practice-stem.wxml" /></view>
       </scroll-view>
       <text wx:if="{{!editLayout && paneOverflow.stem}}" class="pra-scroll-hint">区域内滑动阅读</text>
     </view>
@@ -30,22 +30,7 @@
     <view class="pra-pane pra-response-pane" style="{{editLayout && !previewFixed ? '' : 'height:' + paneHeights.response + 'px;'}}">
       <scroll-view class="pra-pane-scroll" scroll-y="{{(!editLayout || previewFixed) && !currentQuestion.isShortAnswer}}" enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{paneScroll.response}}" data-pane="response" bindscroll="onPaneScroll">
         <view class="pra-pane-content {{currentQuestion.isShortAnswer ? 'pra-textarea-content' : 'pra-options-content'}}" style="{{!currentQuestion.isShortAnswer ? 'min-height:' + paneHeights.response + 'px;' : ''}}" data-pane="response">
-<textarea data-no-swipe="true" adjust-position="{{editLayout}}" bindfocus="onAnswerFocus" bindblur="onAnswerBlur" bindkeyboardheightchange="onKeyboardHeight" wx:if="{{currentQuestion.isShortAnswer}}" value="{{answerText}}" disabled="{{answerLocked}}" maxlength="10000" placeholder="填写你的答案" bindinput="inputAnswerText" />
-        <view class="pra-options">
-          <view
-            wx:for="{{currentQuestion.options}}"
-            wx:key="key"
-            class="pra-option {{item.selected ? 'is-selected' : ''}} {{item.isCorrectOption ? 'is-correct' : ''}} {{item.isWrongOption ? 'is-wrong' : ''}}"
-            data-index="{{index}}"
-            bindtap="selectOption"
-            hover-class="pra-option-hover"
-            hover-start-time="0"
-            hover-stay-time="80"
-          >
-            <text class="pra-option-key">{{item.label}}</text>
-            <view class="pra-option-text"><rich-content text="{{(item.text) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" /></view>
-          </view>
-        </view>
+<include src="practice-response.wxml" />
         </view>
       </scroll-view>
       <text wx:if="{{!editLayout && !currentQuestion.isShortAnswer && paneOverflow.response}}" class="pra-scroll-hint">区域内滑动作答</text>
@@ -54,41 +39,7 @@
   <view id="layout-module-tools" class="pra-module module-tools {{editLayout ? 'layout-module' : ''}} {{dragId === 'tools' ? 'layout-dragging' : ''}}" hidden="{{!editLayout && keyboardCompact}}" style="order: {{layoutRanks.tools}};" data-module="tools">
     <view class="layout-insert" wx:if="{{editLayout && dragTarget === 'tools'}}">松手放在这里</view>
     <view class="layout-drag-surface" wx:if="{{editLayout}}" data-module="tools" aria-label="拖动{{moduleLabels.tools}}调整顺序" catchtouchstart="{{layoutDrag.start}}"></view>
-<view class="pra-tools">
-        <view class="pra-tool" bindtap="openFeedback" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80"><text class="pra-tool-text">纠错</text></view>
-        <view
-          class="pra-tool {{isCurrentQuestionFavorite ? 'on' : ''}}"
-          bindtap="toggleFavorite"
-          hover-class="chip-flat-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-        >
-          <view class="pra-tool-icon icon-star {{isCurrentQuestionFavorite ? 'on' : ''}}"></view>
-          <text class="pra-tool-text">{{favoriteSaving ? '保存中…' : '收藏'}}</text>
-        </view>
-
-        <view
-          class="pra-tool"
-          bindtap="openOverview"
-          hover-class="chip-flat-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-        >
-          <view class="pra-tool-icon icon-grid"></view>
-          <text class="pra-tool-text">答题卡</text>
-        </view>
-
-        <view
-          class="pra-tool {{isCurrentQuestionMarked ? 'marked' : ''}}"
-          bindtap="toggleMark"
-          hover-class="chip-flat-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-        >
-          <view class="pra-tool-icon icon-pen {{isCurrentQuestionMarked ? 'on' : ''}}"></view>
-          <text class="pra-tool-text">{{isCurrentQuestionMarked ? '已标记' : '标记'}}</text>
-        </view>
-      </view>
+<include src="practice-tools.wxml" />
   </view>
 </view>
 <view class="pra-body-pad"></view>
