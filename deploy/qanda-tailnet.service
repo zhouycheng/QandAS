@@ -1,0 +1,17 @@
+[Unit]
+Description=QandA project container network
+Requires=docker.service qanda-ops.service
+After=docker.service network-online.target qanda-ops.service
+Wants=network-online.target
+PartOf=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/lib/qanda/network-guard.py
+ExecStart=/usr/local/sbin/qanda-deployctl tailnet-run
+Restart=always
+RestartSec=10
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
