@@ -46,13 +46,17 @@
 
   <view class="mock-selection" wx:if="{{mockSelection}}"><view class="mock-selection-main"><text>选择模拟考章节</text><text class="config-note">点击章节或整科卡片开考 · 45 分钟</text></view><button class="q-button q-button--text" bindtap="handleExitMock" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">退出选择</button></view>
   <view class="catalog-content">
+  <view wx:if="{{catalogLoading && !rows.length}}" class="loading-skeleton catalog-skeleton" aria-label="正在加载题库">
+    <view class="skeleton-rail"></view>
+    <view class="skeleton-main"><view class="skeleton-block"></view><view wx:for="{{[1,2,3,4,5]}}" wx:key="*this" class="skeleton-block"></view></view>
+  </view>
   <view class="catalog-empty" wx:if="{{!catalogLoading && !catalogError && !subject}}">
     <view>当前筛选下暂无公开题库</view>
     <view bindtap="handleRequestCourse" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">反馈缺少课程</view>
   </view>
 
-  <view class="workbench" wx:if="{{subject}}">
-    <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}">
+  <view class="workbench" style="pointer-events: {{catalogSwitching || catalogError ? 'none' : 'auto'}};" wx:if="{{subject}}" hidden="{{catalogLoading && !rows.length}}">
+    <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-default-style="none" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
       <view class="rail-inner">
         <view
           class="rail-item {{railMode === 'recent' ? 'is-active' : ''}}"
@@ -66,9 +70,6 @@
             <text class="rail-name">最近在刷</text>
           </view>
         </view>
-
-        <view class="rail-divider"></view>
-        <view class="load-note" wx:if="{{subjectsHasMore}}" bindtap="handleSubjectsMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">更多科目</view>
 
         <view
           wx:for="{{subjects}}"
@@ -86,11 +87,13 @@
           </view>
         </view>
 
+        <view class="load-note" wx:if="{{subjectsHasMore}}" bindtap="handleSubjectsMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">更多科目</view>
       </view>
     </scroll-view>
 
-    <scroll-view class="panel" scroll-y enhanced bounces show-scrollbar="{{false}}">
+    <scroll-view class="panel" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
       <view class="panel-inner">
+        <view wx:if="{{catalogSwitching}}" class="load-note" aria-live="polite">正在加载…</view>
         <!-- 搜索态：跨科目命中，点一行直接配这一章 -->
         <block wx:if="{{searchActive}}">
           <view class="search-head">
@@ -177,7 +180,7 @@
     </scroll-view>
   </view>
 
-  <view class="catalog-status" wx:if="{{catalogLoading || catalogError}}" aria-live="polite">
+  <view class="catalog-status" wx:if="{{catalogError}}" aria-live="polite">
     <view class="load-note catalog-status-note" wx:if="{{catalogLoading}}">正在读取题库…</view>
     <view class="load-note catalog-status-note" wx:else bindtap="handleRetryLoad" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{catalogError}} · 点击重试</view>
   </view>
@@ -194,6 +197,21 @@
             <view class="config-row config-row-stacked" wx:if="{{!mockSelection}}"><text class="config-label">答题模式</text><view class="seg-group">
               <view wx:for="{{modeOptions}}" wx:key="value" class="seg-chip {{sheetMode === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetMode" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</view>
             </view></view>
+            <view class="config-row config-row-stacked" wx:if="{{sheetMode === 'practice'}}">
+              <text class="config-label">反馈时机</text>
+              <view class="seg-group config-wrap">
+                <button class="q-button seg-chip {{sheetFeedback === 'IMMEDIATE' ? 'is-active' : ''}}" data-value="IMMEDIATE" bindtap="handleSheetFeedback" aria-pressed="{{sheetFeedback === 'IMMEDIATE'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">即时反馈</button>
+                <button class="q-button seg-chip {{sheetFeedback === 'AFTER_FINISH' ? 'is-active' : ''}}" data-value="AFTER_FINISH" bindtap="handleSheetFeedback" aria-pressed="{{sheetFeedback === 'AFTER_FINISH'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">交卷后反馈</button>
+              </view>
+              <text class="config-note">{{sheetFeedback === 'IMMEDIATE' ? '确认答案后显示对错，可查看答案与解析' : '交卷后统一查看对错、答案与解析'}}</text>
+            </view>
+            <view class="config-row config-row-stacked" wx:if="{{sheetMode === 'practice'}}">
+              <text class="config-label">出题顺序</text>
+              <view class="seg-group config-wrap">
+                <button class="q-button seg-chip {{sheetOrder === 'order' ? 'is-active' : ''}}" data-value="order" bindtap="handleSheetOrder" aria-pressed="{{sheetOrder === 'order'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">顺序出题</button>
+                <button class="q-button seg-chip {{sheetOrder === 'random' ? 'is-active' : ''}}" data-value="random" bindtap="handleSheetOrder" aria-pressed="{{sheetOrder === 'random'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">随机出题</button>
+              </view>
+            </view>
             <view class="config-row config-row-stacked"><text class="config-label">这次做多少题</text><view class="seg-group config-wrap">
               <button wx:for="{{countOptions}}" wx:key="value" class="q-button seg-chip {{sheetCount === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" disabled="{{item.disabled}}" bindtap="handleSheetCount" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button>
             </view><text class="config-note" wx:if="{{sheetLimitHint}}">{{sheetLimitHint}}</text></view>
@@ -207,8 +225,13 @@
           </view>
         </view>
         <view slot="footer" class="config-actions">
+          <view class="config-preset-row">
           <picker class="config-preset" range="{{sheetPresets}}" range-key="name" value="{{sheetPresetIndex}}" disabled="{{!sheetPresets.length}}" bindchange="handleSheetPreset"><view class="preset-picker" aria-label="选择本次答题预设"><text class="preset-picker-label">{{sheetPresets.length ? '预设：' + sheetPresetName : '暂无模拟考预设'}}</text><image wx:if="{{sheetPresets.length}}" class="preset-picker-arrow" src="/assets/icons/arco-down.svg" mode="aspectFit" aria-hidden="true" /></view></picker>
+            <button class="q-button q-button--text" bindtap="handlePresetSave" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">保存为预设</button>
+          </view>
           <button class="q-button q-button--primary config-btn" disabled="{{sheetStartDisabled}}" bindtap="handleConfigConfirm" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{sheetStartText}}</button>
         </view>
   </bottom-sheet>
 </view>
+
+<include src="../../templates/refresh-status.wxml" />

@@ -8,15 +8,25 @@
 .layout-dragging { box-shadow: 0 8rpx 24rpx var(--brand-soft); opacity: .9; }
 .layout-insert { position: absolute; top: -10rpx; left: 0; right: 0; border-top: 5rpx solid var(--brand); color: var(--brand); font-size: var(--font-caption); z-index: 12; }
 .layout-end { color: var(--brand); border-top: 5rpx solid var(--brand); font-size: var(--font-caption); }
-.layout-editor .pra-content { padding-top: 4rpx; }
+.layout-editor .pra-content { padding-top: 4rpx; min-height: 100%; box-sizing: border-box; }
+.layout-editor .pra-module { flex: none; }
 .layout-editor .pra-stem { margin: 0; }
 .layout-editor .pra-meta, .layout-editor .pra-tools { margin: 0; padding: 0; }
-.layout-editor .pra-analysis { margin: 0; padding: 0; border: 0; }
-.layout-editor .pra-analysis-head { margin-bottom: 12rpx; }
 .layout-editor .pra-option { min-height: 80rpx; padding: 16rpx; margin-bottom: 12rpx; }
 .layout-editor .pra-option:last-child { margin-bottom: 0; }
 .layout-editor .pra-material { margin-bottom: 16rpx; padding: 16rpx; }
-.layout-editor .pra-body-pad { height: 12rpx; }
+.layout-editor .pra-body-pad { display: none; }
 .layout-tip { display: block; margin-bottom: 12rpx; color: var(--text-sub); font-size: var(--font-caption); line-height: var(--leading-caption); text-align: center; }
 .layout-actions { display: flex; gap: var(--space-md); }
 .layout-actions > .q-button { flex: 1; }
+
+.layout-ratio-rail { position: fixed; right: 6px; top: 50%; transform: translateY(-50%); z-index: 1200; width: 44px; padding: 8px 0; border: 1px solid var(--line); border-radius: 24px; background: rgba(255, 255, 255, .94); box-shadow: 0 3px 14px rgba(31, 41, 55, .12); text-align: center; }
+.layout-ratio-caption, .layout-ratio-value { display: block; font-size: var(--font-caption); line-height: 16px; }
+.layout-ratio-caption { color: var(--text-sub); }
+.layout-ratio-value { color: var(--brand); font-variant-numeric: tabular-nums; }
+.layout-ratio-step.q-button.q-button { width: 44px; height: 44px; min-height: 44px; padding: 0; font-size: 20px; border: 0; }
+.layout-ratio-track { position: relative; width: 44px; height: 144px; }
+.layout-ratio-channel { position: absolute; top: 0; bottom: 0; left: 12px; width: 20px; border-radius: 12px; background: var(--page-bg); pointer-events: none; }
+.layout-ratio-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 12px; background: var(--brand-soft); }
+.layout-ratio-thumb { position: absolute; left: 1px; width: 18px; height: 18px; box-sizing: border-box; margin-bottom: -9px; border: 2px solid var(--brand); border-radius: 50%; background: var(--card); }
+@media (max-height: 600px) { .layout-ratio-track { height: 104px; } }

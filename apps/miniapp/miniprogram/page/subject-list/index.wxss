@@ -1,3 +1,4 @@
+@import "../../styles/loading-skeleton.wxss";
 @import "../../styles/controls.wxss";
 /* 首页（原型 552:1410）
    蓝头 + 白底圆角内容区。整页背景交给头部渐变，页面本身不留 padding，
@@ -126,16 +127,16 @@
 }
 
 .hero-notice-icon-active {
-  animation: notice-call 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: notice-call 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* 招呼后停稳半个周期，回弹幅度逐次收小。 */
+/* 放大摇晃后停稳，回弹幅度逐次收小。 */
 @keyframes notice-call {
-  0%, 8%, 50%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-  14% { transform: translateY(1rpx) rotate(-3deg) scale(0.98); }
-  24% { transform: translateY(-5rpx) rotate(6deg) scale(1.04); }
-  33% { transform: translateY(-2rpx) rotate(-2.5deg) scale(1.01); }
-  41% { transform: translateY(-1rpx) rotate(1deg) scale(1); }
+  0%, 45%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  8% { transform: translateY(1rpx) rotate(-4deg) scale(0.96); }
+  17% { transform: translateY(-6rpx) rotate(16deg) scale(1.2); }
+  26% { transform: translateY(-4rpx) rotate(-16deg) scale(1.14); }
+  35% { transform: translateY(-2rpx) rotate(8deg) scale(1.07); }
 }
 
 /* ==================== 白色内容区 ==================== */
@@ -311,11 +312,7 @@
   opacity: 0.86;
 }
 
-/* ===== 四宫格图标 =====
-   四个入口各一种颜色（橙 / 绿 / 红 / 蓝），之前全是橙色、只靠形状区分，
-   用户反馈「配色风格太统一了，不容易识别」。
-   整块（圆角方块 + 渐变 + 白色字形）都由一张 SVG 画好，这里只管尺寸和投影，
-   免得再用 ::after 叠一层、两套颜色还要手动对齐。 */
+/* 四宫格复用喇叭色系，以斜向渐变和同色柔和投影呈现层次。 */
 .entry-icon {
   position: relative;
   width: 88rpx;
@@ -328,22 +325,26 @@
 
 /* 投影取各自的主色，压在同色背景上也看得出层次 */
 .entry-icon-recent {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjYiIGZpbGw9IiMyNTYzRUIiLz48cmVjdCB4PSIyNyIgeT0iMzEiIHdpZHRoPSI0MiIgaGVpZ2h0PSIzOSIgcng9IjgiIGZpbGw9IndoaXRlIi8+PHBhdGggZD0iTTM3IDI1djEybTIyLTEydjEyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Im00MSA1OSAxOC0xOCA2IDYtMTggMTgtOSAzeiIgZmlsbD0id2hpdGUiIHN0cm9rZT0iIzI1NjNFQiIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+");
+  box-shadow: 0 8rpx 20rpx rgba(232, 179, 35, 0.20);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJ0aWxlIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0ZGRTU4QSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0U4QjMyMyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgcng9IjI2IiBmaWxsPSJ1cmwoI3RpbGUpIi8+PHJlY3QgeD0iMjciIHk9IjMxIiB3aWR0aD0iNDIiIGhlaWdodD0iMzkiIHJ4PSI4IiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Ik0zNyAyNXYxMm0yMi0xMnYxMiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJtNDEgNTkgMTgtMTggNiA2LTE4IDE4LTkgM3oiIGZpbGw9IndoaXRlIiBzdHJva2U9IiNFOEIzMjMiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==");
 
 }
 
 .entry-icon-mock {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjYiIGZpbGw9IiMyNTYzRUIiLz48cmVjdCB4PSIyOSIgeT0iMzAiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MyIgcng9IjkiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iNDAiIHk9IjI0IiB3aWR0aD0iMTgiIGhlaWdodD0iMTEiIHJ4PSI1IiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Im00MCA1MSA3IDcgMTItMTMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzI1NjNFQiIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=");
+  box-shadow: 0 8rpx 20rpx rgba(38, 61, 104, 0.20);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJ0aWxlIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzY0N0NBQiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzI2M0Q2OCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgcng9IjI2IiBmaWxsPSJ1cmwoI3RpbGUpIi8+PHJlY3QgeD0iMjkiIHk9IjMwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDMiIHJ4PSI5IiBmaWxsPSJ3aGl0ZSIvPjxyZWN0IHg9IjQwIiB5PSIyNCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjExIiByeD0iNSIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJtNDAgNTEgNyA3IDEyLTEzIiBmaWxsPSJub25lIiBzdHJva2U9IiMyNjNENjgiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+");
 
 }
 
 .entry-icon-wrong {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjYiIGZpbGw9IiMyNTYzRUIiLz48cmVjdCB4PSIyOCIgeT0iMjkiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0NCIgcng9IjkiIGZpbGw9IndoaXRlIi8+PHBhdGggZD0iTTI1IDM5aDltLTkgMTJoOW0tOSAxMmg5IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Im00MiA0NSAxMyAxM20wLTEzTDQyIDU4IiBzdHJva2U9IiMyNTYzRUIiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+");
+  box-shadow: 0 8rpx 20rpx rgba(240, 75, 64, 0.20);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJ0aWxlIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0ZGOTE4OCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0YwNEI0MCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgcng9IjI2IiBmaWxsPSJ1cmwoI3RpbGUpIi8+PHJlY3QgeD0iMjgiIHk9IjI5IiB3aWR0aD0iNDAiIGhlaWdodD0iNDQiIHJ4PSI5IiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Ik0yNSAzOWg5bS05IDEyaDltLTkgMTJoOSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJtNDIgNDUgMTMgMTNtMC0xM0w0MiA1OCIgc3Ryb2tlPSIjRjA0QjQwIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==");
 
 }
 
 .entry-icon-favorite {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjYiIGZpbGw9IiMyNTYzRUIiLz48cGF0aCBkPSJNMjcgMzNoMTRsNiA3aDIyYTcgNyAwIDAgMSA3IDd2MTlhNyA3IDAgMCAxLTcgN0gyN2E3IDcgMCAwIDEtNy03VjQwYTcgNyAwIDAgMSA3LTciIGZpbGw9IndoaXRlIi8+PHBhdGggZD0ibTQ4IDQ2IDMgNyA3IDEtNiA0IDIgNy02LTQtNiA0IDItNy02LTQgNy0xeiIgZmlsbD0iIzI1NjNFQiIvPjwvc3ZnPg==");
+  box-shadow: 0 8rpx 20rpx rgba(64, 92, 140, 0.20);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJ0aWxlIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzgyOTdCRSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzQwNUM4QyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgcng9IjI2IiBmaWxsPSJ1cmwoI3RpbGUpIi8+PHBhdGggZD0iTTI3IDMzaDE0bDYgN2gyMmE3IDcgMCAwIDEgNyA3djE5YTcgNyAwIDAgMS03IDdIMjdhNyA3IDAgMCAxLTctN1Y0MGE3IDcgMCAwIDEgNy03IiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Im00OCA0NiAzIDcgNyAxLTYgNCAyIDctNi00LTYgNCAyLTctNi00IDctMXoiIGZpbGw9IiM0MDVDOEMiLz48L3N2Zz4=");
 
 }
 
@@ -487,30 +488,6 @@
   padding: 0 4rpx 8rpx;
 }
 
-/* 弹窗顶部的喇叭徽标：与入口同一个图形，让「点的是它、弹出来的是它」对得上 */
-.notice-badge {
-  width: 96rpx;
-  height: 96rpx;
-  margin: 8rpx auto 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--brand-soft);
-}
-
-.notice-badge-icon {
-  display: block;
-  width: 80rpx;
-  height: 80rpx;
-}
-
-.notice-item + .notice-item {
-  margin-top: 32rpx;
-  padding-top: 32rpx;
-  border-top: 1rpx solid var(--line);
-}
-
 .notice-empty {
   display: block;
   text-align: center;
@@ -529,18 +506,15 @@
 
 .notice-body {
   display: block;
-  margin-top: 20rpx;
+  margin-top: 4px;
   font-size: var(--font-secondary);
   line-height: 1.8;
   color: var(--text-sub);
   white-space: pre-wrap;
 }
-.home-continue { display: flex; align-items: center; justify-content: space-between; margin-top: 24rpx; padding: 24rpx; border: 2rpx solid var(--page-bg); border-radius: var(--radius-card); background: var(--card); }
-.continue-detail { flex: 1; min-width: 0; }
 .continue-title { display: block; color: var(--text-main); font-size: var(--font-body); font-weight: 600; }
 .continue-subtitle { display: block; margin-top: 8rpx; color: var(--text-sub); font-size: var(--font-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.continue-arrow { margin-left: 16rpx; color: var(--text-sub); font-size: var(--font-title); }
-.home-create { margin-top: 24rpx; padding: 24rpx; border: 2rpx solid var(--page-bg); border-radius: var(--radius-card); background: var(--card); }
+.home-continue, .home-create { margin-top: 24rpx; padding: 24rpx; border: 2rpx solid var(--page-bg); border-radius: var(--radius-card); background: var(--card); }
 .recent-picker { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; padding: 18rpx 20rpx; border-radius: var(--radius-tag); background: var(--page-bg); }
 .recent-picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-secondary); color: var(--text-main); }
 .recent-picker-arrow { margin-left: 16rpx; font-size: var(--font-secondary); color: var(--text-sub); }
@@ -554,3 +528,22 @@
 .exam-head { flex-wrap: wrap; row-gap: 4px; }
 
 .new-practice-button { margin-top: var(--space-md); }
+
+.home-pinned { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: var(--font-secondary); color: var(--text-sub); }
+.home-pinned-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-main); }
+.notice-pin { color: var(--brand); }
+.notice-date { display: block; margin-top: 0; color: var(--text-sub); font-size: var(--font-caption); }
+.notice-list-row { min-height: 44px; }
+
+.notice-tabs { flex: none; min-width: 0; margin-top: -6px; padding: 0 32rpx; }
+.notice-tabs-scroll { width: 100%; }
+.notice-tabs-track { display: flex; align-items: center; padding: 4px 0 0; }
+.notice-tab { position: relative; flex: none; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: auto; max-width: 104px; height: 44px; margin-right: 6px; padding: 0 10px; border: 0; background: transparent; }
+/* 32px 胶囊保留上下各 6px 的透明触控区域。 */
+.notice-tab::before { content: ''; position: absolute; left: 0; right: 0; top: 6px; bottom: 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--page-bg); pointer-events: none; }
+.notice-tab-selected::before { border-color: var(--brand); background: var(--brand-soft); }
+.notice-tab-badge { position: absolute; width: 40px; height: 24px; right: 2px; top: -4px; z-index: 2; pointer-events: none; }
+.notice-tab-title { position: relative; display: block; flex: 0 1 auto; min-width: 0; max-width: 84px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; font-size: 12px; line-height: 18px; color: var(--text-main); }
+.notice-more { flex: none; }
+.notice-title { text-align: left; font-size: 18px; line-height: 26px; }
+.notice-body { font-size: 14px; color: var(--text-main); line-height: 1.65; }

@@ -1,8 +1,8 @@
-const { MODES, DURATIONS, countOptions } = require('../utils/practice-presets.js')
+const { MODES, DURATIONS, countOptions, feedbackForMode, orderForMode } = require('../utils/practice-presets.js')
 const DEFAULT_DURATION_MINUTES = 10
 const MODE_OPTIONS = MODES
 const DURATION_OPTIONS = DURATIONS
-const DEFAULT_SHEET = { count: 20, mode: 'practice', duration: 0, onlyWrong: false }
+const DEFAULT_SHEET = { count: 20, mode: 'practice', feedback: 'IMMEDIATE', order: 'order', duration: 0, onlyWrong: false }
 function resolveModeValue(value) { return MODE_OPTIONS.some(option => option.value === value) ? value : 'practice' }
 function resolveRouteMode(sheet) { return sheet.mode === 'practice' ? sheet.order === 'random' ? 'practice' : 'order' : sheet.mode }
 function buildPracticeConfig(sheet, target, selected, wrongCount) {
@@ -17,7 +17,7 @@ function buildPracticeConfig(sheet, target, selected, wrongCount) {
     sheetSomeBanksSelected: !!(selected.length && target && target.banks && selected.length < target.banks.length),
     sheetStartDisabled: !!(target && target.banks && !selected.length) || !count || allSelected && count > 1000 || !!sheet.durationError || !!sheet.scopeLoading || !!sheet.scopeError,
     sheetCount: allSelected ? 'ALL' : sheet.count,
-    countOptions: countOptions(count, sheet.count), sheetMode: sheet.mode,
+    countOptions: countOptions(count, sheet.count), sheetMode: sheet.mode, sheetFeedback: feedbackForMode(sheet), sheetOrder: orderForMode(sheet),
     sheetModeDescription: MODE_OPTIONS.find(option => option.value === sheet.mode).description,
     sheetDuration: sheet.duration, sheetDurationCustom: sheet.durationCustom || !DURATIONS.some(option => option.value === sheet.duration),
     sheetDurationError: sheet.durationError || '', sheetScopeLoading: !!sheet.scopeLoading, sheetScopeError: sheet.scopeError || '',

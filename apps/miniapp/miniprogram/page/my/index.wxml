@@ -89,3 +89,5 @@
     >知道了</button>
   </view>
 </bottom-sheet>
+
+<include src="../../templates/refresh-status.wxml" />

@@ -3,7 +3,7 @@
  * 答题页样式（按 2026-10-27 设计稿重做）
  *
  * 答题与布局编辑共用同一套骨架：
- *   顶部导航 → 进度条 → 五个可排序内容模块 → 上一题/下一题
+ *   顶部导航 → 进度条 → 可排序内容模块 → 上一题/下一题
  *
  * 换算：设计板 402px 宽 → rpx = px × 1.8657
  *
@@ -51,6 +51,7 @@
 }
 
 .pra-meta-index {
+  flex: none;
   font-size: var(--font-caption);
   font-weight: 600;
   color: var(--brand);
@@ -64,8 +65,10 @@
   background: var(--page-bg);
   border-radius: 8rpx;
 }
+.pra-meta-tags { display: flex; flex-wrap: wrap; gap: 6rpx; margin-right: 12rpx; }
 
 .pra-meta-timer {
+  flex: none;
   margin-left: auto;
   font-size: var(--font-caption);
   color: var(--text-sub);
@@ -91,7 +94,7 @@
   padding-top: var(--space-md);
 }
 
-/* 答题态使用固定分区；布局编辑保留自然高度和外层拖拽滚动。 */
+/* 答题态使用固定分区；布局编辑使用相同比例预览和外层拖拽滚动。 */
 .pra-pane { position: relative; min-width: 0; }
 .pra-viewport .pra-body { overflow: hidden; }
 .pra-viewport .pra-content { height: 100%; min-height: 0; gap: var(--space-md); padding-bottom: var(--space-md); }
@@ -105,7 +108,6 @@
 .pra-viewport .pra-textarea-content textarea { height: 100%; min-height: 0; }
 .pra-viewport .pra-analysis { margin-top: 0; padding-top: 0; border-top: 0; }
 .pra-viewport .pra-analysis-head { flex-wrap: wrap; gap: var(--space-xs); }
-.pra-viewport .pra-explanation.is-open .pra-explanation-text { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .pra-viewport .load-note { flex: none; }
 .pra-keyboard-open .pra-footer { padding-bottom: var(--space-md); }
 .pra-scroll-hint { position: absolute; right: 0; bottom: 0; padding: 0 6px; font-size: var(--font-caption); line-height: 18px; color: var(--text-sub); background: var(--card); pointer-events: none; }
@@ -128,6 +130,8 @@
   display: flex;
   flex-direction: column;
 }
+.pra-options-content { display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box; }
+.pra-options-content .pra-option:last-child { margin-bottom: 0; }
 
 /* 选项：白底卡片 + 字母圆标。选中 / 答对 / 答错三态靠底色 + 描边区分 */
 .pra-option {
@@ -238,26 +242,11 @@
   margin-bottom: 10rpx;
 }
 
-/* 长解析默认收到 5 行，避免把选项挤出屏幕（设计稿「剩下的收起来了」） */
 .pra-explanation-text {
-  display: -webkit-box;
+  display: block;
   font-size: var(--reading-size, var(--reading-normal));
   line-height: 1.65;
   color: var(--text-sub);
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-}
-
-.pra-explanation.is-open .pra-explanation-text {
-  -webkit-line-clamp: 99;
-}
-
-.pra-explanation-toggle {
-  margin-top: 14rpx;
-  font-size: var(--font-caption);
-  color: var(--brand);
-  transition: opacity 100ms ease;
 }
 
 .pra-explanation-muted {
@@ -805,6 +794,7 @@
 
 /* 字母圆标是固定尺寸的圆圈，字号变大时圈也得放大，否则字会顶边 */
 .pra-content .pra-meta { padding: 0; }
+.pra-viewport .module-info .pra-meta { padding-top: 8px; }
 .pra-module { position: relative; margin-bottom: var(--space-lg); }
 .pra-content .pra-tools { padding: 0; margin: 0; }
 .pra-module textarea { width: 100%; min-height: 180rpx; padding: 20rpx; box-sizing: border-box; background: var(--page-bg); border-radius: var(--radius-tag); }
@@ -825,3 +815,6 @@
 .pra-option.is-wrong .pra-option-key { background: var(--danger); color: var(--card); }
 .pra-material, .pra-scoring, .pra-blank input, .pra-module textarea { font-size: var(--reading-size, var(--reading-normal)); line-height: 1.65; }
 .pra-option-key { min-width: 24px; min-height: 24px; width: 1.65em; height: 1.65em; font-size: var(--reading-size, var(--reading-normal)); line-height: 1.65; }
+
+.layout-editor .pra-pane-scroll { height: 100%; }
+.layout-editor .pra-pane { overflow: hidden; }

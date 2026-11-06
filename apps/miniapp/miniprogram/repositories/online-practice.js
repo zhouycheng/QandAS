@@ -1,4 +1,4 @@
-const { timeLimitSeconds } = require('../utils/practice-presets.js')
+const { timeLimitSeconds, feedbackForMode } = require('../utils/practice-presets.js')
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const { createSyncQueue } = require('./practice-sync-queue.js')
@@ -112,7 +112,7 @@ class OnlinePractice {
       let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(this.storage, options.selectionKey, bankIds) : null
       if (!preview && bankIds.length > 1) preview = await this.required('POST', '/practice/scope-preview', scope)
       if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-      intent = { routeKey, route: Object.assign({}, options, normalizePracticeOptions(null, getPreferences(this.storage))), key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options), deviceId: this.deviceId() } }
+      intent = { routeKey, route: Object.assign({}, options, normalizePracticeOptions(null, getPreferences(this.storage))), key: http.uuid(), title: options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name), body: { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: feedbackForMode(options), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options), deviceId: this.deviceId() } }
       intents = this.storage.get(storageKey) || []
       this.storage.set(storageKey, intents.concat(intent))
     }

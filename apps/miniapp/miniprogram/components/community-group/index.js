@@ -7,9 +7,19 @@ Component({
     attached() { this.active = true; this.viewModel = new CommunityGroupViewModel(); this.refresh(false) },
     detached() { this.active = false; clearTimeout(this.expiryTimer) }
   },
+  pageLifetimes: {
+    show() { this.pageShown = true; this.refresh(false) },
+    hide() { this.pageShown = false; this.refreshPromise = null; this.refreshVersion = (this.refreshVersion || 0) + 1; clearTimeout(this.expiryTimer); this.setData({ loading: false }) }
+  },
   methods: {
-    async refresh(preview) {
-      if (this.data.loading) return
+    refresh(preview) {
+      if (this.refreshPromise) return this.refreshPromise
+      const pending = this.loadGroup(preview).finally(() => { if (this.refreshPromise === pending) this.refreshPromise = null })
+      this.refreshPromise = pending
+      return pending
+    },
+    async loadGroup(preview) {
+      const version = this.refreshVersion = (this.refreshVersion || 0) + 1
       this.setData({ loading: true, message: '' })
       const result = await this.viewModel.load(preview === true)
       if (this.data.hideUnavailable && result.data.imageUrl) {
@@ -19,7 +29,7 @@ Component({
           result.command = null
         }
       }
-      if (!this.active) return
+      if (!this.active || this.pageShown === false || this.refreshVersion !== version) return
       this.setData(result.data)
       clearTimeout(this.expiryTimer)
       if (result.data.imageUrl) {

@@ -2,15 +2,16 @@
 <view class="portal-theme bottom-sheet" wx:if="{{visible}}">
   <view class="mask" catchtouchmove="noop" catchtap="handleMaskTap"></view>
 
-  <view catchtap="noop" hover-class="none" class="panel {{placement === 'center' ? 'panel-center' : ''}}">
+  <view catchtap="noop" hover-class="none" class="panel {{placement === 'center' ? 'panel-center' : ''}} {{fixedFooter ? 'panel-fixed-footer' : ''}}">
     <view wx:if="{{placement !== 'center'}}" class="panel-grip"></view>
     <view class="panel-header">
       <text class="panel-title">{{title}}</text>
       <button class="panel-close" bindtap="handleCloseTap" aria-label="关闭{{title || '弹层'}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80"><image class="panel-close-image" src="/assets/icons/arco-close.svg" mode="aspectFit" aria-hidden="true" /></button>
     </view>
 
-    <scroll-view class="panel-body" scroll-y enhanced show-scrollbar="{{false}}">
-      <slot></slot>
+    <slot name="header-extra"></slot>
+    <scroll-view class="panel-body" scroll-y enhanced show-scrollbar="{{false}}" scroll-top="{{scrollTop}}" bindscroll="handleBodyScroll">
+      <view class="panel-body-content"><slot></slot></view>
     </scroll-view>
     <view class="panel-footer" wx:if="{{fixedFooter}}"><slot name="footer"></slot></view>
   </view>

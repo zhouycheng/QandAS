@@ -37,7 +37,7 @@ const cells = ITEMS.map(([key, label, badge]) => {
 
   return `<div class="it">
   <div class="icon-wrap">
-    <div class="ic" style="background-image:url(data:image/svg+xml;base64,${base64 || ''})"></div>
+    <div class="ic entry-icon-${key}" style="background-image:url(data:image/svg+xml;base64,${base64 || ''})"></div>
     ${badgeHtml}
   </div>
   <div class="lb">${label}</div>
@@ -55,6 +55,7 @@ const html = `<!doctype html>
   .icon-wrap { position: relative; }
   .ic { width: 88px; height: 88px; border-radius: 24px;
         background-repeat: no-repeat; background-position: center; background-size: 100% 100%; }
+  ${ITEMS.map(([key]) => '.entry-icon-' + key + '{' + (css.match(new RegExp('\\.entry-icon-' + key + '\\s*\\{([^}]+)')) || [,''])[1].replace(/background-image:[^;]+;/, '').replace(/(-?[0-9.]+)rpx/g, (_, n) => Number(n) + 'px') + '}').join('\n')}
   /* 与 .entry-badge 同参数：34rpx→17px、白边 1.5px、压在右上角 */
   .bd { position: absolute; top: -5px; right: -7px; min-width: 17px; height: 17px;
         padding: 0 4.5px; display: flex; align-items: center; justify-content: center;

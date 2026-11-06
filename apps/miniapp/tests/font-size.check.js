@@ -2,15 +2,7 @@
  * 题目字号 —— Node 自检脚本。
  * 运行：node apps/miniapp/tests/font-size.check.js
  *
- * 起因：用户反馈「字号点了不起作用」。查下来链路（点击 → 落盘 → 选中态）本身是通的，
- * 真问题是两条：
- *   1. 三档只差 4~5rpx，手机上根本看不出变化，等于没做；
- *   2. 字号只在答题页生效，题目详情页完全没接。
- *
- * 所以这里锁死三件事：
- *   1. 三档数值差距足够大，且方向正确（小 < 标准 < 大）；
- *   2. 「读题」场景（答题页 + 题目详情页）都带 font-* 类并有对应规则；
- *   3. 设置页选完当场有预览，不依赖重新进答题页。
+ * 覆盖五档阅读字号、实时预览、落盘失败恢复及答题与详情页的共享样式。
  */
 const fs = require('fs')
 const path = require('path')
@@ -40,6 +32,7 @@ function createMemoryStorage(initial) {
     },
 
     set(key, value) {
+      if (this.full) throw new Error('存储已满')
       map[key] = value
     },
 
@@ -79,7 +72,8 @@ function pickDefaultFontSize(wxss, target) {
 function checkPreferences() {
   const options = preferenceUtils.FONT_SIZE_OPTIONS.map((item) => item.value).join(',')
 
-  assert('偏好 - 字号三档齐全', options === 'small,normal,large', options)
+  assert('偏好 - 字号五档齐全', options === 'small,normal,large,xlarge,xxlarge', options)
+  assert('偏好 - 标准为18px，五档数值确定', JSON.stringify(Object.values(readingSizes)) === '[14,18,20,22,24]')
   assert('偏好 - 默认是标准', preferenceUtils.DEFAULT_PREFERENCES.fontSize === 'normal')
   assert('偏好 - 非法值回落标准',
     preferenceUtils.normalizePreferences({ fontSize: 'huge' }).fontSize === 'normal')
@@ -108,18 +102,35 @@ function checkSettings() {
   const small = vm.selectChoice('fontSize', 'small')
 
   assert('设置 - 选小后回传 small', small.data.fontSize === 'small', small.data.fontSize)
+  for (const [index, option] of preferenceUtils.FONT_SIZE_OPTIONS.entries()) {
+    const saved = storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).fontSize
+    const preview = vm.previewFont(index)
+    assert('滑杆 - 实时预览 ' + option.label, preview.data.fontSize === option.value && preview.data.fontIndex === index && preview.data.fontLabel === option.label)
+    assert('滑杆 - 拖动不落盘 ' + option.label, storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).fontSize === saved)
+    assert('滑杆 - 松手保存 ' + option.label, vm.saveFont(index).data.fontSize === option.value && storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).fontSize === option.value)
+  }
+  storage.full = true
+  vm.previewFont(0)
+  const failed = vm.saveFont(0)
+  assert('滑杆 - 保存失败恢复已保存的超大档', failed.data.fontSize === 'xxlarge' && failed.data.fontIndex === 4 && !!failed.command)
+  storage.full = false
+  assert('滑杆 - 拒绝非法档位', [-1, 5, 0.5, '2', NaN].every(index => vm.previewFont(index) === null && vm.saveFont(index) === null))
+  assert('滑杆 - 恢复默认回到18px', vm.resetPreferences().data.fontIndex === 1)
 
   const wxml = readFile('page/settings/index.wxml')
   const wxss = readFile('page/settings/index.wxss')
 
   assert('设置 - 预览块绑了当前字号', wxml.indexOf('font-{{fontSize}}') >= 0)
   assert('设置 - 字号预览仍在偏好页面', wxml.includes('{{fontPreviewText}}'))
+  assert('设置 - 滑杆先于固定高度预览', wxml.indexOf('<slider') < wxml.indexOf('class="font-preview"') && /\.font-preview\s*\{[^}]*height:\s*160px/.test(wxss))
+  assert('设置 - 档位覆盖原生宽度并支持44px点击区域', /\.font-stop\.q-button\s*\{[^}]*width:\s*44px[^}]*min-height:\s*44px/.test(wxss))
+  assert('设置 - 五段滑杆绑定预览与保存', wxml.includes('max="4" step="1"') && wxml.includes('bindchanging="handleFontChanging"') && wxml.includes('bindchange="handleFontChange"'))
   assert('设置 - 预览有两档字号规则',
     pickFontSize(wxss, 'small', 'font-preview-text') > 0 &&
       pickFontSize(wxss, 'large', 'font-preview-text') > 0)
 }
 
-// ---------- 三、答题页：三档差距要够大 ----------
+// ---------- 三、答题页：五档共用阅读尺度 ----------
 function checkPracticeScale() {
   const wxss = readFile('styles/practice.wxss')
   const wxml = readFile('page/practice/index.wxml')
@@ -130,6 +141,7 @@ function checkPracticeScale() {
   const targets = ['pra-stem', 'pra-option-text', 'pra-explanation-text', 'res-item-stem']
 
   targets.forEach((target) => {
+    assert(`答题页 - .${target} 五档都应用实际字号`, Object.entries(readingSizes).every(([scale, size]) => pickFontSize(wxss, scale, target) === size))
     const small = pickFontSize(wxss, 'small', target)
     const large = pickFontSize(wxss, 'large', target)
     const base = pickDefaultFontSize(wxss, target)

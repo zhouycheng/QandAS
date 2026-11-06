@@ -1,7 +1,20 @@
 const { blankAnswerText } = require('../utils/fill-blank.js')
 const { formatTimer } = require('./practice-view-data.js')
+const { materialKey } = require('../utils/practice-layout.js')
 function projectPractice(session) {
     const data = Object.assign({}, session.state)
+    const key = materialKey(data.currentQuestion)
+    const group = key ? session.state.questions.filter(q => materialKey(q) === key) : []
+    data.readingGroupTotal = group.length
+    data.readingGroupNumber = group.findIndex(q => q.id === (data.currentQuestion && data.currentQuestion.id)) + 1
+    data.readingGroupUnansweredCount = 0
+    data.readingGroupDraftCount = 0
+    session.state.questions.forEach((question, index) => {
+      if (!key || materialKey(question) !== key) return
+      const answer = session.state.answers[index]
+      if (!session.hasInput(question, answer)) data.readingGroupUnansweredCount++
+      else if (answer.confirmed === false) data.readingGroupDraftCount++
+    })
 
     /**
      * 结果页要显示「用时」。

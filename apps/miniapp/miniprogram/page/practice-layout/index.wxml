@@ -6,10 +6,19 @@
     <view class="layout-end" wx:if="{{dragTarget === 'end'}}">松手放在这里</view>
   </scroll-view>
   <view class="pra-footer">
-    <text class="layout-tip">可以自定义的拖拽模块的位置</text>
+    <text class="layout-tip">拖动模块调整顺序，右侧调节题干与作答比例</text>
     <view class="layout-actions">
       <button class="q-button" bindtap="handleResetLayout" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">恢复默认</button>
       <button class="q-button q-button--primary {{!layoutDirty ? 'q-button--disabled' : ''}}" disabled="{{!layoutDirty}}" bindtap="handleSaveLayout" hover-class="{{layoutDirty ? 'q-button-hover' : 'none'}}" hover-start-time="0" hover-stay-time="80">保存</button>
     </view>
   </view>
+</view>
+<view class="portal-theme layout-ratio-rail">
+  <text class="layout-ratio-caption">题干</text><text class="layout-ratio-value">{{stemPercent}}%</text>
+  <button class="q-button q-button--text layout-ratio-step" data-step="5" bindtap="handleRatioStep" disabled="{{stemPercent >= 70}}" aria-label="增加题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">＋</button>
+  <view class="layout-ratio-track" aria-role="slider" aria-label="上下拖动调整题干与作答占比" aria-valuemin="30" aria-valuemax="70" aria-valuenow="{{stemPercent}}" catchtouchstart="handleRatioTouchStart" catchtouchmove="handleRatioTouchMove" catchtouchend="handleRatioTouchEnd" catchtouchcancel="handleRatioTouchCancel">
+    <view class="layout-ratio-channel"><view class="layout-ratio-fill" style="height: {{(stemPercent - 30) / 40 * 100}}%;"></view><view class="layout-ratio-thumb" style="bottom: {{(stemPercent - 30) / 40 * 100}}%;"></view></view>
+  </view>
+  <button class="q-button q-button--text layout-ratio-step" data-step="-5" bindtap="handleRatioStep" disabled="{{stemPercent <= 30}}" aria-label="减少题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">－</button>
+  <text class="layout-ratio-caption">作答</text><text class="layout-ratio-value">{{100 - stemPercent}}%</text>
 </view>

@@ -31,12 +31,14 @@ The build uses the official WeChat npm builder. `tests/compile.check.js` locates
 - Keep `usingComponents: {}` on secondary pages even when components are global.
 - Use the shared page header and native navigation. Compute status and capsule insets once per header and update on resize.
 - The custom tab bar reserves no space. Tab scroll contents retain bottom clearance and safe-area padding. Each tab updates selection on show. Hit targets stay inside their slot.
+- Tab pull refresh shares lifecycle feedback and deduplicates in-flight work. Hidden community entries must retain their component instance and retry on page show or pull refresh, without polling.
 - Shared overlays use root-portal, intercept background touch and close on hide. Apply the portal theme at its boundary.
 - Isolated components define all classes they use, including pressed and modifier states. WXSS disallows universal selectors and local background-image paths.
 - Preserve native input nodes and cursor position. Focused inputs are not rewritten by timer or sync updates. Native textareas must retain touchstart behavior needed for focus.
 - Practice pages send sparse view patches while Models retain complete projections. Regress result filters, answer cards and indexed array updates.
 - Hover feedback preserves geometry. Practice hover classes inside scroll-view use opacity, not transform.
-- Module ordering uses stable nodes and CSS order. Drag cancellation and failed persistence restore the previous order. Layout reset preserves unrelated preferences.
+- All practice modes support swipe navigation when enabled. Persist the swipe toggle and draft behavior in session options; boundary swipes never submit. Keep reading material state by revision and restore the same material position between subquestions.
+- Module ordering uses stable nodes and CSS order. Fixed stem/response panes must not shrink to natural content height; options align to the bottom of their pane and overflow scrolls normally. Save their ratio and module order atomically. Layout previews allocate the actual remaining viewport height, including module padding, borders and margins. Analysis uses a page-local TopSheet only after confirmed immediate feedback; its handle must not exist before disclosure. Handle drags own the gesture; scrolling the explanation must not drag the sheet. Close overlays on hide and question change. Drag cancellation and failed persistence preserve saved preferences and editable drafts. Layout reset preserves unrelated preferences.
 - Avatar selection uses native chooseAvatar and nickname inputs. Equal button dimensions prevent oval avatars. Normalize nullable component values at call sites.
 - Account profile editing lives in `page/account`; device-local catalog filters live in `catalog-filters.js`.
 - Guest quota and complete snapshots persist atomically; failed storage must not consume quota. Logout retains account-scoped drafts.

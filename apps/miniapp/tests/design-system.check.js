@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '../miniprogram')
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 assert.equal(read('styles/theme.wxss'), generateTheme())
 assert.equal(read('styles/page-theme.wxss'), generateTheme('page'))
-assert.deepEqual(Object.values(tokens.readingSizes), [12, 14, 18])
+assert.deepEqual(Object.values(tokens.readingSizes), [14, 18, 20, 22, 24])
 assert.deepEqual(Object.values(tokens.fontSizes), [11, 12, 14, 16, 18, 24])
 for (const [file, selector] of [['page/subject-list/index.wxss', 'hero-brand'], ['page/bank-detail/index.wxss', 'bk-title'], ['page/stats/index.wxss', 'page-head-title'], ['page/my/index.wxss', 'page-head-title']]) {
   const rule = readStyles(path.join(root, file)).match(new RegExp('\\.' + selector + '\\s*\\{([^}]+)'))[1]
@@ -32,10 +32,10 @@ const home = read('page/subject-list/index.wxss')
 for (const name of ['recent', 'mock', 'wrong', 'favorite']) {
   const match = home.match(new RegExp(`\\.entry-icon-${name}\\s*\\{[^}]*base64,([^"\\s]+)`))
   const svg = Buffer.from(match[1], 'base64').toString()
-  assert.ok(svg.includes(tokens.colors.brand))
-  assert.ok(!svg.includes('Gradient'), name + ' solid icon')
+  assert.ok(tokens.homeEntryColors[name].every(color => svg.includes(color)), name + ' megaphone palette')
+  assert.ok(svg.includes('<linearGradient') && svg.includes('fill="url(#tile)"'), name + ' gradient tile')
 }
 const settings = read('page/settings/index.wxml')
 assert.ok(settings.indexOf('settings-actions') > settings.indexOf('font-preview'))
 assert.equal(JSON.parse(read('app.json')).tabBar.selectedColor, tokens.colors.brand)
-console.log('视觉规范通过：主题生成、隔离组件、阅读档位、对比度、纯色入口和底部恢复默认')
+console.log('视觉规范通过：主题生成、隔离组件、阅读档位、对比度、渐变入口和底部恢复默认')

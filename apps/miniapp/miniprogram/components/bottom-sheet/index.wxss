@@ -76,7 +76,7 @@
   border-bottom: none;
 }
 
-.panel-center .panel-body {
+.panel-center .panel-body-content {
   padding: 0 32rpx 32rpx;
 }
 
@@ -104,8 +104,16 @@
   box-sizing: border-box;
   width: 100%;
   max-height: 62vh;
+  overflow: hidden;
+}
+
+.panel-body-content {
   padding: 24rpx 32rpx 32rpx;
 }
+
+/* A definite height lets the native scroll-view shrink above the fixed footer. */
+.panel-fixed-footer { height: 85vh; }
+.panel-fixed-footer .panel-body { height: 0; max-height: none; }
 
 .panel-grip { flex: none; width: 72rpx; height: 8rpx; margin: 16rpx auto 0; border-radius: 999rpx; background: var(--line); }
 .panel-footer { flex: none; padding: 16rpx 32rpx 28rpx; }

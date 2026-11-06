@@ -1,0 +1,16 @@
+<textarea data-no-swipe="true" adjust-position="{{editLayout}}" bindfocus="onAnswerFocus" bindblur="onAnswerBlur" bindkeyboardheightchange="onKeyboardHeight" wx:if="{{currentQuestion.isShortAnswer}}" value="{{answerText}}" disabled="{{answerLocked}}" maxlength="10000" placeholder="填写你的答案" bindinput="inputAnswerText" />
+        <view class="pra-options">
+          <view
+            wx:for="{{currentQuestion.options}}"
+            wx:key="key"
+            class="pra-option {{item.selected ? 'is-selected' : ''}} {{item.isCorrectOption ? 'is-correct' : ''}} {{item.isWrongOption ? 'is-wrong' : ''}}"
+            data-index="{{index}}"
+            bindtap="selectOption"
+            hover-class="pra-option-hover"
+            hover-start-time="0"
+            hover-stay-time="80"
+          >
+            <text class="pra-option-key">{{item.label}}</text>
+            <view class="pra-option-text"><rich-content text="{{(item.text) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" /></view>
+          </view>
+        </view>

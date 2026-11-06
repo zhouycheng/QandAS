@@ -26,7 +26,7 @@ assert.deepEqual(data.learnRows.map(row => row.key), ['practice', 'layout', 'fee
 assert.equal(vm.tapRow('content-confirm'), null)
 assert.equal(vm.tapRow('profile').command.url, '/page/account/index')
 for (const [key, route] of Object.entries({ account: 'account', practice: 'settings', layout: 'practice-layout', countdown: 'exam-countdown', 'account-deletion': 'account-deletion', about: 'about' })) assert.equal(vm.tapRow(key).command.url, '/page/' + route + '/index')
-storage.set('qandaPreferences', normalizePreferences({ autoShowExplanation: false, fontSize: 'large' }))
+storage.set('qandaPreferences', normalizePreferences({ autoOpenAnalysis: false, fontSize: 'large' }))
 assert.equal(vm.load().data.learnRows[0].value, '文字大小：大')
 assert(vm.openSheet('agreement').data.sheetBody.length > 20)
 assert(vm.openSheet('privacy').data.sheetBody.includes('内容安全'))

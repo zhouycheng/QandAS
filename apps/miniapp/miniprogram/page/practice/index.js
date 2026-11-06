@@ -1,6 +1,6 @@
 const { viewPatch } = require('../../models/view-patch.js')
 const { swipeDirection } = require('../../utils/question-swipe.js')
-const { allocateHeights, viewportHeight, resetScroll } = require('../../utils/practice-layout.js')
+const { allocateHeights, viewportHeight, resetScroll, materialKey } = require('../../utils/practice-layout.js')
 const navigation = require('../../utils/navigation.js')
 const { withPageLifecycle } = require('../../utils/page-lifecycle.js')
 const { PracticeViewModel } = require('../../viewmodels/practice-viewmodel.js')
@@ -13,14 +13,28 @@ const AUTO_ADVANCE_DELAY = 800
 
 Page(withPageLifecycle({
   data: Object.assign(PracticeViewModel.getInitialData(), {
-    // 解析展开状态只属于当前题目，不进入练习快照。
-    explanationOpen: false,
+    analysisSheetOpen: false,
+    analysisSheetOffset: 0,
+    analysisSheetHeight: 0,
+    analysisAreaTop: 0,
+    analysisAreaHeight: 0,
+    analysisScrollTop: 0,
+    analysisDragging: false,
+    analysisSheetVersion: 0,
+    analysisSuspended: false,
     practiceWindowHeight: 0,
     keyboardVisible: false,
     keyboardCompact: false,
-    paneHeights: { material: 0, stem: 140, response: 220, analysis: 0 },
+    paneHeights: { material: 0, stem: 140, response: 220 },
     paneOverflow: {},
-    paneScroll: { material: 0, stem: 0, response: 0, analysis: 0 }
+    readingLayout: false,
+    readingStop: 1,
+    readingVersion: 0,
+    readingDragging: false,
+    readingSuspended: false,
+    readingGeometry: { height: 0, handle: 56, heading: 44 },
+    readingQuestionScrollTop: 0,
+    paneScroll: { material: 0, stem: 0, response: 0 }
   }),
 
   onLoad(options) {
@@ -33,7 +47,7 @@ Page(withPageLifecycle({
   },
 
   onForegroundReady() { this.updateWindowHeight(); this.scheduleMeasure() },
-  onResize() { this.updateWindowHeight(); this.scheduleMeasure() },
+  onResize() { this.cancelReadingDrag(); this.setData({ analysisDragging: false, analysisSheetVersion: this.data.analysisSheetVersion + 1 }); this.updateWindowHeight(); this.scheduleMeasure() },
 
   updateWindowHeight() {
     if (typeof wx.getWindowInfo !== 'function') return
@@ -56,20 +70,21 @@ Page(withPageLifecycle({
     if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted || !this.createSelectorQuery) return
     const question = this.data.currentQuestion
     if (!question) return
+    if (this.data.readingLayout) return this.measureReadingPanes()
     const query = this.createSelectorQuery()
     query.select('.pra-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom', 'row-gap'] })
     query.selectAll('.module-info, .module-tools').boundingClientRect()
     query.selectAll('.pra-pane-content').boundingClientRect()
+    query.select('.pra-body').boundingClientRect()
     const currentIndex = this.data.currentIndex
     const version = this.measureVersion
     query.exec(results => {
       if (this._pageUnloaded || this.pageVisible === false || this.data.isCompleted || this.measureVersion !== version || this.data.currentIndex !== currentIndex || !results || !results[0]) return
       const [content, fixed, panes] = results
       const gap = parseFloat(content['row-gap']) || 0
-      const material = !!question.material && !this.keyboardVisible
-      const analysis = !!this.data.shouldRevealAnswer && !this.keyboardVisible
+      const material = !!question.material && !this.data.readingLayout && !this.keyboardVisible
       const response = !question.isFillBlank
-      const moduleCount = 3 + Number(response) + Number(analysis) - Number(!!this.data.keyboardCompact)
+      const moduleCount = 3 + Number(response) - Number(!!this.data.keyboardCompact)
       const fixedHeight = (fixed || []).reduce((sum, rect) => sum + rect.height, 0)
       const height = content.height - fixedHeight - (parseFloat(content['padding-top']) || 0) - (parseFloat(content['padding-bottom']) || 0) - gap * (moduleCount - 1 + Number(material))
       if (this.keyboardVisible && height < 64 && !this.data.keyboardCompact) {
@@ -79,8 +94,10 @@ Page(withPageLifecycle({
       const contentHeights = {}
       ;(panes || []).forEach(rect => { contentHeights[rect.dataset.pane] = rect.height })
       if (question.isShortAnswer) contentHeights.response = Infinity
-      const layout = allocateHeights({ height, material, analysis, response, contentHeights, keyboard: !!this.keyboardVisible })
+      const layout = allocateHeights({ height, material, response, contentHeights, keyboard: !!this.keyboardVisible, stemPercent: this.data.preferences.practiceStemPercent })
       const patch = viewPatch(this.data, { paneHeights: layout.heights, paneOverflow: layout.overflow })
+      const body = results[3]
+      Object.assign(patch, this.analysisMeasurement(body))
       if (this.keyboardScrollRestore) {
         patch.paneScroll = {}
         Object.keys(this.data.paneScroll).forEach(pane => {
@@ -95,13 +112,63 @@ Page(withPageLifecycle({
     })
   },
 
+  analysisDefaultOffset(height = this.data.analysisSheetHeight, areaHeight = this.data.analysisAreaHeight) {
+    return Math.min(0, Math.floor(areaHeight * 0.5) - height)
+  },
+
+  analysisMeasurement(body) {
+    if (!body || this.data.analysisDragging) return {}
+    const height = Math.max(44, Math.floor(body.height * 0.7))
+    const visible = this.data.analysisSheetHeight + this.data.analysisSheetOffset
+    const offset = !this.data.analysisSheetOpen ? -height
+      : this.data.analysisSheetOffset === this.analysisDefaultOffset() ? this.analysisDefaultOffset(height, body.height)
+        : this.data.analysisSheetOffset === 0 ? 0 : Math.max(-height, Math.min(0, visible - height))
+    return viewPatch(this.data, { analysisAreaTop: body.top, analysisAreaHeight: body.height, analysisSheetHeight: height, analysisSheetOffset: offset })
+  },
+
+  measureReadingPanes() {
+    const version = this.measureVersion, index = this.data.currentIndex
+    const query = this.createSelectorQuery()
+    ;['.reading-workspace', '.reading-handle', '.reading-question-heading', '.pra-body', '.reading-question', '.reading-question-content .pra-stem', '.reading-response'].forEach(selector => query.select(selector).boundingClientRect())
+    query.exec(rects => {
+      if (this._pageUnloaded || this.pageVisible === false || version !== this.measureVersion || index !== this.data.currentIndex || !rects || !rects[0] || this.data.readingDragging) return
+      const [workspace, handle, heading, body, question, stem, response] = rects
+      const geometry = { height: workspace.height, handle: handle ? handle.height : 56, heading: heading ? heading.height : 44 }
+      const scroll = this.readingQuestionPosition || 0
+      if (stem && question) this.readingStemOffset = stem.top - question.top + scroll
+      if (response && question) this.readingResponseOffset = response.top - question.top + scroll
+      const patch = Object.assign(viewPatch(this.data, { readingGeometry: geometry }), this.analysisMeasurement(body))
+      if (this.keyboardScrollRestore) {
+        const value = this.keyboardScrollRestore.material || 0
+        patch['paneScroll.material'] = this.data.paneScroll.material === value ? value + 0.01 : value
+        const questionScroll = this.readingKeyboardScroll || 0
+        patch.readingQuestionScrollTop = this.data.readingQuestionScrollTop === questionScroll ? questionScroll + 0.01 : questionScroll
+        this.keyboardScrollRestore = null
+      }
+      this.setData(patch, () => this.revealFocusedBlank())
+    })
+  },
+
+  onReadingQuestionScroll(event) { this.readingQuestionPosition = event.detail.scrollTop },
+
   onPaneScroll(event) {
     if (!this.panePositions) this.panePositions = {}
     this.panePositions[event.currentTarget.dataset.pane] = event.detail.scrollTop
   },
 
   revealFocusedBlank() {
-    if (!this.keyboardVisible || !this.answerFocused || !this.focusedBlank) return
+    if (!this.keyboardVisible || !this.answerFocused) return
+    if (this.data.readingLayout) {
+      const current = this.readingQuestionPosition || 0
+      const visible = this.data.readingGeometry.height - this.data.readingGeometry.handle - this.data.readingGeometry.heading
+      if (visible <= 0) return
+      const top = this.focusedBlank ? (this.readingStemOffset || 0) + this.focusedBlank.top : this.readingResponseOffset || 0
+      const height = this.focusedBlank ? this.focusedBlank.height : Math.min(140, visible)
+      const target = top < current ? top : top + height > current + visible - 12 ? Math.max(0, top + height - visible + 12) : current
+      if (target !== current) this.setData({ readingQuestionScrollTop: target })
+      return
+    }
+    if (!this.focusedBlank) return
     const { top, height } = this.focusedBlank
     const current = this.panePositions && this.panePositions.stem || 0
     const visible = this.data.paneHeights.stem
@@ -111,6 +178,9 @@ Page(withPageLifecycle({
 
   onShow() {
     this.pageVisible = true
+    this.setData({ analysisSuspended: false, readingSuspended: false })
+    this.textSelectionActive = false
+    this.startElapsedTimer()
     this.observeSaveStatus()
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     if (this.viewModel) {
@@ -120,6 +190,11 @@ Page(withPageLifecycle({
   },
 
   onHide() {
+    this.rememberReadingMaterial()
+    this.cancelReadingDrag()
+    this.setData({ readingSuspended: true })
+    this.setData({ analysisSuspended: true, analysisSheetOpen: false, analysisDragging: false, analysisSheetOffset: -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
+    this.stopElapsedTimer()
     clearTimeout(this.measureTimer)
     if (this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
     this.keyboardVisible = false
@@ -144,6 +219,7 @@ Page(withPageLifecycle({
   },
 
   onUnload() {
+    this.stopElapsedTimer()
     clearTimeout(this.measureTimer)
     this.pageVisible = false
     this.clearAutoAdvance()
@@ -208,7 +284,7 @@ Page(withPageLifecycle({
     this.autoAdvanceTimer = setTimeout(() => {
       this.autoAdvanceTimer = null
       if (this.pageVisible === false || this.data.sessionId !== sessionId || this.data.currentIndex !== index || this.data.editingLocked || this.data.isCompleted || this.data.showQuestionOverview || this.data.showSubmitModal) return
-      this.goNext()
+      this.goNext(null, true)
     }, AUTO_ADVANCE_DELAY)
   },
 
@@ -222,16 +298,48 @@ Page(withPageLifecycle({
   onAnswerBlur() { this.answerFocused = false; this.focusedBlank = null },
   onKeyboardHeight(e) {
     const height = Math.max(0, e.detail.height || 0)
-    if (height > 0 && !this.keyboardVisible) this.keyboardPanePositions = Object.assign({}, this.panePositions)
+    if (height > 0 && !this.keyboardVisible) {
+      this.keyboardPanePositions = Object.assign({}, this.panePositions)
+      this.readingKeyboardScroll = this.readingQuestionPosition || 0
+    }
     if (!height && this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
     this.keyboardHeight = height
     this.keyboardVisible = this.keyboardHeight > 0
+    if (this.keyboardVisible) this.closeAnalysis()
     this.ignoreSwipe()
+    this.cancelReadingDrag()
     this.setData({ keyboardVisible: this.keyboardVisible, keyboardCompact: false }, () => { this.updateWindowHeight(); this.scheduleMeasure() })
   },
   onTextSelection() { this.textSelectionActive = true; this.ignoreSwipe() },
+  onQuestionTap() { if (this.textSelectionActive) { this.textSelectionActive = false; this.ignoreSwipe() } },
+  cancelReadingDrag() {
+    this.setData({ readingDragging: false, readingVersion: this.data.readingVersion + 1 })
+  },
+  rememberReadingMaterial() {
+    const key = materialKey(this.data.currentQuestion)
+    if (!key) return
+    if (!this.readingMaterials) this.readingMaterials = new Map()
+    this.readingMaterials.set(key, { stop: this.data.readingStop, scroll: this.panePositions && this.panePositions.material || 0 })
+  },
+  setReadingStop(stop) {
+    if (!this.data.readingLayout || this.keyboardVisible) return
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ readingStop: stop, readingDragging: false, readingVersion: this.data.readingVersion + 1 })
+  },
+  toggleReading() { this.setReadingStop(this.data.readingStop ? 0 : 1) },
+  onReadingHandleStart({ version }) {
+    if (version !== this.data.readingVersion || this.pageVisible === false || this._pageUnloaded) return
+    this.ignoreSwipe()
+    this.clearAutoAdvance()
+    this.setData({ readingDragging: true })
+  },
+  onReadingHandleEnd({ stop, version }) {
+    if (version !== this.data.readingVersion || this.pageVisible === false || this._pageUnloaded || ![0, 1, 2].includes(stop)) return
+    this.setData({ readingStop: stop, readingDragging: false })
+  },
   canSwipe() {
-    return (this.data.isViewMode || this.data.feedback === 'AFTER_FINISH') && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive
+    return !!this.data.preferences.swipeEnabled && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive && !this.data.readingDragging
   },
   onQuestionTouchStart(e) {
     this.swipeStart = null
@@ -254,7 +362,7 @@ Page(withPageLifecycle({
     const direction = swipeDirection(start, { x: point.clientX, y: point.clientY, at: Date.now() })
     if (direction === 1) {
       if (this.data.isLastQuestion) this.showHint('已经是最后一题了')
-      else this.goNext()
+      else this.navigateNext(true, false)
     }
     if (direction === -1) {
       if (this.data.currentIndex === 0) this.showHint('已经是第一题了')
@@ -263,6 +371,12 @@ Page(withPageLifecycle({
   },
 
   showHint(message) { this.selectComponent('#practice-hint').show(message) },
+
+  startElapsedTimer() {
+    if (this.elapsedTimer || this._pageUnloaded || this.pageVisible === false || this.data.editingLocked || this.data.isTimed || this.data.isCompleted || !this.data.questions.length) return
+    this.elapsedTimer = setInterval(() => this.applyViewModelResult(this.viewModel.tickElapsed()), 1000)
+  },
+  stopElapsedTimer() { clearInterval(this.elapsedTimer); this.elapsedTimer = null },
 
   startTestTimer() {
     if (!this.data.isTimed || this.data.isCompleted || !this.data.questions.length) {
@@ -309,10 +423,25 @@ Page(withPageLifecycle({
 
   },
 
-  goNext() {
+  goNext(event, automatic = false) { return this.navigateNext(false, automatic) },
+
+  navigateNext(bySwipe, automatic) {
     this.textSelectionActive = false
     this.clearAutoAdvance()
-    this.applyViewModelResult(this.viewModel.goNext())
+    const source = this.data
+    const index = source.currentIndex, key = materialKey(source.currentQuestion)
+    const count = source.readingGroupUnansweredCount, sessionId = source.sessionId
+    const remind = !automatic && source.readingLayout && source.readingStop === 0 && !source.isViewMode && source.readingGroupUnansweredCount > 0
+    const result = this.viewModel.goNext(bySwipe)
+    const apply = resolved => {
+      this.applyViewModelResult(resolved)
+      if (remind && resolved && !resolved.command && this.data.sessionId === sessionId && this.data.currentIndex === index + 1 && !this.data.isCompleted && !this.data.showSubmitModal) {
+        const same = key === materialKey(this.data.currentQuestion)
+        this.showHint(`${same ? '本篇' : '上一篇'}还有 ${count} 道小题未答`)
+      }
+    }
+    if (result && typeof result.then === 'function') return result.then(apply).catch(error => this.showSaveError(error))
+    apply(result)
   },
 
   goPrev() {
@@ -365,11 +494,25 @@ Page(withPageLifecycle({
     this.submitPractice()
   },
 
-  /** 长解析的展开 / 收起 */
-  toggleExplanation() {
-    this.setData({
-      explanationOpen: !this.data.explanationOpen
-    }, () => this.scheduleMeasure())
+  setAnalysisOpen(open) {
+    if (open && (!this.data.shouldRevealAnswer || !this.data.hasAnswered || this.data.feedback !== 'IMMEDIATE' || this.data.isViewMode || this.data.isCompleted || this.data.analysisSuspended)) return
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ analysisSheetOpen: open, analysisDragging: false, analysisSheetOffset: open ? this.analysisDefaultOffset() : -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
+  },
+  closeAnalysis() { this.setAnalysisOpen(false) },
+  toggleAnalysis() { this.setAnalysisOpen(!this.data.analysisSheetOpen) },
+  blockAnalysisTouch() {},
+  onAnalysisHandleStart({ version }) {
+    if (version !== this.data.analysisSheetVersion || this._pageUnloaded || this.pageVisible === false) return
+    this.clearAutoAdvance()
+    this.ignoreSwipe()
+    this.setData({ analysisDragging: true })
+  },
+  onAnalysisHandleEnd({ offset, version }) {
+    if (version !== this.data.analysisSheetVersion || this._pageUnloaded || this.pageVisible === false || !Number.isFinite(offset)) return
+    offset = Math.max(-this.data.analysisSheetHeight, Math.min(0, offset))
+    this.setData({ analysisSheetOffset: offset, analysisSheetOpen: offset > -this.data.analysisSheetHeight, analysisDragging: false }, () => this.scheduleMeasure())
   },
 
   toggleFavorite() {
@@ -474,20 +617,54 @@ Page(withPageLifecycle({
         delete patch.blankInputs
       }
 
-      // 换题就把解析收回去：否则上一题展开的长解析会带到下一题
-      if (patch.currentIndex !== undefined && patch.currentIndex !== this.lastQuestionIndex) {
+      const sessionChanged = patch.sessionId !== undefined && patch.sessionId !== this.data.sessionId
+      const questionChanged = patch.currentIndex !== undefined && (patch.currentIndex !== this.lastQuestionIndex || sessionChanged)
+      if (questionChanged) {
+        this.rememberReadingMaterial()
+        if (sessionChanged) this.readingMaterials = new Map()
         this.lastQuestionIndex = patch.currentIndex
         this.clearAutoAdvance()
         this.textSelectionActive = false
-        patch.explanationOpen = !!patch.isViewMode
+        patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
+        patch.analysisDragging = false
+        patch.analysisScrollTop = this.data.analysisScrollTop === 0 ? 0.01 : 0
+        patch.analysisSheetOpen = false
+        patch.analysisSheetOffset = -this.data.analysisSheetHeight
+        patch.readingLayout = !!(patch.currentQuestion && patch.currentQuestion.material)
+        const key = materialKey(patch.currentQuestion)
+        const saved = this.readingMaterials && this.readingMaterials.get(key)
+        patch.readingStop = saved ? saved.stop : 1
+        patch.readingVersion = this.data.readingVersion + 1
+        patch.readingDragging = false
+        patch.readingQuestionScrollTop = this.data.readingQuestionScrollTop === 0 ? 0.01 : 0
+        this.readingQuestionPosition = 0
         patch.paneScroll = resetScroll(this.data.currentQuestion, patch.currentQuestion, this.data.paneScroll, this.panePositions || {})
+        if (saved) patch.paneScroll.material = this.data.paneScroll.material === saved.scroll ? saved.scroll + 0.01 : saved.scroll
         this.panePositions = Object.assign({}, patch.paneScroll)
         this.focusedBlank = null
         this.keyboardScrollRestore = null
       }
 
+      const next = Object.assign({}, this.data, patch)
+      if (next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && next.preferences.autoOpenAnalysis && !result.autoAdvance && (questionChanged || !this.data.shouldRevealAnswer)) {
+        patch.analysisSheetOpen = true
+        patch.analysisSheetOffset = this.analysisDefaultOffset()
+      }
+      if (!next.shouldRevealAnswer || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked) {
+        patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
+        patch.analysisSheetOpen = false
+        patch.analysisDragging = false
+        patch.analysisSheetOffset = -this.data.analysisSheetHeight
+      }
+
+      if (patch.analysisSheetOpen || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked) {
+        patch.readingDragging = false
+        patch.readingVersion = this.data.readingVersion + 1
+      }
+
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
-      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'shouldShowExplanation', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      if (patch.analysisSheetOpen !== undefined && patch.analysisSheetOpen !== this.data.analysisSheetOpen) patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
       this.setData(viewPatch(this.data, patch), () => { runEffects(); if (layoutChanged) this.scheduleMeasure() })
       return
     }
@@ -520,6 +697,8 @@ Page(withPageLifecycle({
   },
 
   applyViewModelEffects(result) {
+    if (this.data.isCompleted || this.data.editingLocked || this.data.isTimed) this.stopElapsedTimer()
+    else this.startElapsedTimer()
     if (result.autoAdvance) this.scheduleAutoAdvance()
     if (result.stopTimer) {
       this.stopTestTimer()

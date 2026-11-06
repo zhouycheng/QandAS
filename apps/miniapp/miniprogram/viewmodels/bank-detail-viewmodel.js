@@ -1,6 +1,7 @@
 const { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText } = require('../models/bank-detail-presentation.js');
 const practiceRepository = require('../repositories/practice-repository.js');
-const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
+const { PracticePresetsViewModel } = require('./practice-presets-viewmodel.js');
+const { defaultPreset, validCount, validDuration, routeForPreset, feedbackForMode, feedbackLabel, orderLabel } = require('../utils/practice-presets.js');
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
 const MAX_KEYWORD_LENGTH = 20;
@@ -33,8 +34,8 @@ function getInitialBankDetailViewData() {
         configTargetName: '',
         sheetMode: DEFAULT_SHEET.mode,
         sheetModeDescription: MODE_OPTIONS[0].description,
-        sheetAutoShowExplanation: true,
-        sheetAutoNextWhenCorrect: false,
+        sheetFeedback: DEFAULT_SHEET.feedback,
+        sheetOrder: DEFAULT_SHEET.order,
         sheetDuration: DEFAULT_SHEET.duration,
         sheetOnlyWrong: DEFAULT_SHEET.onlyWrong,
         sheetWrongCount: 0,
@@ -62,27 +63,42 @@ class BankDetailViewModel {
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         this.sheetTarget = null;
     }
+    beginFilterRefresh() {
+        this.filterSnapshot = Object.assign({}, this.projectRemote(), { catalogSwitching: true, catalogError: '' });
+        this.filterIdentity = this.repository.getAuth(this.storage).token;
+    }
+    cancelFilterRefresh() { this.filterSnapshot = null; }
     refreshRemote(subjectId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
         if (subjectId && subjectId !== this.currentSubjectId)
             this.remotePage = 1;
         if (subjectId)
             this.currentSubjectId = subjectId;
-        if (options && options.force) {
-            this.remotePage = 1;
-            this.remoteSubjectPage = 1;
+        if (options && options.force && subjectId) {
+            this.refreshSnapshot = this.projectRemote();
+            this.refreshIdentity = this.repository.getAuth(this.storage).token;
         }
-        return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1 }))
+        return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1, subjectPage: this.remoteSubjectPage || 1 }))
             .then(async () => {
             if (revision !== this.catalogRevision) return null;
             if (this.repository.loadRemoteChapters) {
                 const subjects = this.repository.getSubjectSummaries();
                 const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id;
-                const page = this.repository.getRemoteCatalogPage({ subjectId: id, page: this.remotePage || 1 }).data;
-                await Promise.allSettled((page && page.items || []).map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)));
+                const banks = (this.repository.getSubjectDetail(id) || {}).banks || [];
+                await Promise.allSettled(banks.map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)));
             }
-            return revision === this.catalogRevision ? { data: this.projectRemote() } : null;
-        }).catch(() => revision === this.catalogRevision ? { data: this.projectRemote() } : null);
+            if (revision !== this.catalogRevision) return null;
+            this.refreshSnapshot = null;
+            const retained = this.filterSnapshot;
+            this.filterSnapshot = null;
+            const data = this.projectRemote();
+            if (retained && data.catalogError) this.filterSnapshot = Object.assign({}, retained, { catalogSwitching: false, catalogError: data.catalogError });
+            return { data: this.filterSnapshot || Object.assign(data, { catalogSwitching: false }) };
+        }).catch(error => {
+            if (revision !== this.catalogRevision) return null;
+            if (this.filterSnapshot) Object.assign(this.filterSnapshot, { catalogSwitching: false, catalogError: error.message || '筛选读取失败' });
+            return { data: this.projectRemote() };
+        });
     }
     async openPublicBank(bankId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
@@ -98,6 +114,13 @@ class BankDetailViewModel {
         return { data: Object.assign(this.buildViewData(subjects, Object.assign({}, detail, { banks: detail.banks.filter(item => item.id === bank.id) })), { catalogLoading: false, catalogError: '', catalogHasMore: false }) };
     }
     projectRemote() {
+        if (this.filterSnapshot && this.filterIdentity === this.repository.getAuth(this.storage).token) return this.filterSnapshot;
+        this.filterSnapshot = null;
+        if (this.refreshSnapshot && this.refreshSnapshot.subject && this.refreshSnapshot.subjectId === this.currentSubjectId && this.refreshIdentity === this.repository.getAuth(this.storage).token) {
+            const state = this.repository.getRemoteCatalogPage({ subjectId: this.currentSubjectId, page: this.remotePage || 1 });
+            return Object.assign({}, this.refreshSnapshot, { catalogLoading: false, catalogError: state.error || '' });
+        }
+        this.refreshSnapshot = null;
         const subjects = this.repository.getSubjectSummaries();
         const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id;
         const detail = this.repository.getSubjectDetail(id);
@@ -346,6 +369,7 @@ class BankDetailViewModel {
         if (!result || !this.sheetTarget)
             return null;
         this.sheet.mode = pending.mode === 'test' ? 'test' : pending.mode === 'view' ? 'view' : 'practice';
+        this.sheet.feedback = feedbackForMode(pending);
         this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random';
         this.sheet.duration = Number(pending.duration) || 0;
         this.sheet.presetId = '';
@@ -402,7 +426,7 @@ class BankDetailViewModel {
         if (!this.sheet.presets) {
             const preferences = this.repository.getPreferences(this.storage);
             const preset = defaultPreset(preferences);
-            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, order: preferences.practiceOrder, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
+            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
         }
         if (this.mockSelection) Object.assign(this.sheet, { mode: 'test', count: 'ALL', duration: 45, onlyWrong: false, durationError: '' });
         this.remoteSearchText = '';
@@ -436,7 +460,17 @@ class BankDetailViewModel {
     }
     setSheetMode(mode) {
         if (this.mockSelection) return null;
-        this.sheet.mode = resolveModeValue(mode); this.sheet.durationError = ''; this.customSheet();
+        this.sheet.mode = resolveModeValue(mode); this.sheet.feedback = feedbackForMode({ mode: this.sheet.mode }); this.sheet.durationError = ''; this.customSheet();
+        return { data: this.buildSheetData() };
+    }
+    setSheetFeedback(value) {
+        if (this.mockSelection || this.sheet.mode !== 'practice' || !['IMMEDIATE', 'AFTER_FINISH'].includes(value)) return null;
+        this.sheet.feedback = value; this.customSheet();
+        return { data: this.buildSheetData() };
+    }
+    setSheetOrder(value) {
+        if (this.mockSelection || this.sheet.mode !== 'practice' || !['order', 'random'].includes(value)) return null;
+        this.sheet.order = value; this.customSheet();
         return { data: this.buildSheetData() };
     }
     selectSheetPreset(index) {
@@ -444,6 +478,21 @@ class BankDetailViewModel {
         if (!preset) return null;
         Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, durationCustom: false, durationError: '' });
         return { data: this.buildSheetData() };
+    }
+    saveSheetPreset() {
+        if (!this.sheetTarget) return null;
+        if (this.sheet.mode !== 'view' && this.sheet.durationError) return { command: { type: 'toast', title: this.sheet.durationError } };
+        const config = this.buildSheetData();
+        const countLabel = config.sheetCount === 'ALL' ? '全部' : (config.countOptions.findIndex(option => option.value === config.sheetCount) + 1) + '档';
+        const modeLabel = MODE_OPTIONS.find(option => option.value === this.sheet.mode).label;
+        const durationLabel = this.sheet.mode === 'view' || !this.sheet.duration ? '不限时' : this.sheet.duration + '分钟';
+        const name = `${modeLabel}${this.sheet.mode === 'practice' ? '·' + feedbackLabel(this.sheet) + '·' + orderLabel(this.sheet) : ''} - ${countLabel} - ${durationLabel}`;
+        const editor = new PracticePresetsViewModel({ storage: this.storage, repository: this.repository });
+        const result = editor.createFromConfig(name, this.sheet);
+        if (!result.value) return { command: { type: 'toast', title: result.data.error } };
+        this.sheet.presets = this.repository.getPreferences(this.storage).practicePresets;
+        Object.assign(this.sheet, { presetId: result.value.id, presetName: result.value.name });
+        return { data: this.buildSheetData(), command: { type: 'toast', title: result.duplicate ? '该配置已存在' : '预设已保存' } };
     }
     setSheetChapter(id) {
         if (!this.sheetTarget || (id && !(this.sheetTarget.chapters || []).some(chapter => chapter.id === id))) return null;
@@ -531,8 +580,7 @@ class BankDetailViewModel {
     }
     async createConfiguredPractice(target, selected) {
         const bankId = selected.length ? selected[0].id : target.bankId;
-        const preferences = this.repository.getPreferences(this.storage);
-        const route = routeForPreset(this.sheet, preferences);
+        const route = routeForPreset(this.sheet);
         const result = await preparePracticeRoute(this.storage, this.repository, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' }, route);
         Object.assign(result.route, { subjectId: target.subjectId });
         if (target.banks) result.route.bankIds = selected.map(b => b.id).join(',');

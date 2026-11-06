@@ -70,13 +70,14 @@ Page(withPageLifecycle({
   handleLoginTap() { navigation.navigateTo({ url: '/page/login/index' }) },
 
   // 下拉刷新重新读取学习统计。
+  getRefreshError() { return this.data.statsError || '' },
   onPullDownRefresh() {
     if (!this.viewModel) {
       wx.stopPullDownRefresh()
       return
     }
 
-    return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true })).finally(() => wx.stopPullDownRefresh())
+    return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true }))
   },
 
   handleRetryLoad() { return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true })) },

@@ -40,8 +40,10 @@ page {
   --radius-control: 24rpx;
   --radius-card: 24rpx;
   --radius-overlay: 40rpx;
-  --reading-small: 12px;
-  --reading-normal: 14px;
-  --reading-large: 18px;
+  --reading-small: 14px;
+  --reading-normal: 18px;
+  --reading-large: 20px;
+  --reading-xlarge: 22px;
+  --reading-xxlarge: 24px;
   --font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
 }

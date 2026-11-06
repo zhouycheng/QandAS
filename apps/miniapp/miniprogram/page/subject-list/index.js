@@ -68,30 +68,35 @@ Page(withPageLifecycle({
   onShareTimeline() { return { title: '题小搭 公开题库' } },
 
   // 下拉刷新
+  getRefreshError() { return this.data.homeRefreshError || this.data.recentError || '' },
   onPullDownRefresh() {
     if (!this.viewModel) {
       wx.stopPullDownRefresh()
       return
     }
 
-    return this.refresh({ force: true }).finally(() => wx.stopPullDownRefresh())
+    return this.refresh({ force: true })
   },
 
   refresh(options) {
     this.applyViewModelResult({ data: this.viewModel.projectRemote() })
-    return Promise.all([this.applyViewModelResult(this.viewModel.refreshRemote(options)), this.loadRecentChoices(options)])
+    const group = typeof this.selectComponent === 'function' && this.selectComponent('#home-community')
+    return Promise.all([this.applyViewModelResult(this.viewModel.refreshRemote(options)), this.loadRecentChoices(options), group && group.refresh(false)])
   },
 
   async loadRecentChoices(options) {
     const revision = this.recentRevision = (this.recentRevision || 0) + 1
-    this.setData({ recentLoading: true, recentError: '', recentSubjects: [], recentColumns: [[], []], recentSelectedSubjectId: '', recentSelectedBankId: '', recentSelectedName: '', recentHasHistory: false, newPracticeLoading: !!this.newPracticePending })
+    const owner = this.viewModel.repository.getAuth(this.viewModel.storage).token
+    const sameOwner = this.recentOwner === owner
+    this.recentOwner = owner
+    this.setData(Object.assign({ recentLoading: true, recentError: '', newPracticeLoading: !!this.newPracticePending }, sameOwner ? {} : { recentSubjects: [], recentColumns: [[], []], recentSelectedSubjectId: '', recentSelectedBankId: '', recentSelectedName: '', recentHasHistory: false, recentLoaded: false }))
     try {
       const result = await this.viewModel.loadRecentChoices(options)
       if (revision !== this.recentRevision || !result) return
       const { subjects, hasHistory } = result
-      const subject = subjects[0]
-      const bank = subject && subject.banks[0]
-      this.setData({ recentSubjects: subjects, recentColumns: [subjects.map(item => item.name), subject ? subject.banks.map(item => item.name) : []], recentPickerValue: [0, 0], recentSelectedSubjectId: subject ? subject.id : '', recentSelectedBankId: bank ? bank.id : '', recentSelectedName: bank ? subject.name + ' · ' + bank.name : '', recentHasHistory: hasHistory })
+      const subject = subjects.find(item => item.id === this.data.recentSelectedSubjectId) || subjects[0]
+      const bank = subject && (subject.banks.find(item => item.id === this.data.recentSelectedBankId) || subject.banks[0])
+      this.setData({ recentLoaded: true, recentSubjects: subjects, recentColumns: [subjects.map(item => item.name), subject ? subject.banks.map(item => item.name) : []], recentPickerValue: [Math.max(0, subjects.indexOf(subject)), bank ? subject.banks.indexOf(bank) : 0], recentSelectedSubjectId: subject ? subject.id : '', recentSelectedBankId: bank ? bank.id : '', recentSelectedName: bank ? subject.name + ' · ' + bank.name : '', recentHasHistory: hasHistory })
     } catch (error) {
       if (revision === this.recentRevision) this.setData({ recentError: error.message || '最近练习读取失败' })
     } finally {
@@ -235,6 +240,8 @@ Page(withPageLifecycle({
   },
 
   onHide() {
+    this.announcementRevision = (this.announcementRevision || 0) + 1
+    this.setData({ selectedAnnouncement: null, announcementLoading: false })
     this.recentRevision = (this.recentRevision || 0) + 1
     this.setData({ newPracticeLoading: false })
   },
@@ -267,24 +274,57 @@ Page(withPageLifecycle({
   // ---------- 公告（小喇叭） ----------
 
   handleAnnouncementTap() {
-    this.applyViewModelResult(this.viewModel.openAnnouncement())
-    this.setData({ announcementLoading: true, announcementError: '' })
-    return this.viewModel.loadAnnouncements(1).then(result => this.applyViewModelResult(result))
-      .catch(error => this.setData({ announcementError: error.message }))
-      .finally(() => this.setData({ announcementLoading: false }))
+    this.announcementRevision = (this.announcementRevision || 0) + 1
+    this.announcementOwner = this.viewModel.repository.getAuth(this.viewModel.storage).token
+    this.setData({ announcementSheetVisible: true, announcementLoading: false, announcementError: '', announcementPage: 0, announcementScrollTop: 0, announcementTabScroll: this.data.announcementTabScroll === 0 ? 0.01 : 0, selectedAnnouncement: (this.data.announcements || [])[0] || null })
+    this.updateAnnouncementBadges()
+    this.markSelectedAnnouncementRead()
+    return this.loadAnnouncementPage(1)
   },
-
-  handleAnnouncementMore() {
+  markSelectedAnnouncementRead() {
+    if (this.data.selectedAnnouncement && this.viewModel.markAnnouncementRead) this.applyViewModelResult(this.viewModel.markAnnouncementRead(this.data.selectedAnnouncement))
+  },
+  updateAnnouncementBadges() {
+    const items = this.data.announcements || []
+    const latest = items.reduce((best, item) => !best || item.updatedAt > best.updatedAt ? item : best, null)
+    this.setData({ latestAnnouncementId: latest && latest.id || '' })
+  },
+  loadAnnouncementPage(page, force) {
     if (this.data.announcementLoading) return
-    this.setData({ announcementLoading: true })
-    return this.viewModel.loadAnnouncements((this.data.announcementPage || 1) + 1).then(result => this.applyViewModelResult(result))
-      .catch(error => this.setData({ announcementError: error.message }))
-      .finally(() => this.setData({ announcementLoading: false }))
+    const revision = this.announcementRevision
+    const token = this.viewModel.repository.getAuth(this.viewModel.storage).token
+    const current = () => revision === this.announcementRevision && this.data.announcementSheetVisible && !this._pageUnloaded && token === this.viewModel.repository.getAuth(this.viewModel.storage).token
+    this.announcementRetryPage = page
+    this.setData({ announcementLoading: true, announcementError: '' })
+    return this.viewModel.loadAnnouncements(page, force).then(result => {
+      if (!current()) return
+      const items = result.data.announcements
+      const selected = this.data.selectedAnnouncement
+      this.applyViewModelResult(result)
+      this.setData({ selectedAnnouncement: items.find(item => selected && item.id === selected.id) || items[0] || null })
+      this.updateAnnouncementBadges()
+      this.markSelectedAnnouncementRead()
+    }).catch(error => { if (current()) this.setData({ announcementError: error.message || '公告读取失败' }) })
+      .finally(() => { if (current()) this.setData({ announcementLoading: false }) })
+  },
+  handleAnnouncementDetail(e) {
+    const selected = (this.data.announcements || []).concat(this.data.pinnedAnnouncement || []).find(item => item.id === e.currentTarget.dataset.id)
+    if (!selected) return
+    if (!this.data.announcementSheetVisible) this.handleAnnouncementTap()
+    this.setData({ selectedAnnouncement: selected, announcementScrollTop: this.data.announcementScrollTop === 0 ? 0.01 : 0 })
+    this.markSelectedAnnouncementRead()
+  },
+  handleAnnouncementRetry() { return this.loadAnnouncementPage(this.announcementRetryPage || 1, true) },
+  handleAnnouncementMore() {
+    if (!this.data.announcementHasMore || this.data.announcementError) return
+    return this.loadAnnouncementPage((this.data.announcementPage || 1) + 1)
   },
 
   handleRetryLoad() { return this.refresh({ force: true }) },
 
   handleAnnouncementClose() {
+    this.announcementRevision = (this.announcementRevision || 0) + 1
+    this.setData({ selectedAnnouncement: null, announcementSheetVisible: false, announcementLoading: false })
     this.applyViewModelResult(this.viewModel.closeAnnouncement())
   },
 
@@ -297,6 +337,7 @@ Page(withPageLifecycle({
     }
 
     if (result.data) {
+      if (this.data.announcementSheetVisible && this.announcementOwner !== this.viewModel.repository.getAuth(this.viewModel.storage).token) this.handleAnnouncementClose()
       this.setData(result.data)
     }
 

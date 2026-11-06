@@ -11,7 +11,7 @@ let owner = ''
 let sessionToken = ''
 let scope = ''
 let activeStorage = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
@@ -77,12 +77,15 @@ async function refreshCatalog(storage, options) {
   const settings = options || {}
   if (settings.force) ['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:'].forEach(cache.invalidate)
   await refreshSubjects(storage, { force: settings.force })
+  for (let page = 2; page <= (settings.subjectPage || 1); page++) await refreshSubjects(storage, { page, force: settings.force })
   if (settings.subjectId && !state.subjects.some(subject => subject.id === settings.subjectId)) {
     try { await loadSubject(storage, settings.subjectId, settings) }
     catch (error) { if (error.statusCode !== 404) throw error }
   }
   const subjectId = state.subjects.some(subject => subject.id === settings.subjectId) ? settings.subjectId : (state.subjects[0] || {}).id
-  if (subjectId || settings.keyword) return refreshBanks(storage, Object.assign({}, settings, { subjectId: settings.keyword ? undefined : subjectId }))
+  if (subjectId || settings.keyword) {
+    for (let page = settings.force ? 1 : (settings.page || 1); page <= (settings.page || 1); page++) await refreshBanks(storage, Object.assign({}, settings, { page, subjectId: settings.keyword ? undefined : subjectId }))
+  }
   return null
 }
 function loadSubject(storage, id, options) {
@@ -142,10 +145,30 @@ function refreshProfile(storage, options) {
 }
 function refreshAnnouncements(storage, options) {
   const query = { page: options && options.page || 1, pageSize: options && options.pageSize || 20 }
-  return resource(storage, 'announcements', query, TTL.announcements, '/announcements', data => {
+  const preview = query.pageSize === 1
+  if (!preview && query.page === 1 && options && options.force) cache.invalidate('announcements:')
+  return resource(storage, preview ? 'announcementPreview' : 'announcements', query, TTL.announcements, '/announcements', data => {
+    const first = data.items[0] || null
+    if (preview) {
+      const old = state.announcementPreview
+      if (JSON.stringify([old && old.id, old && old.version, state.announcementTotal]) !== JSON.stringify([first && first.id, first && first.version, data.total])) { cache.invalidate('announcements:'); state.announcements = [] }
+      state.announcementPreview = first
+    } else {
+      state.announcements = query.page === 1 ? data.items : mergeById(state.announcements, data.items).slice(0, data.total)
+      if (query.page === 1) state.announcementPreview = first
+    }
     state.announcementTotal = data.total
-    state.announcements = query.page === 1 && query.pageSize > 1 ? data.items : mergeById(state.announcements, data.items).slice(0, data.total)
   }, options && options.force)
+}
+async function refreshHomeAnnouncements(storage, options) {
+  const identity = authRepository.getAuth(storage).token
+  await refreshAnnouncements(storage, options)
+  const total = state.announcementTotal
+  for (let page = 2; (page - 1) * 20 < total; page++) {
+    if (authRepository.getAuth(storage).token !== identity) return
+    await refreshAnnouncements(storage, Object.assign({}, options, { page }))
+  }
+  if (authRepository.getAuth(storage).token === identity) state.announcementIndex = state.announcements.slice()
 }
 function refreshRecommendations(storage, options) {
   const user = bind(storage)
@@ -197,7 +220,8 @@ function getOverview(storage) { bind(storage); return state.overview }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
 function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
 function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
-function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements : [] }
+function getAnnouncements(storage) { bind(storage); return enabled ? state.announcements.length ? state.announcements : state.announcementPreview ? [state.announcementPreview] : [] : [] }
+function getAnnouncementPreview(storage) { bind(storage); return enabled ? state.announcementPreview || null : null }
 function getRecommendations(storage) { bind(storage); return state.recommendations }
 function getRecommendationPage(storage) { bind(storage); return { page: state.recommendationPage, total: state.recommendationTotal } }
 function getAnnouncementTotal(storage) { bind(storage); return state.announcementTotal }
@@ -208,7 +232,7 @@ function refresh(storage, kind, options) {
   const user = bind(storage)
   const settings = options || {}
   if (kind === 'catalog') return refreshCatalog(storage, settings)
-  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 }))])
+  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshHomeAnnouncements(storage, settings)])
   if (!user) return Promise.resolve()
   if (kind === 'profile') return refreshProfile(storage, settings)
   if (kind === 'stats') return refreshStatistics(storage, settings)
@@ -328,6 +352,7 @@ function saveProfile(storage, patch) {
 }
 module.exports = { searchQuestions, addQuestionFavorite, removeQuestionFavorite, getBankMeta, invalidateLearning, enable, isEnabled, bind, refresh, refreshCatalog, refreshProfile, mapQuestion, cacheQuestions, loadQuestion, getSubjectSummaries, getSubjectDetail, getCatalogStats, getBankQuiz, getSubjectQuiz, getQuestionIndex, findQuestionEntries, getFavorites, getWrongBook, getDailyLog, getStudyTime, getStatistics, getProgress, getRecent, getHistory, getScopeMeta, toggleQuestionFavorite, removeQuestionFavorites, clearFavorites, getProfile, getColleges, loadMajors, saveProfile }
 module.exports.getAnnouncements = getAnnouncements
+module.exports.getAnnouncementPreview = getAnnouncementPreview
 module.exports.getRecommendations = getRecommendations
 Object.assign(module.exports, { getRecommendationPage, refreshRecommendations })
 function invalidateCatalogFilters(next) {
@@ -342,3 +367,5 @@ module.exports.toggleCatalogFilters = function (storage) { return invalidateCata
 module.exports.getChapters = getChapters
 
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })
+
+module.exports.getAnnouncementIndex = storage => { bind(storage); return state.announcementIndex }

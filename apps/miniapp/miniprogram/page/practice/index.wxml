@@ -1,4 +1,6 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
+<wxs module="analysisDrag" src="../../utils/analysis-drag.wxs" />
+<wxs module="readingDrag" src="../../utils/reading-drag.wxs" />
 <!-- 答题页：顶部导航、题目模块与底部操作共用练习模板。 -->
 <view class="page practice-page pra-viewport {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
   <light-toast id="practice-hint" />
@@ -9,10 +11,28 @@
   <view wx:if="{{loadError}}" class="pra-modal"><view class="pra-modal-panel"><text>{{loadError}}</text><button class="q-button  pra-btn" bindtap="returnBankDetail" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回题库</button></view></view>
   <block wx:if="{{!isCompleted && !loadingPractice && !loadError}}">
     <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
-    <view class="pra-body" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection" bind:contentready="scheduleMeasure">
-      <include src="../../templates/practice-content.wxml" />
+    <view class="pra-body {{readingLayout ? 'pra-reading' : ''}}" bindtap="onQuestionTap" hover-class="none" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection" bind:contentready="scheduleMeasure">
+      <block wx:if="{{readingLayout}}">
+        <include src="../../templates/practice-reading.wxml" />
+      </block>
+      <block wx:else><include src="../../templates/practice-content.wxml" /></block>
     </view>
     <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>
+
+    <root-portal enable="{{true}}" wx:if="{{shouldRevealAnswer && hasAnswered && feedback === 'IMMEDIATE' && !isViewMode && analysisAreaHeight && !analysisSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked}}">
+      <view class="portal-theme analysis-layer font-{{preferences.fontSize}}" style="top:{{analysisAreaTop}}px;height:{{analysisAreaHeight}}px;">
+        <view class="analysis-mask" catchtap="closeAnalysis" catchtouchmove="blockAnalysisTouch"></view>
+        <view class="analysis-sheet" motion="{{ {version: analysisSheetVersion, height: analysisSheetHeight, offset: analysisSheetOffset} }}" change:motion="{{analysisDrag.sync}}">
+          <view class="analysis-surface" aria-role="dialog" aria-label="第{{currentNumber}}题答案解析" aria-hidden="{{!analysisSheetOpen && !analysisDragging}}">
+            <view class="analysis-sheet-header"><text>第 {{currentNumber}} 题 · 答案解析</text><button class="q-button q-button--text analysis-close" catchtap="closeAnalysis" aria-label="收起答案解析" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">×</button></view>
+            <scroll-view class="analysis-sheet-body" scroll-y enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{analysisScrollTop}}"><include src="../../templates/practice-analysis.wxml" /></scroll-view>
+          </view>
+          <view class="analysis-handle" aria-role="button" aria-label="{{analysisSheetOpen ? '拖动调整解析位置，点按收起' : '下拉或点按展开答案解析'}}" aria-expanded="{{analysisSheetOpen}}" catchtap="{{analysisDrag.tap}}" catchtouchstart="{{analysisDrag.start}}" catchtouchmove="{{analysisDrag.move}}" catchtouchend="{{analysisDrag.end}}" catchtouchcancel="{{analysisDrag.cancel}}" hover-class="none">
+            <view class="analysis-handle-shape" aria-hidden="true"><view class="analysis-grip"></view></view>
+          </view>
+        </view>
+      </view>
+    </root-portal>
 
     <!-- 未答完的二次确认：居中卡片，两个按钮等宽 -->
     <view class="pra-modal" wx:if="{{showSubmitModal}}">

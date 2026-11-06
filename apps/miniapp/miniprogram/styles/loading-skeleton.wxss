@@ -1,0 +1,7 @@
+.loading-skeleton { padding: 24rpx; border-radius: var(--radius-card); background: var(--card); }
+.skeleton-line { height: 24rpx; margin-bottom: 20rpx; border-radius: 8rpx; background: var(--page-bg); }
+.skeleton-short { width: 45%; }
+.skeleton-block { height: 88rpx; margin-top: 16rpx; border-radius: var(--radius-control); background: var(--page-bg); }
+.catalog-skeleton { display: flex; gap: 24rpx; width: 100%; box-sizing: border-box; }
+.skeleton-rail { width: 24%; flex: none; }
+.skeleton-main { flex: 1; }

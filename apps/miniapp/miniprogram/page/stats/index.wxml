@@ -129,3 +129,5 @@
     <button class="q-button q-button--primary review-login" bindtap="handleLoginTap" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">登录查看复习</button>
   </view>
 </view>
+
+<include src="../../templates/refresh-status.wxml" />

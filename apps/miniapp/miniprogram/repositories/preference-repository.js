@@ -63,12 +63,12 @@ function updatePreferenceText(storage, key, value) {
 function resetPreferences(storage) {
   const current = getPreferences(storage)
   const defaults = normalizePreferences(null)
-  for (const key of ['autoAddWrongBook', 'vibrateOnAnswer', 'fontSize', 'practiceOrder', 'autoShowExplanation', 'autoNextWhenCorrect']) current[key] = defaults[key]
+  for (const key of ['autoAddWrongBook', 'vibrateOnAnswer', 'fontSize', 'autoOpenAnalysis', 'autoNextWhenCorrect', 'swipeEnabled', 'swipeDraftAction']) current[key] = defaults[key]
   return savePreferences(storage, current)
 }
 function getDefaultPracticeRoute(storage) {
   const preferences = getPreferences(storage)
   const { defaultPreset, routeForPreset } = require('../utils/practice-presets.js')
-  return routeForPreset(defaultPreset(preferences), preferences)
+  return routeForPreset(defaultPreset(preferences))
 }
 module.exports = { getPreferences, resetPreferences, savePreferences, getDefaultPracticeRoute, updatePreferenceChoice, updatePreferenceSwitch, updatePreferenceText }

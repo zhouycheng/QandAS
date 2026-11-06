@@ -1,7 +1,6 @@
 <root-portal enable="{{true}}" wx:if="{{visible}}">
 <view class="portal-theme overview" wx:if="{{visible}}">
-  <!-- 答题卡（设计稿：标题 + 三格统计 + 图例 + 6 列网格 + 按钮组）
-       ⚠️ 根节点必须留在第 1 行：自检用「第一行是否有 wx:if」判断浮层会不会常驻占位。 -->
+  <!-- 根节点保留 wx:if，关闭浮层时释放占位。 -->
   <view class="mask" catchtap="handleMaskTap" catchtouchmove="noop"></view>
 
   <view class="panel" catchtap="noop" hover-class="none">
@@ -11,33 +10,34 @@
       <text class="panel-title">答题卡</text>
     </view>
 
+    <!-- 统计兼作图例，交卷前只展示作答状态，避免泄露判题结果。 -->
     <view class="panel-stats" wx:if="{{showStatus}}">
-      <view class="stat-item">
-        <view class="stat-dot dot-answered"></view>
-        <text class="stat-text">已答 {{answeredCount}}题 · 草稿 {{draftCount}}题</text>
+      <view class="stat-item stat-current">
+        <view class="status-swatch swatch-current" aria-hidden="true"></view>
+        <text class="stat-label">当前</text>
       </view>
-      <text class="stat-sep">·</text>
       <view class="stat-item">
-        <view class="stat-dot dot-pending"></view>
-        <text class="stat-text">未答 {{unansweredCount}}题</text>
+        <view class="status-swatch swatch-pending" aria-hidden="true"></view>
+        <text class="stat-label">未答</text>
+        <text class="stat-count">{{unansweredCount}}</text>
       </view>
-      <text class="stat-sep">·</text>
       <view class="stat-item">
-        <view class="stat-dot dot-mark"></view>
-        <text class="stat-text">标记 {{markedCount}}题</text>
+        <view class="status-swatch swatch-draft" aria-hidden="true"></view>
+        <text class="stat-label">草稿</text>
+        <text class="stat-count">{{draftCount}}</text>
+      </view>
+      <view class="stat-item">
+        <view class="status-swatch swatch-answered" aria-hidden="true"></view>
+        <text class="stat-label">已答</text>
+        <text class="stat-count">{{answeredCount}}</text>
+      </view>
+      <view class="stat-item stat-marked">
+        <view class="status-swatch swatch-mark" aria-hidden="true"></view>
+        <text class="stat-label">标记</text>
+        <text class="stat-count">{{markedCount}}</text>
       </view>
     </view>
     <text class="panel-sub" wx:else>点击题号快速查看</text>
-
-    <!-- 图例按设计稿：已答 / 未答 / 当前 / 标记。
-         ⚠️ 这里刻意不区分答对答错：考试模式下格子一旦染成「答错色」等于泄题 -->
-    <view class="legend" wx:if="{{showStatus}}">
-      <view class="legend-item"><view class="dot dot-answered"></view><text class="legend-text">已答</text></view>
-      <view class="legend-item"><view class="dot dot-pending"></view><text class="legend-text">未答</text></view>
-      <view class="legend-item"><view class="dot dot-draft"></view><text class="legend-text">草稿</text></view>
-      <view class="legend-item"><view class="dot dot-current"></view><text class="legend-text">当前</text></view>
-      <view class="legend-item"><view class="dot dot-mark"></view><text class="legend-text">标记</text></view>
-    </view>
 
     <scroll-view class="grid-scroll" scroll-y enhanced bounces show-scrollbar="{{false}}">
       <view class="grid">

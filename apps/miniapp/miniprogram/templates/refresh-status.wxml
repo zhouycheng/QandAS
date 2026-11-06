@@ -1,0 +1,5 @@
+<root-portal enable="{{true}}" wx:if="{{pullRefreshState}}">
+  <view class="portal-theme refresh-status" aria-role="status" aria-live="polite">
+    <view wx:if="{{pullRefreshing}}" class="refresh-status-spinner"></view><text wx:else>{{pullRefreshState === 'error' ? '!' : '✓'}}</text><text>{{pullRefreshMessage}}</text>
+  </view>
+</root-portal>

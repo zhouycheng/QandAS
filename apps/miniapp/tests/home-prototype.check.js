@@ -107,7 +107,7 @@ function checkStructure() {
   assert('结构 - 天数独立成块（字号要放大）', homeWxml.indexOf('class="exam-days"') >= 0)
   assert('结构 - 今天考试使用独立状态字号',
     homeWxml.indexOf('exam-status-today') >= 0 && /\.exam-status-today\s*\{[^}]*font-size:\s*var\(--font-title\)/.test(homeWxss))
-  assert('结构 - 倒计时卡显示有效群码入口', /<community-group compact="\{\{true\}\}" hide-unavailable="\{\{true\}\}"/.test(homeWxml))
+  assert('结构 - 进群卡片位于答题卡片下方', homeWxml.indexOf('<community-group id="home-community"') > homeWxml.indexOf('class="home-create"'))
 
   assert('结构 - 四宫格位于倒计时卡之后', homeWxml.indexOf('class="entry-grid"') > homeWxml.indexOf('class="exam-card"'))
   assert('结构 - 四宫格按 entries 渲染', /wx:for="\{\{entries\}\}"/.test(homeWxml))
@@ -125,21 +125,21 @@ function checkStructure() {
   // 公告必须是居中弹窗：底部升起的形态会被自定义 tabBar 压住（用户截图投诉过）
   assert('公告 - 用居中的弹窗形态', /announcementSheetVisible[\s\S]{0,200}?placement="center"/.test(homeWxml),
     '底部升起会被 tabBar 压住')
-  assert('公告 - 弹窗顶部带喇叭徽标', homeWxml.indexOf('notice-badge') >= 0)
+  assert('公告 - 列表与正文详情分层展示', homeWxml.includes('selectedAnnouncement') && homeWxml.includes('slot="header-extra"'))
 
   assert('公告 - 喇叭直接浮于透明页头', !homeWxml.includes('hero-notice-circle') && !homeWxss.includes('.hero-notice-circle'))
   assert('公告 - 喇叭素材透明且完整显示', /\.hero-notice-icon\s*\{[^}]*position:\s*absolute[^}]*width:\s*108rpx[^}]*height:\s*108rpx/.test(homeWxss) && /hero-notice-btn\s*\{[^}]*overflow:\s*visible/.test(homeWxss))
   assert('公告 - 使用生成的图片且按公告状态摇动',
-    /<image[^>]*class="hero-notice-icon \{\{hasAnnouncements \? 'hero-notice-icon-active' : ''\}\}"[^>]*src="\/assets\/home\/announcement-megaphone.png"[^>]*mode="aspectFit"/.test(homeWxml))
+    /<image[^>]*class="hero-notice-icon \{\{hasUnreadAnnouncements && !announcementSheetVisible \? 'hero-notice-icon-active' : ''\}\}"[^>]*src="\/assets\/home\/announcement-megaphone.png"[^>]*mode="aspectFit"/.test(homeWxml))
   const megaphone = fs.readFileSync(path.join(MINIPROGRAM, 'assets/home/announcement-megaphone.png'))
   assert('公告 - 图片为带透明通道的小尺寸 PNG',
     megaphone.toString('hex', 0, 8) === '89504e470d0a1a0a' && megaphone[25] === 6 && megaphone.length < 100000)
   assert('公告 - 静止状态没有动画', !/\.hero-notice-icon\s*\{[^}]*animation:/.test(homeWxss))
-  assert('公告 - 有公告时循环轻抬招呼', /\.hero-notice-icon-active\s*\{[^}]*animation:\s*notice-call 3\.6s cubic-bezier\(0\.4, 0, 0\.2, 1\) infinite/.test(homeWxss))
+  assert('公告 - 有公告时循环轻抬招呼', /\.hero-notice-icon-active\s*\{[^}]*animation:\s*notice-call 1\.6s cubic-bezier\(0\.4, 0, 0\.2, 1\) infinite/.test(homeWxss))
   assert('公告 - 围绕喇叭主体转动', /\.hero-notice-icon\s*\{[^}]*transform-origin:\s*42% 62%/.test(homeWxss))
   const noticeFrames = homeWxss.match(/@keyframes notice-call\s*\{([\s\S]*?)\n\}/)?.[1] || ''
-  assert('公告 - 循环首尾一致且后半周期停稳', /0%, 8%, 50%, 100%\s*\{\s*transform: translateY\(0\) rotate\(0deg\) scale\(1\)/.test(noticeFrames))
-  assert('公告 - 轻抬后递减回弹', ['rotate(-3deg) scale(0.98)', 'translateY(-5rpx) rotate(6deg) scale(1.04)', 'rotate(-2.5deg) scale(1.01)', 'rotate(1deg) scale(1)'].every(frame => noticeFrames.includes(frame)))
+  assert('公告 - 循环首尾一致且后半周期停稳', /0%, 45%, 100%\s*\{\s*transform: translateY\(0\) rotate\(0deg\) scale\(1\)/.test(noticeFrames))
+  assert('公告 - 轻抬后递减回弹', ['rotate(-4deg) scale(0.96)', 'translateY(-6rpx) rotate(16deg) scale(1.2)', 'rotate(-16deg) scale(1.14)', 'rotate(8deg) scale(1.07)'].every(frame => noticeFrames.includes(frame)))
   assert('公告 - 点击反馈保持动画几何', !/\.hero-notice-hover\s*\{[^}]*(transform|animation):/.test(homeWxss))
   assert('公告 - 点击热区至少 96rpx', /\.hero-notice-btn\s*\{[^}]*width:\s*96rpx[^}]*height:\s*96rpx/.test(homeWxss))
   assert('公告 - 标签水平居中并固定在喇叭下方', homeWxml.includes('<text class="hero-notice-label">公告</text>') && /\.hero-notice-label\s*\{[^}]*left:\s*50%[^}]*transform:\s*translateX\(-50%\)/.test(homeWxss))

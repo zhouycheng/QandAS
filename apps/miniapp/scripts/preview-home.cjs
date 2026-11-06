@@ -94,7 +94,7 @@ const STATE = process.argv[2] || 'configured'
 const { SubjectListViewModel } = require(path.join(MP, 'viewmodels/subject-list-viewmodel.js'))
 const repository = require(path.join(MP, 'repositories/practice-repository.js'))
 const previewAnnouncements = ['notice', 'modal'].includes(STATE)
-  ? [{ id: 'preview', title: '学习提醒', body: '每天留一点时间复习，把学过的知识记得更牢。' }]
+  ? Array.from({ length: 24 }, (_, i) => ({ id: 'preview-' + i, pinned: i === 0, title: i === 0 ? '学习安排更新' : '课程通知 ' + i, summary: i === 0 ? '本周学习安排与练习提醒' : '题库更新与复习计划', dateText: '2026-11-05', body: '每天留一点时间复习，把学过的知识记得更牢。\n\n可以在上方横向滑动，查看往期公告。' }))
   : []
 const noticeData = new SubjectListViewModel({ storage: { get: () => null, set() {}, remove() {} }, repository: Object.assign({}, repository, {
   getRemoteAnnouncements: () => previewAnnouncements,
@@ -132,10 +132,10 @@ const MODAL_HTML = `
         <span class="panel-title">公告</span>
         <span class="panel-close">关闭</span>
       </div>
+      <div class="notice-tabs portal-theme"><div class="notice-tabs-scroll" style="overflow-x:auto"><div class="notice-tabs-track">${noticeData.announcements.map((item, i) => `<button class="notice-tab ${i === 0 ? 'notice-tab-selected' : ''}" data-notice="${i}">${i < 2 ? `<img class="notice-tab-badge" src="data:image/png;base64,${fs.readFileSync(path.join(MP, 'assets/home/announcement-' + (i === 0 ? 'top' : 'new') + '.png')).toString('base64')}">` : ''}<span class="notice-tab-title">${item.title}</span></button>`).join('')}</div></div></div>
       <div class="panel-body">
         <div class="notice-sheet portal-theme">
-          <div class="notice-badge"><img class="notice-badge-icon" src="${megaphoneUri}"></div>
-          ${noticeData.announcements.map((item) => `<div class="notice-item"><span class="notice-title">${item.title}</span><span class="notice-body">${item.body}</span></div>`).join('') || '<span class="notice-empty">暂无公告</span>'}
+          ${noticeData.announcements.map((item) => `<div class="notice-item" ${noticeData.announcements.indexOf(item) ? 'hidden' : ''}><span class="notice-date">${item.dateText}</span><span class="notice-body">${item.body}</span></div>`).join('') || '<span class="notice-empty">暂无公告</span>'}
         </div>
       </div>
     </div>
@@ -211,11 +211,11 @@ ${combineCss()}
       ${entryHtml}
       </div>
 
-      <div class="home-create">
+      ${STATE === 'continue' ? `<div class="home-continue"><span class="continue-title">未完成练习</span><div class="recent-picker"><span class="recent-picker-name">大学英语 · 正式练习</span></div><button class="q-button q-button--primary new-practice-button">继续答题</button></div>` : `<div class="home-create">
         <span class="continue-title">创建新答题</span>
         <span class="continue-subtitle">还没有练习记录，去题库选择题目</span>
         <button class="q-button q-button--primary new-practice-button">新答题</button>
-      </div>
+      </div>`}
     </div>
 
     <div class="tabbar-wrap">
@@ -231,6 +231,11 @@ ${combineCss()}
   // 浏览器预览只模拟按压与弹窗展示；公告数据来自上方 ViewModel 样例。
   const noticeButton = document.querySelector('.hero-notice-btn')
   const noticeSheet = document.querySelector('.bottom-sheet')
+  document.querySelectorAll('[data-notice]').forEach(button => button.addEventListener('click', () => {
+    document.querySelectorAll('[data-notice]').forEach(b => b.classList.toggle('notice-tab-selected', b === button))
+    document.querySelectorAll('.notice-item').forEach((item, i) => item.hidden = i !== Number(button.dataset.notice))
+    document.querySelector('.panel-body').scrollTop = 0
+  }))
   let pressTimer
   noticeButton.addEventListener('pointerdown', () => {
     clearTimeout(pressTimer)

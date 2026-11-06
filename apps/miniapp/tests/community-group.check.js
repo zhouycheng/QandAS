@@ -23,7 +23,7 @@ async function main() {
   global.wx = { getImageInfo(options) { imageLoads++; (imageSucceeds ? options.success : options.fail)() } }
   require('../miniprogram/components/community-group/index.js')
   group = { available: true, expiresAt: new Date(Date.now() + 60000).toISOString(), imageUrl: 'https://example.test/group' }
-  const card = { active: true, data: Object.assign({ hideUnavailable: true }, CommunityGroupViewModel.getInitialData()), viewModel: model, setData(patch) { Object.assign(this.data, patch) } }
+  const card = { ...component.methods, active: true, data: Object.assign({ hideUnavailable: true }, CommunityGroupViewModel.getInitialData()), viewModel: model, setData(patch) { Object.assign(this.data, patch) } }
   card.refresh = component.methods.refresh
   assert.equal(card.data.imageUrl, '', '首页卡片默认隐藏')
   await card.refresh(false)
@@ -39,6 +39,17 @@ async function main() {
   assert.match(template, /compact && imageUrl[^\n]*catchtap="open"/, '卡片内按钮仅在群码可用时显示并拦截父级点击')
   const about = fs.readFileSync(require.resolve('../miniprogram/page/about/index.wxml'), 'utf8')
   assert.match(about, /<community-group hide-unavailable="\{\{true\}\}"\s*\/>/, '关于页沿用首页群码可用性规则')
+  imageSucceeds = true
+  group = { available: true, expiresAt: new Date(Date.now() + 60000).toISOString(), imageUrl: 'https://example.test/group?v=4' }
+  await card.refresh(false)
+  assert.equal(card.data.imageUrl, group.imageUrl, '失败隐藏后再次获取可恢复卡片')
+  component.pageLifetimes.hide.call(card)
+  await component.pageLifetimes.show.call(card)
+  await card.refreshPromise
+  assert.equal(card.data.imageUrl, group.imageUrl, '重新进入页面主动获取')
+  assert.match(template, /class="group-arrow" src="\/assets\/icons\/arrow-right.svg"/, '入口显示右箭头图标')
+  const home = fs.readFileSync(require.resolve('../miniprogram/page/subject-list/index.wxml'), 'utf8')
+  assert.match(home, /id="home-community" hide-unavailable="\{\{true\}\}"/, '首页失败时隐藏内部卡片并保留组件实例')
   clearTimeout(card.expiryTimer)
   delete global.Component
   delete global.wx

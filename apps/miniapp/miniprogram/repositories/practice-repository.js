@@ -62,6 +62,7 @@ module.exports.getResumableSession = function (storage) {
 }
 module.exports.getRemoteHistory = remoteData.getHistory
 module.exports.getRemoteAnnouncements = remoteData.getAnnouncements
+module.exports.getRemoteAnnouncementPreview = remoteData.getAnnouncementPreview
 module.exports.getRemoteRecommendations = remoteData.getRecommendations
 module.exports.getRemoteRecommendationPage = remoteData.getRecommendationPage
 module.exports.loadRemoteRecommendations = remoteData.refreshRecommendations
@@ -84,3 +85,5 @@ module.exports.loadRemoteBank = remoteData.loadBank
 module.exports.loadRemoteChapters = remoteData.loadChapters
 module.exports.getRemoteChapters = remoteData.getChapters
 module.exports.previewRemotePracticeScope = remoteData.previewPracticeScope
+
+module.exports.getRemoteAnnouncementIndex = remoteData.getAnnouncementIndex

@@ -1,6 +1,7 @@
 Component({
   options: { multipleSlots: true },
   properties: {
+    scrollTop: { type: Number, value: 0 },
     visible: {
       type: Boolean,
       value: false
@@ -20,6 +21,7 @@ Component({
   },
 
   methods: {
+    handleBodyScroll(e) { this.triggerEvent('bodyscroll', e.detail) },
     handleMaskTap() {
       this.triggerEvent('close')
     },

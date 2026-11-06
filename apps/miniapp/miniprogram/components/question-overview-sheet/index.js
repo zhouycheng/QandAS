@@ -13,7 +13,7 @@ Component({
       type: Number,
       value: 0
     },
-    /** 「已答 X题 / 未答 Y题 / 标记 Z题」这一行用的三个数，由页面算好传进来 */
+    /** 答题统计由页面计算后传入。 */
     answeredCount: {
       type: Number,
       value: 0

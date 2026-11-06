@@ -1,5 +1,5 @@
 <view class="secondary-page secondary-page-fill">
-  <page-header title="点击章节时使用的配置" />
+  <page-header title="默认答题配置" />
   <scroll-view class="presets-scroll" scroll-y>
     <view class="settings-detail presets-page page-with-bottom-bar">
       <view class="preset-card" wx:for="{{presets}}" wx:key="id">
@@ -22,6 +22,19 @@
       <input class="settings-input" value="{{draft.name}}" maxlength="30" data-key="name" bindinput="handleInput" placeholder="例如：日常练习" aria-label="预设名称" />
       <text class="settings-label field-label">答题模式</text>
       <view class="preset-choices"><button wx:for="{{modeOptions}}" wx:key="value" class="q-button preset-choice {{draft.mode === item.value ? 'selected' : ''}}" data-key="mode" data-value="{{item.value}}" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button></view>
+      <block wx:if="{{draft.mode === 'practice'}}">
+        <text class="settings-label field-label">反馈时机</text>
+        <view class="preset-choices">
+          <button class="q-button preset-choice {{draft.feedback === 'IMMEDIATE' ? 'selected' : ''}}" data-key="feedback" data-value="IMMEDIATE" bindtap="handleChoice" aria-pressed="{{draft.feedback === 'IMMEDIATE'}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">即时反馈</button>
+          <button class="q-button preset-choice {{draft.feedback === 'AFTER_FINISH' ? 'selected' : ''}}" data-key="feedback" data-value="AFTER_FINISH" bindtap="handleChoice" aria-pressed="{{draft.feedback === 'AFTER_FINISH'}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">交卷后反馈</button>
+        </view>
+        <text class="settings-note">{{draft.feedback === 'IMMEDIATE' ? '确认答案后显示对错，可查看答案与解析' : '交卷后统一查看对错、答案与解析'}}</text>
+        <text class="settings-label field-label">出题顺序</text>
+        <view class="preset-choices">
+          <button class="q-button preset-choice {{draft.order === 'order' ? 'selected' : ''}}" data-key="order" data-value="order" bindtap="handleChoice" aria-pressed="{{draft.order === 'order'}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">顺序出题</button>
+          <button class="q-button preset-choice {{draft.order === 'random' ? 'selected' : ''}}" data-key="order" data-value="random" bindtap="handleChoice" aria-pressed="{{draft.order === 'random'}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">随机出题</button>
+        </view>
+      </block>
       <text class="settings-label field-label">每次题量</text>
       <view class="preset-choices"><button class="q-button preset-choice {{draft.count !== 'ALL' ? 'selected' : ''}}" data-key="count" data-value="20" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">指定题数</button><button class="q-button preset-choice {{draft.count === 'ALL' ? 'selected' : ''}}" data-key="count" data-value="ALL" bindtap="handleChoice" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">全部</button></view>
       <input wx:if="{{draft.count !== 'ALL'}}" class="settings-input" type="number" value="{{draft.countInput}}" data-key="countInput" bindinput="handleInput" placeholder="1～1000 题" aria-label="题量" />

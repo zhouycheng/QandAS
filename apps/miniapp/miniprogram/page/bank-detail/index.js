@@ -89,6 +89,7 @@ Page(withPageLifecycle({
         filterMajorIndex: Math.max(0, result.majors.findIndex(item => item.id === result.value.majorId)),
         filterGradeIndex: result.value.grade || 0, filterError: '' })
       if (result.invalid) {
+        this.viewModel.beginFilterRefresh()
         remote.setCatalogFilters(this.viewModel.storage, result.value, { clearPrevious: true })
         this.syncFilterToggle()
         wx.showToast({ title: '已清理失效分类，请重新选择', icon: 'none' })
@@ -102,12 +103,13 @@ Page(withPageLifecycle({
 
   changeFilters(patch) {
     try {
+      this.viewModel.beginFilterRefresh()
       const value = remote.setCatalogFilters(this.viewModel.storage, patch)
       this.setData({ filterGradeIndex: value.grade || 0 })
       this.syncFilterToggle()
       this.loadFilters()
       return this.refreshFilteredCatalog()
-    } catch (error) { wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
+    } catch (error) { this.viewModel.cancelFilterRefresh(); wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
   },
 
   refreshFilteredCatalog() {
@@ -116,6 +118,9 @@ Page(withPageLifecycle({
     this.routeBankId = ''; this.routeSubjectId = ''; this.routeChapterId = ''
     this.viewModel.directBankId = ''
     this.viewModel.currentSubjectId = ''
+    this.viewModel.remotePage = 1
+    this.viewModel.remoteSubjectPage = 1
+    this.setData({ catalogSwitching: true })
     this.applyViewModelResult(this.viewModel.clearSearch())
     this.setData({ searchKeyword: keyword, searchLoading: !!keyword.trim(), searchActive: !!keyword.trim() })
     const request = this.catalogRequest = (this.catalogRequest || 0) + 1
@@ -175,7 +180,8 @@ Page(withPageLifecycle({
   handleBanksMore() { return this.applyViewModelResult(this.viewModel.loadMoreBanks()) },
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
   handleRetryLoad() { return this.refreshCatalog({ force: true }) },
-  onPullDownRefresh() { return this.handleRetryLoad().finally(() => wx.stopPullDownRefresh()) },
+  getRefreshError() { return this.data.catalogError || this.data.filterError || '' },
+  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad()]) },
   onHide() {
     this.viewModel.closeConfig()
     const pages = getCurrentPages()
@@ -234,8 +240,9 @@ Page(withPageLifecycle({
   handleFilterToggle() {
     if (!this.data.filterToggleEnabled) return
     try {
+      this.viewModel.beginFilterRefresh()
       const value = remote.toggleCatalogFilters(this.viewModel.storage)
-      if (!value) return
+      if (!value) { this.viewModel.cancelFilterRefresh(); return }
       this.setData({
         filterCollegeIndex: Math.max(0, this.data.filterColleges.findIndex(item => item.id === value.collegeId)),
         filterMajorIndex: Math.max(0, this.data.filterMajors.findIndex(item => item.id === value.majorId)),
@@ -244,7 +251,7 @@ Page(withPageLifecycle({
       this.syncFilterToggle()
       this.loadFilters()
       return this.refreshFilteredCatalog()
-    } catch (error) { wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
+    } catch (error) { this.viewModel.cancelFilterRefresh(); wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
   },
 
   async openPracticeTarget(open, configure) {
@@ -279,7 +286,10 @@ Page(withPageLifecycle({
   handleSheetMode(e) {
     this.applyViewModelResult(this.viewModel.setSheetMode(e.currentTarget.dataset.value))
   },
+  handleSheetFeedback(e) { this.applyViewModelResult(this.viewModel.setSheetFeedback(e.currentTarget.dataset.value)) },
+  handleSheetOrder(e) { this.applyViewModelResult(this.viewModel.setSheetOrder(e.currentTarget.dataset.value)) },
 
+  handlePresetSave() { this.applyViewModelResult(this.viewModel.saveSheetPreset()) },
   handleSheetPreset(e) { this.applyViewModelResult(this.viewModel.selectSheetPreset(Number(e.detail.value))) },
   handleCustomDuration(e) { this.applyViewModelResult(this.viewModel.setCustomDuration(e.detail.value)) },
   async refreshSheetScope() { const pending = this.viewModel.refreshSheetScope(); this.setData(this.viewModel.buildSheetData()); this.applyViewModelResult(await pending) },
