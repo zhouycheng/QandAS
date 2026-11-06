@@ -34,7 +34,6 @@ case "$qanda_operation" in
       qanda_role=$(python3 -c 'import json;print(json.load(open("/srv/qanda/node.json"))["role"])')
       test "$qanda_role" != frontend
       if test "$qanda_role" = backend; then
-        qanda_app+=(-f /srv/qanda/compose.backend-node.yml)
         qanda_services=(api worker monitor)
       fi
     fi
@@ -42,7 +41,7 @@ case "$qanda_operation" in
     if test -s "$qanda_state"; then
       export BACKEND_IMAGE WEB_IMAGE REVISION
       BACKEND_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["backend"])')
-      WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["web"])')
+      WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json")).get("web","scratch"))')
       REVISION=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["revision"])')
       "${qanda_app[@]}" stop "${qanda_services[@]}"
     fi
