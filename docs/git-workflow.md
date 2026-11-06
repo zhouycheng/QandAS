@@ -2,75 +2,62 @@
 
 本文档是题小搭当前项目阶段的 Git 协作规则。开发者手册和 Agent Skill 均以本文档为准。
 
-## 开发与发布分支
+## 分支与发布
 
 ```text
-develop → main → 手动运行生产部署 Actions
+<username>/<type>/<中文描述> → Pull Request → main
 ```
 
-`develop` 用于日常开发，`main` 保存准备发布的版本并保持默认分支。仓库为私有，按 GitHub Free 配置，不设置分支保护、必需状态检查或部署审批。团队成员可以直接推送或使用 PR 协作；合并前核对差异并运行适用检查。
+`main` 是默认分支和唯一长期保留分支。每项工作从最新 `origin/main` 创建个人任务分支，完成后通过目标为 `main` 的 Pull Request 合入；合并后删除任务分支。
 
-推送到 `main`、`develop` 和 PR 会运行 CI。生产部署仅由 Actions 的 **Run workflow** 手动触发，且来源必须为 `main`。合并或推送不会部署。
+推送到 `main` 和 Pull Request 会运行 CI。合并或推送不会部署。管理端和后端部署分别由 Actions 的 **Deploy admin**、**Deploy backend** 手动触发，来源必须为 `main`，操作可选 `check`、`deploy` 或 `rollback`。
 
-任务分支从最新 `origin/develop` 创建，完成后合入 `develop`。发布时将确认的代码合入 `main`，再手动选择部署；回滚也由同一工作流手动触发。服务器健康检查和失败恢复属于发布流程。
+## 创建与推送任务分支
 
-## 创建和推送任务分支
-
-先确认工作区状态，不要丢弃或覆盖现有改动。再从最新 origin/develop 创建分支：
+先确认工作区状态，再同步远程引用并从最新 `origin/main` 创建分支。名称采用 `<username>/<type>/<中文描述>`，例如 `zhouycheng/feat/练习交互`、`zhouycheng/docs/同步项目文档`。用户名使用 GitHub 登录名，类型说明工作性质，描述说明实际任务。
 
 ```bash
-git status
+git status --short
 git fetch origin --prune
-git switch --no-track -c zhouycheng/feat/your-task origin/develop
+git switch --no-track -c zhouycheng/docs/同步项目文档 origin/main
 ```
 
-当前工作区任务分支使用 `zhouycheng/type/description`，例如 `zhouycheng/feat/question-list`、`zhouycheng/fix/session-restore`。描述说明实际任务；用户指定名称时使用指定值。
-
---no-track 用来避免把任务分支的 upstream 误设成 origin/main。首次推送之前没有 upstream 是正常状态，不阻止本地提交。
+`--no-track` 使任务分支不会把 `origin/main` 设为 upstream。首次推送前没有 upstream 是正常状态。
 
 ```bash
-git add <本次任务的文件>
+git add <本次任务文件>
 git diff --cached
 git diff --cached --check
 git commit -m "feat(scope): 中文描述"
 git push -u origin HEAD
 ```
 
-首次推送成功后，后续可以使用 git push。推送目标必须是当前任务分支，不能是 main。
+首次推送设置同名远程 upstream；后续推送提交到当前任务分支。提交信息采用 `type(scope): 中文描述`，一个提交表达一个完整主题。
 
 ## 提交与同步
 
-推荐提交信息采用 type(scope): 中文描述。一个提交表达一个完整逻辑；功能和与其不可分割的测试可以放在一起，不为凑提交数量机械拆分。不要混入无关格式化、临时文件或密钥。
-
-同步检查区分两件事：
-
-- 任务分支与同名远程任务分支的关系：fetch 后发现远程含有本地没有的提交时，停止推送并先处理，不能强推覆盖；本地无冲突的工作仍可提交保存。
-- 任务分支与 origin/main 的关系：落后于 main 不阻止本地提交；合并前检查差异、冲突与集成影响，必要时经明确授权同步。
-
-首次发布没有 upstream 时，应先检查是否已经存在同名远程分支；存在则检查提交关系，不能当作全新分支覆盖。upstream 指向 main 或其他非同名分支时，不据此认定任务分支已同步，也不要不加检查地执行 git push。
-
-发现未解决冲突、正在进行的 merge/rebase 或不明确的历史状态时，先停止相关写操作并处理。Agent 不擅自 pull、merge、rebase、reset、stash、强推或改写历史。
+提交前核对暂存差异和 `git diff --cached --check`，只提交本次任务文件。远程同名任务分支若包含本地没有的提交，先检查并处理提交关系再推送。合并前核对 PR 目标、完整差异、冲突和 CI 状态；需要更新基线时，以最新 `origin/main` 为准并检查集成影响。
 
 ## Pull Request
 
-日常 PR 目标为 develop，发布 PR 目标为 main。推荐标题采用 type(scope): 中文描述，正文沿用仓库模板：
+所有任务 PR 的目标分支均为 `main`。标题采用 `type(scope): 中文描述`，正文简洁说明改动及原因；仅在需要时补充迁移、兼容性或风险说明：
 
 ```markdown
 ## Summary
 
-- 改动了什么，为什么修改。
+- 改动内容及原因。
 
 ## Notes
 
-- 仅在存在迁移、兼容性、风险或其他必要说明时填写；无内容则删除。
+- 仅填写必要的迁移、兼容性或风险说明。
 ```
 
-在 GitHub 页面核对目标、差异、冲突和讨论状态，再由有写入权限的协作者合并。可以自愿邀请同伴审核，但不把等待他人批准作为前期强制步骤。
+CI 通过并完成差异核对后，将 PR 合并到 `main`，再删除已合并的任务分支。推送与 PR 不会触发部署；需要部署时，单独在对应 Actions 中选择 `main` 和操作类型。
 
 ## Agent 操作边界
 
 Agent 先检查分支、工作区、冲突和远程同步，再说明本次变更范围。
 
-用户明确授权本次提交、推送、创建 PR 或合并后，可以在该授权范围内执行对应操作；没有授权时先给出计划并征得同意。授权提交不自动等于授权合并、删除分支或修改后台保护设置。
+提交、推送、创建 PR、合并和删除分支均按用户本次授权范围执行。授权提交不自动包含其他外部操作或仓库后台设置修改。
 
 Agent 必须保留用户已有修改，只暂存本次授权的文件；失败后保留现场并报告实际结果，不擅自采用破坏性替代操作。与用户沟通使用中文。
