@@ -128,7 +128,7 @@ async function main() {
   assert.equal(bank.sheet.count, 20, '保存失败保留当前配置')
   store.full = false; bank.saveSheetPreset()
   const savedPreset = preferences.getPreferences(store).practicePresets.at(-1)
-  assert.equal(savedPreset.name, '练习 - 全部 - 10分钟')
+  assert.equal(savedPreset.name, '练习·即时反馈·顺序 - 全部 - 10分钟')
   assert.equal(bank.buildSheetData().sheetPresetName, savedPreset.name)
   assert.equal(savedPreset.count, 20, '当前只有八题也保存请求题量二十')
   assert.equal(preferences.getPreferences(store).defaultPracticePresetId, 'daily')

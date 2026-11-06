@@ -48,3 +48,5 @@
 .font-small { --reading-size: var(--reading-small); }
 .font-normal { --reading-size: var(--reading-normal); }
 .font-large { --reading-size: var(--reading-large); }
+.font-xlarge { --reading-size: var(--reading-xlarge); }
+.font-xxlarge { --reading-size: var(--reading-xxlarge); }

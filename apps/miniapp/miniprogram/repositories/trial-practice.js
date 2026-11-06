@@ -1,4 +1,4 @@
-const { timeLimitSeconds } = require('../utils/practice-presets.js')
+const { timeLimitSeconds, feedbackForMode } = require('../utils/practice-presets.js')
 const http = require('./http-gateway.js')
 const projection = require('../models/practice-snapshot.js')
 const { getPreferences } = require('./preference-repository.js')
@@ -56,7 +56,7 @@ async function create(storage, options) {
   let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(storage, options.selectionKey, bankIds) : null
   if (!preview && bankIds.length > 1) preview = await required('POST', '/practice/scope-preview', scope)
   if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: options.feedback || (options.mode === 'test' ? 'AFTER_FINISH' : 'IMMEDIATE'), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options) })
+  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: feedbackForMode(options), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options) })
   if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
   await require('./question-assets.js').completeSnapshot(storage, snapshot)
   snapshot.route = Object.assign({}, options, normalizePracticeOptions(null, getPreferences(storage)), { bankId: snapshot.questionBankId })

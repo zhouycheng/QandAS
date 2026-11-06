@@ -9,7 +9,7 @@ assert.deepEqual(vm.openMock(), { command: { type: 'switchTab', url: '/page/bank
 async function main() {
   const values = {}
   const storage = { get: key => values[key], set: (key, value) => { values[key] = JSON.parse(JSON.stringify(value)) } }
-  preferences.savePreferences(storage, { practicePresets: [{ id: 'reading', name: '背题', mode: 'view', count: 5, duration: 0 }], defaultPracticePresetId: 'reading', practiceOrder: 'order' })
+  preferences.savePreferences(storage, { practicePresets: [{ id: 'reading', name: '背题', mode: 'view', count: 5, duration: 0 }], defaultPracticePresetId: 'reading' })
   const saved = JSON.stringify(values)
   let requestedScope
   const banks = [{ id: 'b1', activeQuestionCount: 20 }, { id: 'b2', activeQuestionCount: 45 }]

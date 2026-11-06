@@ -22,7 +22,7 @@
     <root-portal enable="{{true}}" wx:if="{{shouldRevealAnswer && hasAnswered && feedback === 'IMMEDIATE' && !isViewMode && analysisAreaHeight && !analysisSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked}}">
       <view class="portal-theme analysis-layer font-{{preferences.fontSize}}" style="top:{{analysisAreaTop}}px;height:{{analysisAreaHeight}}px;">
         <view class="analysis-mask" catchtap="closeAnalysis" catchtouchmove="blockAnalysisTouch"></view>
-        <view class="analysis-sheet" style="height:{{analysisSheetHeight}}px;" motion="{{ {version: analysisSheetVersion, height: analysisSheetHeight, offset: analysisSheetOffset} }}" change:motion="{{analysisDrag.sync}}">
+        <view class="analysis-sheet" motion="{{ {version: analysisSheetVersion, height: analysisSheetHeight, offset: analysisSheetOffset} }}" change:motion="{{analysisDrag.sync}}">
           <view class="analysis-surface" aria-role="dialog" aria-label="第{{currentNumber}}题答案解析" aria-hidden="{{!analysisSheetOpen && !analysisDragging}}">
             <view class="analysis-sheet-header"><text>第 {{currentNumber}} 题 · 答案解析</text><button class="q-button q-button--text analysis-close" catchtap="closeAnalysis" aria-label="收起答案解析" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">×</button></view>
             <scroll-view class="analysis-sheet-body" scroll-y enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{analysisScrollTop}}"><include src="../../templates/practice-analysis.wxml" /></scroll-view>

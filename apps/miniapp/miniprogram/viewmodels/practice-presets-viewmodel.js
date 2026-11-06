@@ -1,5 +1,5 @@
 const repository = require('../repositories/preference-repository.js')
-const { MODES, DURATIONS, INITIAL_PRESET, defaultPreset, describePreset, validCount, validDuration } = require('../utils/practice-presets.js')
+const { MODES, DURATIONS, INITIAL_PRESET, defaultPreset, describePreset, feedbackForMode, orderForMode, validCount, validDuration } = require('../utils/practice-presets.js')
 class PracticePresetsViewModel {
   constructor(options) { this.storage = options.storage; this.repository = options.repository || repository; this.draft = null }
   static getInitialData() { return { presets: [], editing: false, draft: {}, modeOptions: MODES, durationOptions: DURATIONS, customDuration: false, error: '' } }
@@ -15,10 +15,13 @@ class PracticePresetsViewModel {
     return { data: { editing: true, draft: this.draft, customDuration: !DURATIONS.some(d => d.value === source.duration), error: '' } }
   }
   change(key, value) {
-    if (!this.draft || !['name', 'countInput', 'durationInput', 'mode', 'count', 'duration'].includes(key)) return null
+    if (!this.draft || !['name', 'countInput', 'durationInput', 'mode', 'feedback', 'order', 'count', 'duration'].includes(key)) return null
+    if (key === 'feedback' && (this.draft.mode !== 'practice' || !['IMMEDIATE', 'AFTER_FINISH'].includes(value))) return null
+    if (key === 'order' && (this.draft.mode !== 'practice' || !['order', 'random'].includes(value))) return null
     this.draft[key] = value
+    if (key === 'mode') { this.draft.feedback = feedbackForMode({ mode: value }); this.draft.order = orderForMode({ mode: value }) }
     if (key === 'name' || key.endsWith('Input')) return null
-    return { data: { ['draft.' + key]: value, error: '' } }
+    return { data: { ['draft.' + key]: value, 'draft.feedback': this.draft.feedback, 'draft.order': this.draft.order, error: '' } }
   }
   cancel() { this.draft = null; return { data: { editing: false, error: '' } } }
   write(action) {
@@ -37,16 +40,18 @@ class PracticePresetsViewModel {
     const duration = draft.mode === 'view' ? 0 : customDuration ? Number(draft.durationInput) : Number(draft.duration)
     const error = !name || name.length > 30 ? '请输入 1～30 字的预设名称' : !validCount(count) || count !== 'ALL' && !/^\d+$/.test(draft.countInput) ? '题量应为 1～1000 的整数，或选择全部' : !validDuration(duration) || customDuration && draft.mode !== 'view' && (!/^\d+$/.test(draft.durationInput) || !duration) ? '请输入 1～1440 的整数分钟' : ''
     if (error) return { data: { error } }
-    const existing = this.repository.getPreferences(this.storage).practicePresets.find(p => p.id !== draft.id && p.mode === draft.mode && p.count === count && p.duration === duration)
+    const feedback = feedbackForMode(draft)
+    const order = orderForMode(draft)
+    const existing = this.repository.getPreferences(this.storage).practicePresets.find(p => p.id !== draft.id && p.mode === draft.mode && p.feedback === feedback && p.order === order && p.count === count && p.duration === duration)
     if (existing) return { data: { error: '该配置已存在，请使用或编辑已有预设' }, existing }
-    const saved = { id: draft.id || 'preset-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, mode: draft.mode, count, duration }
+    const saved = { id: draft.id || 'preset-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, mode: draft.mode, feedback, order, count, duration }
     const result = this.write(preferences => { preferences.practicePresets = draft.id ? preferences.practicePresets.map(p => p.id === draft.id ? saved : p) : preferences.practicePresets.concat(saved) })
     if (!result.data.error) result.value = saved
     return result
   }
   createFromConfig(name, config) {
     this.edit()
-    Object.assign(this.draft, { name, mode: config.mode, count: config.count, countInput: config.count === 'ALL' ? '' : String(config.count), duration: config.duration })
+    Object.assign(this.draft, { name, mode: config.mode, feedback: feedbackForMode(config), order: orderForMode(config), count: config.count, countInput: config.count === 'ALL' ? '' : String(config.count), duration: config.duration })
     const result = this.save(false)
     return result.existing ? { value: result.existing, duplicate: true } : result
   }

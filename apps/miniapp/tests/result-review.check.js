@@ -24,10 +24,10 @@ const restored = session()
 restored.restore(practice.getPersistedState())
 assert.equal(restored.state.currentIndex, practice.state.currentIndex)
 assert.deepEqual(restored.state.answers, practice.state.answers)
-const hidden = session(1, { autoShowExplanation: false })
+const hidden = session(1, { autoOpenAnalysis: false })
 hidden.selectOption(0)
 assert.equal(hidden.state.shouldRevealAnswer, true)
-assert.equal(hidden.state.shouldShowExplanation, false)
+assert.equal(hidden.state.currentExplanation, '解析', '关闭自动展开仍可手动查看完整解析')
 const measurements = []
 for (const count of [20, 100, 1000]) {
   const value = session(count)

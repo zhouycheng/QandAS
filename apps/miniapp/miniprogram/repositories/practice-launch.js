@@ -1,7 +1,8 @@
 const { getDefaultPracticeRoute } = require('./preference-repository.js')
-const { routeQuery } = require('../utils/practice-presets.js')
+const { routeQuery, feedbackForMode } = require('../utils/practice-presets.js')
 async function preparePracticeRoute(storage, repository, scope, overrides) {
   const route = Object.assign({}, getDefaultPracticeRoute(storage), overrides)
+  route.feedback = feedbackForMode(route)
   if (overrides && Object.prototype.hasOwnProperty.call(overrides, 'count') && overrides.countAll !== '1') delete route.countAll
   const requested = route.countAll === '1' ? 1000 : Number(route.count)
   const requestScope = Object.assign({}, scope, {

@@ -13,13 +13,14 @@ const { normalizeExamList } = require('./exam-countdown.js')
 const FONT_SIZE_OPTIONS = [
   { value: 'small', label: '小' },
   { value: 'normal', label: '标准' },
-  { value: 'large', label: '大' }
+  { value: 'large', label: '大' },
+  { value: 'xlarge', label: '特大' },
+  { value: 'xxlarge', label: '超大' }
 ]
 
 // 模块顺序通过 flex order 应用，保持题目节点与滚动位置稳定。
 const DEFAULT_PREFERENCES = {
-  // 答题后是否直接展开解析：关闭后只看对错与正确答案，解析留到回顾页
-  autoShowExplanation: true,
+  autoOpenAnalysis: true,
   // 答错是否自动进错题本
   autoAddWrongBook: true,
   // 即时反馈中客观题确认答对后自动翻题
@@ -28,7 +29,6 @@ const DEFAULT_PREFERENCES = {
   // 答题时被感知成「整个页面在颤抖」，且只有点选项会触发（其它按钮没有），
   // 用户很难把它和「点击动效」区分开。想开的人可在「我的 · 学习偏好」里打开。
   vibrateOnAnswer: false,
-  practiceOrder: 'order',
   fontSize: 'normal',
   moduleOrder: DEFAULT_ORDER,
   practiceStemPercent: 50,
@@ -42,9 +42,10 @@ const DEFAULT_PREFERENCES = {
 
 /** 设置页的长期答题习惯。 */
 const PREFERENCE_SWITCHES = [
-  { key: 'autoNextWhenCorrect', label: '答对后自动跳到下一题', description: '仅练习模式：答对后等待 0.8 秒，自动进入下一题' },
-  { key: 'swipeEnabled', label: '左右手势切题', description: '新练习生效：左滑下一题，右滑上一题' },
-  { key: 'swipeDraftAction', label: '左滑时先确认答案', description: '新练习生效：即时反馈的多选、填空有输入时先确认；关闭时保存草稿并切题' },
+  { key: 'autoOpenAnalysis', heading: '答题操作', note: '新练习生效', label: '答题后自动打开解析', description: '即时反馈下，确认答案后展开；关闭时可手动打开' },
+  { key: 'autoNextWhenCorrect', label: '答对后自动下一题', description: '即时反馈答对后等待 0.8 秒切题，优先于自动打开解析' },
+  { key: 'swipeDraftAction', label: '左滑时先确认答案', description: '即时反馈的多选、填空先确认答案；关闭时保存草稿并切题' },
+  { key: 'swipeEnabled', heading: '通用设置', label: '左右手势切题', description: '新练习生效：左滑下一题，右滑上一题' },
   {
     key: 'autoAddWrongBook',
     label: '自动收录错题',
@@ -54,9 +55,7 @@ const PREFERENCE_SWITCHES = [
     key: 'vibrateOnAnswer',
     label: '答题时振动',
     description: '轻微震动，效果受设备及系统设置影响'
-  },
-  { key: 'practiceOrder', label: '练习时随机出题' },
-  { key: 'autoShowExplanation', label: '练习时答完即显示解析' }
+  }
 ]
 
 /** 选择型偏好 */
@@ -64,7 +63,7 @@ const PREFERENCE_CHOICES = [
   {
     key: 'fontSize',
     label: '题目文字大小',
-    description: '影响题干、选项与解析的字号',
+    description: '影响题干、选项、答案与解析',
     options: FONT_SIZE_OPTIONS,
     available: true
   }
@@ -94,11 +93,6 @@ function normalizePreferences(rawPreferences) {
 
   Object.keys(DEFAULT_PREFERENCES).forEach((key) => {
     const value = raw[key]
-
-    if (key === 'practiceOrder') {
-      next[key] = value === 'random' ? 'random' : 'order'
-      return
-    }
 
     if (key === 'fontSize') {
       next[key] = pickOptionValue(PREFERENCE_CHOICES.find(item => item.key === key).options, value, DEFAULT_PREFERENCES[key])
@@ -137,7 +131,7 @@ function normalizePreferences(rawPreferences) {
 function normalizePracticeOptions(raw, preferences) {
   const defaults = normalizePreferences(preferences)
   const options = {}
-  for (const key of ['autoShowExplanation', 'autoNextWhenCorrect', 'swipeEnabled']) {
+  for (const key of ['autoOpenAnalysis', 'autoNextWhenCorrect', 'swipeEnabled']) {
     const value = raw && raw[key]
     options[key] = value === true || value === '1' ? true : value === false || value === '0' ? false : defaults[key]
   }
@@ -153,8 +147,7 @@ function setPreferenceSwitch(preferences, key, value) {
     return current
   }
 
-  if (key === 'practiceOrder') current[key] = value ? 'random' : 'order'
-  else if (key === 'swipeDraftAction' && current.swipeEnabled) current[key] = value ? 'confirm' : 'save'
+  if (key === 'swipeDraftAction' && current.swipeEnabled) current[key] = value ? 'confirm' : 'save'
   else if (isBoolean(current[key])) current[key] = value
 
   return current
@@ -203,7 +196,7 @@ function buildPreferenceView(preferences) {
   return {
     switches: PREFERENCE_SWITCHES.map((item) => Object.assign({}, item, {
       disabled: item.key === 'swipeDraftAction' && !current.swipeEnabled,
-      value: item.key === 'practiceOrder' ? current.practiceOrder === 'random' : item.key === 'swipeDraftAction' ? current.swipeDraftAction === 'confirm' : current[item.key]
+      value: item.key === 'swipeDraftAction' ? current.swipeDraftAction === 'confirm' : current[item.key]
     })),
     choices: PREFERENCE_CHOICES.map((item) => Object.assign({}, item, {
       value: current[item.key],

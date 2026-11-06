@@ -194,6 +194,21 @@
             <view class="config-row config-row-stacked" wx:if="{{!mockSelection}}"><text class="config-label">答题模式</text><view class="seg-group">
               <view wx:for="{{modeOptions}}" wx:key="value" class="seg-chip {{sheetMode === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="handleSheetMode" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</view>
             </view></view>
+            <view class="config-row config-row-stacked" wx:if="{{sheetMode === 'practice'}}">
+              <text class="config-label">反馈时机</text>
+              <view class="seg-group config-wrap">
+                <button class="q-button seg-chip {{sheetFeedback === 'IMMEDIATE' ? 'is-active' : ''}}" data-value="IMMEDIATE" bindtap="handleSheetFeedback" aria-pressed="{{sheetFeedback === 'IMMEDIATE'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">即时反馈</button>
+                <button class="q-button seg-chip {{sheetFeedback === 'AFTER_FINISH' ? 'is-active' : ''}}" data-value="AFTER_FINISH" bindtap="handleSheetFeedback" aria-pressed="{{sheetFeedback === 'AFTER_FINISH'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">交卷后反馈</button>
+              </view>
+              <text class="config-note">{{sheetFeedback === 'IMMEDIATE' ? '确认答案后显示对错，可查看答案与解析' : '交卷后统一查看对错、答案与解析'}}</text>
+            </view>
+            <view class="config-row config-row-stacked" wx:if="{{sheetMode === 'practice'}}">
+              <text class="config-label">出题顺序</text>
+              <view class="seg-group config-wrap">
+                <button class="q-button seg-chip {{sheetOrder === 'order' ? 'is-active' : ''}}" data-value="order" bindtap="handleSheetOrder" aria-pressed="{{sheetOrder === 'order'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">顺序出题</button>
+                <button class="q-button seg-chip {{sheetOrder === 'random' ? 'is-active' : ''}}" data-value="random" bindtap="handleSheetOrder" aria-pressed="{{sheetOrder === 'random'}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">随机出题</button>
+              </view>
+            </view>
             <view class="config-row config-row-stacked"><text class="config-label">这次做多少题</text><view class="seg-group config-wrap">
               <button wx:for="{{countOptions}}" wx:key="value" class="q-button seg-chip {{sheetCount === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" disabled="{{item.disabled}}" bindtap="handleSheetCount" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{item.label}}</button>
             </view><text class="config-note" wx:if="{{sheetLimitHint}}">{{sheetLimitHint}}</text></view>

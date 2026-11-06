@@ -112,11 +112,17 @@ Page(withPageLifecycle({
     })
   },
 
+  analysisDefaultOffset(height = this.data.analysisSheetHeight, areaHeight = this.data.analysisAreaHeight) {
+    return Math.min(0, Math.floor(areaHeight * 0.5) - height)
+  },
+
   analysisMeasurement(body) {
     if (!body || this.data.analysisDragging) return {}
     const height = Math.max(44, Math.floor(body.height * 0.7))
     const visible = this.data.analysisSheetHeight + this.data.analysisSheetOffset
-    const offset = !this.data.analysisSheetOpen ? -height : this.data.analysisSheetOffset === 0 ? 0 : Math.max(-height, Math.min(0, visible - height))
+    const offset = !this.data.analysisSheetOpen ? -height
+      : this.data.analysisSheetOffset === this.analysisDefaultOffset() ? this.analysisDefaultOffset(height, body.height)
+        : this.data.analysisSheetOffset === 0 ? 0 : Math.max(-height, Math.min(0, visible - height))
     return viewPatch(this.data, { analysisAreaTop: body.top, analysisAreaHeight: body.height, analysisSheetHeight: height, analysisSheetOffset: offset })
   },
 
@@ -492,7 +498,7 @@ Page(withPageLifecycle({
     if (open && (!this.data.shouldRevealAnswer || !this.data.hasAnswered || this.data.feedback !== 'IMMEDIATE' || this.data.isViewMode || this.data.isCompleted || this.data.analysisSuspended)) return
     this.clearAutoAdvance()
     this.ignoreSwipe()
-    this.setData({ analysisSheetOpen: open, analysisDragging: false, analysisSheetOffset: open ? 0 : -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
+    this.setData({ analysisSheetOpen: open, analysisDragging: false, analysisSheetOffset: open ? this.analysisDefaultOffset() : -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
   },
   closeAnalysis() { this.setAnalysisOpen(false) },
   toggleAnalysis() { this.setAnalysisOpen(!this.data.analysisSheetOpen) },
@@ -640,9 +646,9 @@ Page(withPageLifecycle({
       }
 
       const next = Object.assign({}, this.data, patch)
-      if (next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && (questionChanged || !this.data.shouldRevealAnswer)) {
+      if (next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && next.preferences.autoOpenAnalysis && !result.autoAdvance && (questionChanged || !this.data.shouldRevealAnswer)) {
         patch.analysisSheetOpen = true
-        patch.analysisSheetOffset = 0
+        patch.analysisSheetOffset = this.analysisDefaultOffset()
       }
       if (!next.shouldRevealAnswer || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked) {
         patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
@@ -657,7 +663,7 @@ Page(withPageLifecycle({
       }
 
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
-      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'shouldShowExplanation', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
       if (patch.analysisSheetOpen !== undefined && patch.analysisSheetOpen !== this.data.analysisSheetOpen) patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
       this.setData(viewPatch(this.data, patch), () => { runEffects(); if (layoutChanged) this.scheduleMeasure() })
       return

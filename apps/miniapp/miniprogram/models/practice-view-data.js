@@ -89,9 +89,6 @@ function getInitialPracticeViewData() {
     answers: [],
     hasAnswered: false,
     shouldRevealAnswer: false,
-    // 与 shouldRevealAnswer 分开：对错标记与正确答案始终显示，
-    // 解析是否自动展开由用户在「学习偏好」里决定
-    shouldShowExplanation: false,
     isCurrentAnswerCorrect: false,
     currentCorrectAnswerText: '',
     currentExplanation: '',

@@ -79,7 +79,6 @@ class PracticeSession {
       syncStatus: (restored && restored.syncStatus) || SYNC_STATUS.LOCAL_ONLY,
       // 背题模式直接给答案与解析，不受偏好影响
       shouldRevealAnswer: isViewMode,
-      shouldShowExplanation: isViewMode,
       preferences,
       layoutRanks: ranks(preferences.moduleOrder),
       subjectId: quiz ? quiz.subjectId : '',
@@ -291,7 +290,6 @@ class PracticeSession {
       answers: [],
       hasAnswered: false,
       shouldRevealAnswer: isViewMode,
-      shouldShowExplanation: isViewMode,
       isCurrentAnswerCorrect: isViewMode,
       currentCorrectAnswerText: isViewMode ? this.getCorrectAnswerText(firstQuestion) : '',
       currentExplanation: isViewMode ? this.getExplanation(firstQuestion) : '',
@@ -550,9 +548,6 @@ class PracticeSession {
     const hasAnswered = !!savedAnswer && savedAnswer.confirmed !== false
     // 模拟测试模式下不即时反馈，交卷后才统一公布答案
     const shouldRevealAnswer = this.state.isViewMode || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer)
-    // 对错与正确答案照常给出，解析是否展开服从用户偏好（背题模式始终展开）
-    const shouldShowExplanation =
-      shouldRevealAnswer && (this.state.isViewMode || this.preferences.autoShowExplanation)
 
     return this.updateState(Object.assign({
       currentIndex: index,
@@ -564,7 +559,6 @@ class PracticeSession {
       hasAnswered,
       answerLocked: this.state.isViewMode || this.state.isCompleted || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer),
       shouldRevealAnswer,
-      shouldShowExplanation,
       isCurrentAnswerCorrect: this.state.isViewMode || (savedAnswer ? !!savedAnswer.isCorrect : false),
       currentCorrectAnswerText: shouldRevealAnswer ? this.getCorrectAnswerText(question) : '',
       currentExplanation: shouldRevealAnswer ? this.getExplanation(question) : '',
@@ -622,7 +616,6 @@ class PracticeSession {
     }
     this.state.hasAnswered = true
     this.state.shouldRevealAnswer = this.state.feedback === 'IMMEDIATE'
-    this.state.shouldShowExplanation = this.state.feedback === 'IMMEDIATE' && this.preferences.autoShowExplanation
     this.state.isCurrentAnswerCorrect = isCorrect
     this.state.currentCorrectAnswerText = this.getCorrectAnswerText(question)
     this.state.currentExplanation = this.getExplanation(question)

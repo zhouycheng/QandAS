@@ -1,7 +1,7 @@
 const { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText } = require('../models/bank-detail-presentation.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const { PracticePresetsViewModel } = require('./practice-presets-viewmodel.js');
-const { defaultPreset, validCount, validDuration, routeForPreset } = require('../utils/practice-presets.js');
+const { defaultPreset, validCount, validDuration, routeForPreset, feedbackForMode, feedbackLabel, orderLabel } = require('../utils/practice-presets.js');
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const { summarizeBankProgress, summarizeSubjectProgress } = require('../utils/practice-progress.js');
 const MAX_KEYWORD_LENGTH = 20;
@@ -34,8 +34,8 @@ function getInitialBankDetailViewData() {
         configTargetName: '',
         sheetMode: DEFAULT_SHEET.mode,
         sheetModeDescription: MODE_OPTIONS[0].description,
-        sheetAutoShowExplanation: true,
-        sheetAutoNextWhenCorrect: false,
+        sheetFeedback: DEFAULT_SHEET.feedback,
+        sheetOrder: DEFAULT_SHEET.order,
         sheetDuration: DEFAULT_SHEET.duration,
         sheetOnlyWrong: DEFAULT_SHEET.onlyWrong,
         sheetWrongCount: 0,
@@ -347,6 +347,7 @@ class BankDetailViewModel {
         if (!result || !this.sheetTarget)
             return null;
         this.sheet.mode = pending.mode === 'test' ? 'test' : pending.mode === 'view' ? 'view' : 'practice';
+        this.sheet.feedback = feedbackForMode(pending);
         this.sheet.order = pending.mode === 'order' || pending.mode === 'view' ? 'order' : 'random';
         this.sheet.duration = Number(pending.duration) || 0;
         this.sheet.presetId = '';
@@ -403,7 +404,7 @@ class BankDetailViewModel {
         if (!this.sheet.presets) {
             const preferences = this.repository.getPreferences(this.storage);
             const preset = defaultPreset(preferences);
-            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, order: preferences.practiceOrder, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
+            this.sheet = Object.assign(this.sheet, preset, { presetId: preset.id, presetName: preset.name, mockSelection: !!this.mockSelection, presets: preferences.practicePresets.filter(p => !this.mockSelection || p.mode === 'test') });
         }
         if (this.mockSelection) Object.assign(this.sheet, { mode: 'test', count: 'ALL', duration: 45, onlyWrong: false, durationError: '' });
         this.remoteSearchText = '';
@@ -437,7 +438,17 @@ class BankDetailViewModel {
     }
     setSheetMode(mode) {
         if (this.mockSelection) return null;
-        this.sheet.mode = resolveModeValue(mode); this.sheet.durationError = ''; this.customSheet();
+        this.sheet.mode = resolveModeValue(mode); this.sheet.feedback = feedbackForMode({ mode: this.sheet.mode }); this.sheet.durationError = ''; this.customSheet();
+        return { data: this.buildSheetData() };
+    }
+    setSheetFeedback(value) {
+        if (this.mockSelection || this.sheet.mode !== 'practice' || !['IMMEDIATE', 'AFTER_FINISH'].includes(value)) return null;
+        this.sheet.feedback = value; this.customSheet();
+        return { data: this.buildSheetData() };
+    }
+    setSheetOrder(value) {
+        if (this.mockSelection || this.sheet.mode !== 'practice' || !['order', 'random'].includes(value)) return null;
+        this.sheet.order = value; this.customSheet();
         return { data: this.buildSheetData() };
     }
     selectSheetPreset(index) {
@@ -453,7 +464,7 @@ class BankDetailViewModel {
         const countLabel = config.sheetCount === 'ALL' ? '全部' : (config.countOptions.findIndex(option => option.value === config.sheetCount) + 1) + '档';
         const modeLabel = MODE_OPTIONS.find(option => option.value === this.sheet.mode).label;
         const durationLabel = this.sheet.mode === 'view' || !this.sheet.duration ? '不限时' : this.sheet.duration + '分钟';
-        const name = `${modeLabel} - ${countLabel} - ${durationLabel}`;
+        const name = `${modeLabel}${this.sheet.mode === 'practice' ? '·' + feedbackLabel(this.sheet) + '·' + orderLabel(this.sheet) : ''} - ${countLabel} - ${durationLabel}`;
         const editor = new PracticePresetsViewModel({ storage: this.storage, repository: this.repository });
         const result = editor.createFromConfig(name, this.sheet);
         if (!result.value) return { command: { type: 'toast', title: result.data.error } };
@@ -547,8 +558,7 @@ class BankDetailViewModel {
     }
     async createConfiguredPractice(target, selected) {
         const bankId = selected.length ? selected[0].id : target.bankId;
-        const preferences = this.repository.getPreferences(this.storage);
-        const route = routeForPreset(this.sheet, preferences);
+        const route = routeForPreset(this.sheet);
         const result = await preparePracticeRoute(this.storage, this.repository, { questionBankId: bankId, ...(target.banks ? { questionBankIds: selected.map(b => b.id) } : {}), chapterIds: this.sheet.chapterId ? [this.sheet.chapterId] : [], selectionKind: this.sheet.onlyWrong ? 'WRONG' : 'NORMAL', collectionChip: 'all' }, route);
         Object.assign(result.route, { subjectId: target.subjectId });
         if (target.banks) result.route.bankIds = selected.map(b => b.id).join(',');

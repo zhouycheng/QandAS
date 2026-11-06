@@ -115,7 +115,7 @@ try {
   assert(compact.data.paneHeights.response >= 64, '保留可输入的区域')
 
   const matrix = page()
-  for (const [width, screen] of [[320, 568], [375, 667], [390, 844], [430, 932]]) for (const font of [12, 14, 18]) {
+  for (const [width, screen] of [[320, 568], [375, 667], [390, 844], [430, 932]]) for (const font of [14, 18, 20, 22, 24]) {
     const gap = 24 * width / 750
     const fixed = 44 + (font === 18 && width === 320 ? 80 : 36)
     const bodyHeight = screen - 98 - 88

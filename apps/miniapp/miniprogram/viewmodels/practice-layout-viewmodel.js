@@ -10,7 +10,7 @@ class PracticeLayoutViewModel {
         this.order = prefs.moduleOrder;
         this.savedOrder = this.order.slice();
         this.percent = prefs.practiceStemPercent; this.savedPercent = this.percent;
-        const session = new PracticeSession({ quiz: { subjectId: 'layout-example', bankId: 'layout-example', sharePath: '/page/practice-layout/index', title: '答题布局预览', questions: [SAMPLE] }, mode: 'order', preferences: Object.assign({}, prefs, { autoShowExplanation: true, autoNextWhenCorrect: false }) });
+        const session = new PracticeSession({ quiz: { subjectId: 'layout-example', bankId: 'layout-example', sharePath: '/page/practice-layout/index', title: '答题布局预览', questions: [SAMPLE] }, mode: 'order', preferences: Object.assign({}, prefs, { autoOpenAnalysis: true, autoNextWhenCorrect: false }) });
         session.reset();
         session.selectOption(1);
         session.state.isViewMode = true;

@@ -1,5 +1,5 @@
 var SNAP_DISTANCE = 32;
-var TRANSITION = 'transform 180ms cubic-bezier(.22, 1, .36, 1)';
+var TRANSITION = 'height 180ms cubic-bezier(.22, 1, .36, 1)';
 
 function state(ins) {
   var owner = ins.getState();
@@ -8,7 +8,7 @@ function state(ins) {
 }
 function clamp(s, offset) { return Math.max(-s.height, Math.min(0, offset)); }
 function paint(s, animate) {
-  s.sheet.setStyle({ transition: animate ? TRANSITION : 'none', transform: 'translate3d(0,' + s.offset + 'px,0)' });
+  s.sheet.setStyle({ transition: animate ? TRANSITION : 'none', height: (s.height + s.offset) + 'px' });
   if (s.mask) s.mask.setStyle({ opacity: s.offset > -s.height ? 1 : 0, 'pointer-events': s.offset > -s.height ? 'auto' : 'none' });
 }
 function sync(value, old, ins) {
@@ -28,11 +28,8 @@ function sync(value, old, ins) {
 function start(event, ins) {
   var s = state(ins);
   if (event.touches.length !== 1 || !s.sheet) return cancel(event, ins);
-  var transform = s.sheet.getComputedStyle(['transform']).transform || '';
-  if (transform.indexOf('matrix') === 0) {
-    var values = transform.slice(transform.indexOf('(') + 1, -1).split(',');
-    s.offset = clamp(s, +values[values.length === 16 ? 13 : 5]);
-  }
+  var visible = parseFloat(s.sheet.getComputedStyle(['height']).height);
+  if (visible >= 0) s.offset = clamp(s, visible - s.height);
   s.touch = { y: event.touches[0].clientY, offset: s.offset };
   s.moved = false;
   s.ignoreTap = false;

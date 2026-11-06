@@ -280,6 +280,8 @@ Page(withPageLifecycle({
   handleSheetMode(e) {
     this.applyViewModelResult(this.viewModel.setSheetMode(e.currentTarget.dataset.value))
   },
+  handleSheetFeedback(e) { this.applyViewModelResult(this.viewModel.setSheetFeedback(e.currentTarget.dataset.value)) },
+  handleSheetOrder(e) { this.applyViewModelResult(this.viewModel.setSheetOrder(e.currentTarget.dataset.value)) },
 
   handlePresetSave() { this.applyViewModelResult(this.viewModel.saveSheetPreset()) },
   handleSheetPreset(e) { this.applyViewModelResult(this.viewModel.selectSheetPreset(Number(e.detail.value))) },
