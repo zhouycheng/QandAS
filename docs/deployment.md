@@ -1,6 +1,6 @@
 # 生产部署与恢复
 
-题小搭使用私有仓库、GHCR 和 Docker Compose。`develop` 用于开发，`main` 用于发布。推送和合并运行完整 CI；在 Actions 的 **Deploy backend** 或 **Deploy admin → Run workflow** 分别选择 `check`、`deploy` 或 `rollback`。`check` 验证 Tailscale、受限 SSH 和节点角色，只查询发布状态；`deploy` 自动完成验证、构建、发布和健康检查。
+题小搭尚未进入正式生产，当前数据均为测试数据。双服务器部署在新后端使用空库初始化，不迁移原测试数据。项目使用私有仓库、GHCR 和 Docker Compose；`main` 是唯一长期保留分支，任务通过 PR 合入 `main`。推送到 `main` 和 PR 会运行 CI；管理端与后端分别在 Actions 的 **Deploy admin**、**Deploy backend → Run workflow** 手动选择 `check`、`deploy` 或 `rollback`。`check` 验证 Tailscale、受限 SSH 和节点角色并查询发布状态；`deploy` 自动完成验证、构建、发布和健康检查。部署工作流仅接受 `main`。
 
 后端工作流部署到后端所有者的服务器，管理端工作流部署到管理端所有者的服务器，各自连接所属 Tailnet。两个入口独立触发、独立构建镜像、独立记录版本和回滚，可以并行运行。
 
@@ -90,7 +90,7 @@ sudo /usr/local/lib/qanda/restore-check.py /var/backups/qanda/<备份文件>.tar
 
 恢复检查解密到进程内存，在随机命名的临时 PostgreSQL 容器中恢复，逐项核验题库图片摘要，最后删除该次临时容器及其匿名卷。它不会连接或写入生产数据库。
 
-RabbitMQ 持久卷保存未消费的答题正文，数据库备份不能代替队列备份。普通发布始终保留队列卷；整机恢复还需数据库、附件和队列的一致性恢复方案。主机内备份不能覆盖整台服务器丢失，后续应接入独立备份存储。
+RabbitMQ 持久卷保存未消费的答题正文，数据库备份不能代替队列备份。普通发布始终保留队列卷。当前备份保存在服务器本机，不能覆盖整机故障；正式生产前需配置独立备份存储，并验证数据库、附件和队列的一致性恢复。
 
 ## 管理员备份与恢复
 
@@ -109,7 +109,7 @@ sudo qanda-db restore /受保护目录/数据.dump
 
 ## 双服务器与容器运维
 
-管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。当前数据均为测试数据，新后端使用空库初始化。切换验收后停用原后端应用和题小搭基础服务，原有卷保留。
+管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。新后端使用空库初始化，原服务器上的测试数据不迁移。切换验收后停用原后端应用和题小搭基础服务；原有测试卷保留，是否清理另行核对。
 
 两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，Tailscale 拥有容器身份；HTTP 网关与其共享网络命名空间，连接题小搭 Docker 网络。后端节点使用 `tag:qanda-backend`；管理端节点以管理端所有者的用户身份登录，保留无标签状态以接收节点共享。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。
 
