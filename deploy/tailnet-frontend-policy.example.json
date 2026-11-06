@@ -1,0 +1,19 @@
+{
+  "tagOwners": {"tag:qanda-ci": ["autogroup:admin"]},
+  "groups": {"group:qanda-operators": []},
+  "hosts": {
+    "qanda-frontend": "100.64.0.10",
+    "qanda-backend-shared": "100.64.0.11"
+  },
+  "grants": [
+    {"src": ["autogroup:member"], "dst": ["qanda-frontend"], "ip": ["tcp:8080"]},
+    {"src": ["tag:qanda-ci", "group:qanda-operators"], "dst": ["qanda-frontend"], "ip": ["tcp:2222"]},
+    {"src": ["qanda-frontend"], "dst": ["qanda-backend-shared"], "ip": ["tcp:18084", "tcp:18085"]},
+    {"src": ["group:qanda-operators"], "dst": ["qanda-backend-shared"], "ip": ["tcp:2222"]}
+  ],
+  "ssh": [],
+  "tests": [
+    {"src": "tag:qanda-ci", "accept": ["qanda-frontend:2222"], "deny": ["qanda-frontend:22", "qanda-backend-shared:2222"]},
+    {"src": "qanda-frontend", "accept": ["qanda-backend-shared:18084", "qanda-backend-shared:18085"], "deny": ["qanda-backend-shared:22", "qanda-backend-shared:5432"]}
+  ]
+}

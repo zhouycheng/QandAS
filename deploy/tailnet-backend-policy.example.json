@@ -1,0 +1,15 @@
+{
+  "tagOwners": {
+    "tag:qanda-backend": ["autogroup:admin"],
+    "tag:qanda-ci": ["autogroup:admin"]
+  },
+  "groups": {"group:qanda-operators": []},
+  "grants": [
+    {"src": ["tag:qanda-ci", "group:qanda-operators"], "dst": ["tag:qanda-backend"], "ip": ["tcp:2222"]},
+    {"src": ["autogroup:shared"], "dst": ["tag:qanda-backend"], "ip": ["tcp:2222", "tcp:18084", "tcp:18085"]}
+  ],
+  "ssh": [],
+  "tests": [
+    {"src": "tag:qanda-ci", "accept": ["tag:qanda-backend:2222"], "deny": ["tag:qanda-backend:22", "tag:qanda-backend:5432", "tag:qanda-backend:18084"]}
+  ]
+}
