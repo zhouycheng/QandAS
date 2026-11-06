@@ -53,7 +53,7 @@ async function main() {
   assert.strictEqual(homeVm.load().data.hasAnnouncements, false, '公告加载前保持静止')
   await Promise.all([homeVm.refreshRemote(), homeVm.refreshRemote()])
   assert.deepStrictEqual(calls.map(c => c[1]).sort(), ['/announcements', '/me/learning-overview'], '首页读取摘要和公告，并发刷新合并')
-  assert.strictEqual(calls.find(c => c[1] === '/announcements')[2].pageSize, 1)
+  assert.strictEqual(calls.find(c => c[1] === '/announcements')[2].pageSize, 20)
   assert.strictEqual(homeVm.load().data.hasAnnouncements, true, '有可见公告时持续摇动')
   assert.strictEqual(homeVm.load().data.announcements[0].body, '公告正文')
   assert.strictEqual(homeVm.openAnnouncement().data.announcementSheetVisible, true)

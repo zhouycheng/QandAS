@@ -1,3 +1,4 @@
+@import "../../styles/loading-skeleton.wxss";
 @import "../../styles/config-icon.wxss";
 @import "../../styles/controls.wxss";
 /* 两栏背景铺满视口；滚动内容末尾为悬浮底栏留出可滚动空间。 */
@@ -151,7 +152,7 @@ page { background: var(--card); }
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100% 100%;
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY3MDg1IiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMy41IDExYTguNSA4LjUgMCAxIDEgMi4yIDYuNiIvPjxwYXRoIGQ9Ik0zLjUgNS41VjExSDkiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY3MDg1IiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMyA0aDE4bC03IDh2N2wtNCAydi05TDMgNHoiLz48L3N2Zz4=");
 }
 
 .bk-filter.is-on {
@@ -159,7 +160,7 @@ page { background: var(--card); }
 }
 
 .bk-filter.is-on .bk-filter-icon {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMy41IDExYTguNSA4LjUgMCAxIDEgMi4yIDYuNiIvPjxwYXRoIGQ9Ik0zLjUgNS41VjExSDkiLz48L3N2Zz4=");
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMyA0aDE4bC03IDh2N2wtNCAydi05TDMgNHoiLz48L3N2Zz4=");
 }
 
 .bk-filter.is-off {
@@ -195,22 +196,25 @@ page { background: var(--card); }
 
 .rail-item {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   min-height: 92rpx;
+  margin: 0 8rpx;
   padding-right: 10rpx;
+  border-radius: var(--radius-tag);
 }
 
 .rail-bar {
   flex: none;
   width: 6rpx;
-  border-radius: 0 999rpx 999rpx 0;
+  height: 32rpx;
+  border-radius: 999rpx;
   background: transparent;
 }
 
 .rail-body {
   flex: 1;
   min-width: 0;
-  padding-left: 18rpx;
+  padding-left: 10rpx;
   display: flex;
   align-items: center;
 }
@@ -227,9 +231,8 @@ page { background: var(--card); }
   color: var(--text-sub);
 }
 
-/* 选中项与右侧面板同色，视觉上「贴着」面板，这是侧边标签页的常见做法 */
 .rail-item.is-active {
-  background: var(--card);
+  background: var(--brand-soft);
 }
 
 .rail-item.is-active .rail-bar {
@@ -238,11 +241,7 @@ page { background: var(--card); }
 
 .rail-item.is-active .rail-name {
   font-weight: 600;
-  color: var(--text-main);
-}
-
-.rail-divider {
-  height: 24rpx;
+  color: var(--brand);
 }
 
 .rail-tool .rail-name {
@@ -250,7 +249,7 @@ page { background: var(--card); }
 }
 
 .rail-item-hover {
-  background: rgba(31, 42, 55, 0.04);
+  opacity: 0.72;
 }
 
 .panel {
@@ -423,7 +422,6 @@ page { background: var(--card); }
   line-height: var(--leading-secondary);
   color: var(--text-sub);
 }
-
 .config-row.config-row-stacked {
   flex-direction: column;
   align-items: flex-start;

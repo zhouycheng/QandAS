@@ -39,7 +39,7 @@
         hover-start-time="0"
         hover-stay-time="80"
       >
-        <image class="hero-notice-icon {{hasAnnouncements ? 'hero-notice-icon-active' : ''}}" src="/assets/home/announcement-megaphone.png" mode="aspectFit"></image>
+        <image class="hero-notice-icon {{hasUnreadAnnouncements && !announcementSheetVisible ? 'hero-notice-icon-active' : ''}}" src="/assets/home/announcement-megaphone.png" mode="aspectFit"></image>
         <text class="hero-notice-label">公告</text>
       </view>
     </view>
@@ -107,14 +107,15 @@
 
     <view class="load-note" wx:if="{{overviewLoading}}">正在读取学习摘要…</view>
     <view class="load-note" wx:if="{{overviewError}}" bindtap="handleRetryLoad" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{overviewError}} · 点击重试</view>
-    <view wx:if="{{lastPractice.resumed}}" class="home-continue" bindtap="handleContinuePractice" aria-role="button" aria-label="继续答题，{{lastPractice.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-      <view class="continue-detail"><text class="continue-title">继续答题</text><text class="continue-subtitle">{{lastPractice.title}} · {{lastPractice.metaText}}</text></view>
-      <text class="continue-arrow">›</text>
+    <view wx:if="{{lastPractice.resumed}}" class="home-continue">
+      <text class="continue-title">未完成练习</text>
+      <view class="recent-picker"><text class="recent-picker-name">{{lastPractice.title}} · {{lastPractice.metaText}}</text></view>
+      <button class="q-button q-button--primary new-practice-button" bindtap="handleContinuePractice" aria-label="继续答题，{{lastPractice.title}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">继续答题</button>
     </view>
     <view wx:else class="home-create">
-      <text class="continue-title">创建新答题</text>
-      <text wx:if="{{recentLoading}}" class="continue-subtitle">正在读取最近练习…</text>
-      <view wx:elif="{{recentError}}" class="recent-error" bindtap="handleRecentRetry" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recentError}} · 点击重试</view>
+      <text wx:if="{{!recentLoading || recentLoaded}}" class="continue-title">创建新答题</text>
+      <view wx:if="{{recentLoading && !recentLoaded}}" class="loading-skeleton" aria-label="正在加载最近练习"><view class="skeleton-line skeleton-short"></view><view class="skeleton-block"></view></view>
+      <view wx:elif="{{recentError && !recentSubjects.length}}" class="recent-error" bindtap="handleRecentRetry" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{recentError}} · 点击重试</view>
       <block wx:elif="{{recentSubjects.length}}">
         <picker mode="multiSelector" range="{{recentColumns}}" value="{{recentPickerValue}}" bindcolumnchange="handleRecentColumnChange" bindchange="handleRecentSelect" bindcancel="handleRecentCancel">
         <view class="recent-picker" aria-role="button" aria-label="选择最近练过的科目和题库" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
@@ -123,7 +124,7 @@
         </picker>
       </block>
       <text wx:else class="continue-subtitle">{{recentHasHistory ? '最近题库暂不可用，去题库选择题目' : '还没有练习记录，去题库选择题目'}}</text>
-      <button class="{{recentLoading || recentError || newPracticeLoading ? 'q-button--disabled' : ''}} q-button q-button--primary new-practice-button {{recentLoading || recentError || newPracticeLoading ? 'new-practice-disabled' : ''}}" bindtap="handleNewPractice" aria-role="button" aria-disabled="{{recentLoading || recentError || newPracticeLoading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80" disabled="{{recentLoading || recentError || newPracticeLoading}}" loading="{{newPracticeLoading}}">{{newPracticeLoading ? '正在开始…' : '新答题'}}</button>
+      <button hidden="{{recentLoading && !recentLoaded}}" class="{{recentLoading || recentError || newPracticeLoading ? 'q-button--disabled' : ''}} q-button q-button--primary new-practice-button {{recentLoading || recentError || newPracticeLoading ? 'new-practice-disabled' : ''}}" bindtap="handleNewPractice" aria-role="button" aria-disabled="{{recentLoading || recentError || newPracticeLoading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80" disabled="{{recentLoading || recentError || newPracticeLoading}}" loading="{{newPracticeLoading}}">{{newPracticeLoading ? '正在开始…' : '新答题'}}</button>
     </view>
     <community-group id="home-community" hide-unavailable="{{true}}" />
 
@@ -173,30 +174,28 @@
   </root-portal>
 
   <!-- 公告与底栏共用完整遮罩，正文在居中面板内滚动。 -->
-  <bottom-sheet
-    visible="{{announcementSheetVisible}}"
-    title="{{selectedAnnouncement ? '公告详情' : '公告'}}"
-    scroll-top="{{announcementScrollTop}}"
-    bind:bodyscroll="handleAnnouncementScroll"
-    placement="center"
-    bind:close="handleAnnouncementClose"
-  >
+  <bottom-sheet visible="{{announcementSheetVisible}}" title="公告" placement="center" scroll-top="{{announcementScrollTop}}" bind:close="handleAnnouncementClose">
+    <view slot="header-extra" class="notice-tabs portal-theme">
+      <scroll-view scroll-x enhanced show-scrollbar="{{false}}" scroll-left="{{announcementTabScroll}}" lower-threshold="80" bindscrolltolower="handleAnnouncementMore" class="notice-tabs-scroll">
+        <view class="notice-tabs-track">
+          <view wx:for="{{announcements}}" wx:key="id" class="notice-tab {{selectedAnnouncement.id === item.id ? 'notice-tab-selected' : ''}}" data-id="{{item.id}}" bindtap="handleAnnouncementDetail" aria-role="button" aria-label="{{item.pinned ? '置顶，' : item.id === latestAnnouncementId ? '最新，' : ''}}{{item.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+            <image wx:if="{{item.pinned || item.id === latestAnnouncementId}}" class="notice-tab-badge" src="/assets/home/announcement-{{item.pinned ? 'top' : 'new'}}.png" mode="aspectFit" aria-hidden="true" />
+            <text class="notice-tab-title">{{item.title}}</text>
+          </view>
+          <button wx:if="{{announcementError}}" class="notice-more q-button q-button--text" bindtap="handleAnnouncementRetry">重试</button>
+          <button wx:elif="{{announcementHasMore || announcementLoading}}" class="notice-more q-button q-button--text" disabled="{{announcementLoading}}" bindtap="handleAnnouncementMore">{{announcementLoading ? '读取中…' : '更多公告'}}</button>
+        </view>
+      </scroll-view>
+    </view>
     <view class="notice-sheet portal-theme">
       <block wx:if="{{selectedAnnouncement}}">
-        <button class="q-button q-button--text" bindtap="handleAnnouncementBack" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回公告列表</button>
-        <text class="notice-title">{{selectedAnnouncement.title}}</text>
+        <text class="notice-date">{{selectedAnnouncement.dateText}}</text>
         <rich-content class="notice-body" text="{{selectedAnnouncement.body || selectedAnnouncement.summary || ''}}" format="MARKDOWN" />
         <community-group wx:if="{{announcementSheetVisible && selectedAnnouncement.showCommunityGroup}}" inline="{{true}}" />
       </block>
-      <view hidden="{{selectedAnnouncement}}">
-        <view class="notice-item notice-list-row" wx:for="{{announcements}}" wx:key="id" data-id="{{item.id}}" bindtap="handleAnnouncementDetail" aria-role="button" aria-label="阅读公告：{{item.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-          <text class="notice-title">{{item.pinned ? '置顶 · ' : ''}}{{item.title}}</text><text class="notice-summary">{{item.summary}}</text><text class="notice-date">{{item.dateText}}</text>
-        </view>
-        <text class="notice-empty" wx:if="{{announcementLoading}}">正在读取公告…</text>
-        <text class="notice-empty" wx:elif="{{announcementError}}" bindtap="handleAnnouncementRetry">{{announcementError}} · 点击重试</text>
-        <text class="notice-empty" wx:elif="{{!hasAnnouncements}}">暂无公告</text>
-        <view class="load-note" wx:if="{{announcementHasMore && !announcementLoading}}" bindtap="handleAnnouncementMore" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">加载更多公告</view>
-      </view>
+      <text class="notice-empty" wx:elif="{{announcementLoading}}">正在读取公告…</text>
+      <text class="notice-empty" wx:elif="{{!announcementError}}">暂无公告</text>
+      <text wx:if="{{announcementError}}" class="notice-empty" bindtap="handleAnnouncementRetry">{{announcementError}} · 点击重试</text>
     </view>
   </bottom-sheet>
 

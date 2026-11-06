@@ -1,3 +1,4 @@
+const announcementReads = require('../repositories/announcement-reads.js');
 const { preparePracticeRoute, routeQuery } = require('../repositories/practice-launch.js');
 const practiceRepository = require('../repositories/practice-repository.js');
 const { summarizeAnswers, summarizeOverallProgress } = require('../utils/practice-progress.js');
@@ -67,6 +68,7 @@ function getInitialSubjectListViewData() {
         pinnedAnnouncement: null,
         selectedAnnouncement: null,
         hasAnnouncements: false,
+        hasUnreadAnnouncements: false,
         announcementSheetVisible: false,
         // 题目搜索
         searchVisible: false,
@@ -103,7 +105,7 @@ class SubjectListViewModel {
     projectRemote() {
         const data = this.load().data;
         const result = {};
-        ['overall', 'home', 'exam', 'entries', 'announcements', 'pinnedAnnouncement', 'hasAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key]; });
+        ['overall', 'home', 'exam', 'entries', 'announcements', 'pinnedAnnouncement', 'hasAnnouncements', 'hasUnreadAnnouncements', 'lastPractice', 'searchTotalText'].forEach(key => { result[key] = data[key]; });
         if (this.repository.getRemoteResourceState) {
             const overview = this.repository.getRemoteResourceState('overview');
             result.overviewLoading = overview.status === 'loading' && !overview.data;
@@ -161,6 +163,7 @@ class SubjectListViewModel {
                 exam: selectHomeExam(preferences.examCountdowns),
                 entries: this.buildEntries(lastPractice),
                 announcements,
+                hasUnreadAnnouncements: this.hasUnreadAnnouncements(announcements),
                 pinnedAnnouncement: preview && preview.pinned ? preview : null,
                 hasAnnouncements: this.repository.getRemoteAnnouncementTotal ? this.repository.getRemoteAnnouncementTotal(this.storage) > 0 : announcements.length > 0,
                 searchTotalText: overallStats.total > 0 ? `在全部 ${overallStats.total} 道题里查题干与选项` : '输入关键词搜索已发布的题目',
@@ -405,6 +408,16 @@ class SubjectListViewModel {
         return { command: { type: 'switchTab', url: '/page/bank-detail/index', target: { intent: 'test' } } };
     }
     // ---------- 公告 ----------
+    hasUnreadAnnouncements(items) {
+        const known = this.repository.getRemoteAnnouncementIndex ? this.repository.getRemoteAnnouncementIndex(this.storage) : [];
+        const versions = new Map(known.map(item => [item.id, item]));
+        items.forEach(item => versions.set(item.id, item));
+        return announcementReads.hasUnread(this.storage, Array.from(versions.values()));
+    }
+    markAnnouncementRead(item) {
+        announcementReads.markRead(this.storage, item);
+        return { data: { hasUnreadAnnouncements: this.hasUnreadAnnouncements(this.repository.getRemoteAnnouncements(this.storage)) } };
+    }
     openAnnouncement() {
         return {
             data: {
@@ -412,8 +425,8 @@ class SubjectListViewModel {
             }
         };
     }
-    loadAnnouncements(page) {
-        return this.repository.refreshRemote(this.storage, 'announcements', { page: page || 1 }).then(() => ({ data: {
+    loadAnnouncements(page, force) {
+        return this.repository.refreshRemote(this.storage, 'announcements', { page: page || 1, force: !!force }).then(() => ({ data: {
                 announcements: this.repository.getRemoteAnnouncements(this.storage).map(item => Object.assign({}, item, { dateText: (item.publishAt || item.updatedAt || '').slice(0, 10) })),
                 announcementPage: page || 1,
                 announcementHasMore: this.repository.getRemoteAnnouncements(this.storage).length < this.repository.getRemoteAnnouncementTotal(this.storage)

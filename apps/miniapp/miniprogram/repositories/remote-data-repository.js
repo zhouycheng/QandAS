@@ -11,7 +11,7 @@ let owner = ''
 let sessionToken = ''
 let scope = ''
 let activeStorage = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
@@ -77,12 +77,15 @@ async function refreshCatalog(storage, options) {
   const settings = options || {}
   if (settings.force) ['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:'].forEach(cache.invalidate)
   await refreshSubjects(storage, { force: settings.force })
+  for (let page = 2; page <= (settings.subjectPage || 1); page++) await refreshSubjects(storage, { page, force: settings.force })
   if (settings.subjectId && !state.subjects.some(subject => subject.id === settings.subjectId)) {
     try { await loadSubject(storage, settings.subjectId, settings) }
     catch (error) { if (error.statusCode !== 404) throw error }
   }
   const subjectId = state.subjects.some(subject => subject.id === settings.subjectId) ? settings.subjectId : (state.subjects[0] || {}).id
-  if (subjectId || settings.keyword) return refreshBanks(storage, Object.assign({}, settings, { subjectId: settings.keyword ? undefined : subjectId }))
+  if (subjectId || settings.keyword) {
+    for (let page = settings.force ? 1 : (settings.page || 1); page <= (settings.page || 1); page++) await refreshBanks(storage, Object.assign({}, settings, { page, subjectId: settings.keyword ? undefined : subjectId }))
+  }
   return null
 }
 function loadSubject(storage, id, options) {
@@ -157,6 +160,16 @@ function refreshAnnouncements(storage, options) {
     state.announcementTotal = data.total
   }, options && options.force)
 }
+async function refreshHomeAnnouncements(storage, options) {
+  const identity = authRepository.getAuth(storage).token
+  await refreshAnnouncements(storage, options)
+  const total = state.announcementTotal
+  for (let page = 2; (page - 1) * 20 < total; page++) {
+    if (authRepository.getAuth(storage).token !== identity) return
+    await refreshAnnouncements(storage, Object.assign({}, options, { page }))
+  }
+  if (authRepository.getAuth(storage).token === identity) state.announcementIndex = state.announcements.slice()
+}
 function refreshRecommendations(storage, options) {
   const user = bind(storage)
   const settings = options || {}
@@ -219,7 +232,7 @@ function refresh(storage, kind, options) {
   const user = bind(storage)
   const settings = options || {}
   if (kind === 'catalog') return refreshCatalog(storage, settings)
-  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshAnnouncements(storage, Object.assign({}, settings, { pageSize: 1 }))])
+  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshHomeAnnouncements(storage, settings)])
   if (!user) return Promise.resolve()
   if (kind === 'profile') return refreshProfile(storage, settings)
   if (kind === 'stats') return refreshStatistics(storage, settings)
@@ -354,3 +367,5 @@ module.exports.toggleCatalogFilters = function (storage) { return invalidateCata
 module.exports.getChapters = getChapters
 
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })
+
+module.exports.getAnnouncementIndex = storage => { bind(storage); return state.announcementIndex }

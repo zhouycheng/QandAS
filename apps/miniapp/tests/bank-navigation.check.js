@@ -28,6 +28,7 @@ async function main() {
   let searched = ''
   page.viewModel = {
     storage, repository,
+    beginFilterRefresh() {}, cancelFilterRefresh() {},
     load: () => null,
     clearSearch: () => ({ data: { searchKeyword: '', searchActive: false, searchResults: [] } }),
     refreshRemote: async id => { opened.push(['subject', id]); return { data: { catalogLoading: false } } },

@@ -63,27 +63,42 @@ class BankDetailViewModel {
         this.sheet = Object.assign({}, DEFAULT_SHEET);
         this.sheetTarget = null;
     }
+    beginFilterRefresh() {
+        this.filterSnapshot = Object.assign({}, this.projectRemote(), { catalogSwitching: true, catalogError: '' });
+        this.filterIdentity = this.repository.getAuth(this.storage).token;
+    }
+    cancelFilterRefresh() { this.filterSnapshot = null; }
     refreshRemote(subjectId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
         if (subjectId && subjectId !== this.currentSubjectId)
             this.remotePage = 1;
         if (subjectId)
             this.currentSubjectId = subjectId;
-        if (options && options.force) {
-            this.remotePage = 1;
-            this.remoteSubjectPage = 1;
+        if (options && options.force && subjectId) {
+            this.refreshSnapshot = this.projectRemote();
+            this.refreshIdentity = this.repository.getAuth(this.storage).token;
         }
-        return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1 }))
+        return this.repository.refreshRemote(this.storage, 'catalog', Object.assign({}, options, { subjectId: this.currentSubjectId, page: this.remotePage || 1, subjectPage: this.remoteSubjectPage || 1 }))
             .then(async () => {
             if (revision !== this.catalogRevision) return null;
             if (this.repository.loadRemoteChapters) {
                 const subjects = this.repository.getSubjectSummaries();
                 const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id;
-                const page = this.repository.getRemoteCatalogPage({ subjectId: id, page: this.remotePage || 1 }).data;
-                await Promise.allSettled((page && page.items || []).map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)));
+                const banks = (this.repository.getSubjectDetail(id) || {}).banks || [];
+                await Promise.allSettled(banks.map(bank => this.repository.loadRemoteChapters(this.storage, bank.id, options)));
             }
-            return revision === this.catalogRevision ? { data: this.projectRemote() } : null;
-        }).catch(() => revision === this.catalogRevision ? { data: this.projectRemote() } : null);
+            if (revision !== this.catalogRevision) return null;
+            this.refreshSnapshot = null;
+            const retained = this.filterSnapshot;
+            this.filterSnapshot = null;
+            const data = this.projectRemote();
+            if (retained && data.catalogError) this.filterSnapshot = Object.assign({}, retained, { catalogSwitching: false, catalogError: data.catalogError });
+            return { data: this.filterSnapshot || Object.assign(data, { catalogSwitching: false }) };
+        }).catch(error => {
+            if (revision !== this.catalogRevision) return null;
+            if (this.filterSnapshot) Object.assign(this.filterSnapshot, { catalogSwitching: false, catalogError: error.message || '筛选读取失败' });
+            return { data: this.projectRemote() };
+        });
     }
     async openPublicBank(bankId, options) {
         const revision = this.catalogRevision = (this.catalogRevision || 0) + 1;
@@ -99,6 +114,13 @@ class BankDetailViewModel {
         return { data: Object.assign(this.buildViewData(subjects, Object.assign({}, detail, { banks: detail.banks.filter(item => item.id === bank.id) })), { catalogLoading: false, catalogError: '', catalogHasMore: false }) };
     }
     projectRemote() {
+        if (this.filterSnapshot && this.filterIdentity === this.repository.getAuth(this.storage).token) return this.filterSnapshot;
+        this.filterSnapshot = null;
+        if (this.refreshSnapshot && this.refreshSnapshot.subject && this.refreshSnapshot.subjectId === this.currentSubjectId && this.refreshIdentity === this.repository.getAuth(this.storage).token) {
+            const state = this.repository.getRemoteCatalogPage({ subjectId: this.currentSubjectId, page: this.remotePage || 1 });
+            return Object.assign({}, this.refreshSnapshot, { catalogLoading: false, catalogError: state.error || '' });
+        }
+        this.refreshSnapshot = null;
         const subjects = this.repository.getSubjectSummaries();
         const id = subjects.some(subject => subject.id === this.currentSubjectId) ? this.currentSubjectId : (subjects[0] || {}).id;
         const detail = this.repository.getSubjectDetail(id);

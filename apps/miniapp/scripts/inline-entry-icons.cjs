@@ -1,7 +1,7 @@
-// Four home entries share a solid brand tile and white artwork.
+// Home entries use megaphone-derived gradients and white artwork.
 const fs = require('node:fs')
 const path = require('node:path')
-const { colors } = require('../miniprogram/utils/design-tokens.js')
+const { colors, homeEntryColors } = require('../miniprogram/utils/design-tokens.js')
 const target = path.join(__dirname, '../miniprogram/page/subject-list/index.wxss')
 const icons = {
   recent: `<rect x="27" y="31" width="42" height="39" rx="8" fill="white"/><path d="M37 25v12m22-12v12" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="m41 59 18-18 6 6-18 18-9 3z" fill="white" stroke="${colors.brand}" stroke-width="3" stroke-linejoin="round"/>`,
@@ -11,7 +11,9 @@ const icons = {
 }
 let source = fs.readFileSync(target, 'utf8')
 for (const [name, body] of Object.entries(icons)) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="${colors.brand}"/>${body}</svg>`
+  const [highlight, base] = homeEntryColors[name]
+  const artwork = body.replaceAll(colors.brand, base)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${highlight}"/><stop offset="1" stop-color="${base}"/></linearGradient></defs><rect width="96" height="96" rx="26" fill="url(#tile)"/>${artwork}</svg>`
   const uri = 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64')
   const pattern = new RegExp(`(\\.entry-icon-${name}\\s*\\{[^}]*?background-image:\\s*url\\(")[^"]*(")`)
   if (!pattern.test(source)) throw new Error('缺少首页入口图标：' + name)
