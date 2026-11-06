@@ -1,6 +1,0 @@
-# Used only on a separate backend node. Never bind these ports to a public interface.
-services:
-  api:
-    ports: ["${TAILNET_BIND_ADDRESS:?required}:18084:8083"]
-  monitor:
-    ports: ["${TAILNET_BIND_ADDRESS:?required}:18085:8083"]

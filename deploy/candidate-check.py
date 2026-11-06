@@ -12,7 +12,7 @@ import time
 import uuid
 
 
-def check(backend, web):
+def check(backend, web=None):
     prefix = 'qanda-check-' + uuid.uuid4().hex[:12]
     names = []
     def docker(*args):
@@ -60,15 +60,16 @@ def check(backend, web):
                 time.sleep(2)
             else:
                 raise RuntimeError('Candidate backend did not become ready')
-            start('web', web)
-            for _ in range(20):
-                try:
-                    docker('exec', prefix + '-web', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/healthz')
-                    break
-                except subprocess.CalledProcessError:
-                    time.sleep(1)
-            else:
-                raise RuntimeError('Candidate web did not become ready')
+            if web:
+                start('web', web)
+                for _ in range(20):
+                    try:
+                        docker('exec', prefix + '-web', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/healthz')
+                        break
+                    except subprocess.CalledProcessError:
+                        time.sleep(1)
+                else:
+                    raise RuntimeError('Candidate web did not become ready')
             print('Isolated candidate and repeatable V1 initialization passed')
     finally:
         for name in reversed(names):
@@ -77,6 +78,6 @@ def check(backend, web):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        sys.exit('Usage: candidate-check.py BACKEND_IMAGE WEB_IMAGE')
+    if len(sys.argv) not in (2, 3):
+        sys.exit('Usage: candidate-check.py BACKEND_IMAGE [WEB_IMAGE]')
     check(*sys.argv[1:])

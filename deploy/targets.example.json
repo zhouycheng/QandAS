@@ -1,4 +1,4 @@
 {
-  "frontend": {"server": "your-tailscale-server", "admin_user": "ubuntu"},
-  "backend": {"server": "your-tailscale-server", "admin_user": "ubuntu"}
+  "frontend": {"server": "frontend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.10"},
+  "backend": {"server": "backend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.11"}
 }

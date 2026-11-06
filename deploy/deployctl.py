@@ -16,6 +16,7 @@ import urllib.request
 ROOT = Path('/srv/qanda')
 STATE = Path('/var/lib/qanda-deploy')
 SERVICES = ('api', 'worker', 'monitor', 'web')
+GATEWAY_IMAGE = 'nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236'
 
 
 def node_role():
@@ -27,6 +28,82 @@ def node_role():
 
 def services():
     return ('web',) if node_role() == 'frontend' else SERVICES[:3] if node_role() == 'backend' else SERVICES
+
+
+def debug_request(action, args):
+    if action == 'containers' and not args:
+        return None
+    if action not in ('logs', 'shell', 'restart') or not args or args[0] not in services():
+        raise ValueError('Select an application service owned by this node')
+    if len(args) != 1 and not (action == 'logs' and args[1:] == ['--follow']):
+        raise ValueError('Unexpected container operation arguments')
+    return args[0]
+
+
+def owned_container(service):
+    if service not in services():
+        raise ValueError('Service is not owned by this node')
+    found = run('docker', 'ps', '-aq', '--no-trunc',
+                '--filter', 'label=com.docker.compose.project=qanda-application',
+                '--filter', 'label=com.docker.compose.service=' + service,
+                '--filter', 'label=com.docker.compose.oneoff=False').splitlines()
+    if len(found) != 1 or not re.fullmatch(r'[0-9a-f]{64}', found[0]):
+        raise RuntimeError('Expected exactly one project application container')
+    container = json.loads(run('docker', 'inspect', found[0]))[0]
+    labels = container['Config'].get('Labels') or {}
+    config = container['HostConfig']
+    if (container['Id'] != found[0] or labels.get('com.docker.compose.project') != 'qanda-application'
+            or labels.get('com.docker.compose.service') != service
+            or labels.get('com.docker.compose.oneoff') != 'False'
+            or config.get('Privileged') or config.get('CapAdd') or config.get('Devices')
+            or config.get('NetworkMode') == 'host' or config.get('PidMode') == 'host'
+            or config.get('IpcMode') == 'host'):
+        raise RuntimeError('Container does not satisfy the project isolation boundary')
+    expected_networks = {'qanda-application'} | (set() if service == 'web' else {'qanda-data'})
+    if set(container['NetworkSettings']['Networks']) != expected_networks:
+        raise RuntimeError('Unexpected application networks')
+    for mount in container['Mounts']:
+        if (mount['Type'] == 'volume' and mount.get('Name') == 'qanda-production-assets'
+                and mount['Destination'] == '/var/lib/qanda/assets' and service != 'web'):
+            continue
+        if (mount['Type'] == 'bind' and mount['Source'] == str(ROOT / 'web-assets')
+                and mount['Destination'] == '/srv/qanda-assets' and not mount['RW'] and service == 'web'):
+            continue
+        raise RuntimeError('Unexpected application mount')
+    return container
+
+
+def debug(action, args):
+    service = debug_request(action, args)
+    protected(ROOT / 'node.json')
+    if action == 'containers':
+        result = []
+        for name in services():
+            container = owned_container(name)
+            result.append({'service': name, 'image': container['Config']['Image'],
+                           'state': container['State']['Status'],
+                           'health': container['State'].get('Health', {}).get('Status')})
+        print(json.dumps(result))
+        return
+    container = owned_container(service)
+    identifier = container['Id']
+    if action == 'restart':
+        with open(STATE / 'lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if read(STATE / 'operation.json', {}).get('phase') not in (None, 'complete', 'failed', 'rolled-back'):
+                raise RuntimeError('A release is in progress')
+            run('docker', 'restart', '--time', '120', identifier)
+        print('Container restarted; use containers to inspect readiness')
+        return
+    if action == 'logs':
+        command = ['docker', 'logs', '--tail', '200', '--timestamps']
+        if args[1:]:
+            command.append('--follow')
+        command.append(identifier)
+    else:
+        command = ['docker', 'exec', '-i'] + (['-t'] if sys.stdin.isatty() and sys.stdout.isatty() else [])
+        command += [identifier, '/bin/sh']
+    os.execvp(command[0], command)
 
 
 def run(*args, **kwargs):
@@ -45,14 +122,16 @@ def read(path, default=None):
 
 
 def validate_release(release):
-    if not isinstance(release, dict) or set(release) != {'revision', 'backend', 'web'}:
-        raise ValueError('Expected revision, backend and web')
+    images = ('web',) if node_role() == 'frontend' else ('backend',) if node_role() == 'backend' else ('backend', 'web')
+    required = {'revision', *images}
+    if not isinstance(release, dict) or set(release) not in (required, {'revision', 'backend', 'web'}):
+        raise ValueError('Expected the revision and images owned by this node')
     if not isinstance(release['revision'], str) or not re.fullmatch(r'[0-9a-f]{40}', release['revision']):
         raise ValueError('Expected a full commit SHA')
-    for kind in ('backend', 'web'):
+    for kind in set(release) - {'revision'}:
         if not isinstance(release[kind], str) or not re.fullmatch(r'ghcr\.io/zhouycheng/qanda-' + kind + r'@sha256:[0-9a-f]{64}', release[kind]):
             raise ValueError('Image repository or digest is not allowed')
-    return release
+    return {key: value for key, value in release.items() if key in required}
 
 
 def protected(path):
@@ -63,24 +142,70 @@ def protected(path):
 
 
 def compose(release, *args):
-    env = {**os.environ, 'BACKEND_IMAGE': release['backend'], 'WEB_IMAGE': release['web'], 'REVISION': release['revision']}
+    # Compose interpolates inactive services too; scratch cannot start an unselected role.
+    env = {**os.environ, 'BACKEND_IMAGE': release.get('backend', 'scratch'),
+           'WEB_IMAGE': release.get('web', 'scratch'), 'REVISION': release['revision']}
     command = ['docker', 'compose', '-p', 'qanda-application', '--env-file', ROOT / 'production.env']
     if (ROOT / 'node.env').exists():
         command += ['--env-file', ROOT / 'node.env']
     command += ['-f', ROOT / 'compose.application.yml']
-    if node_role() == 'backend':
-        command += ['-f', ROOT / 'compose.backend-node.yml']
     return run(*command, *args, env=env)
+
+
+def tailnet_command(release):
+    return ['docker', 'compose', '-p', 'qanda-tailnet', '--env-file', str(ROOT / 'node.env'),
+            '-f', str(ROOT / 'compose.tailnet.yml')], {**os.environ, 'GATEWAY_IMAGE': GATEWAY_IMAGE}
+
+
+def tailnet_compose(release, *args):
+    command, env = tailnet_command(release)
+    return run(*command, *args, env=env)
+
+
+def tailnet_image():
+    values = dict(line.split('=', 1) for line in (ROOT / 'node.env').read_text().splitlines() if '=' in line)
+    image = values.get('TAILSCALE_IMAGE', '')
+    if not re.fullmatch(r'tailscale/tailscale@sha256:[0-9a-f]{64}', image):
+        raise ValueError('An immutable official Tailscale image is required')
+    return image
+
+
+def check_tailnet_identity(release):
+    values = dict(line.split('=', 1) for line in (ROOT / 'node.env').read_text().splitlines() if '=' in line)
+    status = json.loads(tailnet_compose(release, 'exec', '-T', 'tailnet', 'tailscale', 'status', '--json'))
+    identity = status.get('Self') or {}
+    valid_identity = (not identity.get('Tags') and bool(identity.get('UserID'))
+                      if node_role() == 'frontend' else identity.get('Tags') == ['tag:qanda-backend'])
+    if (status.get('BackendState') != 'Running'
+            or values.get('TAILNET_NODE_IP') not in (status.get('TailscaleIPs') or [])
+            or not valid_identity):
+        raise RuntimeError('Project container identity does not match the configured node')
+    prefs = json.loads(tailnet_compose(release, 'exec', '-T', 'tailnet', 'tailscale', 'debug', 'prefs'))
+    if prefs.get('AdvertiseRoutes') or prefs.get('RunSSH') or prefs.get('RouteAll') or prefs.get('ExitNodeID'):
+        raise RuntimeError('Project container must not provide host access or subnet routing')
+    serve = json.loads(tailnet_compose(release, 'exec', '-T', 'tailnet', 'tailscale', 'serve', 'status', '--json'))
+    if (serve.get('TCP') != {'2222': {'TCPForward': '172.29.71.1:2203'}}
+            or serve.get('Web') or any((serve.get('AllowFunnel') or {}).values())):
+        raise RuntimeError('Unexpected project operations forwarding configuration')
 
 
 def preflight(first=False):
     for name in ('compose.application.yml', 'production.env'):
         protected(ROOT / name)
-    for name in ('node.json', 'node.env', 'compose.backend-node.yml'):
+    for name in ('node.json', 'node.env'):
         if (ROOT / name).exists():
             protected(ROOT / name)
     if (ROOT / 'production.env').stat().st_mode & 0o077:
         raise RuntimeError('production.env must have mode 0600')
+    if node_role() != 'combined':
+        for name in ('node.json', 'node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json', f'tailnet-{node_role()}.conf'):
+            protected(ROOT / name)
+        for name in ('/etc/ssh/qanda-ops.conf', '/usr/local/lib/qanda/remote-entry.py',
+                     '/etc/ssh/qanda-authorized-keys/qanda-deploy', '/etc/ssh/qanda-authorized-keys/qanda-debug'):
+            protected(Path(name))
+            if not Path(name).stat().st_size:
+                raise RuntimeError('Project SSH configuration and public keys are required')
+        tailnet_image()
     info = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
     required = 128 if node_role() == 'frontend' else 1536 if first else 384
     if int(info['MemAvailable'].split()[0]) < required * 1024:
@@ -116,6 +241,14 @@ def health(release):
         container = compose(release, 'ps', '-q', role)
         if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
             raise RuntimeError('Application group is not healthy')
+    if node_role() != 'combined':
+        run('/usr/local/lib/qanda/network-guard.py', '--check')
+        run('systemctl', 'is-active', 'qanda-ops.service')
+        check_tailnet_identity(release)
+        for service in ('tailnet', 'gateway'):
+            container = tailnet_compose(release, 'ps', '-q', service)
+            if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
+                raise RuntimeError('Project tailnet is not healthy')
     if node_role() == 'backend':
         return
     with urllib.request.urlopen('https://qanda.zhoust.cn/api/v1/health', timeout=15) as response:
@@ -137,6 +270,16 @@ def activate(release):
     # Persist the image variables so host restarts/manual compose commands use the same release.
     atomic(STATE / 'desired.json', release)
     compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *services())
+    if node_role() != 'combined':
+        # Application releases keep the fixed control gateway and the polling connection alive.
+        run('systemctl', 'start', 'qanda-ops.service', 'qanda-tailnet.service')
+        for _ in range(120):
+            containers = tailnet_compose(release, 'ps', '-q', 'tailnet', 'gateway').splitlines()
+            if len(containers) == 2 and all(run('docker', 'inspect', '-f', '{{.State.Health.Status}}', c) == 'healthy' for c in containers):
+                break
+            time.sleep(2)
+        else:
+            raise RuntimeError('Project tailnet did not become ready')
 
 
 def apply(request):
@@ -145,7 +288,11 @@ def apply(request):
     preflight(first=current is None)
     mark('pulling')
     for kind in ('backend', 'web'):
-        run('docker', 'pull', release[kind])
+        if kind in release:
+            run('docker', 'pull', release[kind])
+    if node_role() != 'combined':
+        run('docker', 'pull', tailnet_image())
+        run('docker', 'pull', GATEWAY_IMAGE)
     if request['action'] == 'deploy' and node_role() != 'frontend':
         mark('backing-up')
         run('/usr/local/sbin/qanda-backup')
@@ -158,7 +305,10 @@ def apply(request):
             compose(current, 'stop', '--timeout', '120', *services())
         if request['action'] == 'deploy' and node_role() != 'frontend':
             mark('checking-candidate')
-            run('/usr/local/lib/qanda/candidate-check.py', release['backend'], release['web'])
+            candidate = ['/usr/local/lib/qanda/candidate-check.py', release['backend']]
+            if node_role() == 'combined':
+                candidate.append(release['web'])
+            run(*candidate)
             mark('initializing')
             compose(release, 'run', '--rm', '--no-deps', 'schema-init')
         if node_role() != 'backend':
@@ -176,6 +326,7 @@ def apply(request):
             health(current)
             mark('rolled-back')
         else:
+            # Keep the independent operations entry reachable for diagnosis and retry.
             compose(release, 'stop', '--timeout', '120', *services())
             mark('failed')
         raise
@@ -191,10 +342,24 @@ def main():
     protected(Path(__file__).resolve())
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     protected(STATE)
-    action = sys.argv[1] if len(sys.argv) == 2 else ''
-    if action == 'status':
-        print(json.dumps({'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
+    action = sys.argv[1] if len(sys.argv) >= 2 else ''
+    if action in ('containers', 'logs', 'shell', 'restart'):
+        debug(action, sys.argv[2:])
         return
+    if len(sys.argv) != 2:
+        raise ValueError('Expected one deployment action')
+    if action == 'status':
+        print(json.dumps({'role': node_role(), 'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
+        return
+    if action == 'tailnet-run':
+        if node_role() == 'combined':
+            raise ValueError('Project tailnet requires a split node')
+        for name in ('node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json', f'tailnet-{node_role()}.conf'):
+            protected(ROOT / name)
+        tailnet_image()
+        command, env = tailnet_command({})
+        os.execvpe(command[0], [*command, 'up', '--no-build', '--pull', 'never',
+                              '--abort-on-container-exit', '--exit-code-from', 'tailnet'], env)
     with open(STATE / 'lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if action == 'apply':

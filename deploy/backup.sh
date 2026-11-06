@@ -19,6 +19,13 @@ cp /srv/qanda/compose.*.yml "$qanda_backup_dir/"
 for qanda_node_file in /srv/qanda/node.json /srv/qanda/node.env; do
   if test -f "$qanda_node_file"; then cp "$qanda_node_file" "$qanda_backup_dir/"; fi
 done
+for qanda_gateway_file in /srv/qanda/tailnet-*.conf; do
+  if test -f "$qanda_gateway_file"; then cp "$qanda_gateway_file" "$qanda_backup_dir/"; fi
+done
+for qanda_ops_file in /srv/qanda/tailnet-config/serve.json /etc/ssh/qanda-ops.conf /etc/qanda/ssh_host_ed25519_key; do
+  if test -f "$qanda_ops_file"; then cp "$qanda_ops_file" "$qanda_backup_dir/"; fi
+done
+if test -d /etc/ssh/qanda-authorized-keys; then cp -R /etc/ssh/qanda-authorized-keys "$qanda_backup_dir/authorized-keys"; fi
 if test -d /var/lib/qanda-deploy; then cp -R /var/lib/qanda-deploy "$qanda_backup_dir/deployment-state"; fi
 qanda_backup_file="/var/backups/qanda/$(date -u +%Y%m%dT%H%M%S%NZ).tar.enc"
 tar -C "$qanda_backup_dir" -cf - . | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \

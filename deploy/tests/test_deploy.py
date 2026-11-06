@@ -32,21 +32,16 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 targets.validate(bad)
 
-    def test_frontend_failure_restores_previously_deployed_backend(self):
+    def test_split_nodes_require_separate_owner_deployments(self):
         import json
-        topology = {k: {'server': k, 'admin_user': 'ubuntu'} for k in ('frontend', 'backend')}
+        topology = {k: {'server': k, 'admin_user': 'ubuntu', 'service_ip': f'100.64.0.{i + 10}'} for i, k in enumerate(('frontend', 'backend'))}
         with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
-            'DEPLOY_TARGETS': json.dumps(topology), 'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name
+            'DEPLOY_TARGETS': json.dumps(topology), 'DEPLOY_NODE': 'all', 'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name
         }), patch.object(dispatch, 'remote', return_value={'current': release()}), \
              patch.object(dispatch, 'execute') as execute:
-            def result(server, action):
-                if server == 'frontend':
-                    raise RuntimeError('frontend failed')
-                return {'operation': {'phase': 'complete'}, 'current': release('b')}
-            execute.side_effect = result
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(ValueError):
                 dispatch.main()
-            self.assertEqual(execute.call_args_list[-1].args, ('backend', 'rollback'))
+            execute.assert_not_called()
 
     def test_only_qanda_immutable_images_are_accepted(self):
         self.assertEqual(deploy.validate_release(release()), release())
@@ -81,6 +76,18 @@ class ReleaseTests(unittest.TestCase):
             with patch.object(deploy, 'run', side_effect=command), self.assertRaises(RuntimeError):
                 deploy.apply({'release': release('b'), 'action': 'deploy'})
             compose.assert_not_called()
+
+    def test_failed_first_release_preserves_the_operations_entry(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
+             patch.object(deploy, 'node_role', return_value='backend'), patch.object(deploy, 'preflight'), \
+             patch.object(deploy, 'tailnet_image', return_value='project-network-image'), \
+             patch.object(deploy, 'compose') as compose, patch.object(deploy, 'run') as run, \
+             patch.object(deploy, 'activate', side_effect=RuntimeError('first startup failed')):
+            with self.assertRaisesRegex(RuntimeError, 'first startup'):
+                deploy.apply({'release': release(), 'action': 'deploy'})
+            self.assertEqual(deploy.read(deploy.STATE / 'operation.json')['phase'], 'failed')
+            self.assertFalse(any(call.args[:2] == ('systemctl', 'stop') for call in run.call_args_list))
+            self.assertEqual(compose.call_args.args[1:], ('stop', '--timeout', '120', 'api', 'worker', 'monitor'))
 
     def test_success_records_both_releases_and_preserves_volumes(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
