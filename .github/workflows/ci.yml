@@ -63,6 +63,9 @@ jobs:
       - name: Verify backend and package the tested JAR
         if: inputs.scope != 'frontend'
         run: |
+          npm --prefix packages/content-format ci
+          npm --prefix packages/content-format run build
+          npm --prefix apps/miniapp ci
           python3 -m pip install -r apps/api/acceptance/requirements-qa.txt
           node apps/api/scripts/backend.mjs init
           node apps/api/scripts/backend.mjs verify
