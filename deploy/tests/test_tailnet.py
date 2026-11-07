@@ -97,6 +97,7 @@ class TailnetTests(unittest.TestCase):
                                             image_archive=archive.name,
                                             image_sha256=hashlib.sha256(b'verified image').hexdigest())
             command = remote.call_args.kwargs['ssh']
+            self.assertIn('-C', command)
             self.assertIn('StrictHostKeyChecking=yes', command)
             self.assertIn('HostKeyAlias=qanda-frontend', command)
             self.assertFalse(Path(command[command.index('-i') + 1]).exists())
