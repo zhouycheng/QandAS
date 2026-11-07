@@ -120,8 +120,8 @@ def main():
             return
         image_archive = os.environ.get('IMAGE_ARCHIVE') if os.environ['OPERATION'] == 'deploy' else None
         image_sha256 = os.environ.get('IMAGE_ARCHIVE_SHA256') if image_archive else None
-        if os.environ['OPERATION'] == 'deploy' and selected != 'all' and not image_archive:
-            raise ValueError('The deployment workflow did not provide its verified image archive')
+        if os.environ['OPERATION'] == 'deploy' and selected == 'frontend' and not image_archive:
+            raise ValueError('The frontend deployment workflow did not provide its verified image archive')
         status = execute(server, os.environ['OPERATION'], ssh=ssh,
                          image_archive=image_archive, image_sha256=image_sha256)
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:

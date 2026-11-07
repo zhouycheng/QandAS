@@ -102,6 +102,19 @@ class TailnetTests(unittest.TestCase):
             self.assertIn('HostKeyAlias=qanda-frontend', command)
             self.assertFalse(Path(command[command.index('-i') + 1]).exists())
 
+    def test_backend_deployment_can_pull_its_digest_on_the_backend_node(self):
+        with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
+            'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'backend',
+            'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
+            'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
+        }, clear=True), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'backend'}) as remote, \
+                patch.object(dispatch, 'execute', return_value={
+                    'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
+            dispatch.main()
+        remote.assert_called_once_with('100.64.0.11', 'status', ssh=ANY)
+        execute.assert_called_once_with('100.64.0.11', 'deploy', ssh=ANY,
+                                        image_archive=None, image_sha256=None)
+
     def test_wrong_management_role_never_starts_a_release(self):
         with patch.dict('os.environ', {'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'backend',
                                      'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key'}), \
