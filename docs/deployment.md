@@ -15,8 +15,8 @@
 ## 首次安装
 
 1. 核对主服务器的 Tailscale 身份、已有服务、端口和 Docker 网络；`172.29.71.0/24` 需未被占用。
-2. 使用仓库外的独立生产配置，填入官方微信和腾讯云 SES 提供端，生成生产专用数据库、队列、身份、邮件和命令摘要密钥。生产配置不得复用测试密钥。
-3. 将配置安装为 `/srv/qanda/production.env`，所有者 `root:root`、权限 `600`。将仓库部署文件复制到服务器后，以管理员运行 `sudo bash deploy/install.sh`，建立基础服务、部署账号和每日备份计时器。
+2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信和腾讯云 SES 参数，并为数据库、队列、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置会保留；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
+3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
 5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 初始化为统一 V1。
 6. 在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
@@ -151,7 +151,7 @@ ssh qanda-backend-ops restart api
 
 ### 首次接入与切换
 
-1. 各所有者记录已有服务、网络、资源和原部署文件，在私有文件中保存节点参数。后端另备权限 `600` 的 `production.env`，管理端只保留自己所需参数。
+1. 各所有者记录已有服务、网络、资源和原部署文件，在私有文件中保存节点参数。后端首次完整安装时由安装器交互生成权限 `600` 的 `production.env`；管理端只保留自身所需参数。
 2. 各自建立 CI 身份和受限访问规则。分别参考 `deploy/tailnet-backend-policy.example.json` 与 `deploy/tailnet-frontend-policy.example.json`，替换模板地址并填入实际操作者。合并到各自现有策略并核对原有管理权限，限制可能覆盖隔离规则的全网授权。
 3. 所有者通过现有管理通道安装部署工具和项目网络，登记 Tailscale 容器身份；首次认证只针对容器节点。后端所有者把后端容器节点共享给管理端所有者，后者接受后核对地址。节点地址记入私有目标文件的 `service_ip`，必要时填写 `peer_ip`，宿主机管理地址保留在 `server`。通过下面的渲染命令生成 `node.json`、`node.env`，以 root 所有、权限 `600` 安装到对应服务器。
 4. 将两种 SSH 公钥分别安装为 `/etc/ssh/qanda-authorized-keys/qanda-deploy` 和 `qanda-debug`，目录权限 `755`、文件权限 `644`，均由 root 管理。部署私钥进入对应 GitHub Secret，调试私钥留在操作者本地。完成服务器公钥核验后启用受限入口。

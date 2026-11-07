@@ -4,9 +4,31 @@ test "$(id -u)" = 0
 qanda_source_dir=$(cd "$(dirname "$0")" && pwd)
 case "${1:-}" in ''|--control-only) ;; *) echo 'Usage: install.sh [--control-only]' >&2; exit 1 ;; esac
 test "$#" -le 1
+qanda_node_role=$(python3 -c 'import json,pathlib;p=pathlib.Path("/srv/qanda/node.json");print(json.loads(p.read_text())["role"] if p.exists() else "combined")')
 if test "${1:-}" != --control-only; then
+  if test -L /srv/qanda; then
+    echo '/srv/qanda must not be a symbolic link.' >&2
+    exit 1
+  fi
+  if test -L /srv/qanda/production.env; then
+    echo 'production.env must not be a symbolic link.' >&2
+    exit 1
+  fi
+  if ! test -s /srv/qanda/production.env; then
+    if test "$qanda_node_role" = frontend; then
+      if ! test -d /srv/qanda; then install -d -o root -g root -m 0755 /srv/qanda; fi
+      if ! python3 -c 'import os,sys;s=os.stat("/srv/qanda");sys.exit(0 if s.st_uid==0 and not s.st_mode & 0o022 else 1)'; then
+        echo '/srv/qanda must be root-owned and not group/world-writable.' >&2
+        exit 1
+      fi
+      (umask 077; printf '%s\n' '# Frontend node; backend credentials are stored on the backend node.' > /srv/qanda/production.env)
+    else
+      python3 "$qanda_source_dir/configure-production-env.py"
+    fi
+  fi
   test -s /srv/qanda/production.env
   test "$(stat -c '%a' /srv/qanda/production.env)" = 600
+  test "$(stat -c '%U:%G' /srv/qanda/production.env)" = root:root
 fi
 install -d -o root -g root -m 0755 /srv/qanda/web-assets /usr/local/lib/qanda
 install -d -o root -g root -m 0700 /var/lib/qanda-deploy /etc/qanda
@@ -39,7 +61,6 @@ if ! test -s /etc/qanda/ssh_host_ed25519_key; then ssh-keygen -q -t ed25519 -N '
 install -m 0440 "$qanda_source_dir/qanda-deploy.sudoers" /etc/sudoers.d/qanda-deploy
 visudo -cf /etc/sudoers.d/qanda-deploy
 systemctl daemon-reload
-qanda_node_role=$(python3 -c 'import json,pathlib;p=pathlib.Path("/srv/qanda/node.json");print(json.loads(p.read_text())["role"] if p.exists() else "combined")')
 if test "$qanda_node_role" != combined; then
   python3 - <<'PY'
 import runpy, subprocess
