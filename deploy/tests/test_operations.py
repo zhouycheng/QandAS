@@ -237,6 +237,17 @@ fi
         self.assertEqual([call.args[1] for call in remote.call_args_list], ['rollback', 'status', 'status'])
         sleep.assert_called_once_with(10)
 
+    def test_polling_waits_beyond_the_previous_25_minute_window(self):
+        progress = {'operation': {'phase': 'pulling'}}
+        complete = {'operation': {'phase': 'complete'}}
+        with patch.dict('os.environ', {'GITHUB_ACTOR': 'test', 'REGISTRY_TOKEN': 'isolated-test-token'}), \
+                patch.object(dispatch, 'remote', side_effect=[None, *([progress] * 151), complete]) as remote, \
+                patch.object(dispatch.time, 'sleep') as sleep:
+            status = dispatch.execute('backend-node', 'rollback')
+        self.assertEqual(status, complete)
+        self.assertEqual(remote.call_count, 153)
+        self.assertEqual(sleep.call_count, 151)
+
 
 if __name__ == '__main__':
     unittest.main()
