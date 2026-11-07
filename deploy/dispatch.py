@@ -69,7 +69,7 @@ def execute(server, action, ssh=None, image_archive=None, image_sha256=None):
         images = ('web',) if node == 'frontend' else ('backend',) if node == 'backend' else ('backend', 'web')
         request['release'] = {'revision': os.environ['GITHUB_SHA'], **{kind: os.environ[kind.upper()] for kind in images}}
     remote(server, action, request, ssh=ssh, image_archive=image_archive, image_sha256=image_sha256)
-    for _ in range(150):
+    for _ in range(300):
         try:
             status = remote(server, 'status', ssh=ssh)
         except subprocess.CalledProcessError as error:
