@@ -151,6 +151,17 @@ def require_image_labels(image, revision):
         raise RuntimeError('Image labels do not match this repository release')
 
 
+def pull_image(image):
+    for attempt in range(3):
+        try:
+            run('docker', 'pull', image)
+            return
+        except subprocess.CalledProcessError:
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
+
+
 def load_image_archive(stream, release, expected_sha256):
     kinds = [kind for kind in ('backend', 'web') if kind in release]
     if (len(kinds) != 1 or not isinstance(expected_sha256, str)
@@ -218,7 +229,7 @@ def ensure_local_images(release):
         try:
             require_image_labels(image_ref, release['revision'])
         except subprocess.CalledProcessError:
-            run('docker', 'pull', image)
+            pull_image(image)
             run('docker', 'tag', image, image_ref)
         require_image_labels(image_ref, release['revision'])
 
@@ -480,8 +491,8 @@ def main():
         release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
         preflight(first=not (STATE / 'current.json').exists())
         image_sha256 = request.pop('image_sha256', None)
-        if node_role() != 'combined' and action == 'deploy' and not image_sha256:
-            raise ValueError('The split node requires the verified image archive')
+        if node_role() == 'frontend' and action == 'deploy' and not image_sha256:
+            raise ValueError('The frontend node requires the verified image archive')
         if image_sha256:
             load_image_archive(sys.stdin.buffer, release, image_sha256)
         elif sys.stdin.buffer.read(1):
