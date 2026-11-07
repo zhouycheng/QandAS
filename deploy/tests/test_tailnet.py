@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import ipaddress
 import json
 from pathlib import Path
@@ -80,15 +81,21 @@ class TailnetTests(unittest.TestCase):
                 self.assertEqual(len(path.read_text().splitlines()), 10)
 
     def test_selected_deployment_never_contacts_the_other_owner(self):
-        with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
+        with tempfile.NamedTemporaryFile() as summary, tempfile.NamedTemporaryFile() as archive, patch.dict('os.environ', {
             'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'frontend',
             'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
+            'IMAGE_ARCHIVE': archive.name,
+            'IMAGE_ARCHIVE_SHA256': hashlib.sha256(b'verified image').hexdigest(),
             'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
         }), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'frontend'}) as remote, \
                 patch.object(dispatch, 'execute', return_value={'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
+            archive.write(b'verified image')
+            archive.flush()
             dispatch.main()
             remote.assert_called_once_with('100.64.0.10', 'status', ssh=ANY)
-            execute.assert_called_once_with('100.64.0.10', 'deploy', ssh=ANY)
+            execute.assert_called_once_with('100.64.0.10', 'deploy', ssh=ANY,
+                                            image_archive=archive.name,
+                                            image_sha256=hashlib.sha256(b'verified image').hexdigest())
             command = remote.call_args.kwargs['ssh']
             self.assertIn('StrictHostKeyChecking=yes', command)
             self.assertIn('HostKeyAlias=qanda-frontend', command)

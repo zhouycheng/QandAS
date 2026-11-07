@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Deploy one verified release through the selected node owner's management network."""
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,22 +13,62 @@ import time
 from targets import validate
 
 
-def remote(server, operation, request=None, ssh=None):
+def remote(server, operation, request=None, ssh=None, image_archive=None, image_sha256=None):
     command = ([*ssh, 'qanda-deploy@' + server, operation] if ssh else
                ['tailscale', 'ssh', 'qanda-deploy@' + server, 'sudo -n /usr/local/sbin/qanda-deployctl ' + operation])
+    body = dict(request or {})
+    if image_archive:
+        if not re.fullmatch(r'[0-9a-f]{64}', image_sha256 or ''):
+            raise ValueError('The published image archive SHA-256 is missing')
+        digest = hashlib.sha256()
+        with open(image_archive, 'rb') as archive:
+            for chunk in iter(lambda: archive.read(1024 * 1024), b''):
+                digest.update(chunk)
+        if digest.hexdigest() != image_sha256:
+            raise ValueError('The downloaded image archive failed SHA-256 verification')
+        body['image_sha256'] = image_sha256
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=stdout, stderr=stderr)
+            transfer_complete = False
+            try:
+                process.stdin.write((json.dumps(body) + '\n').encode())
+                with open(image_archive, 'rb') as archive:
+                    shutil.copyfileobj(archive, process.stdin, 1024 * 1024)
+                transfer_complete = True
+            except BrokenPipeError:
+                pass
+            except Exception:
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+                process.wait()
+                raise
+            finally:
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+            returncode = process.wait()
+            stdout.seek(0)
+            stderr.seek(0)
+            output, error_output = stdout.read(8192), stderr.read(8192)
+            if returncode or not transfer_complete:
+                raise subprocess.CalledProcessError(returncode or 1, command, output, error_output)
+        return None
     result = subprocess.run(command,
-                            input=None if request is None else json.dumps(request).encode(),
+                            input=None if request is None else (json.dumps(body) + '\n').encode(),
                             check=True, capture_output=True)
     return json.loads(result.stdout) if operation == 'status' else None
 
 
-def execute(server, action, ssh=None):
+def execute(server, action, ssh=None, image_archive=None, image_sha256=None):
     request = {'username': os.environ['GITHUB_ACTOR'], 'token': os.environ['REGISTRY_TOKEN']}
     if action == 'deploy':
         node = os.environ.get('DEPLOY_NODE', 'all')
         images = ('web',) if node == 'frontend' else ('backend',) if node == 'backend' else ('backend', 'web')
         request['release'] = {'revision': os.environ['GITHUB_SHA'], **{kind: os.environ[kind.upper()] for kind in images}}
-    remote(server, action, request, ssh=ssh)
+    remote(server, action, request, ssh=ssh, image_archive=image_archive, image_sha256=image_sha256)
     for _ in range(150):
         try:
             status = remote(server, 'status', ssh=ssh)
@@ -75,7 +118,12 @@ def main():
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
                 summary.write(f'Node {selected}: Tailscale and restricted SSH connection verified; role `{before["role"]}`\n')
             return
-        status = execute(server, os.environ['OPERATION'], ssh=ssh)
+        image_archive = os.environ.get('IMAGE_ARCHIVE') if os.environ['OPERATION'] == 'deploy' else None
+        image_sha256 = os.environ.get('IMAGE_ARCHIVE_SHA256') if image_archive else None
+        if os.environ['OPERATION'] == 'deploy' and selected != 'all' and not image_archive:
+            raise ValueError('The deployment workflow did not provide its verified image archive')
+        status = execute(server, os.environ['OPERATION'], ssh=ssh,
+                         image_archive=image_archive, image_sha256=image_sha256)
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
         summary.write(f'Node {selected}: {status["operation"]["phase"]}, revision `{status["current"]["revision"]}`\n\n')
 

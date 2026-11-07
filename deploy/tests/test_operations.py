@@ -163,6 +163,36 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(sum('schema-init' in command for command in commands), 2)
         self.assertFalse(any('wget' in command for command in commands))
 
+    def test_dispatch_streams_only_the_hash_checked_image_archive(self):
+        archive = b'docker image archive'
+        class Sink(io.BytesIO):
+            def close(self):
+                pass
+        class Process:
+            def __init__(self, **kwargs):
+                self.stdin = Sink()
+            def wait(self):
+                return 0
+        with tempfile.NamedTemporaryFile() as file:
+            file.write(archive)
+            file.flush()
+            process = Process()
+            with patch.object(dispatch.subprocess, 'Popen', return_value=process) as popen:
+                dispatch.remote('backend-node', 'deploy', {'release': {'revision': 'a' * 40}},
+                                ssh=['ssh'], image_archive=file.name,
+                                image_sha256=hashlib.sha256(archive).hexdigest())
+            header, body = process.stdin.getvalue().split(b'\n', 1)
+            self.assertEqual(json.loads(header)['image_sha256'], hashlib.sha256(archive).hexdigest())
+            self.assertEqual(body, archive)
+            self.assertEqual(popen.call_args.args[0][-2:], ['qanda-deploy@backend-node', 'deploy'])
+        with tempfile.NamedTemporaryFile() as file:
+            file.write(archive)
+            file.flush()
+            with patch.object(dispatch.subprocess, 'Popen') as popen, self.assertRaisesRegex(ValueError, 'SHA-256'):
+                dispatch.remote('backend-node', 'deploy', {}, ssh=['ssh'], image_archive=file.name,
+                                image_sha256='0' * 64)
+                popen.assert_not_called()
+
     def test_polling_recovers_from_a_temporary_ssh_disconnect_without_resubmitting(self):
         with patch.dict('os.environ', {'GITHUB_ACTOR': 'test', 'REGISTRY_TOKEN': 'isolated-test-token'}), \
                 patch.object(dispatch, 'remote', side_effect=[None, subprocess.CalledProcessError(255, ['ssh']),

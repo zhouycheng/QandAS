@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.request
@@ -134,6 +135,94 @@ def validate_release(release):
     return {key: value for key, value in release.items() if key in required}
 
 
+def local_image_ref(image):
+    repository, digest = image.split('@sha256:', 1)
+    return repository + ':sha256-' + digest
+
+
+def image_labels(image):
+    return json.loads(run('docker', 'image', 'inspect', '--format', '{{json .Config.Labels}}', image))
+
+
+def require_image_labels(image, revision):
+    labels = image_labels(image) or {}
+    if (labels.get('org.opencontainers.image.source') != 'https://github.com/zhouycheng/QandA'
+            or labels.get('org.opencontainers.image.revision') != revision):
+        raise RuntimeError('Image labels do not match this repository release')
+
+
+def load_image_archive(stream, release, expected_sha256):
+    kinds = [kind for kind in ('backend', 'web') if kind in release]
+    if (len(kinds) != 1 or not isinstance(expected_sha256, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', expected_sha256)):
+        raise ValueError('A single node image and its SHA-256 are required')
+    kind = kinds[0]
+    image = release[kind]
+    image_ref = local_image_ref(image)
+    digest = hashlib.sha256()
+    size = 0
+    with tempfile.TemporaryFile(dir=STATE) as archive:
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            # shortcut: cap one transferred image at 2 GiB; raise only after checking node disk headroom.
+            if size > 2 * 1024**3:
+                raise ValueError('Image archive exceeds the 2 GiB limit')
+            digest.update(chunk)
+            archive.write(chunk)
+        if not size or digest.hexdigest() != expected_sha256:
+            raise ValueError('Image archive SHA-256 does not match')
+        if shutil.disk_usage(STATE).free < 3 * 1024**3:
+            raise ValueError('Image transfer must leave at least 3 GiB of free disk')
+        archive.seek(0)
+        with tarfile.open(fileobj=archive, mode='r:') as saved:
+            members = saved.getmembers()
+            if len(members) > 10000:
+                raise ValueError('Image archive contains too many entries')
+            names, files = set(), set()
+            for member in members:
+                path = Path(member.name)
+                if (path.is_absolute() or '..' in path.parts or not path.parts
+                        or member.name in names or not (member.isfile() or member.isdir())):
+                    raise ValueError('Image archive contains an unsafe entry')
+                names.add(member.name)
+                if member.isfile():
+                    files.add(member.name)
+            if 'manifest.json' not in files or saved.getmember('manifest.json').size > 1024 * 1024:
+                raise ValueError('Image archive has no Docker manifest')
+            manifest_file = saved.extractfile('manifest.json')
+            manifest = json.loads(manifest_file.read(1024 * 1024 + 1))
+            if not isinstance(manifest, list) or len(manifest) != 1 or not isinstance(manifest[0], dict):
+                raise ValueError('Image archive must contain one image')
+            entry = manifest[0]
+            if (entry.get('RepoTags') != [image_ref] or entry.get('Config') not in files
+                    or saved.getmember(entry['Config']).size > 1024 * 1024
+                    or not entry.get('Layers') or any(layer not in files for layer in entry['Layers'])):
+                raise ValueError('Image archive does not match the requested image')
+            config_file = saved.extractfile(entry['Config'])
+            config = json.loads(config_file.read(1024 * 1024 + 1))
+            labels = config.get('config', {}).get('Labels') or {}
+            if (labels.get('org.opencontainers.image.source') != 'https://github.com/zhouycheng/QandA'
+                    or labels.get('org.opencontainers.image.revision') != release['revision']):
+                raise ValueError('Image archive labels do not match this release')
+        archive.seek(0)
+        run('docker', 'load', stdin=archive)
+    require_image_labels(image_ref, release['revision'])
+
+
+def ensure_local_images(release):
+    for kind in ('backend', 'web'):
+        if kind not in release:
+            continue
+        image = release[kind]
+        image_ref = local_image_ref(image)
+        try:
+            require_image_labels(image_ref, release['revision'])
+        except subprocess.CalledProcessError:
+            run('docker', 'pull', image)
+            run('docker', 'tag', image, image_ref)
+        require_image_labels(image_ref, release['revision'])
+
+
 def protected(path):
     for item in (path, *path.parents):
         st = item.lstat()
@@ -143,8 +232,9 @@ def protected(path):
 
 def compose(release, *args):
     # Compose interpolates inactive services too; scratch cannot start an unselected role.
-    env = {**os.environ, 'BACKEND_IMAGE': release.get('backend', 'scratch'),
-           'WEB_IMAGE': release.get('web', 'scratch'), 'REVISION': release['revision']}
+    env = {**os.environ, 'BACKEND_IMAGE': local_image_ref(release['backend']) if 'backend' in release else 'scratch',
+           'WEB_IMAGE': local_image_ref(release['web']) if 'web' in release else 'scratch',
+           'REVISION': release['revision']}
     command = ['docker', 'compose', '-p', 'qanda-application', '--env-file', ROOT / 'production.env']
     if (ROOT / 'node.env').exists():
         command += ['--env-file', ROOT / 'node.env']
@@ -215,7 +305,7 @@ def preflight(first=False):
 
 
 def assets(release):
-    container = run('docker', 'create', release['web'])
+    container = run('docker', 'create', local_image_ref(release['web']))
     try:
         with tempfile.TemporaryDirectory(prefix='qanda-assets-') as temporary:
             run('docker', 'cp', f'{container}:/usr/share/nginx/html/assets/.', temporary)
@@ -287,9 +377,7 @@ def apply(request):
     current = read(STATE / 'current.json')
     preflight(first=current is None)
     mark('pulling')
-    for kind in ('backend', 'web'):
-        if kind in release:
-            run('docker', 'pull', release[kind])
+    ensure_local_images(release)
     if node_role() != 'combined':
         run('docker', 'pull', tailnet_image())
         run('docker', 'pull', GATEWAY_IMAGE)
@@ -305,7 +393,7 @@ def apply(request):
             compose(current, 'stop', '--timeout', '120', *services())
         if request['action'] == 'deploy' and node_role() != 'frontend':
             mark('checking-candidate')
-            candidate = ['/usr/local/lib/qanda/candidate-check.py', release['backend']]
+            candidate = ['/usr/local/lib/qanda/candidate-check.py', local_image_ref(release['backend'])]
             if node_role() == 'combined':
                 candidate.append(release['web'])
             run(*candidate)
@@ -381,13 +469,23 @@ def main():
             raise RuntimeError('An operation is already active')
         if (STATE / 'request.json').exists():
             raise RuntimeError('An earlier request requires reconciliation')
-        request = json.loads(sys.stdin.read(16385))
-        if set(request) != ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'}):
+        request = json.loads(sys.stdin.buffer.readline(16385))
+        expected = ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'})
+        if action == 'deploy' and 'image_sha256' in request:
+            expected.add('image_sha256')
+        if set(request) != expected:
             raise ValueError('Unexpected request fields')
         if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', request['username']) or not 1 <= len(request['token']) <= 4096:
             raise ValueError('Invalid registry credentials')
         release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
         preflight(first=not (STATE / 'current.json').exists())
+        image_sha256 = request.pop('image_sha256', None)
+        if node_role() != 'combined' and action == 'deploy' and not image_sha256:
+            raise ValueError('The split node requires the verified image archive')
+        if image_sha256:
+            load_image_archive(sys.stdin.buffer, release, image_sha256)
+        elif sys.stdin.buffer.read(1):
+            raise ValueError('Unexpected data after deployment request')
         atomic(STATE / 'request.json', {**request, 'action': action, 'release': release})
         atomic(STATE / 'operation.json', {'phase': 'queued', 'revision': release['revision'], 'action': action})
         try:
