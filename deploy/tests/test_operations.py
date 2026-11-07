@@ -137,6 +137,21 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(accepted, [['-s', '172.29.71.20/32', '-d', '172.29.71.1/32', '-p', 'tcp',
                                     '-m', 'tcp', '--dport', '2203', '-j', 'ACCEPT']])
 
+    def test_activation_reasserts_project_firewall_after_tailnet_is_ready(self):
+        events = []
+        def command(*args, **kwargs):
+            events.append(args)
+            return 'healthy' if args[:2] == ('docker', 'inspect') else ''
+        def tailnet(*args):
+            events.append(('tailnet-ready',))
+            return 'tailnet\ngateway'
+        with tempfile.TemporaryDirectory() as directory, patch.object(deployctl, 'STATE', Path(directory)), \
+                patch.object(deployctl, 'node_role', return_value='backend'), \
+                patch.object(deployctl, 'compose'), patch.object(deployctl, 'run', side_effect=command), \
+                patch.object(deployctl, 'tailnet_compose', side_effect=tailnet), patch.object(deployctl.time, 'sleep'):
+            deployctl.activate({'revision': 'a' * 40, 'backend': 'backend-image'})
+        self.assertLess(events.index(('tailnet-ready',)), events.index(('/usr/local/lib/qanda/network-guard.py',)))
+
     def test_each_node_accepts_only_its_own_release_and_normalizes_legacy_state(self):
         release = {'revision': 'a' * 40, 'backend': 'ghcr.io/zhouycheng/qanda-backend@sha256:' + 'a' * 64,
                    'web': 'ghcr.io/zhouycheng/qanda-web@sha256:' + 'b' * 64}
