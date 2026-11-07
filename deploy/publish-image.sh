@@ -33,6 +33,10 @@ docker buildx build --platform linux/amd64 --push \
   --metadata-file "$RUNNER_TEMP/image.json" "$qanda_build_context"
 qanda_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/image.json")
 docker pull "${qanda_repository}@${qanda_digest}" >/dev/null
+qanda_local_tag="${qanda_repository}:sha256-${qanda_digest#sha256:}"
+docker tag "${qanda_repository}@${qanda_digest}" "$qanda_local_tag"
+docker save --output "$RUNNER_TEMP/qanda-image.tar" "$qanda_local_tag"
+qanda_archive_sha256=$(sha256sum "$RUNNER_TEMP/qanda-image.tar" | cut -d ' ' -f 1)
 qanda_anonymous_status=$(curl --silent --show-error --output "$RUNNER_TEMP/anonymous-image.json" \
   --write-out '%{http_code}' "https://ghcr.io/token?service=ghcr.io&scope=repository:zhouycheng/qanda-${RELEASE_KIND}:pull")
 case "$qanda_anonymous_status" in
@@ -40,3 +44,4 @@ case "$qanda_anonymous_status" in
   *) echo 'The release image must deny anonymous pulls' >&2; exit 1 ;;
 esac
 echo "image=${qanda_repository}@${qanda_digest}" >> "$GITHUB_OUTPUT"
+echo "archive_sha256=$qanda_archive_sha256" >> "$GITHUB_OUTPUT"

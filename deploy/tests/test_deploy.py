@@ -1,5 +1,9 @@
 import importlib.util
+import hashlib
+import io
+import json
 from pathlib import Path
+import tarfile
 import tempfile
 import unittest
 import sys
@@ -16,6 +20,22 @@ import dispatch
 def release(character='a'):
     return {'revision': character * 40,
             **{k: f'ghcr.io/zhouycheng/qanda-{k}@sha256:' + character * 64 for k in ('backend', 'web')}}
+
+
+def saved_image(kind='backend', revision='a' * 40, repo_tag=None):
+    image = f'ghcr.io/zhouycheng/qanda-{kind}@sha256:' + 'a' * 64
+    tag = repo_tag or deploy.local_image_ref(image)
+    config = json.dumps({'config': {'Labels': {
+        'org.opencontainers.image.source': 'https://github.com/zhouycheng/QandA',
+        'org.opencontainers.image.revision': revision}}}).encode()
+    manifest = json.dumps([{'Config': 'config.json', 'RepoTags': [tag], 'Layers': ['layer/layer.tar']}]).encode()
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode='w') as saved:
+        for name, data in [('manifest.json', manifest), ('config.json', config), ('layer/layer.tar', b'layer')]:
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            saved.addfile(info, io.BytesIO(data))
+    return archive.getvalue(), {'revision': revision, kind: image}
 
 
 class ReleaseTests(unittest.TestCase):
@@ -51,10 +71,38 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             deploy.validate_release({**release(), 'command': 'arbitrary'})
 
+    def test_image_archive_is_digest_checked_and_bound_to_release_labels(self):
+        archive, target = saved_image()
+        labels = json.dumps({'org.opencontainers.image.source': 'https://github.com/zhouycheng/QandA',
+                             'org.opencontainers.image.revision': target['revision']})
+        with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
+             patch.object(deploy, 'run', side_effect=['loaded', labels]) as run:
+            deploy.load_image_archive(io.BytesIO(archive), target, hashlib.sha256(archive).hexdigest())
+            self.assertEqual(run.call_args_list[0].args[:2], ('docker', 'load'))
+        with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
+             patch.object(deploy, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                deploy.load_image_archive(io.BytesIO(archive), target, '0' * 64)
+            run.assert_not_called()
+        archive, target = saved_image(repo_tag='ghcr.io/other/image:latest')
+        with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
+             patch.object(deploy, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'requested image'):
+                deploy.load_image_archive(io.BytesIO(archive), target, hashlib.sha256(archive).hexdigest())
+            run.assert_not_called()
+
+    def test_deploy_uses_local_digest_aliases_for_compose(self):
+        with patch.object(deploy, 'run', return_value='') as run, patch.object(deploy, 'ROOT', Path('/tmp')):
+            deploy.compose(release(), 'ps')
+        env = run.call_args.kwargs['env']
+        self.assertEqual(env['BACKEND_IMAGE'], deploy.local_image_ref(release()['backend']))
+        self.assertEqual(env['WEB_IMAGE'], deploy.local_image_ref(release()['web']))
+
     def test_initialization_failure_restores_app_and_keeps_previous_state(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
              patch.object(deploy, 'preflight'), patch.object(deploy, 'run'), patch.object(deploy, 'assets'), \
-             patch.object(deploy, 'health'), patch.object(deploy, 'activate') as activate:
+             patch.object(deploy, 'health'), patch.object(deploy, 'activate') as activate, \
+             patch.object(deploy, 'ensure_local_images'):
             deploy.atomic(deploy.STATE / 'current.json', release())
             def compose(version, *args):
                 if args[0] == 'run':
@@ -68,7 +116,8 @@ class ReleaseTests(unittest.TestCase):
 
     def test_backup_failure_does_not_stop_running_app(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
-             patch.object(deploy, 'preflight'), patch.object(deploy, 'compose') as compose:
+             patch.object(deploy, 'preflight'), patch.object(deploy, 'compose') as compose, \
+             patch.object(deploy, 'ensure_local_images'):
             deploy.atomic(deploy.STATE / 'current.json', release())
             def command(*args):
                 if args[0] == '/usr/local/sbin/qanda-backup':
@@ -82,6 +131,7 @@ class ReleaseTests(unittest.TestCase):
              patch.object(deploy, 'node_role', return_value='backend'), patch.object(deploy, 'preflight'), \
              patch.object(deploy, 'tailnet_image', return_value='project-network-image'), \
              patch.object(deploy, 'compose') as compose, patch.object(deploy, 'run') as run, \
+             patch.object(deploy, 'ensure_local_images'), \
              patch.object(deploy, 'activate', side_effect=RuntimeError('first startup failed')):
             with self.assertRaisesRegex(RuntimeError, 'first startup'):
                 deploy.apply({'release': release(), 'action': 'deploy'})
@@ -93,7 +143,7 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'STATE', Path(directory)), \
              patch.object(deploy, 'preflight'), patch.object(deploy, 'run'), patch.object(deploy, 'assets'), \
              patch.object(deploy, 'activate'), patch.object(deploy, 'health'), patch.object(deploy.time, 'sleep'), \
-             patch.object(deploy, 'compose') as compose:
+             patch.object(deploy, 'compose') as compose, patch.object(deploy, 'ensure_local_images'):
             deploy.atomic(deploy.STATE / 'current.json', release())
             deploy.apply({'release': release('b'), 'action': 'deploy'})
             self.assertEqual(deploy.read(deploy.STATE / 'previous.json'), release())
