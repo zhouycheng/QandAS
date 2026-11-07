@@ -54,7 +54,7 @@ Subject 使用 `gh api repos/<当前仓库全名>/actions/oidc/customization/sub
 }
 ```
 
-`2222` 使用经过 Tailscale 的普通 OpenSSH，服务器强制执行 `remote-entry.py`，并关闭 SSH 转发、SFTP 和主机交互 Shell；Docker 操作由服务器端白名单检查。这里使用 OpenSSH 的强制命令能力实现权限边界。两个 GHCR 软件包 `qanda-backend`、`qanda-web` 及其构建缓存保持私有，授予本仓库 Actions 读写权限。Actions 使用短期 `GITHUB_TOKEN` 发布镜像；部署时把对应的单镜像归档作为短期 workflow artifact，经现有受限 SSH 入口流式传输。runner 和服务器分别校验归档 SHA-256，服务器还核对 Docker manifest、固定仓库标签和源码提交标签，再加载镜像。拉取凭据经标准输入传入，仅在服务器 `/run` 临时保存。
+`2222` 使用经过 Tailscale 的普通 OpenSSH，服务器强制执行 `remote-entry.py`，并关闭 SSH 转发、SFTP 和主机交互 Shell；Docker 操作由服务器端白名单检查。这里使用 OpenSSH 的强制命令能力实现权限边界。两个 GHCR 软件包 `qanda-backend`、`qanda-web` 及其构建缓存保持私有，授予本仓库 Actions 读写权限。部署 job 使用短期 `GITHUB_TOKEN` 按发布摘要从 GHCR 拉取对应镜像，并经现有受限 SSH 入口流式传输。runner 和服务器分别校验归档 SHA-256，服务器还核对 Docker manifest、固定仓库标签和源码提交标签，再加载镜像。服务器拉取凭据经标准输入传入，仅在 `/run` 临时保存。
 
 SSH 私钥在 runner 的私有临时目录中使用，结束时删除。`*_DEPLOY_SSH_KNOWN_HOSTS` 分别使用 `qanda-backend`、`qanda-frontend` 主机别名和所有者核验过的服务器公钥；连接强制检查服务器身份。首次安装后，从受信任的管理通道读取 `/etc/qanda/ssh_host_ed25519_key.pub` 并保存到对应 Secret。
 

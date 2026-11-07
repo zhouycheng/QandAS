@@ -193,6 +193,42 @@ class OperationsTests(unittest.TestCase):
                                 image_sha256='0' * 64)
                 popen.assert_not_called()
 
+    def test_image_transfer_package_pulls_only_the_selected_private_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binaries = root / 'bin'
+            binaries.mkdir()
+            docker = binaries / 'docker'
+            docker.write_text('''#!/bin/sh
+printf '%s\\n' "$*" >> "$DOCKER_LOG"
+if [ "$1" = save ]; then
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = --output ]; then shift; printf image-archive > "$1"; break; fi
+    shift
+  done
+fi
+''')
+            docker.chmod(0o755)
+            archive, output, log = root / 'qanda-image.tar', root / 'output', root / 'docker.log'
+            image = 'ghcr.io/zhouycheng/qanda-backend@sha256:' + 'a' * 64
+            env = {**os.environ, 'PATH': str(binaries) + os.pathsep + os.environ['PATH'],
+                   'IMAGE_KIND': 'backend', 'IMAGE': image, 'REGISTRY_TOKEN': 'isolated-token',
+                   'GITHUB_ACTOR': 'runner', 'RUNNER_TEMP': str(root), 'GITHUB_OUTPUT': str(output),
+                   'DOCKER_LOG': str(log)}
+            result = subprocess.run(['bash', str(DEPLOY / 'prepare-image-transfer.sh')], env=env, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            local_tag = image.replace('@sha256:', ':sha256-')
+            self.assertEqual(archive.read_bytes(), b'image-archive')
+            self.assertIn(hashlib.sha256(b'image-archive').hexdigest(), output.read_text())
+            self.assertEqual(log.read_text().splitlines(), [
+                'login ghcr.io -u runner --password-stdin', f'pull {image}',
+                f'tag {image} {local_tag}', f'save --output {archive} {local_tag}', 'logout ghcr.io'])
+            env['IMAGE_KIND'] = 'web'
+            before = log.read_text()
+            rejected = subprocess.run(['bash', str(DEPLOY / 'prepare-image-transfer.sh')], env=env, capture_output=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertEqual(log.read_text(), before)
+
     def test_polling_recovers_from_a_temporary_ssh_disconnect_without_resubmitting(self):
         with patch.dict('os.environ', {'GITHUB_ACTOR': 'test', 'REGISTRY_TOKEN': 'isolated-test-token'}), \
                 patch.object(dispatch, 'remote', side_effect=[None, subprocess.CalledProcessError(255, ['ssh']),
