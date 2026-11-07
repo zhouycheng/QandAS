@@ -106,7 +106,7 @@ def main():
                     raise ValueError('The selected node requires an SSH key and verified host key')
                 path.touch(mode=0o600)
                 path.write_text(value.rstrip() + '\n')
-            ssh = ['ssh', '-F', '/dev/null', '-p', '2222', '-i', str(key),
+            ssh = ['ssh', '-C', '-F', '/dev/null', '-p', '2222', '-i', str(key),
                    '-o', 'IdentitiesOnly=yes', '-o', 'IdentityAgent=none', '-o', 'BatchMode=yes',
                    '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(known_hosts),
                    '-o', 'GlobalKnownHostsFile=/dev/null', '-o', 'HostKeyAlias=qanda-' + selected,
