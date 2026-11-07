@@ -381,6 +381,8 @@ def activate(release):
             time.sleep(2)
         else:
             raise RuntimeError('Project tailnet did not become ready')
+        # Reassert QandA bridge rules after host firewall services have started.
+        run('/usr/local/lib/qanda/network-guard.py')
 
 
 def apply(request):
