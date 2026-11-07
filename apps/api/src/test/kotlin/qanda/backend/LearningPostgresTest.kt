@@ -91,12 +91,21 @@ class LearningPostgresTest : PostgresFixture() {
         val college=id(call("POST","/admin/colleges",mapOf("name" to "学院${UUID.randomUUID()}","code" to UUID.randomUUID().toString())))
         val major=id(call("POST","/admin/majors",mapOf("collegeId" to college,"name" to "专业","code" to "M1")))
         val f=fixture(listOf(mapOf("majorId" to major)))
-        assertEquals(1,call("GET","/me/recommendations",token=s.token)["items"].count { it["subject"]["id"].asText()==f.subject.toString() })
+        fun recommendedSubjectCount(): Int {
+            var page=1;var total: Int;var count=0
+            do {
+                val result=call("GET","/me/recommendations?page=$page&pageSize=100",token=s.token)
+                count+=result["items"].count { it["subject"]["id"].asText()==f.subject.toString() }
+                total=result["total"].asInt();page++
+            } while((page-1)*100<total)
+            return count
+        }
+        assertEquals(1,recommendedSubjectCount())
         call("GET","/question-banks/${f.bank}",token=s.token)
         call("PUT","/me/profile",mapOf("expectedVersion" to empty["version"].asLong(),"nickname" to "自主注册用户"),s.token)
         assertEquals("自主注册用户",jdbc.queryForObject("SELECT nickname FROM user_account WHERE id=?",String::class.java,s.id))
         assertFalse(call("GET","/me",token=s.token).has("collegeId"))
-        assertTrue(call("GET","/me/recommendations",token=s.token)["items"].any { it["subject"]["id"].asText()==f.subject.toString() })
+        assertEquals(1,recommendedSubjectCount())
         call("PUT","/me/favorites/${f.questions.first()}",token=s.token)
         val session=createPractice(s,f);val sessionId=id(session)
         session["items"].forEach { assertTrue(it["question"]["explanation"].isNull);assertTrue(it["question"]["correctAnswer"].isNull);assertTrue(it["question"]["referenceAnswer"].isNull) }
