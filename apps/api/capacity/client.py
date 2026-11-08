@@ -3,8 +3,10 @@ import http.client
 import json
 from pathlib import Path
 import re
+import select
 import shlex
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -35,20 +37,29 @@ class Remote:
         return json.loads(self.shell(['sudo', '-n', 'python3', self.config['remote_dir'] + '/remote.py', action, '--run', self.state.name, '--limits', limits], timeout))
 
     def tunnel(self):
-        ip = self.action('addresses')['api']
         c = self.config
-        p = subprocess.Popen(self.ssh[:-1] + ['-N', '-o', 'ExitOnForwardFailure=yes', '-L', '127.0.0.1:' + str(c['port']) + ':' + ip + ':8083', self.ssh[-1]], stdout=subprocess.DEVNULL, stderr=(self.state / 'tunnel.log').open('ab'))
-        for _ in range(30):
-            if p.poll() is not None:
-                raise RuntimeError('Private tunnel failed; inspect private tunnel.log')
-            try:
-                status, _ = Api(c['port']).request('GET', '/health')
-                if status == 200:
-                    return p
-            except OSError:
-                pass
-            time.sleep(0.3)
-        p.terminate(); p.wait(); raise RuntimeError('Private tunnel readiness timeout')
+        p = subprocess.Popen([sys.executable, str(Path(__file__).with_name('tunnel.py')), '--state', str(self.state)], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=(self.state / 'tunnel.log').open('ab'))
+        try:
+            if not select.select([p.stdout], [], [], 15)[0]:
+                raise RuntimeError('Private tunnel setup timeout')
+            ready = json.loads(p.stdout.readline())
+            limit = ready.get('nofile_soft', 0)
+            if not ready.get('tunnel_ready') or (limit != -1 and limit < 32768):
+                raise RuntimeError('Private tunnel file limit was not verified')
+            private_json(self.state / 'tunnel-limit.json', ready)
+            for _ in range(30):
+                if p.poll() is not None:
+                    raise RuntimeError('Private tunnel failed; inspect private tunnel.log')
+                try:
+                    status, _ = Api(c['port']).request('GET', '/health')
+                    if status == 200:
+                        return p
+                except OSError:
+                    pass
+                time.sleep(0.3)
+            raise RuntimeError('Private tunnel readiness timeout')
+        except BaseException:
+            p.terminate(); p.wait(timeout=10); raise
 
 
 class Api:

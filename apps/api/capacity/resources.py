@@ -30,6 +30,8 @@ def series(samples):
                'activity_oldest_seconds': sample.get('postgres', {}).get('activity_oldest_seconds'),
                'generator_cpu_percent': sample.get('generator', {}).get('cpu_percent'),
                'generator_rss_mib': sample.get('generator', {}).get('rss', 0) / 1024 ** 2,
+               'tunnel_cpu_percent': sample.get('generator', {}).get('tunnel_cpu_percent'),
+               'tunnel_rss_mib': sample['generator']['tunnel_rss'] / 1024 ** 2 if 'tunnel_rss' in sample.get('generator', {}) else None,
                'successful_rps': sample['window'].get('successful_rps'),
                'http_rps': sample['window'].get('rps'), 'http_p95_ms': sample['window'].get('p95_ms'),
                'commit_p95_ms': sample['window'].get('commit_p95_ms')}

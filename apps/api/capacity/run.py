@@ -124,7 +124,7 @@ def backlog_violations(samples):
 
 class Guard:
     def __init__(self, baseline):
-        self.baseline = baseline; self.low_memory_since = None; self.unhealthy_since = None
+        self.baseline = baseline; self.low_memory_since = None; self.unhealthy_since = None; self.tunnel_busy_since = None
 
     def check(self, sample, now):
         host = sample['host']
@@ -144,6 +144,10 @@ class Guard:
             if self.unhealthy_since is None: self.unhealthy_since = now
             if now - self.unhealthy_since >= 30: return 'application_unhealthy'
         else: self.unhealthy_since = None
+        if sample.get('generator', {}).get('tunnel_cpu_percent', 0) >= 90:
+            if self.tunnel_busy_since is None: self.tunnel_busy_since = now
+            if now - self.tunnel_busy_since >= 15: return 'generator_tunnel_cpu_ceiling'
+        else: self.tunnel_busy_since = None
         return None
 
 
@@ -260,12 +264,18 @@ def trial(remote, scenario, target, limits, seconds, label):
             child = subprocess.Popen(command, env=env, stdout=out, stderr=err)
             load_start = time.time()
             while child.poll() is None:
-                time.sleep(5); metrics.update(raw); now = time.monotonic()
+                time.sleep(5)
+                if tunnel.poll() is not None:
+                    reason = 'private_tunnel_exited'; stop_k6(child); break
+                metrics.update(raw); now = time.monotonic()
                 try:
                     sample = remote.action('collect', timeout=15); ssh_errors = 0; collection_errors = 0
                     sample['observed_at'] = time.time()
-                    process = subprocess.run(['ps', '-p', str(child.pid), '-o', '%cpu=,rss='], capture_output=True, text=True).stdout.split()
-                    sample['generator'] = {'cpu_percent': float(process[0]) / os.cpu_count(), 'rss': int(process[1]) * 1024} if len(process) == 2 else {}
+                    processes = subprocess.run(['ps', '-p', str(child.pid) + ',' + str(tunnel.pid), '-o', 'pid=,pcpu=,rss='], capture_output=True, text=True).stdout.splitlines()
+                    processes = {int(row[0]): row[1:] for row in (line.split() for line in processes) if len(row) == 3}
+                    generator = processes.get(child.pid); transport = processes.get(tunnel.pid)
+                    sample['generator'] = {'cpu_percent': float(generator[0]) / os.cpu_count(), 'rss': int(generator[1]) * 1024} if generator else {}
+                    if transport: sample['generator'].update(tunnel_cpu_percent=float(transport[0]), tunnel_rss=int(transport[1]) * 1024)
                     pressure = subprocess.run(['memory_pressure', '-Q'], capture_output=True, text=True).stdout
                     match = re.search(r'memory free percentage:\s*(\d+)%', pressure)
                     if match: sample['generator']['system_free_percent'] = int(match.group(1))
@@ -294,11 +304,13 @@ def trial(remote, scenario, target, limits, seconds, label):
                     stop_k6(child)
                     break
             child.wait()
+        if reason is None and tunnel.poll() is not None: reason = 'private_tunnel_exited'
         metrics.update(raw)
         summary = summarize(full_metrics(raw)) if raw.exists() else {}
         summary.update(scenario=scenario, target=target, limits=limits, label=label, duration=1 if scenario.startswith('burst') else seconds, wall_seconds=time.time() - wall_start, stop_reason=reason, exit_code=child.returncode)
+        summary['tunnel_exit_code'] = tunnel.poll()
         source = Path(__file__).parent
-        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py'))).hexdigest()
+        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py', 'tunnel.py', 'requirements.txt'))).hexdigest()
         summary['backend_revision'] = remote.config['expected_revision']
         summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
 import secrets
 import subprocess
 import sys
@@ -46,6 +47,24 @@ def assert_capacity():
     assert not (ROOT / 'restored').exists(), 'The run was restored; use a new run identifier'
     assert all(not x['State']['Running'] for x in inspect(ORIGINAL)), 'Original infrastructure must remain stopped during the experiment'
     assert all(x['State']['Running'] and x['Config']['Labels'].get('qanda.capacity.run') == RUN for x in inspect([m['postgres'], m['rabbit']])), 'Temporary infrastructure ownership or state mismatch'
+
+
+def tunnel():
+    assert_capacity()
+    pid = os.getppid()
+    for _ in range(8):
+        if pid <= 1: break
+        proc = Path('/proc') / str(pid)
+        if (proc / 'comm').read_text().strip() in ('sshd', 'sshd-session'):
+            soft, hard = resource.prlimit(pid, resource.RLIMIT_NOFILE)
+            if hard != resource.RLIM_INFINITY and hard < 32768:
+                raise RuntimeError('The private SSH session has insufficient file capacity')
+            # Only this test connection changes; daemon defaults and other sessions keep their limits.
+            effective = soft if soft == resource.RLIM_INFINITY else max(soft, 32768)
+            resource.prlimit(pid, resource.RLIMIT_NOFILE, (effective, hard))
+            return {'tunnel_ready': True, 'nofile_soft': effective, 'previous_soft': soft}
+        pid = int(next(line.split()[1] for line in (proc / 'status').read_text().splitlines() if line.startswith('PPid:')))
+    raise RuntimeError('A dedicated SSH session is required for the private tunnel')
 
 
 def compose_args(*args, overlay=True):
@@ -303,7 +322,7 @@ def lease():
 
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser(); p.add_argument('action', choices=['prepare', 'bootstrap', 'heartbeat', 'lease', 'collect', 'addresses', 'snapshot', 'reset', 'mode', 'verify', 'audit', 'restore', 'cleanup']); p.add_argument('--run', required=True); p.add_argument('--limits', choices=['on', 'off'], default='on')
+    p = argparse.ArgumentParser(); p.add_argument('action', choices=['prepare', 'bootstrap', 'heartbeat', 'lease', 'collect', 'addresses', 'tunnel', 'snapshot', 'reset', 'mode', 'verify', 'audit', 'restore', 'cleanup']); p.add_argument('--run', required=True); p.add_argument('--limits', choices=['on', 'off'], default='on')
     args = p.parse_args(); RUN = args.run
     assert os.geteuid() == 0 and re.fullmatch(r'[0-9]{8}(?:-[a-z0-9]+)?', RUN)
     ROOT = Path('/var/lib/qanda-capacity') / RUN; ROOT.mkdir(parents=True, mode=0o700, exist_ok=True); ROOT.chmod(0o700)
@@ -313,8 +332,8 @@ if __name__ == '__main__':
     elif args.action == 'addresses':
         row = inspect([APP[0]])[0]; print(json.dumps({'api': row['NetworkSettings']['Networks']['qanda-application']['IPAddress']}))
     else:
-        calls = {'prepare': prepare, 'bootstrap': bootstrap, 'collect': collect, 'snapshot': snapshot, 'reset': lambda: reset(args.limits == 'on'), 'mode': lambda: mode(args.limits == 'on'), 'verify': verify, 'audit': audit, 'restore': restore, 'cleanup': lambda: restore(True)}
-        if args.action in ('collect', 'verify', 'audit'):
+        calls = {'prepare': prepare, 'bootstrap': bootstrap, 'collect': collect, 'tunnel': tunnel, 'snapshot': snapshot, 'reset': lambda: reset(args.limits == 'on'), 'mode': lambda: mode(args.limits == 'on'), 'verify': verify, 'audit': audit, 'restore': restore, 'cleanup': lambda: restore(True)}
+        if args.action in ('collect', 'verify', 'audit', 'tunnel'):
             print(json.dumps(calls[args.action]()))
         else:
             with (ROOT / 'operation.lock').open('a') as lock:

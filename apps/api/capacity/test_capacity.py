@@ -1,22 +1,86 @@
 """Self-checks for success accounting, adaptive load, and recovery boundaries."""
 import json
 import io
+import asyncio
 import os
 from pathlib import Path
 import tempfile
+import sys
 import time
 import unittest
 import uuid
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from run import Guard, Metrics, backlog_violations, collection_failure, epoch, next_target, summarize, suite, trial, violations, wait_drain
 from seed import question
 from resources import metrics, server_p95, series
 import remote
+import client as transport_client
+import tunnel as transport_tunnel
 
 
 class CapacityTests(unittest.TestCase):
+    def test_async_transport_pins_host_verification_and_project_listener(self):
+        listener = SimpleNamespace(close=Mock(), wait_closed=AsyncMock())
+        connection = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(stdout='{"tunnel_ready":true,"nofile_soft":32768}')),
+                                     forward_local_port=AsyncMock(return_value=listener), wait_closed=AsyncMock(), abort=Mock())
+        context = AsyncMock(); context.__aenter__.return_value = connection
+        connect = Mock(return_value=context)
+        client = SimpleNamespace(state=Path('20261109-r2'), config={'host': 'test.invalid', 'user': 'operator', 'key': '/private/test-key', 'port': 18093, 'remote_dir': '/var/lib/qanda-capacity/20261109-r2'}, action=Mock(return_value={'api': '172.29.71.2'}))
+        with patch.object(transport_tunnel, 'Remote', return_value=client), patch.dict(sys.modules, {'asyncssh': SimpleNamespace(connect=connect)}), patch('builtins.print'):
+            with self.assertRaisesRegex(RuntimeError, 'closed unexpectedly'): asyncio.run(transport_tunnel.serve('private-state'))
+        settings = connect.call_args.kwargs
+        self.assertTrue(settings['known_hosts'].endswith('/.ssh/known_hosts'))
+        self.assertIsNone(settings['config']); self.assertIsNone(settings['agent_path'])
+        self.assertEqual(settings['client_keys'], ['/private/test-key'])
+        connection.forward_local_port.assert_awaited_once_with('127.0.0.1', 18093, '172.29.71.2', 8083)
+        self.assertIn('remote.py tunnel --run 20261109-r2', connection.run.call_args.args[0])
+        listener.close.assert_called_once(); listener.wait_closed.assert_awaited_once()
+
+    def test_async_transport_rejects_targets_outside_project_network(self):
+        connect = Mock()
+        client = SimpleNamespace(config={}, action=Mock(return_value={'api': '127.0.0.1'}))
+        with patch.object(transport_tunnel, 'Remote', return_value=client), patch.dict(sys.modules, {'asyncssh': SimpleNamespace(connect=connect)}):
+            with self.assertRaisesRegex(ValueError, 'project API bridge'): asyncio.run(transport_tunnel.serve('private-state'))
+        connect.assert_not_called()
+
+    def test_unverified_tunnel_limit_closes_transport_before_api_requests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process = Mock(stdout=io.BytesIO(b'{"tunnel_ready":true,"nofile_soft":1024}\n'))
+            client = SimpleNamespace(state=Path(directory), config={'port': 18093})
+            with patch.object(transport_client.subprocess, 'Popen', return_value=process), patch.object(transport_client.select, 'select', return_value=([process.stdout], [], [])), patch.object(transport_client, 'Api') as api:
+                with self.assertRaisesRegex(RuntimeError, 'file limit was not verified'): transport_client.Remote.tunnel(client)
+            process.terminate.assert_called_once(); process.wait.assert_called_once(); api.assert_not_called()
+
+    def test_tunnel_raises_only_its_ssh_ancestor_soft_limit(self):
+        with tempfile.TemporaryDirectory() as root:
+            for pid, name, parent in ((10, 'sudo', 20), (20, 'sshd', 30)):
+                proc = Path(root) / str(pid); proc.mkdir()
+                (proc / 'comm').write_text(name); (proc / 'status').write_text('PPid:\t' + str(parent))
+            unlimited = remote.resource.RLIM_INFINITY
+            for soft, hard, effective in ((1024, 1048576, 32768), (65536, 1048576, 65536), (unlimited, unlimited, unlimited)):
+                with self.subTest(soft=soft):
+                    with patch.object(remote, 'assert_capacity'), patch.object(remote.os, 'getppid', return_value=10), patch.object(remote, 'Path', return_value=Path(root)), patch.object(remote.resource, 'prlimit', create=True, return_value=(soft, hard)) as limit:
+                        value = remote.tunnel()
+                    self.assertEqual(limit.call_args_list[-1].args, (20, remote.resource.RLIMIT_NOFILE, (effective, hard)))
+                    self.assertTrue(value['tunnel_ready']); self.assertEqual(value['previous_soft'], soft)
+
+    def test_tunnel_requires_sufficient_hard_limit_without_changing_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            proc = Path(root) / '10'; proc.mkdir(); (proc / 'comm').write_text('sshd')
+            with patch.object(remote, 'assert_capacity'), patch.object(remote.os, 'getppid', return_value=10), patch.object(remote, 'Path', return_value=Path(root)), patch.object(remote.resource, 'prlimit', create=True, return_value=(1024, 2048)) as limit:
+                with self.assertRaisesRegex(RuntimeError, 'insufficient file capacity'): remote.tunnel()
+                self.assertEqual(limit.call_count, 1)
+
+    def test_tunnel_refuses_non_ssh_ancestors_and_inactive_runs(self):
+        with patch.object(remote, 'assert_capacity'), patch.object(remote.os, 'getppid', return_value=1), patch.object(remote.resource, 'prlimit', create=True) as limit:
+            with self.assertRaisesRegex(RuntimeError, 'dedicated SSH'): remote.tunnel()
+            limit.assert_not_called()
+        with patch.object(remote, 'assert_capacity', side_effect=AssertionError('inactive')), patch.object(remote.resource, 'prlimit', create=True) as limit:
+            with self.assertRaisesRegex(AssertionError, 'inactive'): remote.tunnel()
+            limit.assert_not_called()
+
     def test_timeout_registrations_are_audited_and_unsent_intents_are_excluded(self):
         first, second, unsent, item = [str(uuid.uuid4()) for _ in range(4)]
         def record(command, sequence, text, accepted):
@@ -131,6 +195,12 @@ class CapacityTests(unittest.TestCase):
         self.assertIsNone(g.check(low, 1)); self.assertIsNone(g.check(low, 15))
         self.assertEqual(g.check(low, 16), 'host_memory_reserve')
         self.assertIsNone(g.check(self.sample(), 17)); self.assertIsNone(g.check(low, 18))
+
+    def test_single_core_transport_saturation_is_a_generator_boundary(self):
+        guard = Guard(self.sample()); busy = self.sample(); busy['generator'] = {'tunnel_cpu_percent': 95}
+        self.assertIsNone(guard.check(busy, 1)); self.assertIsNone(guard.check(busy, 15))
+        self.assertEqual(guard.check(busy, 16), 'generator_tunnel_cpu_ceiling')
+        self.assertIsNone(guard.check(self.sample(), 17)); self.assertIsNone(guard.check(busy, 18))
 
     def test_container_oom_counter_is_numeric(self):
         g = Guard(self.sample()); value = self.sample(); value['containers']['api']['memory_events']['oom_kill'] = '10'
