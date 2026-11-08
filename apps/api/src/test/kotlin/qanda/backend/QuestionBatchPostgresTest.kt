@@ -40,6 +40,7 @@ class QuestionBatchPostgresTest : PostgresFixture() {
         val statements=Statements();factory.configuration.addInterceptor(statements)
         try {
             var requestSql: Int?=null
+            var finishSql: Int?=null
             listOf(20,100,1000).forEach { size ->
                 val selected=refs.take(size)
                 statements.count.set(0);val start=System.nanoTime()
@@ -66,6 +67,22 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 assertEquals(size,json.readTree(snapshot.body())["items"].size())
                 if(requestSql==null) requestSql=statements.httpCount.get() else assertEquals(requestSql,statements.httpCount.get(),"Practice size must not add SQL round trips")
                 println("PRACTICE_PAYLOAD_EVIDENCE size=$size requests=2 mybatisSql=${statements.httpCount.get()} createBytes=${created.body().toByteArray().size} snapshotBytes=${snapshot.body().toByteArray().size} elapsedMs=${(System.nanoTime()-httpStart)/1000000}")
+                val sessionId=id(session)
+                TransactionTemplate(transactionManager).executeWithoutResult {
+                    jdbc.update("INSERT INTO practice_item_choice(item_id,revision_id,option_key) SELECT id,revision_id,'A' FROM practice_item WHERE session_id=?",sessionId)
+                    jdbc.update("UPDATE practice_item SET confirmed=true WHERE session_id=?",sessionId)
+                }
+                statements.httpCount.set(0)
+                val finishStart=System.nanoTime()
+                val finished=raw("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to session["version"].asLong(),
+                    "writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,"items" to emptyList<Any>()),learner.token,
+                    extraHeaders=mapOf("X-Perf-Measure" to "true"))
+                assertEquals(200,finished.statusCode(),finished.body())
+                val result=json.readTree(finished.body())
+                assertEquals(size,result["answeredCount"].asInt());assertEquals(size,result["objective"]["correct"].asInt())
+                assertEquals(result,call("GET","/practice/sessions/$sessionId/result",token=learner.token))
+                if(finishSql==null) finishSql=statements.httpCount.get() else assertEquals(finishSql,statements.httpCount.get(),"Grading saved answers must not add SQL round trips")
+                println("PRACTICE_FINISH_EVIDENCE size=$size mybatisSql=${statements.httpCount.get()} elapsedMs=${(System.nanoTime()-finishStart)/1000000}")
             }
         } finally { statements.count.remove() }
     }
