@@ -30,19 +30,21 @@ const serverErrors = new Counter('responses_5xx');
 const transportErrors = new Counter('transport_errors');
 const accepted = new Counter('accepted_commands');
 const committed = new Counter('committed_commands');
+const compressed = new Counter('compressed_responses');
 const commitLatency = new Trend('command_commit_latency', true);
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 function uuid() { return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.floor(Math.random() * 16); return (c === 'x' ? r : (r & 3) | 8).toString(16); }); }
 function event(type, value) { console.log(JSON.stringify({ event: type, ...value })); }
 function name(path) { return path.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, ':id').split('?')[0]; }
 async function call(user, method, path, body, key) {
-  const headers = { Authorization: 'Bearer ' + user.token, Accept: 'application/json' };
+  const headers = { Authorization: 'Bearer ' + user.token, Accept: 'application/json', 'Accept-Encoding': 'gzip' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (key) headers['Idempotency-Key'] = key;
   const response = await http.asyncRequest(method, base + path, body === undefined ? null : JSON.stringify(body), { headers, responseType: 'text', timeout: '10s', tags: { name: method + ' ' + name(path) } });
   if (response.status === 429) limited.add(1);
   if (response.status >= 500) serverErrors.add(1);
   if (!response.status) transportErrors.add(1);
+  if (String(response.headers['Content-Encoding'] || '').includes('gzip')) compressed.add(1);
   let data; try { data = response.json(); } catch (_) { data = null; }
   return { status: response.status, data, headers: response.headers };
 }

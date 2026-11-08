@@ -3,6 +3,9 @@ server:
   port: ${BACKEND_API_PORT:8083}
   forward-headers-strategy: none
   max-http-request-header-size: 16KB
+  compression:
+    enabled: true
+    min-response-size: 2KB
   error:
     include-message: never
     include-stacktrace: never

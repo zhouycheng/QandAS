@@ -10,9 +10,9 @@ class PracticeChoiceRow { var itemId: UUID?=null;var optionKey: String="" }
     fun batchChoices(@Param("ids") ids: List<UUID>): List<PracticeChoiceRow>
     fun eligible(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): List<QuestionReference>
     fun eligibleCount(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): Long
+    fun insertItems(@Param("items") items: List<PracticeItem>)
     fun lockSession(@Param("id") id: UUID): PracticeSession?
     fun items(@Param("sessionId") sessionId: UUID): List<PracticeItem>
-    fun choices(@Param("itemId") itemId: UUID): List<String>
     fun clearChoices(@Param("itemId") itemId: UUID)
     fun addChoice(@Param("itemId") itemId: UUID,@Param("revisionId") revisionId: UUID,@Param("key") key: String)
     fun updateAnswer(@Param("item") item: PracticeItem)

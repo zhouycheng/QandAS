@@ -39,6 +39,7 @@ class QuestionBatchPostgresTest : PostgresFixture() {
         }
         val statements=Statements();factory.configuration.addInterceptor(statements)
         try {
+            var requestSql: Int?=null
             listOf(20,100,1000).forEach { size ->
                 val selected=refs.take(size)
                 statements.count.set(0);val start=System.nanoTime()
@@ -63,6 +64,7 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 val snapshot=raw("GET","/practice/sessions/${id(session)}/snapshot?deviceId=$deviceId",token=learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true","X-Practice-Writer" to session["writer"]["writerToken"].asText()))
                 assertEquals(200,snapshot.statusCode(),snapshot.body())
                 assertEquals(size,json.readTree(snapshot.body())["items"].size())
+                if(requestSql==null) requestSql=statements.httpCount.get() else assertEquals(requestSql,statements.httpCount.get(),"Practice size must not add SQL round trips")
                 println("PRACTICE_PAYLOAD_EVIDENCE size=$size requests=2 mybatisSql=${statements.httpCount.get()} createBytes=${created.body().toByteArray().size} snapshotBytes=${snapshot.body().toByteArray().size} elapsedMs=${(System.nanoTime()-httpStart)/1000000}")
             }
         } finally { statements.count.remove() }

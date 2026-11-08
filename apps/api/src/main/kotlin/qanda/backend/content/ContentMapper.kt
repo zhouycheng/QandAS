@@ -20,6 +20,7 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun questionSummaries(@Param("ids") ids: List<UUID>): List<QuestionSummaryRow>
     fun bank(@Param("id") id: UUID,@Param("userId") userId: UUID?=null): QuestionBank?
     fun lockBank(@Param("id") id: UUID): QuestionBank?
+    fun lockBankForRead(@Param("id") id: UUID): QuestionBank?
     fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): List<QuestionBank>
     fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): Long
     fun questionCount(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean): Long

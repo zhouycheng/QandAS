@@ -342,10 +342,11 @@ def trial(remote, scenario, target, limits, seconds, label):
         tunnel.terminate(); tunnel.wait(timeout=10)
 
 
-def suite(remote):
+def suite(remote, start_users=50):
+    if start_users < 1: raise ValueError('The initial active-user load must be positive')
     all_results = []
     for scenario in ('journey', 'read', 'create', 'sync', 'finish', 'burst_create', 'burst_finish'):
-        target = 50 if scenario == 'journey' else 100 if scenario.startswith('burst') else 10
+        target = start_users if scenario == 'journey' else 100 if scenario.startswith('burst') else 10
         active = {'on': True, 'off': True}; stable = {'on': None, 'off': None}; first_bad = {'on': None, 'off': None}; previous = {}; stagnation = collections.Counter()
         while any(active.values()):
             for policy in ('on', 'off'):
@@ -408,7 +409,7 @@ def stop_requested(*_):
 
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser(); p.add_argument('--state', required=True); p.add_argument('--scenario', choices=['read', 'create', 'sync', 'finish', 'journey', 'burst_create', 'burst_finish']); p.add_argument('--target', type=int, default=1); p.add_argument('--limits', choices=['on', 'off'], default='on'); p.add_argument('--seconds', type=int, default=30); p.add_argument('--restore', action='store_true'); args = p.parse_args()
+    p = argparse.ArgumentParser(); p.add_argument('--state', required=True); p.add_argument('--scenario', choices=['read', 'create', 'sync', 'finish', 'journey', 'burst_create', 'burst_finish']); p.add_argument('--target', type=int, default=1); p.add_argument('--limits', choices=['on', 'off'], default='on'); p.add_argument('--seconds', type=int, default=30); p.add_argument('--restore', action='store_true'); p.add_argument('--start-users', type=int, default=50); args = p.parse_args()
     remote = Remote(args.state)
     signal.signal(signal.SIGTERM, stop_requested)
     complete = False
@@ -418,7 +419,7 @@ if __name__ == '__main__':
                 result = trial(remote, args.scenario, args.target, args.limits, args.seconds, 'validation-' + args.scenario + '-' + args.limits + '-' + str(int(time.time())))
                 complete = result['integrity_passed']
             else:
-                suite(remote); complete = True
+                suite(remote, args.start_users); complete = True
     finally:
         private_json(remote.state / 'completion.json', {'suite_complete': complete and args.scenario is None})
         if args.restore:
