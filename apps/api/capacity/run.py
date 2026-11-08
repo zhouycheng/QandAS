@@ -97,7 +97,7 @@ def summarize(points):
 def violations(value):
     result = []
     if value.get('http', 0) and value['error_rate'] > .01: result.append('request_errors')
-    if not value.get('journey_startup', False) and value.get('business_success') is not None and value['business_success'] < .99: result.append('business_errors')
+    if not value.get('journey_window', False) and value.get('business_success') is not None and value['business_success'] < .99: result.append('business_errors')
     for metric, limit in [('p95_ms', 2000), ('accept_p95_ms', 1000), ('commit_p95_ms', 5000), ('commit_p99_ms', 15000)]:
         if value.get(metric) is not None and value[metric] > limit: result.append(metric)
     if any(latency > (1000 if name.startswith('POST ') and name.endswith('/progress-commands') else 2000) for name, latency in value.get('endpoint_p95_ms', {}).items()): result.append('endpoint_p95_ms')
@@ -210,14 +210,18 @@ def wait_drain(remote, timeout=600, log=None):
 
 
 def audit_after_drain(remote, intents, folder, timeout=600):
-    end = time.monotonic() + timeout
+    begun = time.monotonic(); end = begun + timeout; audit_seconds = 0
     while True:
         settled = wait_drain(remote, timeout=max(0, end - time.monotonic()), log=folder / 'recovery.jsonl')
+        drained_at = time.monotonic()
         audit = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(intents).encode()))
         after = remote.action('verify', timeout=15)
+        audit_seconds += time.monotonic() - drained_at
         unchanged = persistence_counts(after) == persistence_counts(settled)
         if unchanged or time.monotonic() >= end:
-            return {**settled, **after, 'recovered': settled['recovered'] and unchanged}, audit
+            return {**settled, **after, 'recovered': settled['recovered'] and unchanged,
+                    'ready_and_drained_seconds': drained_at - begun if settled['recovered'] and unchanged else None,
+                    'audit_seconds': audit_seconds}, audit
 
 
 def user_pool(remote, wanted):
@@ -304,8 +308,8 @@ def trial(remote, scenario, target, limits, seconds, label):
                     match = re.search(r'memory free percentage:\s*(\d+)%', pressure)
                     if match: sample['generator']['system_free_percent'] = int(match.group(1))
                     sample['window'] = metrics.window()
-                    # Before the first full 20-question journeys finish, completed flows overrepresent failures.
-                    sample['window']['journey_startup'] = scenario == 'journey' and time.time() - load_start < 60 + 20 * 15
+                    # Short completion windows bias long journeys; assess their flow success over the full trial.
+                    sample['window']['journey_window'] = scenario == 'journey'
                     samples.append(sample)
                     sample_log.write(json.dumps(sample) + '\n'); sample_log.flush()
                     reason = guard.check(sample, now)
@@ -352,6 +356,8 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started
+        summary['ready_and_drained_seconds'] = summary['database']['ready_and_drained_seconds']
+        summary['audit_seconds'] = summary['database']['audit_seconds']
         summary['recovery_includes_readiness'] = True
         if not summary['database']['recovered'] and reason is None:
             reason = 'recovery_timeout'; summary['stop_reason'] = reason

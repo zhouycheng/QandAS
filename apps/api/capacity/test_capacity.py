@@ -165,6 +165,15 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(drain.call_count, 2); self.assertEqual(remote.shell.call_count, 2)
         self.assertTrue(result['recovered']); self.assertEqual(result['commands']['COMMITTED'] - 4, audit['registered'])
 
+    def test_service_recovery_and_persistence_audit_have_separate_timings(self):
+        remote = Mock(state=Path('20261109-r7'), config={'remote_dir': '/private/capacity'})
+        status = {'commands': {'COMMITTED': 2}, 'results': 0, 'activity_pending': 0, 'recovered': True}
+        remote.action.return_value = status; remote.shell.return_value = '{"registered":2}'
+        with tempfile.TemporaryDirectory() as root, patch('run.wait_drain', return_value=status), patch('run.time.monotonic', side_effect=[0, .5, 2, 9]):
+            result, _ = audit_after_drain(remote, [], Path(root))
+        self.assertEqual(result['ready_and_drained_seconds'], 2)
+        self.assertEqual(result['audit_seconds'], 7)
+
     def test_resume_rejects_different_backend_before_any_remote_action(self):
         with tempfile.TemporaryDirectory() as root:
             state = Path(root); folder = state / 'trials/example'; folder.mkdir(parents=True)
@@ -230,11 +239,11 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(value['completed_operations_per_second'], .5)
         self.assertEqual(value['achieved_vus_peak'], 50)
 
-    def test_initial_inflight_journeys_do_not_bias_completed_flow_ratio_and_request_sla_stays_active(self):
-        early = {'http': 1000, 'error_rate': .001, 'business_success': 0, 'journey_startup': True}
+    def test_long_journey_windows_use_request_sla_and_full_trials_still_require_flow_success(self):
+        early = {'http': 1000, 'error_rate': .001, 'business_success': 0, 'journey_window': True}
         self.assertNotIn('business_errors', violations(early))
-        self.assertIn('business_errors', violations({**early, 'journey_startup': False}))
-        self.assertIn('business_errors', violations({k: v for k, v in early.items() if k != 'journey_startup'}))
+        self.assertIn('business_errors', violations({**early, 'journey_window': False}))
+        self.assertIn('business_errors', violations({k: v for k, v in early.items() if k != 'journey_window'}))
         self.assertIn('request_errors', violations({**early, 'error_rate': .02}))
         self.assertIn('p95_ms', violations({**early, 'p95_ms': 2001}))
 
