@@ -13,7 +13,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, summarize, suite, trial, violations, wait_drain
+from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, policy_stop_reason, summarize, suite, trial, violations, wait_drain
 from seed import question
 from resources import http_busy, metrics, server_p95, series
 import remote
@@ -165,6 +165,15 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(drain.call_count, 2); self.assertEqual(remote.shell.call_count, 2)
         self.assertTrue(result['recovered']); self.assertEqual(result['commands']['COMMITTED'] - 4, audit['registered'])
 
+    def test_service_recovery_and_persistence_audit_have_separate_timings(self):
+        remote = Mock(state=Path('20261109-r7'), config={'remote_dir': '/private/capacity'})
+        status = {'commands': {'COMMITTED': 2}, 'results': 0, 'activity_pending': 0, 'recovered': True}
+        remote.action.return_value = status; remote.shell.return_value = '{"registered":2}'
+        with tempfile.TemporaryDirectory() as root, patch('run.wait_drain', return_value=status), patch('run.time.monotonic', side_effect=[0, .5, 2, 9]):
+            result, _ = audit_after_drain(remote, [], Path(root))
+        self.assertEqual(result['ready_and_drained_seconds'], 2)
+        self.assertEqual(result['audit_seconds'], 7)
+
     def test_resume_rejects_different_backend_before_any_remote_action(self):
         with tempfile.TemporaryDirectory() as root:
             state = Path(root); folder = state / 'trials/example'; folder.mkdir(parents=True)
@@ -229,6 +238,23 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         value = summarize(rows)
         self.assertEqual(value['completed_operations_per_second'], .5)
         self.assertEqual(value['achieved_vus_peak'], 50)
+
+    def test_long_journey_windows_use_request_sla_and_full_trials_still_require_flow_success(self):
+        early = {'http': 1000, 'error_rate': .001, 'business_success': 0, 'journey_window': True}
+        self.assertNotIn('business_errors', violations(early))
+        self.assertIn('business_errors', violations({**early, 'journey_window': False}))
+        self.assertIn('business_errors', violations({k: v for k, v in early.items() if k != 'journey_window'}))
+        self.assertIn('request_errors', violations({**early, 'error_rate': .02}))
+        self.assertIn('p95_ms', violations({**early, 'p95_ms': 2001}))
+
+    def test_policy_stop_distinguishes_server_failures_from_flat_throughput_and_unsent_load(self):
+        row = {'stop_reason': None, 'http': 100, 'server_failure_rate': .8}
+        self.assertEqual(policy_stop_reason(row, 'off', 0), 'server_failure_ratio')
+        self.assertEqual(policy_stop_reason({**row, 'dropped_iterations': 1}, 'off', 0), 'arrival_slots_exhausted')
+        self.assertEqual(policy_stop_reason({**row, 'stop_reason': 'host_memory_reserve'}, 'off', 0), 'host_memory_reserve')
+        self.assertEqual(policy_stop_reason({**row, 'server_failure_rate': 0, 'limited': 60}, 'on', 0), 'rate_limit_gate')
+        self.assertEqual(policy_stop_reason({**row, 'server_failure_rate': .1}, 'off', 2), 'throughput_stagnation')
+        self.assertIsNone(policy_stop_reason({**row, 'server_failure_rate': .1}, 'off', 1))
 
     def test_overload_and_timeouts_remain_failures_and_have_separate_counts(self):
         value = summarize([(0, 'http_reqs', 1, {'status': '200'}), (1, 'http_reqs', 2, {'status': '503'}), (2, 'http_reqs', 3, {'status': '0', 'error_code': '1050'})])

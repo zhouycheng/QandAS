@@ -97,7 +97,7 @@ def summarize(points):
 def violations(value):
     result = []
     if value.get('http', 0) and value['error_rate'] > .01: result.append('request_errors')
-    if value.get('business_success') is not None and value['business_success'] < .99: result.append('business_errors')
+    if not value.get('journey_window', False) and value.get('business_success') is not None and value['business_success'] < .99: result.append('business_errors')
     for metric, limit in [('p95_ms', 2000), ('accept_p95_ms', 1000), ('commit_p95_ms', 5000), ('commit_p99_ms', 15000)]:
         if value.get(metric) is not None and value[metric] > limit: result.append(metric)
     if any(latency > (1000 if name.startswith('POST ') and name.endswith('/progress-commands') else 2000) for name, latency in value.get('endpoint_p95_ms', {}).items()): result.append('endpoint_p95_ms')
@@ -210,14 +210,18 @@ def wait_drain(remote, timeout=600, log=None):
 
 
 def audit_after_drain(remote, intents, folder, timeout=600):
-    end = time.monotonic() + timeout
+    begun = time.monotonic(); end = begun + timeout; audit_seconds = 0
     while True:
         settled = wait_drain(remote, timeout=max(0, end - time.monotonic()), log=folder / 'recovery.jsonl')
+        drained_at = time.monotonic()
         audit = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(intents).encode()))
         after = remote.action('verify', timeout=15)
+        audit_seconds += time.monotonic() - drained_at
         unchanged = persistence_counts(after) == persistence_counts(settled)
         if unchanged or time.monotonic() >= end:
-            return {**settled, **after, 'recovered': settled['recovered'] and unchanged}, audit
+            return {**settled, **after, 'recovered': settled['recovered'] and unchanged,
+                    'ready_and_drained_seconds': drained_at - begun if settled['recovered'] and unchanged else None,
+                    'audit_seconds': audit_seconds}, audit
 
 
 def user_pool(remote, wanted):
@@ -303,7 +307,10 @@ def trial(remote, scenario, target, limits, seconds, label):
                     pressure = subprocess.run(['memory_pressure', '-Q'], capture_output=True, text=True).stdout
                     match = re.search(r'memory free percentage:\s*(\d+)%', pressure)
                     if match: sample['generator']['system_free_percent'] = int(match.group(1))
-                    sample['window'] = metrics.window(); samples.append(sample)
+                    sample['window'] = metrics.window()
+                    # Short completion windows bias long journeys; assess their flow success over the full trial.
+                    sample['window']['journey_window'] = scenario == 'journey'
+                    samples.append(sample)
                     sample_log.write(json.dumps(sample) + '\n'); sample_log.flush()
                     reason = guard.check(sample, now)
                     generator = sample['generator']
@@ -349,6 +356,8 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started
+        summary['ready_and_drained_seconds'] = summary['database']['ready_and_drained_seconds']
+        summary['audit_seconds'] = summary['database']['audit_seconds']
         summary['recovery_includes_readiness'] = True
         if not summary['database']['recovered'] and reason is None:
             reason = 'recovery_timeout'; summary['stop_reason'] = reason
@@ -385,6 +394,15 @@ def trial(remote, scenario, target, limits, seconds, label):
         tunnel.terminate(); tunnel.wait(timeout=10)
 
 
+def policy_stop_reason(result, policy, stagnation):
+    if result['stop_reason']: return result['stop_reason']
+    if policy == 'on' and result.get('limited', 0) / max(1, result.get('http', 0)) > .5: return 'rate_limit_gate'
+    if result.get('dropped_iterations', 0) > 0: return 'arrival_slots_exhausted'
+    if result.get('server_failure_rate', 0) >= .5: return 'server_failure_ratio'
+    if stagnation >= 2: return 'throughput_stagnation'
+    return None
+
+
 def suite(remote, start_users=50):
     if start_users < 1: raise ValueError('The initial active-user load must be positive')
     all_results = []
@@ -399,13 +417,13 @@ def suite(remote, start_users=50):
                 if result['stable']: stable[policy] = target
                 elif first_bad[policy] is None: first_bad[policy] = target
                 if not result['integrity_passed']: raise RuntimeError('Persistence audit failed; preserve evidence and recover before continuing')
-                limited = result.get('limited', 0) / max(1, result.get('http', 0))
                 old = previous.get(policy)
                 if old and result.get('rps', 0) <= old.get('rps', 0) * 1.05 and not result['stable']: stagnation[policy] += 1
                 else: stagnation[policy] = 0
                 previous[policy] = result
-                if result['stop_reason'] or (policy == 'on' and limited > .5) or result.get('server_failure_rate', 0) >= .5 or stagnation[policy] >= 2 or result.get('dropped_iterations', 0) > 0:
-                    result['suite_stop'] = result['stop_reason'] or ('rate_limit_gate' if policy == 'on' and limited > .5 else 'arrival_slots_exhausted' if result.get('dropped_iterations', 0) > 0 else 'throughput_stagnation')
+                stop = policy_stop_reason(result, policy, stagnation[policy])
+                if stop:
+                    result['suite_stop'] = stop
                     private_json(remote.state / 'trials' / result['label'] / 'result.json', result)
                     private_json(remote.state / 'results.json', all_results)
                     active[policy] = False

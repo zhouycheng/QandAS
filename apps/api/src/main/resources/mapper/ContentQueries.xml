@@ -12,13 +12,19 @@
   <sql id="ids"><foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
   <select id="favoriteQuestionIds" resultType="java.util.UUID">SELECT question_id FROM user_favorite WHERE user_id=#{userId} AND question_id IN <include refid="ids"/> ORDER BY question_id</select>
   <select id="bankListFacts" resultType="qanda.backend.content.BankListFacts">
-    <if test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/> </if>
-    SELECT b.id bank_id,s.name subject_name,count(q.id) question_count,count(a.id) active_question_count,
-      <choose><when test="userId != null">count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count,0 wrong_book_count</otherwise></choose>
-    FROM question_bank b JOIN subject s ON s.id=b.subject_id LEFT JOIN question q ON q.bank_id=b.id AND NOT q.is_group
-    LEFT JOIN active_question a ON a.id=q.id
-    <if test="userId != null">LEFT JOIN facts f ON f.question_id=a.id AND f.rn=1 </if>
-    WHERE b.id IN <include refid="ids"/> GROUP BY b.id,s.name
+    <choose><when test="userId != null"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>,</when><otherwise>WITH</otherwise></choose>
+    question_counts AS(SELECT bank_id,count(*) n FROM question WHERE bank_id IN <include refid="ids"/> AND NOT is_group GROUP BY bank_id),
+    active_counts AS(SELECT bank_id,count(*) n FROM active_question WHERE bank_id IN <include refid="ids"/> AND NOT is_group GROUP BY bank_id)
+    <if test="userId != null">,
+      progress_counts AS(SELECT a.bank_id,count(*) answered_count,count(*) FILTER(WHERE f.judgment='CORRECT') correct_count,count(*) FILTER(WHERE f.judgment='WRONG') wrong_count,
+        count(*) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count
+        FROM facts f JOIN active_question a ON a.id=f.question_id WHERE f.rn=1 AND NOT a.is_group AND a.bank_id IN <include refid="ids"/> GROUP BY a.bank_id)
+    </if>
+    SELECT b.id bank_id,s.name subject_name,coalesce(q.n,0) question_count,coalesce(a.n,0) active_question_count,
+      <choose><when test="userId != null">coalesce(p.answered_count,0) answered_count,coalesce(p.correct_count,0) correct_count,coalesce(p.wrong_count,0) wrong_count,coalesce(p.wrong_book_count,0) wrong_book_count</when><otherwise>0 answered_count,0 correct_count,0 wrong_count,0 wrong_book_count</otherwise></choose>
+    FROM question_bank b JOIN subject s ON s.id=b.subject_id LEFT JOIN question_counts q ON q.bank_id=b.id LEFT JOIN active_counts a ON a.bank_id=b.id
+    <if test="userId != null">LEFT JOIN progress_counts p ON p.bank_id=b.id </if>
+    WHERE b.id IN <include refid="ids"/>
   </select>
   <select id="bankCategories" resultType="qanda.backend.content.BankCategory">SELECT a.id,a.bank_id,coalesce(m.college_id,a.college_id) college_id,a.major_id,a.grade FROM bank_category a LEFT JOIN major m ON m.id=a.major_id WHERE a.bank_id IN <include refid="ids"/> ORDER BY a.id</select>
   <select id="bankMaintainers" resultType="qanda.backend.content.BankMaintainerRow">SELECT bank_id,admin_id FROM bank_maintainer WHERE bank_id IN <include refid="ids"/> ORDER BY admin_id</select>
