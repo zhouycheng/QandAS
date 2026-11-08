@@ -304,14 +304,19 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))
         events = list(read_events(folder / 'events.jsonl'))
         ledger = [x for x in events if x.get('event') == 'accepted']
+        accepted_ids = {x['id'] for x in ledger}
+        intents = {x['id']: {'id': x['id'], 'sequence': x['body']['clientSequence'], 'items': x['body']['items'],
+                             'client_accepted': x['id'] in accepted_ids} for x in events if x.get('event') == 'intent'}
+        for value in ledger: intents.setdefault(value['id'], value)
         recovery_started = time.monotonic(); summary['database'] = wait_drain(remote, log=folder / 'recovery.jsonl')
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started
         summary['recovery_includes_readiness'] = True
-        summary['audit'] = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(ledger).encode()))
-        audit = summary['audit']; summary['integrity_passed'] = audit['accepted'] == audit['committed'] and not any(audit[k] for k in ('missing', 'pending', 'rejected', 'answer_mismatches')) and summary['database']['committed_without_receipt'] == 0
-        summary['unobserved_registrations'] = summary['new_commands'] - audit['accepted']
+        summary['audit'] = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(list(intents.values())).encode()))
+        audit = summary['audit']; summary['unobserved_registrations'] = summary['new_commands'] - len(accepted_ids)
+        summary['unverified_registrations'] = summary['new_commands'] - audit['registered']
+        summary['integrity_passed'] = audit['accepted'] == audit['committed'] and not any(audit[k] for k in ('missing', 'pending', 'rejected', 'answer_mismatches', 'result_mismatches')) and summary['database']['committed_without_receipt'] == 0 and summary['unverified_registrations'] == 0
         starts = [x['time'] for x in events if x.get('event') == 'burst_start']
         if starts:
             summary['burst_start_spread_ms'] = max(starts) - min(starts); summary['burst_started'] = len(starts)

@@ -226,25 +226,35 @@ def verify():
 def audit():
     ledger = json.load(sys.stdin)
     ids = sorted({str(uuid.UUID(x['id'])) for x in ledger})
+    client_ids = {str(uuid.UUID(x['id'])) for x in ledger if x.get('client_accepted', True)}
+    states = {}
+    for start in range(0, len(ids), 500):
+        values = ','.join("'" + value + "'::uuid" for value in ids[start:start + 500])
+        states.update(json.loads(sql("SELECT coalesce(json_object_agg(id,state),'{}') FROM sync_command WHERE id IN (" + values + ")")))
     answers = {}
     for record in sorted(ledger, key=lambda x: x['sequence']):
+        if states.get(str(uuid.UUID(record['id']))) != 'COMMITTED': continue
         for item in record['items']:
-            answers[str(uuid.UUID(item['itemId']))] = {'id': str(uuid.UUID(item['itemId'])), 'answer': item['answer'], 'confirmed': item.get('confirmed', False)}
-    totals = {'accepted': len(ids), 'committed': 0, 'missing': 0, 'pending': 0, 'rejected': 0, 'answer_mismatches': 0}
-    for start in range(0, len(ids), 500):
-        values = ','.join("('" + value + "'::uuid)" for value in ids[start:start + 500])
-        value = json.loads(sql("SELECT json_build_object('missing',count(*) FILTER(WHERE s.id IS NULL),'committed',count(*) FILTER(WHERE s.state='COMMITTED'),'pending',count(*) FILTER(WHERE s.state IN ('ACCEPTING','QUEUED','RETRYING')),'rejected',count(*) FILTER(WHERE s.state IN ('REJECTED','DEAD_LETTER'))) FROM (VALUES " + values + ") e(id) LEFT JOIN sync_command s ON s.id=e.id"))
-        for key, count in value.items(): totals[key] += count
+            answers[str(uuid.UUID(item['itemId']))] = {'id': str(uuid.UUID(item['itemId'])), 'answer': item['answer'], 'confirmed': item.get('confirmed', False), 'marked': item.get('marked', False)}
+    totals = {'accepted': len(set(states) | client_ids), 'registered': len(states), 'client_accepted': len(client_ids),
+              'committed': sum(value == 'COMMITTED' for value in states.values()), 'missing': len(client_ids - set(states)),
+              'pending': sum(value in ('ACCEPTING', 'QUEUED', 'RETRYING') for value in states.values()),
+              'rejected': sum(value in ('REJECTED', 'DEAD_LETTER') for value in states.values()), 'answer_mismatches': 0}
     expected = list(answers.values())
     for start in range(0, len(expected), 500):
         value = json.dumps(expected[start:start + 500], ensure_ascii=False).replace("'", "''")
-        query = """SELECT count(*) FROM jsonb_to_recordset('%s'::jsonb) e(id uuid,answer jsonb,confirmed boolean) LEFT JOIN practice_item p ON p.id=e.id
-            WHERE p.id IS NULL OR p.confirmed IS DISTINCT FROM e.confirmed
+        query = """SELECT count(*) FROM jsonb_to_recordset('%s'::jsonb) e(id uuid,answer jsonb,confirmed boolean,marked boolean) LEFT JOIN practice_item p ON p.id=e.id
+            WHERE p.id IS NULL OR p.confirmed IS DISTINCT FROM e.confirmed OR p.marked IS DISTINCT FROM e.marked
             OR (e.answer ? 'text' AND p.answer_text IS DISTINCT FROM e.answer->>'text')
             OR (e.answer ? 'value' AND p.answer_boolean IS DISTINCT FROM (e.answer->>'value')::boolean)
             OR (e.answer ? 'blanks' AND p.answer_blanks::jsonb IS DISTINCT FROM e.answer->'blanks')
             OR (e.answer ? 'optionKeys' AND (SELECT jsonb_agg(option_key ORDER BY option_key) FROM practice_item_choice WHERE item_id=p.id) IS DISTINCT FROM e.answer->'optionKeys')""" % value
         totals['answer_mismatches'] += int(sql(query))
+    totals['result_mismatches'] = int(sql("""SELECT count(*) FROM practice_session s LEFT JOIN practice_result r ON r.session_id=s.id
+        WHERE s.status='SUBMITTED' AND (r.id IS NULL OR r.answered_count<>r.total_count OR r.wrong_count<>0 OR r.unanswered_count<>0
+        OR r.total_count<>(SELECT count(*) FROM practice_item p WHERE p.session_id=s.id)
+        OR r.correct_count<>(SELECT count(*) FROM practice_item p WHERE p.session_id=s.id AND p.outcome='CORRECT')
+        OR r.short_answer_count<>(SELECT count(*) FROM practice_item p WHERE p.session_id=s.id AND p.outcome='SELF_RATED'))"""))
     return totals
 
 
