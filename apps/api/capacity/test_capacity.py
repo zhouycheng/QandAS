@@ -12,9 +12,9 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from run import Guard, Metrics, backlog_violations, collection_failure, epoch, next_target, summarize, suite, trial, violations, wait_drain
+from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, summarize, suite, trial, violations, wait_drain
 from seed import question
-from resources import metrics, server_p95, series
+from resources import http_busy, metrics, server_p95, series
 import remote
 import client as transport_client
 import tunnel as transport_tunnel
@@ -122,10 +122,35 @@ class CapacityTests(unittest.TestCase):
     def test_drained_queue_does_not_imply_ready_application(self):
         remote = Mock()
         status = {'commands': {}, 'activity_pending': 0}
-        def health(ready): return {'containers': {'qanda-application-' + role + '-1': {'running': True, 'probe_ok': ready} for role in ('api', 'worker', 'monitor')}}
-        remote.action.side_effect = [status.copy(), health(False), status.copy(), health(True)]
+        def health(ready): return {'containers': {'qanda-application-' + role + '-1': {'running': True, 'probe_ok': ready} for role in ('api', 'worker', 'monitor')}, 'application': {'qanda-application-api-1': {'metrics': 'tomcat_threads_busy_threads{name="http-nio-8083"} 0'}}}
+        remote.action.side_effect = [status.copy(), health(False), status.copy(), health(True), status.copy(), health(True)]
         with patch('run.time.sleep') as sleep:
-            self.assertTrue(wait_drain(remote)['recovered']); sleep.assert_called_once_with(5)
+            self.assertTrue(wait_drain(remote)['recovered']); self.assertEqual(sleep.call_count, 2)
+
+    def test_recovery_waits_for_http_completion_and_stable_persistence_counts(self):
+        remote = Mock()
+        def health(busy):
+            return {'containers': {'qanda-application-' + role + '-1': {'running': True, 'probe_ok': True} for role in ('api', 'worker', 'monitor')}, 'application': {'qanda-application-api-1': {'metrics': 'tomcat_threads_busy_threads{name="http-nio-8083"} ' + str(busy)}}}
+        def status(count): return {'commands': {'COMMITTED': count}, 'results': 0, 'activity_pending': 0}
+        remote.action.side_effect = [status(1), health(1), status(1), health(0), status(2), health(0), status(2), health(0)]
+        with patch('run.time.sleep'):
+            result = wait_drain(remote)
+        self.assertTrue(result['recovered']); self.assertEqual(result['commands']['COMMITTED'], 2)
+        self.assertEqual(http_busy(metrics('tomcat_threads_busy_threads{name="http-nio-8083"} 0\ntomcat_threads_busy_threads{name="http-nio-9091"} 1')), 0)
+
+    def test_missing_http_metrics_cannot_confirm_recovery(self):
+        remote = Mock()
+        remote.action.side_effect = [{'commands': {}, 'activity_pending': 0}, {'containers': {'qanda-application-' + role + '-1': {'running': True, 'probe_ok': True} for role in ('api', 'worker', 'monitor')}}]
+        self.assertFalse(wait_drain(remote, timeout=0)['recovered'])
+
+    def test_late_registrations_trigger_a_fresh_drain_and_audit(self):
+        remote = Mock(state=Path('20261109-r5'), config={'remote_dir': '/var/lib/qanda-capacity/20261109-r5'})
+        def status(count): return {'commands': {'COMMITTED': count}, 'results': 4, 'activity_pending': 0, 'recovered': True}
+        remote.action.return_value = status(174); remote.shell.return_value = '{"registered":170}'
+        with tempfile.TemporaryDirectory() as root, patch('run.wait_drain', side_effect=[status(172), status(174)]) as drain:
+            result, audit = audit_after_drain(remote, [], Path(root))
+        self.assertEqual(drain.call_count, 2); self.assertEqual(remote.shell.call_count, 2)
+        self.assertTrue(result['recovered']); self.assertEqual(result['commands']['COMMITTED'] - 4, audit['registered'])
 
     def test_resume_rejects_different_backend_before_any_remote_action(self):
         with tempfile.TemporaryDirectory() as root:

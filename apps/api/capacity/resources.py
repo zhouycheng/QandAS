@@ -16,6 +16,11 @@ def total(rows, name, **tags):
     return sum(value for metric, labels, value in rows if metric == name and all(labels.get(k) == v for k, v in tags.items()))
 
 
+def http_busy(rows):
+    values = [value for name, labels, value in rows if name == 'tomcat_threads_busy_threads' and labels.get('name', '').endswith('-8083')]
+    return sum(values) if values else None
+
+
 def series(samples):
     result = []; previous = None
     if not samples: return result
@@ -54,6 +59,7 @@ def series(samples):
             row[role + '_heap_mib'] = total(now, 'jvm_memory_used_bytes', area='heap') / 1024 ** 2
             row[role + '_pool_pending'] = total(now, 'hikaricp_connections_pending')
             row[role + '_pool_active'] = total(now, 'hikaricp_connections_active')
+            row[role + '_http_busy_threads'] = http_busy(now)
             row[role + '_pool_acquire_max_ms'] = total(now, 'hikaricp_connections_acquire_seconds_max') * 1000
             if dt > 0:
                 old = list(metrics(previous['application'].get('qanda-application-' + role + '-1', {}).get('metrics', '')))

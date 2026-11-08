@@ -158,6 +158,7 @@ def prepare():
         command(args + [row['Config']['Image']])
     wait_infra(m['postgres'], m['rabbit']); broker()
     settings = {'BACKEND_REQUEST_LIMITS_ENABLED': 'false', 'SPRING_RABBITMQ_VIRTUAL_HOST': m['vhost'],
+                'SERVER_TOMCAT_MBEANREGISTRY_ENABLED': 'true',
                 'BACKEND_MAIL_DISPATCH_ENABLED': 'false',
                 'BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS': '1:' + base64.b64encode(secrets.token_bytes(32)).decode(),
                 'BACKEND_TEST_ACCOUNT_ENCRYPTION_ACTIVE_VERSION': '1'}
@@ -181,6 +182,7 @@ def reset(enabled):
     command(['docker', 'exec', m['postgres'], 'createdb', '-U', 'qanda_backend', 'qanda_backend'])
     command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], (ROOT / 'seed.dump').read_bytes())
     compose('run', '--rm', '--no-deps', 'schema-init')
+    sql('ANALYZE')
     broker(True); mode(enabled)
     return {'reset': True, 'limits': enabled}
 

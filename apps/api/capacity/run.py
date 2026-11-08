@@ -17,6 +17,7 @@ import time
 
 from client import Api, Lease, Remote, private_json, smoke
 import seed
+from resources import http_busy, metrics as metric_values
 
 
 def epoch(value):
@@ -171,13 +172,18 @@ def read_events(path):
         except (ValueError, TypeError): pass
 
 
+def persistence_counts(value):
+    return value['commands'], value.get('results'), value.get('activity_pending', 0)
+
+
 def wait_drain(remote, timeout=600, log=None):
-    end = time.monotonic() + timeout; value = None
+    end = time.monotonic() + timeout; value = None; previous = None
     while True:
         try:
             value = remote.action('verify', timeout=15)
             sample = remote.action('collect', timeout=15)
         except (subprocess.SubprocessError, OSError, ValueError, RuntimeError):
+            previous = None
             if log:
                 with log.open('a') as file: file.write(json.dumps({'observed_at': time.time(), 'observation_unavailable': True}) + '\n')
             if time.monotonic() >= end:
@@ -190,10 +196,24 @@ def wait_drain(remote, timeout=600, log=None):
         apps = [x for name, x in sample['containers'].items() if name.startswith('qanda-application-')]
         value['application_ready'] = len(apps) == 3 and all(x['running'] and x.get('probe_ok', False) for x in apps)
         drained = not value.get('activity_pending', 0) and not any(value['commands'].get(x, 0) for x in ('ACCEPTING', 'QUEUED', 'RETRYING'))
-        value['recovered'] = drained and value['application_ready']
+        value['http_idle'] = http_busy(metric_values(sample.get('application', {}).get('qanda-application-api-1', {}).get('metrics', ''))) == 0
+        quiet = drained and value['application_ready'] and value['http_idle']
+        value['recovered'] = quiet and previous is not None and persistence_counts(previous) == persistence_counts(value)
         if value['recovered']: return value
+        previous = value if quiet else None
         if time.monotonic() >= end: return value
         time.sleep(5)
+
+
+def audit_after_drain(remote, intents, folder, timeout=600):
+    end = time.monotonic() + timeout
+    while True:
+        settled = wait_drain(remote, timeout=max(0, end - time.monotonic()), log=folder / 'recovery.jsonl')
+        audit = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(intents).encode()))
+        after = remote.action('verify', timeout=15)
+        unchanged = persistence_counts(after) == persistence_counts(settled)
+        if unchanged or time.monotonic() >= end:
+            return {**settled, **after, 'recovered': settled['recovered'] and unchanged}, audit
 
 
 def user_pool(remote, wanted):
@@ -310,8 +330,9 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary.update(scenario=scenario, target=target, limits=limits, label=label, duration=1 if scenario.startswith('burst') else seconds, wall_seconds=time.time() - wall_start, stop_reason=reason, exit_code=child.returncode)
         summary['tunnel_exit_code'] = tunnel.poll()
         source = Path(__file__).parent
-        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py', 'tunnel.py', 'requirements.txt'))).hexdigest()
+        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py', 'tunnel.py', 'resources.py', 'requirements.txt'))).hexdigest()
         summary['backend_revision'] = remote.config['expected_revision']
+        summary['source_run'] = remote.state.name
         summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))
         events = list(read_events(folder / 'events.jsonl'))
@@ -320,12 +341,13 @@ def trial(remote, scenario, target, limits, seconds, label):
         intents = {x['id']: {'id': x['id'], 'sequence': x['body']['clientSequence'], 'items': x['body']['items'],
                              'client_accepted': x['id'] in accepted_ids} for x in events if x.get('event') == 'intent'}
         for value in ledger: intents.setdefault(value['id'], value)
-        recovery_started = time.monotonic(); summary['database'] = wait_drain(remote, log=folder / 'recovery.jsonl')
+        recovery_started = time.monotonic(); summary['database'], summary['audit'] = audit_after_drain(remote, list(intents.values()), folder)
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started
         summary['recovery_includes_readiness'] = True
-        summary['audit'] = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(list(intents.values())).encode()))
+        if not summary['database']['recovered'] and reason is None:
+            reason = 'recovery_timeout'; summary['stop_reason'] = reason
         audit = summary['audit']; summary['unobserved_registrations'] = summary['new_commands'] - len(accepted_ids)
         summary['unverified_registrations'] = summary['new_commands'] - audit['registered']
         summary['integrity_passed'] = audit['accepted'] == audit['committed'] and not any(audit[k] for k in ('missing', 'pending', 'rejected', 'answer_mismatches', 'result_mismatches')) and summary['database']['committed_without_receipt'] == 0 and summary['unverified_registrations'] == 0
