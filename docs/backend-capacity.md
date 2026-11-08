@@ -28,7 +28,7 @@
 CAPACITY_STATE="$HOME/.local/state/qanda-capacity/20261108"
 python3 apps/api/capacity/setup.py --state "$CAPACITY_STATE" --users 1000
 python3 apps/api/capacity/validate.py --state "$CAPACITY_STATE"
-python3 apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
+caffeinate -i python3 apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
 ```
 
 `setup.py` 核对已部署 SHA，安装私有运维脚本，完成单用户保存、回执、重复提交和交卷验收，再保存测试数据基线。合成题目先通过既有导入预览校验。准备失败时尝试恢复原服务，并保留私有诊断。`validate.py` 实测账号读写限流阈值、关闭后的认证权限，并执行原生 k6 单用户练习。
