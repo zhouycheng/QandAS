@@ -8,13 +8,18 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from run import Guard, Metrics, backlog_violations, collection_failure, epoch, next_target, summarize, trial, violations, wait_drain
+from run import Guard, Metrics, backlog_violations, collection_failure, epoch, next_target, summarize, suite, trial, violations, wait_drain
 from seed import question
 from resources import metrics, server_p95, series
 import remote
 
 
 class CapacityTests(unittest.TestCase):
+    def test_invalid_start_load_cannot_touch_the_remote_environment(self):
+        remote = Mock()
+        with self.assertRaises(ValueError): suite(remote, start_users=0)
+        remote.action.assert_not_called()
+
     def test_slow_collection_is_not_a_lost_management_connection(self):
         remote = Mock()
         self.assertEqual(collection_failure(remote, 1, 0), (0, None))
