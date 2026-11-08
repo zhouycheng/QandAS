@@ -31,7 +31,7 @@ class RequestLimiter(private val maxKeys: Int=100000,private val nanoTime: () ->
 class RequestLimitFilter(private val errors: ErrorWriter,private val environment: Environment): OncePerRequestFilter() {
     private val limiter=RequestLimiter()
     override fun doFilterInternal(request: HttpServletRequest,response: HttpServletResponse,chain: FilterChain) {
-        if(request.requestURI.startsWith("/api/v1/")) {
+        if(request.requestURI.startsWith("/api/v1/") && environment.getProperty("qanda.backend.request-limits.enabled",Boolean::class.java,true)) {
             val peer=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(request.remoteAddr.toByteArray()))
             val budget=environment.getProperty("qanda.backend.request-limits.anonymous-per-peer",Int::class.java,60000)
             if(!limiter.reserve(peer,budget)) { errors.write(request,response,ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请求过于频繁",details=ErrorDetails(retryAfterSeconds=60)));return }

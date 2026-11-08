@@ -38,7 +38,7 @@ class PlatformSecurity {
                         val actor=sessions.authenticate(headers[0].substring(7))
                         val read=request.method in setOf("GET","HEAD")
                         val budget=environment.getProperty("qanda.backend.request-limits."+if(read) "read-per-account" else "write-per-account",Int::class.java,if(read) 600 else 120)
-                        if(!accountLimiter.reserve("${actor.kind}:${actor.id}:$read",budget)) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请求过于频繁",details=ErrorDetails(retryAfterSeconds=60))
+                        if(environment.getProperty("qanda.backend.request-limits.enabled",Boolean::class.java,true) && !accountLimiter.reserve("${actor.kind}:${actor.id}:$read",budget)) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请求过于频繁",details=ErrorDetails(retryAfterSeconds=60))
                         SecurityContextHolder.getContext().authentication=UsernamePasswordAuthenticationToken(actor,null,emptyList())
                     }
                     if(!public) {
