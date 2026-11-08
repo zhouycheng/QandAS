@@ -3,9 +3,10 @@ package qanda.backend
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.dao.CannotAcquireLockException
+import org.springframework.dao.DataAccessException
 import org.springframework.transaction.support.TransactionTemplate
 import qanda.backend.content.api.ContentLibrary
+import qanda.backend.content.ReadingChildInput
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.http.HttpRequest
@@ -22,7 +23,9 @@ class ThroughputPostgresTest : PostgresFixture() {
     @Test fun `active question reads preserve inactive parent and standalone rules`() {
         val f=fixture()
         val parent=id(call("POST","/admin/questions",question(f.bank,"READING") + mapOf(
-            "passage" to "阅读材料", "subQuestions" to listOf(question(f.bank,"SINGLE_CHOICE"),question(f.bank,"TRUE_FALSE")))))
+            "passage" to "阅读材料", "subQuestions" to listOf(
+                ReadingChildInput(type="TRUE_FALSE",stem="第一小题",correctValue=true,explanation="判断依据"),
+                ReadingChildInput(type="TRUE_FALSE",stem="第二小题",correctValue=false,explanation="判断依据")))))
         val children=call("GET","/admin/questions/$parent")["subQuestions"].map { UUID.fromString(it["id"].asText()) }
         jdbc.update("UPDATE question SET status='INACTIVE' WHERE id IN (?,?)",f.questions.first(),parent)
         val expected=f.questions.drop(1).toSet()
@@ -48,13 +51,17 @@ class ThroughputPostgresTest : PostgresFixture() {
         } }
         try {
             assertTrue(locked.await(5,TimeUnit.SECONDS),"Independent practice readers must acquire shared locks together")
-            assertThrows(CannotAcquireLockException::class.java) {
+            val failure=assertThrows(DataAccessException::class.java) {
                 TransactionTemplate(transactionManager).executeWithoutResult {
                     jdbc.execute("SET LOCAL lock_timeout='250ms'")
                     jdbc.update("UPDATE question_bank SET content_version=content_version+1 WHERE id=?",f.bank)
                 }
             }
-        } finally { release.countDown();tasks.forEach { it.get(10,TimeUnit.SECONDS) };pool.shutdownNow() }
+            assertEquals("55P03",(failure.mostSpecificCause as java.sql.SQLException).sqlState)
+        } finally {
+            release.countDown()
+            try { tasks.forEach { it.get(10,TimeUnit.SECONDS) } } finally { pool.shutdownNow() }
+        }
         assertEquals(1,jdbc.update("UPDATE question_bank SET content_version=content_version+1 WHERE id=?",f.bank))
     }
 
