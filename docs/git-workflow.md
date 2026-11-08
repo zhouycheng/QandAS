@@ -5,7 +5,7 @@
 ## 分支与发布
 
 ```text
-<username>/<type>/<中文描述> → Pull Request → main
+<username>/<type>/<description> → Pull Request → main
 ```
 
 `main` 是默认分支和唯一长期保留分支。每项工作从最新 `origin/main` 创建个人任务分支，完成后通过目标为 `main` 的 Pull Request 合入；合并后删除任务分支。
@@ -14,12 +14,12 @@
 
 ## 创建与推送任务分支
 
-先确认工作区状态，再同步远程引用并从最新 `origin/main` 创建分支。名称采用 `<username>/<type>/<中文描述>`，例如 `zhouycheng/feat/练习交互`、`zhouycheng/docs/同步项目文档`。用户名使用 GitHub 登录名，类型说明工作性质，描述说明实际任务。
+先确认工作区状态，再同步远程引用并从最新 `origin/main` 创建分支。名称采用 `<username>/<type>/<description>`，例如 `zhouycheng/feat/practice-interactions`、`zhouycheng/docs/project-documentation`。用户名使用 GitHub 登录名，类型说明工作性质，描述采用简洁的英文小写短横线形式，说明实际任务。
 
 ```bash
 git status --short
 git fetch origin --prune
-git switch --no-track -c zhouycheng/docs/同步项目文档 origin/main
+git switch --no-track -c zhouycheng/docs/project-documentation origin/main
 ```
 
 `--no-track` 使任务分支不会把 `origin/main` 设为 upstream。首次推送前没有 upstream 是正常状态。

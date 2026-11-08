@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Inspect Git changes, prepare coherent commits, and perform explicitly authorized commits, task-branch pushes, and pull-request actions using 题小搭's develop-to-main workflow.
+description: Inspect Git changes, prepare coherent commits, and perform explicitly authorized commits, task-branch pushes, and pull-request actions using 题小搭's task-branch-to-main workflow.
 ---
 
 # Git Workflow
@@ -9,11 +9,11 @@ Read `docs/git-workflow.md` before planning changes. It is the project policy. K
 
 ## Current workflow
 
-Use `develop` for daily integration and `main` for releases. Start task branches from the latest `origin/develop` and target daily pull requests at `develop`. Release pull requests target `main`; production deployment is manually triggered from `main`.
+Use `main` as the only long-lived branch. Start task branches from the latest `origin/main` and target pull requests at `main`. Production deployment is manually triggered from `main`.
 
 Human approval is not a required merge gate during the initial project stage. A collaborator with write access may merge their own PR. This does not authorize an Agent to merge or delete anything without the user's permission.
 
-Use the user's requested branch name. This workspace uses `zhouycheng/<type>/<description>`. Do not push a task directly to `main`, force-push, delete integration branches, or bypass access controls. Follow `docs/git-workflow.md` for integration and release decisions.
+Use the user's requested branch name. Team branches use `<username>/<type>/<description>`, with a concise lowercase English kebab-case description. Do not push a task directly to `main`, force-push, delete the long-lived branch, or bypass access controls. Follow `docs/git-workflow.md` for integration and release decisions.
 
 ## Preflight
 
@@ -33,7 +33,7 @@ After checking and preserving existing work, use an explicitly authorized task b
 
 ```bash
 git fetch origin --prune
-git switch --no-track -c <task-branch> origin/develop
+git switch --no-track -c <task-branch> origin/main
 ```
 
 Do not switch branches in a way that silently carries, discards, or overwrites unrelated user changes.
@@ -62,10 +62,10 @@ Stop on failure, preserve the worktree, and report the actual outcome. Do not by
 
 ## Pull requests
 
-Target `develop` for daily work and `main` for releases. Follow `.github/pull_request_template.md`, keeping its headings and writing the content in Chinese. Omit empty optional sections and repetitive boilerplate.
+Target `main` for task pull requests. Follow `.github/pull_request_template.md`, keeping its headings and writing the content in Chinese. Omit empty optional sections and repetitive boilerplate.
 
 Creating, updating, merging, or deleting after a PR requires authorization for that action. Before an authorized merge, verify the current PR head, diff, mergeability, outstanding discussions, and any actual required checks. Use an expected head SHA when supported. Normal short-lived task PRs use squash merge unless the user requests another method.
 
-Delete a task branch only after verifying its PR merged and no unmerged work remains, with authorization for deletion. Keep `develop` and `main` as the documented integration and release branches.
+Delete a task branch only after verifying its PR merged and no unmerged work remains, with authorization for deletion. Keep `main` as the only long-lived branch.
 
 In the final report, separate completed operations, unperformed operations, and blockers. Link or cite the actual PRs and commits. Do not describe planned settings as verified server-side configuration.
