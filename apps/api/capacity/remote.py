@@ -156,6 +156,7 @@ def snapshot():
 
 
 def reset(enabled):
+    assert_capacity()
     m = manifest(); compose('stop', 'api', 'worker', 'monitor')
     command(['docker', 'exec', m['postgres'], 'dropdb', '-U', 'qanda_backend', '--force', 'qanda_backend'])
     command(['docker', 'exec', m['postgres'], 'createdb', '-U', 'qanda_backend', 'qanda_backend'])

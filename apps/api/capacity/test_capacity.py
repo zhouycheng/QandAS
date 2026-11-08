@@ -15,6 +15,11 @@ import remote
 
 
 class CapacityTests(unittest.TestCase):
+    def test_inactive_run_cannot_stop_services_or_restore_data(self):
+        with patch.object(remote, 'assert_capacity', side_effect=AssertionError('inactive')), patch.object(remote, 'compose') as compose, patch.object(remote, 'command') as command:
+            with self.assertRaises(AssertionError): remote.reset(False)
+            compose.assert_not_called();command.assert_not_called()
+
     def test_invalid_start_load_cannot_touch_the_remote_environment(self):
         remote = Mock()
         with self.assertRaises(ValueError): suite(remote, start_users=0)
