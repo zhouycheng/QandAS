@@ -65,6 +65,8 @@ def summarize(points):
         if metric == 'http_reqs':
             counts['http'] += value
             code = int(tags.get('status') or 0)
+            if code == 503: counts['unavailable'] += value
+            if tags.get('error_code') == '1050': counts['timeouts'] += value
             if code == 429: counts['limited'] += value
             elif code >= 500: counts['server_errors'] += value
             elif code == 0: counts['transport_errors'] += value

@@ -221,6 +221,12 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(value['accepted_commands'], 10); self.assertEqual(value['committed_commands'], 7)
         self.assertIn('commit_p99_ms', violations(value))
 
+    def test_overload_and_timeouts_remain_failures_and_have_separate_counts(self):
+        value = summarize([(0, 'http_reqs', 1, {'status': '200'}), (1, 'http_reqs', 2, {'status': '503'}), (2, 'http_reqs', 3, {'status': '0', 'error_code': '1050'})])
+        self.assertEqual((value['unavailable'], value['timeouts'], value['server_errors'], value['transport_errors']), (2, 3, 2, 3))
+        self.assertAlmostEqual(value['error_rate'], 5 / 6)
+        self.assertAlmostEqual(value['successful_rps'], .5)
+
     def test_busy_polling_cannot_hide_slow_session_creation(self):
         rows = [(i, 'http_req_duration', 20, {'name': 'GET /progress-commands/:id'}) for i in range(100)]
         rows.append((101, 'http_req_duration', 5000, {'name': 'POST /practice/sessions'}))
