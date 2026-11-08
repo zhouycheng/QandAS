@@ -1,10 +1,12 @@
 """Self-checks for success accounting, adaptive load, and recovery boundaries."""
 import json
+import io
 import os
 from pathlib import Path
 import tempfile
 import time
 import unittest
+import uuid
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -15,6 +17,26 @@ import remote
 
 
 class CapacityTests(unittest.TestCase):
+    def test_timeout_registrations_are_audited_and_unsent_intents_are_excluded(self):
+        first, second, unsent, item = [str(uuid.uuid4()) for _ in range(4)]
+        def record(command, sequence, text, accepted):
+            return {'id': command, 'sequence': sequence, 'client_accepted': accepted,
+                    'items': [{'itemId': item, 'answer': {'text': text}, 'confirmed': True, 'marked': True}]}
+        ledger = [record(first, 1, 'earlier', True), record(second, 2, 'latest committed', False), record(unsent, 3, 'never accepted', False)]
+        with patch('remote.sys.stdin', io.StringIO(json.dumps(ledger))), patch.object(remote, 'sql', side_effect=[json.dumps({first: 'COMMITTED', second: 'COMMITTED'}), '0', '0']) as sql:
+            value = remote.audit()
+        self.assertEqual((value['accepted'], value['registered'], value['client_accepted'], value['committed']), (2, 2, 1, 2))
+        self.assertEqual(value['missing'], 0)
+        query = sql.call_args_list[1].args[0]
+        self.assertIn('latest committed', query); self.assertNotIn('never accepted', query)
+        self.assertIn('p.marked IS DISTINCT FROM e.marked', query)
+
+    def test_client_accepted_missing_from_database_is_not_ignored(self):
+        ledger = [{'id': str(uuid.uuid4()), 'sequence': 1, 'items': []}]
+        with patch('remote.sys.stdin', io.StringIO(json.dumps(ledger))), patch.object(remote, 'sql', side_effect=['{}', '0']):
+            value = remote.audit()
+        self.assertEqual((value['accepted'], value['registered'], value['committed'], value['missing']), (1, 0, 0, 1))
+
     def test_inactive_run_cannot_stop_services_or_restore_data(self):
         with patch.object(remote, 'assert_capacity', side_effect=AssertionError('inactive')), patch.object(remote, 'compose') as compose, patch.object(remote, 'command') as command:
             with self.assertRaises(AssertionError): remote.reset(False)

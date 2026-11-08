@@ -30,11 +30,12 @@ def generate(state, output):
         trial['generator_sent_bytes'] = k6.get('data_sent', {}).get('count')
         trial['accepted_verified'] = trial.get('audit', {}).get('committed')
         trial['accepted_mismatches'] = trial.get('audit', {}).get('answer_mismatches')
+        trial['result_mismatches'] = trial.get('audit', {}).get('result_mismatches')
     fields = sorted({key for rows in trends.values() for row in rows for key in row})
     with (output / 'resources.csv').open('w') as f:
         writer = csv.DictWriter(f, ['label'] + fields); writer.writeheader()
         for label, rows in trends.items(): writer.writerows({'label': label, **row} for row in rows)
-    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'recovery_seconds', 'recovery_includes_readiness', 'source_run', 'integrity_passed', 'accepted_verified', 'accepted_commands', 'committed_commands', 'new_commands', 'unobserved_registrations', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'fixture_users', 'fixture_banks', 'achieved_vus_peak', 'generator_received_bytes', 'generator_sent_bytes', 'compressed_responses', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak']
+    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'recovery_seconds', 'recovery_includes_readiness', 'source_run', 'integrity_passed', 'accepted_verified', 'accepted_commands', 'committed_commands', 'new_commands', 'unobserved_registrations', 'unverified_registrations', 'result_mismatches', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'fixture_users', 'fixture_banks', 'achieved_vus_peak', 'generator_received_bytes', 'generator_sent_bytes', 'compressed_responses', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak']
     with (output / 'trials.csv').open('w') as f:
         writer = csv.DictWriter(f, columns, extrasaction='ignore'); writer.writeheader(); writer.writerows(trials)
     public = [{key: row.get(key) for key in columns} for row in trials]
