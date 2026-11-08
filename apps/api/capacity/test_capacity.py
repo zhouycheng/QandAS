@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from run import Guard, Metrics, backlog_violations, epoch, next_target, summarize, violations
 from seed import question
+from resources import metrics, server_p95, series
 import remote
 
 
@@ -28,6 +29,24 @@ class CapacityTests(unittest.TestCase):
     def test_growing_projection_lag_is_detected(self):
         rows = [{'observed_at': i * 5, 'postgres': {'activity_pending': i * 5, 'activity_oldest_seconds': i}} for i in range(13)]
         self.assertIn('activity_projection_growth', backlog_violations(rows))
+
+    def test_resource_export_keeps_numeric_metrics_and_omits_labels(self):
+        text = 'hikaricp_connections_pending{pool="private-name"} 2\ninvalid NaN\n'
+        self.assertEqual(list(metrics(text)), [('hikaricp_connections_pending', {'pool': 'private-name'}, 2.0)])
+        row = {'observed_at': 1, 'host': {'available': 1024 ** 2, 'swap_used': 0, 'disk_free': 10 * 1024 ** 3}, 'containers': {}, 'application': {'qanda-application-api-1': {'metrics': text}}, 'window': {}}
+        value = series([row])[0]
+        self.assertEqual(value['api_pool_pending'], 2)
+        self.assertNotIn('private-name', json.dumps(value))
+
+    def test_server_histogram_excludes_health_and_subtracts_baseline(self):
+        def sample(health, quick, count):
+            text = '\n'.join([
+                'http_server_requests_seconds_bucket{uri="/api/v1/health",le="0.001"} ' + str(health),
+                'http_server_requests_seconds_bucket{uri="/api/v1/practice/sessions",le="0.1"} ' + str(quick),
+                'http_server_requests_seconds_bucket{uri="/api/v1/practice/sessions",le="0.5"} ' + str(count),
+                'http_server_requests_seconds_bucket{uri="/api/v1/practice/sessions",le="+Inf"} ' + str(count)])
+            return {'application': {'qanda-application-api-1': {'metrics': text}}}
+        self.assertEqual(server_p95([sample(0, 10000, 10000), sample(100000, 10001, 10010)]), 500)
     def sample(self, **host):
         return {'host': {'available': 2 * 1024 ** 3, 'disk_free': 20 * 1024 ** 3, **host}, 'containers': {'api': {'oom': False, 'restarts': 0, 'running': True, 'memory_events': {'oom_kill': '9'}}}}
 
