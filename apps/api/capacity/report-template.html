@@ -17,7 +17,7 @@ label{display:inline-flex;align-items:center;gap:10px;margin:0 20px 10px 0}svg{w
 <h2>负载与成功吞吐</h2>
 <label>场景 <select id="scenario"></select></label>
 <svg id="plot" viewBox="0 0 1060 430" role="img" aria-label="目标负载与实际成功请求吞吐量"></svg>
-<div class="table"><table><thead><tr><th>限流</th><th>目标档位</th><th>成功 RPS</th><th>操作完成/秒</th><th>P95 ms</th><th>P99 ms</th><th>429</th><th>5xx / 传输失败</th><th>结果</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="table"><table><thead><tr><th>限流</th><th>目标档位</th><th>实到 VU 峰值</th><th>成功 RPS</th><th>操作完成/秒</th><th>P95 ms</th><th>P99 ms</th><th>429</th><th>5xx / 传输失败</th><th>结果</th></tr></thead><tbody id="rows"></tbody></table></div>
 <h2>逐次资源与延迟趋势</h2>
 <label>运行 <select id="trial"></select></label><label>指标 <select id="metric"></select></label>
 <svg id="trend" viewBox="0 0 1060 430" role="img" aria-label="资源和延迟随运行时间变化"></svg>
@@ -38,7 +38,7 @@ function axes(mx,my,xlabel,ylabel){let out='<path d="M80 25V360H1030" fill="none
  return out+`<text x="555" y="420" text-anchor="middle" font-size="14">${xlabel}</text><text x="20" y="195" transform="rotate(-90 20 195)" text-anchor="middle" font-size="14">${ylabel}</text>`}
 function render(){const rows=data.filter(x=>x.scenario===$('scenario').value),mx=Math.max(1,...rows.map(x=>x.target)),my=Math.max(1,...rows.map(x=>x.successful_rps||0));let s=axes(mx,my,'目标档位','成功 HTTP RPS');
  for(const r of rows){const color=r.limits==='on'?'#2464d7':'#dc781c';s+=`<circle cx="${80+r.target/mx*930}" cy="${360-(r.successful_rps||0)/my*325}" r="5" fill="${r.stable?color:'white'}" stroke="${color}" stroke-width="2"><title>${r.label}: ${fmt(r.successful_rps)} RPS，${r.stable?'通过':'未通过'}</title></circle>`}
- $('plot').innerHTML=s;$('rows').innerHTML=rows.map(r=>`<tr><td>${r.limits==='on'?'开启':'关闭'}</td><td>${r.target}</td><td>${fmt(r.successful_rps)}</td><td>${fmt(r.completed_operations_per_second)}</td><td>${fmt(r.p95_ms)}</td><td>${fmt(r.p99_ms)}</td><td>${r.limited||0}</td><td>${r.server_errors||0} / ${r.transport_errors||0}</td><td>${r.stable?'通过':'未通过'}</td></tr>`).join('');
+ $('plot').innerHTML=s;$('rows').innerHTML=rows.map(r=>`<tr><td>${r.limits==='on'?'开启':'关闭'}</td><td>${r.target}</td><td>${r.achieved_vus_peak==null?'—':r.achieved_vus_peak}</td><td>${fmt(r.successful_rps)}</td><td>${fmt(r.completed_operations_per_second)}</td><td>${fmt(r.p95_ms)}</td><td>${fmt(r.p99_ms)}</td><td>${r.limited||0}</td><td>${r.server_errors||0} / ${r.transport_errors||0}</td><td>${r.stable?'通过':'未通过'}</td></tr>`).join('');
  $('trial').replaceChildren();for(const r of rows)option($('trial'),r.label,r.label);trend()}
 function trend(){const key=$('metric').value,rows=(series[$('trial').value]||[]).filter(x=>Number.isFinite(x[key])),mx=Math.max(1,...rows.map(x=>x.seconds)),my=Math.max(1,...rows.map(x=>x[key]));let s=axes(mx,my,'运行时间（秒）',metrics[key]);
  s+=`<polyline points="${rows.map(x=>`${80+x.seconds/mx*930},${360-x[key]/my*325}`).join(' ')}" fill="none" stroke="#2464d7" stroke-width="2"/>`;$('trend').innerHTML=s}

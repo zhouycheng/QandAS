@@ -151,5 +151,6 @@ export default async function () {
     failures.add(1); event('business_error', { code: String(error.message).slice(0, 100) });
   } finally {
     operations.add(1); businessOk.add(ok); businessLatency.add(Date.now() - start);
+    if (!ok && kind === 'journey') await wait(1000);
   }
 }

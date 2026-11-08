@@ -37,7 +37,7 @@ python3 apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
 
 真实学生流程从 50 个活跃用户开始，每级 10 分钟；读取、创建、同步和交卷从每秒 10 次业务操作开始，每级 3 分钟；突发创建和交卷从 100 人在一秒内发起操作开始。逐级翻倍，没有固定的请求量上限。临界区间缩小到约 10% 并复测，最终学生流程稳定档运行 30 分钟。
 
-HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练习的实际成本；集中交卷场景使用提前创建的独立练习。真实学生场景保留思考时间、五秒同步、每秒回执查询、六十秒心跳及幂等重试。202 只计受理，保存成功以 COMMITTED 及实际答案核对为准。
+HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练习的实际成本；集中交卷场景使用提前创建的独立练习。真实学生场景保留思考时间、五秒同步、每秒回执查询、六十秒心跳及幂等重试，流程失败后等待一秒再开始下一轮。独立到达率场景继续按目标速率发压。202 只计受理，保存成功以 COMMITTED 及实际答案核对为准。
 
 吞吐场景每档使用 [k6 独立到达率调度](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/)，避免响应变慢时自动降低目标发压。未发出的操作以 [dropped iterations](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/dropped-iterations/) 单列；判断边界时同时检查发压端资源与可用 VU，按[官方大规模测试指引](https://grafana.com/docs/k6/latest/testing-guides/running-large-tests/) 区分发压端和服务端限制。
 
