@@ -14,6 +14,8 @@ def generate(state, output):
     trials = json.loads((state / 'results.json').read_text())
     completion = json.loads((state / 'completion.json').read_text()) if (state / 'completion.json').exists() else {'suite_complete': False}
     restored = json.loads((state / 'restoration.json').read_text()) if (state / 'restoration.json').exists() else {'restored': False}
+    if (state / 'configuration.json').exists():
+        (output / 'configuration.json').write_text((state / 'configuration.json').read_text())
     trends = {}
     for trial in trials:
         path = state / 'trials' / trial['label'] / 'samples.jsonl'
@@ -26,7 +28,7 @@ def generate(state, output):
     with (output / 'resources.csv').open('w') as f:
         writer = csv.DictWriter(f, ['label'] + fields); writer.writeheader()
         for label, rows in trends.items(): writer.writerows({'label': label, **row} for row in rows)
-    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'recovery_seconds', 'integrity_passed', 'accepted_verified', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak']
+    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'recovery_seconds', 'recovery_includes_readiness', 'source_run', 'integrity_passed', 'accepted_verified', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'fixture_users', 'fixture_banks', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak']
     with (output / 'trials.csv').open('w') as f:
         writer = csv.DictWriter(f, columns, extrasaction='ignore'); writer.writeheader(); writer.writerows(trials)
     public = [{key: row.get(key) for key in columns} for row in trials]

@@ -41,13 +41,14 @@ def series(samples):
         for name, container in sample['containers'].items():
             role = next((x for x in ('api', 'worker', 'monitor', 'postgres', 'rabbitmq') if name == 'qanda-application-' + x + '-1' or x == 'postgres' and name.startswith('qanda-capacity-pg-') or x == 'rabbitmq' and name.startswith('qanda-capacity-rabbit-')), None)
             if not role: continue
-            row[role + '_memory_mib'] = container.get('memory', 0) / 1024 ** 2
+            if 'memory' in container: row[role + '_memory_mib'] = container['memory'] / 1024 ** 2
             row[role + '_restarts'] = container['restarts']
             old = previous['containers'].get(name, {}) if previous else {}
             if dt > 0 and 'cpu' in container and 'cpu' in old:
                 row[role + '_cpu_cores'] = max(0, int(container['cpu']['usage_usec']) - int(old['cpu']['usage_usec'])) / dt / 1e6
         for role in ('api', 'worker', 'monitor'):
             now = list(metrics(sample['application'].get('qanda-application-' + role + '-1', {}).get('metrics', '')))
+            if not now: continue
             row[role + '_heap_mib'] = total(now, 'jvm_memory_used_bytes', area='heap') / 1024 ** 2
             row[role + '_pool_pending'] = total(now, 'hikaricp_connections_pending')
             row[role + '_pool_active'] = total(now, 'hikaricp_connections_active')

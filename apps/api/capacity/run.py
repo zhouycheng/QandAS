@@ -167,11 +167,27 @@ def read_events(path):
         except (ValueError, TypeError): pass
 
 
-def wait_drain(remote, timeout=600):
-    end = time.monotonic() + timeout
+def wait_drain(remote, timeout=600, log=None):
+    end = time.monotonic() + timeout; value = None
     while True:
-        value = remote.action('verify', timeout=15)
-        if not value.get('activity_pending', 0) and not any(value['commands'].get(x, 0) for x in ('ACCEPTING', 'QUEUED', 'RETRYING')): return value
+        try:
+            value = remote.action('verify', timeout=15)
+            sample = remote.action('collect', timeout=15)
+        except (subprocess.SubprocessError, OSError, ValueError, RuntimeError):
+            if log:
+                with log.open('a') as file: file.write(json.dumps({'observed_at': time.time(), 'observation_unavailable': True}) + '\n')
+            if time.monotonic() >= end:
+                if value is None: raise RuntimeError('Recovery could not be verified within ten minutes')
+                return {**value, 'recovered': False, 'application_ready': False}
+            time.sleep(5); continue
+        sample['observed_at'] = time.time()
+        if log:
+            with log.open('a') as file: file.write(json.dumps(sample) + '\n')
+        apps = [x for name, x in sample['containers'].items() if name.startswith('qanda-application-')]
+        value['application_ready'] = len(apps) == 3 and all(x['running'] and x.get('probe_ok', False) for x in apps)
+        drained = not value.get('activity_pending', 0) and not any(value['commands'].get(x, 0) for x in ('ACCEPTING', 'QUEUED', 'RETRYING'))
+        value['recovered'] = drained and value['application_ready']
+        if value['recovered']: return value
         if time.monotonic() >= end: return value
         time.sleep(5)
 
@@ -204,12 +220,27 @@ def stop_k6(child):
     if child.poll() is None: child.kill(); child.wait()
 
 
+def collection_failure(remote, failures, ssh_errors):
+    try:
+        remote.shell(['true'], timeout=5)
+        ssh_errors = 0
+    except (subprocess.SubprocessError, OSError, RuntimeError):
+        ssh_errors += 1
+    reason = 'management_connection_timeout' if ssh_errors >= 2 else 'monitoring_unavailable' if failures >= 2 and ssh_errors == 0 else None
+    return ssh_errors, reason
+
+
 def trial(remote, scenario, target, limits, seconds, label):
-    user_pool(remote, max(target, 1000))
-    folder = remote.state / 'trials' / label; folder.mkdir(parents=True)
+    folder = remote.state / 'trials' / label
+    if (folder / 'result.json').exists():
+        cached = json.loads((folder / 'result.json').read_text())
+        assert (cached['backend_revision'], cached['scenario'], cached['target'], cached['limits'], cached['duration']) == (remote.config['expected_revision'], scenario, target, limits, 1 if scenario.startswith('burst') else seconds), 'Completed run configuration mismatch'
+        print(json.dumps({'reused_completed_trial': label, 'original_harness': cached['harness_sha256']}), flush=True)
+        return cached
+    user_pool(remote, max(target, 1000)); folder.mkdir(parents=True)
     remote.action('reset', limits); tunnel = remote.tunnel(); child = None
     baseline = remote.action('collect', timeout=10); guard = Guard(baseline)
-    raw = folder / 'raw.json'; metrics = Metrics(); reason = None; bad_windows = 0; first_unstable = None; last_window = time.monotonic(); ssh_errors = 0
+    raw = folder / 'raw.json'; metrics = Metrics(); reason = None; bad_windows = 0; first_unstable = None; last_window = time.monotonic(); ssh_errors = 0; collection_errors = 0
     samples = []; wall_start = time.time(); prepared = None
     try:
         if scenario == 'burst_finish':
@@ -231,7 +262,7 @@ def trial(remote, scenario, target, limits, seconds, label):
             while child.poll() is None:
                 time.sleep(5); metrics.update(raw); now = time.monotonic()
                 try:
-                    sample = remote.action('collect', timeout=5); ssh_errors = 0
+                    sample = remote.action('collect', timeout=15); ssh_errors = 0; collection_errors = 0
                     sample['observed_at'] = time.time()
                     process = subprocess.run(['ps', '-p', str(child.pid), '-o', '%cpu=,rss='], capture_output=True, text=True).stdout.split()
                     sample['generator'] = {'cpu_percent': float(process[0]) / os.cpu_count(), 'rss': int(process[1]) * 1024} if len(process) == 2 else {}
@@ -254,9 +285,11 @@ def trial(remote, scenario, target, limits, seconds, label):
                         if '-soak' in label and bad_windows >= 2: reason = 'soak_sla_breach'
                         print(json.dumps({'trial': label, 'target': target, 'elapsed': int(time.time() - wall_start), 'rps': round(sample['window']['rps'], 2), 'violations': faults}), flush=True)
                         last_window = now
-                except (subprocess.SubprocessError, OSError, ValueError):
-                    ssh_errors += 1
-                    if ssh_errors >= 2: reason = 'management_connection_timeout'
+                except (subprocess.SubprocessError, OSError, ValueError, RuntimeError):
+                    collection_errors += 1
+                    ssh_errors, reason = collection_failure(remote, collection_errors, ssh_errors)
+                    with (folder / 'collection-errors.jsonl').open('a') as errors:
+                        errors.write(json.dumps({'time': time.time(), 'collection_errors': collection_errors, 'ssh_errors': ssh_errors, 'stop_reason': reason}) + '\n')
                 if reason:
                     stop_k6(child)
                     break
@@ -271,10 +304,11 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))
         events = list(read_events(folder / 'events.jsonl'))
         ledger = [x for x in events if x.get('event') == 'accepted']
-        recovery_started = time.monotonic(); summary['database'] = wait_drain(remote)
+        recovery_started = time.monotonic(); summary['database'] = wait_drain(remote, log=folder / 'recovery.jsonl')
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started
+        summary['recovery_includes_readiness'] = True
         summary['audit'] = json.loads(remote.shell(['sudo', '-n', 'python3', remote.config['remote_dir'] + '/remote.py', 'audit', '--run', remote.state.name], data=json.dumps(ledger).encode()))
         audit = summary['audit']; summary['integrity_passed'] = audit['accepted'] == audit['committed'] and not any(audit[k] for k in ('missing', 'pending', 'rejected', 'answer_mismatches')) and summary['database']['committed_without_receipt'] == 0
         summary['unobserved_registrations'] = summary['new_commands'] - audit['accepted']
@@ -292,7 +326,7 @@ def trial(remote, scenario, target, limits, seconds, label):
             summary['violations'].extend(backlog_violations(active_samples))
         summary['first_unstable_time'] = first_unstable
         summary['unstable_windows'] = sum(bool(violations(s['window'])) for s in samples if s['window']['elapsed'] >= 50)
-        summary['stable'] = not reason and first_unstable is None and child.returncode == 0 and not summary['violations'] and summary['integrity_passed'] and summary.get('dropped_iterations', 0) == 0 and summary.get('burst_schedule_valid', True)
+        summary['stable'] = not reason and first_unstable is None and child.returncode == 0 and not summary['violations'] and summary['integrity_passed'] and summary['database']['recovered'] and summary.get('dropped_iterations', 0) == 0 and summary.get('burst_schedule_valid', True)
         private_json(folder / 'result.json', summary)
         if raw.exists():
             with raw.open('rb') as src, gzip.open(str(raw) + '.gz', 'wb', compresslevel=1) as dst:

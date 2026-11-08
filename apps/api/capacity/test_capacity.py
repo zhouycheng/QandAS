@@ -5,15 +5,41 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from run import Guard, Metrics, backlog_violations, epoch, next_target, summarize, violations
+from run import Guard, Metrics, backlog_violations, collection_failure, epoch, next_target, summarize, trial, violations, wait_drain
 from seed import question
 from resources import metrics, server_p95, series
 import remote
 
 
 class CapacityTests(unittest.TestCase):
+    def test_slow_collection_is_not_a_lost_management_connection(self):
+        remote = Mock()
+        self.assertEqual(collection_failure(remote, 1, 0), (0, None))
+        self.assertEqual(collection_failure(remote, 2, 0), (0, 'monitoring_unavailable'))
+        remote.shell.side_effect = TimeoutError()
+        self.assertEqual(collection_failure(remote, 1, 0), (1, None))
+        self.assertEqual(collection_failure(remote, 2, 1), (2, 'management_connection_timeout'))
+
+    def test_drained_queue_does_not_imply_ready_application(self):
+        remote = Mock()
+        status = {'commands': {}, 'activity_pending': 0}
+        def health(ready): return {'containers': {'qanda-application-' + role + '-1': {'running': True, 'probe_ok': ready} for role in ('api', 'worker', 'monitor')}}
+        remote.action.side_effect = [status.copy(), health(False), status.copy(), health(True)]
+        with patch('run.time.sleep') as sleep:
+            self.assertTrue(wait_drain(remote)['recovered']); sleep.assert_called_once_with(5)
+
+    def test_resume_rejects_different_backend_before_any_remote_action(self):
+        with tempfile.TemporaryDirectory() as root:
+            state = Path(root); folder = state / 'trials/example'; folder.mkdir(parents=True)
+            (folder / 'result.json').write_text(json.dumps({'backend_revision': 'older', 'scenario': 'read', 'target': 10, 'limits': 'on', 'duration': 180}))
+            remote = SimpleNamespace(state=state, config={'expected_revision': 'current'}, action=Mock())
+            with self.assertRaisesRegex(AssertionError, 'configuration mismatch'):
+                trial(remote, 'read', 10, 'on', 180, 'example')
+            remote.action.assert_not_called()
+
     def test_native_k6_timestamp_precision(self):
         self.assertEqual(epoch('2026-11-08T16:10:56.56157+08:00'), epoch('2026-11-08T08:10:56.561570000Z'))
 
