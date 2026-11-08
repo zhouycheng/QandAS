@@ -44,6 +44,7 @@ abstract class PostgresFixture {
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__active_question_queries.sql"),"/docker-entrypoint-initdb.d/003-active-questions.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__visible_bank_queries.sql"),"/docker-entrypoint-initdb.d/004-visible-banks.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {

@@ -3,7 +3,7 @@
 <mapper namespace="qanda.backend.discovery.DiscoveryMapper">
   <insert id="favorite">INSERT INTO user_favorite(user_id,question_id) VALUES(#{userId},#{questionId}) ON CONFLICT DO NOTHING</insert>
   <delete id="unfavorite">DELETE FROM user_favorite WHERE user_id=#{userId} AND question_id=#{questionId}</delete>
-  <sql id="matchingBank">bank_visible(b.id)</sql>
+  <sql id="matchingBank">b.id IN (SELECT id FROM visible_question_bank)</sql>
   <sql id="recommendSubject">FROM subject s WHERE s.status='ACTIVE' AND EXISTS(SELECT 1 FROM question_bank b WHERE b.subject_id=s.id AND <include refid="matchingBank"/>)</sql>
   <select id="recommendedSubjects" resultType="java.util.UUID">SELECT s.id <include refid="recommendSubject"/> ORDER BY s.name,s.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="recommendedCount" resultType="long">SELECT count(*) <include refid="recommendSubject"/></select>

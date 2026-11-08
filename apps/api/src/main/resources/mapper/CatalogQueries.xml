@@ -4,7 +4,7 @@
   <select id="lockCollege" resultType="qanda.backend.catalog.College">SELECT * FROM college WHERE id=#{id} FOR UPDATE</select>
   <select id="lockMajor" resultType="qanda.backend.catalog.Major">SELECT * FROM major WHERE id=#{id} FOR UPDATE</select>
   <select id="lockSubject" resultType="qanda.backend.catalog.Subject">SELECT * FROM subject WHERE id=#{id} FOR UPDATE</select>
-  <sql id="published">s.status='ACTIVE' AND EXISTS(SELECT 1 FROM question_bank b WHERE b.subject_id=s.id AND bank_visible(b.id) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade}))</sql>
+  <sql id="published">s.status='ACTIVE' AND EXISTS(SELECT 1 FROM question_bank b WHERE b.subject_id=s.id AND b.id IN (SELECT id FROM visible_question_bank) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade}))</sql>
   <sql id="filter"><where><if test="keyword != null">s.name ILIKE '%'||#{keyword}||'%' </if><if test="publicOnly">AND <include refid="published"/> </if></where></sql>
   <select id="subjects" resultType="qanda.backend.catalog.Subject">SELECT s.* FROM subject s <include refid="filter"/> ORDER BY s.name,s.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="subjectCount" resultType="long">SELECT count(*) FROM subject s <include refid="filter"/></select>
@@ -13,7 +13,7 @@
     <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>
     SELECT s.id subject_id,count(DISTINCT b.id) FILTER(WHERE q.id IS NOT NULL) bank_count,count(q.id) question_count,
       count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count
-    FROM subject s LEFT JOIN question_bank b ON b.subject_id=s.id AND bank_visible(b.id) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade})
+    FROM subject s LEFT JOIN question_bank b ON b.subject_id=s.id AND b.id IN (SELECT id FROM visible_question_bank) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade})
     LEFT JOIN active_question q ON q.bank_id=b.id AND NOT q.is_group LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1
     WHERE s.id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> GROUP BY s.id
   </select>

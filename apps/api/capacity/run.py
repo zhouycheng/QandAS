@@ -45,7 +45,7 @@ class Metrics:
                     self.offset = pos; break
                 row = json.loads(line)
                 if row.get('type') != 'Point': continue
-                if row['metric'] not in ('http_reqs', 'http_req_duration', 'command_commit_latency', 'business_success', 'business_operations', 'business_failures', 'accepted_commands', 'committed_commands', 'dropped_iterations'): continue
+                if row['metric'] not in ('http_reqs', 'http_req_duration', 'command_commit_latency', 'business_success', 'business_operations', 'business_failures', 'accepted_commands', 'committed_commands', 'dropped_iterations', 'vus'): continue
                 d = row['data']; stamp = epoch(d['time'])
                 self.points.append((stamp, row['metric'], d['value'], d.get('tags', {})))
         cutoff = time.time() - 130
@@ -57,7 +57,7 @@ class Metrics:
 
 def summarize(points):
     counts = collections.Counter(); durations = []; accepts = []; commits = []; business = []; endpoints = collections.defaultdict(list)
-    first, last = None, None
+    first, last, vus_peak = None, None, None
     for stamp, metric, value, tags in points:
         if metric in ('http_reqs', 'http_req_duration'):
             began = stamp - value / 1000 if metric == 'http_req_duration' else stamp
@@ -77,12 +77,14 @@ def summarize(points):
             if tags.get('name', '').startswith('POST ') and tags.get('name', '').endswith('/progress-commands'): accepts.append(value)
         elif metric == 'command_commit_latency': commits.append(value)
         elif metric == 'business_success': business.append(value)
+        elif metric == 'vus': vus_peak = value if vus_peak is None else max(vus_peak, value)
         elif metric in ('business_operations', 'business_failures', 'accepted_commands', 'committed_commands', 'dropped_iterations'):
             counts[metric] += value
     elapsed = max(1, (last or 0) - (first or 0)); total = counts['http']
-    result = {**counts, 'elapsed': elapsed, 'rps': total / elapsed,
+    result = {**counts, 'unavailable': counts['unavailable'], 'timeouts': counts['timeouts'], 'elapsed': elapsed, 'rps': total / elapsed,
             'successful_rps': (total - counts['limited'] - counts['server_errors'] - counts['transport_errors'] - counts['other_errors']) / elapsed,
-            'completed_operations_per_second': (counts['business_operations'] - counts['business_failures']) / elapsed,
+            'completed_operations_per_second': sum(business) / elapsed,
+            'achieved_vus_peak': vus_peak,
             'error_rate': (counts['limited'] + counts['server_errors'] + counts['transport_errors'] + counts['other_errors']) / max(1, total),
             'server_failure_rate': (counts['server_errors'] + counts['transport_errors']) / max(1, total),
             'business_success': sum(business) / len(business) if business else None,

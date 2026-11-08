@@ -48,6 +48,27 @@ class ThroughputPostgresTest : PostgresFixture() {
         assertEquals(6,bank["questionCount"].asInt());assertEquals(3,bank["activeQuestionCount"].asInt())
     }
 
+    @Test fun `set based bank visibility reflects publication status and active reading parents immediately`() {
+        val f=fixture()
+        val parent=id(call("POST","/admin/questions",question(f.bank,"READING")+mapOf(
+            "passage" to "可见性验证材料","subQuestions" to listOf(
+                ReadingChildInput(type="TRUE_FALSE",stem="阅读小题",correctValue=true,explanation="判断依据")))))
+        fun visible(expected: Boolean) {
+            assertEquals(expected,jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM visible_question_bank WHERE id=?)",Boolean::class.java,f.bank))
+            assertEquals(expected,jdbc.queryForObject("SELECT bank_visible(?)",Boolean::class.java,f.bank))
+            assertEquals(if(expected) 1 else 0,call("GET","/question-banks?subjectId=${f.subject}",token=null)["total"].asInt())
+            call("GET","/question-banks/${f.bank}",token=null,status=if(expected) 200 else 404)
+        }
+        visible(true)
+        jdbc.update("UPDATE question SET status='INACTIVE' WHERE bank_id=? AND reading_parent_id IS NULL",f.bank);visible(false)
+        jdbc.update("UPDATE question SET status='ACTIVE' WHERE id=?",parent);visible(true)
+        jdbc.update("UPDATE question_bank SET publication_status='DRAFT' WHERE id=?",f.bank);visible(false)
+        jdbc.update("UPDATE question_bank SET publication_status='PUBLISHED',status='INACTIVE' WHERE id=?",f.bank);visible(false)
+        jdbc.update("UPDATE question_bank SET status='ACTIVE' WHERE id=?",f.bank);visible(true)
+        jdbc.update("UPDATE subject SET status='INACTIVE' WHERE id=?",f.subject);visible(false)
+        jdbc.update("UPDATE subject SET status='ACTIVE' WHERE id=?",f.subject);visible(true)
+    }
+
     @Test fun `practice snapshots share their bank lock while content writers wait`() {
         val f=fixture();val locked=CountDownLatch(2);val release=CountDownLatch(1)
         val pool=Executors.newFixedThreadPool(2)
