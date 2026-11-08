@@ -14,7 +14,7 @@
     SELECT s.id subject_id,count(DISTINCT b.id) FILTER(WHERE q.id IS NOT NULL) bank_count,count(q.id) question_count,
       count(f.question_id) answered_count,count(f.question_id) FILTER(WHERE f.judgment='CORRECT') correct_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG') wrong_count,count(f.question_id) FILTER(WHERE f.judgment='WRONG' AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=f.question_id AND t.wrong_count>0)) wrong_book_count
     FROM subject s LEFT JOIN question_bank b ON b.subject_id=s.id AND bank_visible(b.id) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade})
-    LEFT JOIN question q ON q.bank_id=b.id AND question_active(q.id) AND NOT q.is_group LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1
+    LEFT JOIN active_question q ON q.bank_id=b.id AND NOT q.is_group LEFT JOIN facts f ON f.question_id=q.id AND f.rn=1
     WHERE s.id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> GROUP BY s.id
   </select>
 </mapper>
