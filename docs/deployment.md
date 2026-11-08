@@ -16,6 +16,8 @@
 
 普通业务请求按来源 IP 限流：同一来源每 60 秒最多 60000 次，账号读写不设固定配额。`BACKEND_REQUEST_LIMITS_ENABLED` 默认 `true`，控制该来源 IP 保护。隔离容量测试可临时设为 `false`；认证、权限、验证码发送间隔和登录失败保护继续生效，测试结束后恢复原配置。
 
+每个后端进程默认同时执行最多 32 个业务 HTTP 请求，由 `BACKEND_MAX_CONCURRENT_REQUESTS` 配置为正整数。入口拥挤时返回 `503 SERVER_BUSY` 和 `Retry-After: 1`，客户端保留草稿并沿用幂等键重试；健康及管理探针保持独立。入口拒绝在进入业务事务前完成，拥挤次数通过 `qanda_http_overload_rejections_total` 统计，同时处理数通过 `qanda_http_inflight` 观察。来源 IP 超额拒绝同样直接返回 429；两类入口拒绝使用运行指标记录，普通业务与身份失败继续写入审计。
+
 ## 首次安装
 
 1. 核对主服务器的 Tailscale 身份、已有服务、端口和 Docker 网络；`172.29.71.0/24` 需未被占用。

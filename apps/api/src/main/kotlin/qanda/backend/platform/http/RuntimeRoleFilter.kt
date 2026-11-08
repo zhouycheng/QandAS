@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE+3)
+@Order(Ordered.HIGHEST_PRECEDENCE+4)
 class RuntimeRoleFilter(private val environment: Environment,private val errors: ErrorWriter): OncePerRequestFilter() {
     override fun doFilterInternal(request: HttpServletRequest,response: HttpServletResponse,chain: FilterChain) {
         val role=environment.getProperty("qanda.backend.role","api")

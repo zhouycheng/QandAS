@@ -5,6 +5,7 @@
 ## 运行条件
 
 - 使用通过 CI 的后端版本。来源 IP 限流默认开启，由 `BACKEND_REQUEST_LIMITS_ENABLED` 控制，同一来源每 60 秒最多 60000 次；普通账号读写不设固定配额。本次工具固定使用校验过官方 SHA-256 的 k6 2.3.0。
+- 本机使用 Python 3.10 及以上版本的独立虚拟环境，安装 `apps/api/capacity/requirements.txt` 中固定的 AsyncSSH。转发监听本机回环地址，使用指定私钥和已有 `known_hosts` 校验服务器主机密钥。
 - 具备本项目后端主机的 SSH 管理权限和免交互 `sudo`。允许题小搭测试服务暂时不可用；原有数据库、队列和配置会保留。
 - 连接配置、SSH 私钥、管理员凭据、学生令牌和原始运行证据存放在仓库外的权限 `700` 目录中，文件权限为 `600`。
 
@@ -22,13 +23,16 @@
 
 数据库保护要求使用固定库名 `qanda_backend`。准备程序停止本项目应用及原 PostgreSQL、RabbitMQ 容器，保留原卷，使用同一镜像、内存限制和网络别名启动带运行标签的临时基础服务。压测数据使用独立 PostgreSQL 卷及 RabbitMQ vhost。原备份计时器在窗口内暂停，恢复后重启。
 
-程序通过既有交互式首管、题库导入及测试账号接口准备数据：20 个题库，共 10000 道可作答题，覆盖单选、多选、判断、填空、简答和阅读题组。阅读材料单独占父记录，因此物理题目行数高于可作答题数。测试账号计入统计，各用户使用独立令牌、设备和练习。测试调用范围排除邮件和微信提供端。
+程序通过既有交互式首管、题库导入及测试账号接口准备数据：20 个题库，共 10000 道可作答题，覆盖单选、多选、判断、填空、简答和阅读题组。阅读材料单独占父记录，因此物理题目行数高于可作答题数。每次从快照恢复后，在隔离数据库执行 `ANALYZE`，为查询规划准备统计信息。测试账号计入统计，各用户使用独立令牌、设备和练习。测试调用范围排除邮件和微信提供端。
 
 ```sh
+python3.12 -m venv "$HOME/.local/share/qanda-capacity/venv"
+CAPACITY_PYTHON="$HOME/.local/share/qanda-capacity/venv/bin/python"
+"$CAPACITY_PYTHON" -m pip install -r apps/api/capacity/requirements.txt
 CAPACITY_STATE="$HOME/.local/state/qanda-capacity/20261108"
-python3 apps/api/capacity/setup.py --state "$CAPACITY_STATE" --users 1000
-python3 apps/api/capacity/validate.py --state "$CAPACITY_STATE"
-caffeinate -i python3 apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
+"$CAPACITY_PYTHON" apps/api/capacity/setup.py --state "$CAPACITY_STATE" --users 1000
+"$CAPACITY_PYTHON" apps/api/capacity/validate.py --state "$CAPACITY_STATE"
+caffeinate -i "$CAPACITY_PYTHON" apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
 ```
 
 `setup.py` 核对已部署 SHA，安装私有运维脚本，完成单用户保存、回执、重复提交和交卷验收，再保存测试数据基线。合成题目先通过既有导入预览校验。准备失败时尝试恢复原服务，并保留私有诊断。`validate.py` 验证同一账号连续 610 次读取、130 次写入均可成功，检查认证和权限，并执行原生 k6 单用户练习。
@@ -37,7 +41,7 @@ caffeinate -i python3 apps/api/capacity/run.py --state "$CAPACITY_STATE" --resto
 
 真实学生流程从 50 个活跃用户开始，每级 10 分钟；读取、创建、同步和交卷从每秒 10 次业务操作开始，每级 3 分钟；突发创建和交卷从 100 人在一秒内发起操作开始。逐级翻倍，没有固定的请求量上限。临界区间缩小到约 10% 并复测，最终学生流程稳定档运行 30 分钟。性能修复后的套件可用 `--start-users 400` 从已发现问题的负载档开始，继续翻倍；单场景可用 `--scenario journey --target 400` 复测。
 
-A 组保留来源 IP 限流，B 组在隔离测试中关闭该层保护；两组的账号读写均不设固定配额。测试结束后恢复原来源 IP 配置。
+A 组保留来源 IP 限流，B 组在隔离测试中关闭该层保护；两组的账号读写均不设固定配额，节点并发准入使用相同配置。来源拒绝的 429、入口拥挤的 503 及实际完成的业务操作分别统计。测试结束后恢复原来源 IP 配置。
 
 HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练习的实际成本；集中交卷场景使用提前创建的独立练习。真实学生场景保留思考时间、五秒同步、每秒回执查询、六十秒心跳及幂等重试，流程失败后等待一秒再开始下一轮。独立到达率场景继续按目标速率发压。202 只计受理，保存成功以 COMMITTED 及实际答案核对为准。
 
@@ -47,7 +51,11 @@ HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练
 
 发生 OOM、容器重启、持续大量失败或就绪检查异常时停止新请求。主机可用内存低于 256 MiB 持续 15 秒、磁盘剩余低于 5 GiB，或管理连接连续两次超时也会停止。本机发压进程达到 CPU／内存保护线时标记为发压端边界，结果作为已测下限。
 
-整套指标采集允许 15 秒；采集失败后另做 5 秒 SSH 探测，分别记录监控边界和管理连接失败。应用就绪状态直接检查 readiness 接口。停止负载后，同时等待已登记命令、统计事件消化和三项应用重新就绪，并保留恢复阶段采样。
+整套指标采集允许 15 秒；采集失败后另做 5 秒 SSH 探测，分别记录监控边界和管理连接失败。应用就绪状态直接检查 readiness 接口。隔离环境启用 Tomcat MBean 指标，停止负载后等待业务 HTTP 线程归零、已登记命令和统计事件消化，以及三项应用重新就绪；持久化计数须连续两次采样保持一致。审计后再次读取计数，若期间有请求完成则重新等待并核对，整个过程限于十分钟。恢复时间包含静默确认和审计，并保留阶段采样。
+
+私有隧道使用 AsyncSSH 的异步转发，在独立连接内将 SSH 会话的文件句柄软上限核验并提高到至少 32768，保留原硬上限。该设置随测试连接结束，SSH 守护进程及其他会话沿用各自配置。控制器持续检查隧道进程；进程退出时停止发压，原因记录为 `private_tunnel_exited`，并单列退出码。链路退出产生的失败不能据此认定为服务器容量边界。
+
+发压端记录 k6 及转发进程的 CPU、内存。k6 CPU 按 Mac 全部逻辑核归一化；异步转发 CPU 以单核为 100%，持续十五秒达到 90% 时记录 `generator_tunnel_cpu_ceiling` 并停压，以识别转发端先饱和的情况。
 
 ## 恢复与证据
 

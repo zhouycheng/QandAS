@@ -62,6 +62,7 @@ qanda:
     monitoring-enabled: ${BACKEND_MONITORING_ENABLED:false}
     prometheus-url: ${BACKEND_PROMETHEUS_URL:http://127.0.0.1:9090}
     mode: ${BACKEND_MODE:production}
+    max-concurrent-requests: ${BACKEND_MAX_CONCURRENT_REQUESTS:32}
     request-limits:
       enabled: ${BACKEND_REQUEST_LIMITS_ENABLED:true}
       window-seconds: ${BACKEND_REQUEST_LIMIT_WINDOW_SECONDS:60}

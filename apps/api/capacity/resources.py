@@ -16,6 +16,11 @@ def total(rows, name, **tags):
     return sum(value for metric, labels, value in rows if metric == name and all(labels.get(k) == v for k, v in tags.items()))
 
 
+def http_busy(rows):
+    values = [value for name, labels, value in rows if name == 'tomcat_threads_busy_threads' and labels.get('name', '').endswith('-8083')]
+    return sum(values) if values else None
+
+
 def series(samples):
     result = []; previous = None
     if not samples: return result
@@ -30,6 +35,8 @@ def series(samples):
                'activity_oldest_seconds': sample.get('postgres', {}).get('activity_oldest_seconds'),
                'generator_cpu_percent': sample.get('generator', {}).get('cpu_percent'),
                'generator_rss_mib': sample.get('generator', {}).get('rss', 0) / 1024 ** 2,
+               'tunnel_cpu_percent': sample.get('generator', {}).get('tunnel_cpu_percent'),
+               'tunnel_rss_mib': sample['generator']['tunnel_rss'] / 1024 ** 2 if 'tunnel_rss' in sample.get('generator', {}) else None,
                'successful_rps': sample['window'].get('successful_rps'),
                'http_rps': sample['window'].get('rps'), 'http_p95_ms': sample['window'].get('p95_ms'),
                'commit_p95_ms': sample['window'].get('commit_p95_ms')}
@@ -52,6 +59,10 @@ def series(samples):
             row[role + '_heap_mib'] = total(now, 'jvm_memory_used_bytes', area='heap') / 1024 ** 2
             row[role + '_pool_pending'] = total(now, 'hikaricp_connections_pending')
             row[role + '_pool_active'] = total(now, 'hikaricp_connections_active')
+            row[role + '_http_busy_threads'] = http_busy(now)
+            if any(name == 'qanda_http_inflight' for name, _, _ in now):
+                row[role + '_http_inflight'] = total(now, 'qanda_http_inflight')
+                row[role + '_overload_rejections'] = total(now, 'qanda_http_overload_rejections_total')
             row[role + '_pool_acquire_max_ms'] = total(now, 'hikaricp_connections_acquire_seconds_max') * 1000
             if dt > 0:
                 old = list(metrics(previous['application'].get('qanda-application-' + role + '-1', {}).get('metrics', '')))
