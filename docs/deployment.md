@@ -4,6 +4,8 @@
 
 后端工作流部署到后端所有者的服务器，管理端工作流部署到管理端所有者的服务器，各自连接所属 Tailnet。两个入口独立触发、独立构建镜像、独立记录版本和回滚，可以并行运行。
 
+应用镜像由 Actions runner 按发布摘要从 GHCR 拉取并打包，经受限 SSH 传入对应节点。节点核对归档 SHA-256、镜像来源和版本后启动应用，继续执行迁移、健康检查及回滚流程。
+
 ## 运行结构
 
 主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ 和 Prometheus 独立运行，普通发布只更新应用服务。
@@ -20,7 +22,7 @@
 2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信和腾讯云 SES 参数，并为数据库、队列、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置会保留；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
 3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
-5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 初始化为统一 V1。
+5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 执行已发布的数据库迁移。
 6. 在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
 7. 小程序 API 地址设为 `https://qanda.zhoust.cn/api/v1`，并在微信后台配置合法域名。微信上传、审核和发布独立执行。
 
