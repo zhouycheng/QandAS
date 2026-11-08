@@ -1,5 +1,6 @@
 """Self-checks for success accounting, adaptive load, and recovery boundaries."""
 import json
+import hashlib
 import io
 import asyncio
 import os
@@ -118,6 +119,16 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         with patch.object(remote, 'assert_capacity', side_effect=AssertionError('inactive')), patch.object(remote, 'compose') as compose, patch.object(remote, 'command') as command:
             with self.assertRaises(AssertionError): remote.reset(False)
             compose.assert_not_called();command.assert_not_called()
+
+    def test_baseline_fingerprint_identifies_the_bytes_restored_even_if_the_snapshot_later_changes(self):
+        with tempfile.TemporaryDirectory() as root:
+            seed = Path(root) / 'seed.dump'; seed.write_bytes(b'original baseline')
+            def command(args, data=None):
+                if 'pg_restore' in args:
+                    self.assertEqual(data, b'original baseline'); seed.write_bytes(b'later baseline')
+            with patch.object(remote, 'ROOT', Path(root), create=True), patch.object(remote, 'assert_capacity'), patch.object(remote, 'manifest', return_value={'postgres': 'isolated'}), patch.object(remote, 'compose'), patch.object(remote, 'sql'), patch.object(remote, 'broker'), patch.object(remote, 'mode'), patch.object(remote, 'command', side_effect=command):
+                result = remote.reset(True)
+            self.assertEqual(result['seed_sha256'], hashlib.sha256(b'original baseline').hexdigest())
 
     def test_invalid_start_load_cannot_touch_the_remote_environment(self):
         remote = Mock()

@@ -270,7 +270,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         print(json.dumps({'reused_completed_trial': label, 'original_harness': cached['harness_sha256']}), flush=True)
         return cached
     user_pool(remote, max(target, 1000)); folder.mkdir(parents=True)
-    remote.action('reset', limits); tunnel = remote.tunnel(); child = None
+    reset = remote.action('reset', limits); tunnel = remote.tunnel(); child = None
     baseline = remote.action('collect', timeout=10); guard = Guard(baseline)
     raw = folder / 'raw.json'; metrics = Metrics(); reason = None; bad_windows = 0; first_unstable = None; last_window = time.monotonic(); ssh_errors = 0; collection_errors = 0
     samples = []; wall_start = time.time(); prepared = None
@@ -345,6 +345,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['backend_revision'] = remote.config['expected_revision']
         summary['source_run'] = remote.state.name
         summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
+        summary['seed_sha256'] = reset['seed_sha256']
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))
         events = list(read_events(folder / 'events.jsonl'))
         ledger = [x for x in events if x.get('event') == 'accepted']

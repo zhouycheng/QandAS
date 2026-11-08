@@ -180,11 +180,12 @@ def reset(enabled):
     m = manifest(); compose('stop', 'api', 'worker', 'monitor')
     command(['docker', 'exec', m['postgres'], 'dropdb', '-U', 'qanda_backend', '--force', 'qanda_backend'])
     command(['docker', 'exec', m['postgres'], 'createdb', '-U', 'qanda_backend', 'qanda_backend'])
-    command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], (ROOT / 'seed.dump').read_bytes())
+    seed = (ROOT / 'seed.dump').read_bytes()
+    command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], seed)
     compose('run', '--rm', '--no-deps', 'schema-init')
     sql('ANALYZE')
     broker(True); mode(enabled)
-    return {'reset': True, 'limits': enabled}
+    return {'reset': True, 'limits': enabled, 'seed_sha256': hashlib.sha256(seed).hexdigest()}
 
 
 def fetch(row, port, path):
