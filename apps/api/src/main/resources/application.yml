@@ -65,8 +65,6 @@ qanda:
     request-limits:
       enabled: ${BACKEND_REQUEST_LIMITS_ENABLED:true}
       window-seconds: ${BACKEND_REQUEST_LIMIT_WINDOW_SECONDS:60}
-      read-per-account: ${BACKEND_REQUEST_LIMIT_READ_PER_ACCOUNT:600}
-      write-per-account: ${BACKEND_REQUEST_LIMIT_WRITE_PER_ACCOUNT:120}
       anonymous-per-peer: ${BACKEND_REQUEST_LIMIT_ANONYMOUS_PER_PEER:60000}
       max-keys: ${BACKEND_REQUEST_LIMIT_MAX_KEYS:100000}
     mail:

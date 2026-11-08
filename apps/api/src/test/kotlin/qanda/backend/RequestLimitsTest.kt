@@ -45,10 +45,8 @@ class RequestLimitsTest {
         @GetMapping("/api/v1/health","/api/v1/me","/api/v1/admin/probe") fun read()=mapOf("ok" to true)
         @PostMapping("/api/v1/me/probe") fun write()=mapOf("ok" to true)
     }
-    private fun withMvc(enabled: Boolean?=null,peerBudget: Int=100,test: (MockMvc)->Unit) {
+    private fun withMvc(enabled: Boolean?=null,peerBudget: Int=2000,test: (MockMvc)->Unit) {
         val env=MockEnvironment().withProperty("qanda.backend.request-limits.anonymous-per-peer",peerBudget.toString())
-            .withProperty("qanda.backend.request-limits.read-per-account","2")
-            .withProperty("qanda.backend.request-limits.write-per-account","2")
         enabled?.let { env.setProperty("qanda.backend.request-limits.enabled",it.toString()) }
         val ctx=AnnotationConfigWebApplicationContext().apply { environment=env;servletContext=MockServletContext();register(Config::class.java);refresh() }
         try {
@@ -61,11 +59,9 @@ class RequestLimitsTest {
         val response=mvc.perform(get("/api/v1/health")).andReturn().response
         assertEquals(429,response.status);assertEquals("60",response.getHeader("Retry-After"))
     }
-    @Test fun `account read and write budgets are independent`() = withMvc { mvc ->
-        repeat(2) { assertEquals(200,mvc.perform(get("/api/v1/me").header("Authorization","Bearer valid")).andReturn().response.status) }
-        assertEquals(429,mvc.perform(get("/api/v1/me").header("Authorization","Bearer valid")).andReturn().response.status)
-        repeat(2) { assertEquals(200,mvc.perform(post("/api/v1/me/probe").header("Authorization","Bearer valid")).andReturn().response.status) }
-        assertEquals(429,mvc.perform(post("/api/v1/me/probe").header("Authorization","Bearer valid")).andReturn().response.status)
+    @Test fun `authenticated business requests have no per-account read or write quota`() = withMvc { mvc ->
+        repeat(610) { assertEquals(200,mvc.perform(get("/api/v1/me").header("Authorization","Bearer valid")).andReturn().response.status) }
+        repeat(130) { assertEquals(200,mvc.perform(post("/api/v1/me/probe").header("Authorization","Bearer valid")).andReturn().response.status) }
     }
     @Test fun `disabled limits retain authentication and authorization`() = withMvc(false,1) { mvc ->
         repeat(4) {

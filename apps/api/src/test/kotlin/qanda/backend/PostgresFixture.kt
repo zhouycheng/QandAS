@@ -88,7 +88,6 @@ abstract class PostgresFixture {
             r.add("qanda.backend.mail.host") { "127.0.0.1" };r.add("qanda.backend.mail.port") { mailpit.getMappedPort(1025) };r.add("qanda.backend.mail.dispatch-enabled") { false }
             r.add("qanda.backend.files.enabled") { true };r.add("qanda.backend.files.root") { assetRoot.toString() }
             r.add("springdoc.api-docs.enabled") { true };r.add("springdoc.swagger-ui.enabled") { true }
-            r.add("qanda.backend.request-limits.read-per-account") { 100000 };r.add("qanda.backend.request-limits.write-per-account") { 100000 }
         }
     }
     @LocalServerPort var port: Int=0
