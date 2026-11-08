@@ -222,6 +222,14 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(value['accepted_commands'], 10); self.assertEqual(value['committed_commands'], 7)
         self.assertIn('commit_p99_ms', violations(value))
 
+    def test_interrupted_counters_cannot_make_completed_throughput_negative_and_vus_survive_missing_summary(self):
+        rows = [(0, 'http_reqs', 1, {'status': '200'}), (2, 'http_reqs', 1, {'status': '503'}),
+                (1, 'business_operations', 1, {}), (1, 'business_failures', 2, {}),
+                (1, 'business_success', 1, {}), (1, 'vus', 50, {}), (2, 'vus', 40, {})]
+        value = summarize(rows)
+        self.assertEqual(value['completed_operations_per_second'], .5)
+        self.assertEqual(value['achieved_vus_peak'], 50)
+
     def test_overload_and_timeouts_remain_failures_and_have_separate_counts(self):
         value = summarize([(0, 'http_reqs', 1, {'status': '200'}), (1, 'http_reqs', 2, {'status': '503'}), (2, 'http_reqs', 3, {'status': '0', 'error_code': '1050'})])
         self.assertEqual((value['unavailable'], value['timeouts'], value['server_errors'], value['transport_errors']), (2, 3, 2, 3))
