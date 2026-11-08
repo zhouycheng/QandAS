@@ -80,7 +80,7 @@ def summarize(points):
         elif metric in ('business_operations', 'business_failures', 'accepted_commands', 'committed_commands', 'dropped_iterations'):
             counts[metric] += value
     elapsed = max(1, (last or 0) - (first or 0)); total = counts['http']
-    result = {**counts, 'elapsed': elapsed, 'rps': total / elapsed,
+    result = {**counts, 'unavailable': counts['unavailable'], 'timeouts': counts['timeouts'], 'elapsed': elapsed, 'rps': total / elapsed,
             'successful_rps': (total - counts['limited'] - counts['server_errors'] - counts['transport_errors'] - counts['other_errors']) / elapsed,
             'completed_operations_per_second': (counts['business_operations'] - counts['business_failures']) / elapsed,
             'error_rate': (counts['limited'] + counts['server_errors'] + counts['transport_errors'] + counts['other_errors']) / max(1, total),

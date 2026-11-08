@@ -214,6 +214,7 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         rows = [(0, 'http_reqs', 1, {'status': '200'}), (1, 'http_reqs', 1, {'status': '429'}), (2, 'http_reqs', 1, {'status': '0'}), (3, 'dropped_iterations', 50, {})]
         value = summarize(rows)
         self.assertEqual(value['http'], 3); self.assertEqual(value['error_rate'], 2 / 3)
+        self.assertEqual((value['unavailable'], value['timeouts']), (0, 0))
         self.assertEqual(value['dropped_iterations'], 50); self.assertIn('request_errors', violations(value))
 
     def test_accepted_and_committed_are_separate(self):
