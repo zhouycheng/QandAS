@@ -164,10 +164,10 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     private fun duration(row: PracticeSession,value: Int) {
         if(value<row.durationSeconds || value.toLong()>Duration.between(row.createdAt,clock.instant()).seconds.coerceAtLeast(0)+5) invalid("/durationSeconds")
     }
-    private fun applyAnswers(row: PracticeSession,items: List<PracticeItem>,changes: List<ItemProgress>) {
+    private fun applyAnswers(row: PracticeSession,items: List<PracticeItem>,changes: List<ItemProgress>,revisions: Map<UUID,QuestionView>?=null) {
         if(changes.size>items.size || changes.map { it.itemId }.distinct().size!=changes.size) invalid("/items")
         val byId=items.associateBy { it.id }
-        val full=content.revisions(changes.map { change -> val item=byId[change.itemId] ?: invalid("/items/itemId");RevisionReference(item.questionId!!,item.revisionId,item.materialRevisionId) },true).associateBy { it.id }
+        val full=revisions ?: content.revisions(changes.map { change -> val item=byId[change.itemId] ?: invalid("/items/itemId");RevisionReference(item.questionId!!,item.revisionId,item.materialRevisionId) },true).associateBy { it.id }
         val choices=if(changes.isEmpty()) emptyMap() else sql.batchChoices(changes.map { it.itemId }).groupBy { it.itemId }
         changes.forEach { change ->
             val item=byId[change.itemId] ?: invalid("/items/itemId")
@@ -189,18 +189,21 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         if(json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java).mode=="view") conflict("STUDY_NOT_SCORED","背题通过结束浏览完成")
         ownership.requireDrained(id)
         writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version);if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
-        duration(row,input.durationSeconds);val items=sql.items(id);applyAnswers(row,items,input.items)
-        val finalItems=sql.items(id)
+        duration(row,input.durationSeconds);val finalItems=sql.items(id)
         val pinned=content.revisions(finalItems.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)
         val full=pinned.associateBy { it.id }
+        applyAnswers(row,finalItems,input.items,full)
         val choices=sql.batchChoices(finalItems.map { it.id!! }).groupBy { it.itemId }
+        val graded=mutableListOf<PracticeItem>()
         finalItems.forEach { item ->
             val question=full.getValue(item.questionId!!)
             val submitted=answer(item,choices[item.id].orEmpty().map { it.optionKey })?.takeIf { Grading.hasInput(it) }
-            item.confirmed=submitted!=null
-            item.outcome=Grading.outcome(question,submitted)
+            val confirmed=submitted!=null;val outcome=Grading.outcome(question,submitted)
+            if(item.confirmed!=confirmed || item.outcome!=outcome) {
+                item.confirmed=confirmed;item.outcome=outcome;graded.add(item)
+            }
         }
-        sql.gradeItems(finalItems)
+        if(graded.isNotEmpty()) sql.gradeItems(graded)
         val short=finalItems.filter { full.getValue(it.questionId!!).type=="SHORT_ANSWER" }
         val objective=finalItems-short.toSet()
         val result=PracticeResult().apply { this.id=UUID.randomUUID();sessionId=id;totalCount=finalItems.size;objectiveCount=objective.size;shortAnswerCount=short.size

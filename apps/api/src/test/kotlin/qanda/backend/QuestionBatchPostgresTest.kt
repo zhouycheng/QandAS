@@ -59,7 +59,7 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 statements.httpCount.set(0)
                 val httpStart=System.nanoTime()
                 val deviceId=UUID.randomUUID()
-                val created=raw("POST","/practice/sessions",mapOf("scope" to scope,"expectedContentVersion" to preview["contentVersion"].asLong(),"deviceId" to deviceId),learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true"))
+                val created=raw("POST","/practice/sessions",mapOf("scope" to scope,"expectedContentVersion" to preview["contentVersion"].asLong(),"deviceId" to deviceId,"feedback" to "AFTER_FINISH"),learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true"))
                 assertEquals(200,created.statusCode(),created.body())
                 val session=json.readTree(created.body())
                 val snapshot=raw("GET","/practice/sessions/${id(session)}/snapshot?deviceId=$deviceId",token=learner.token,extraHeaders=mapOf("X-Perf-Measure" to "true","X-Practice-Writer" to session["writer"]["writerToken"].asText()))
@@ -68,6 +68,7 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 if(requestSql==null) requestSql=statements.httpCount.get() else assertEquals(requestSql,statements.httpCount.get(),"Practice size must not add SQL round trips")
                 println("PRACTICE_PAYLOAD_EVIDENCE size=$size requests=2 mybatisSql=${statements.httpCount.get()} createBytes=${created.body().toByteArray().size} snapshotBytes=${snapshot.body().toByteArray().size} elapsedMs=${(System.nanoTime()-httpStart)/1000000}")
                 val sessionId=id(session)
+                // Stage saved answers so the finish measurement excludes command delivery.
                 TransactionTemplate(transactionManager).executeWithoutResult {
                     jdbc.update("INSERT INTO practice_item_choice(item_id,revision_id,option_key) SELECT id,revision_id,'A' FROM practice_item WHERE session_id=?",sessionId)
                     jdbc.update("UPDATE practice_item SET confirmed=true WHERE session_id=?",sessionId)
@@ -75,7 +76,8 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 statements.httpCount.set(0)
                 val finishStart=System.nanoTime()
                 val finished=raw("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to session["version"].asLong(),
-                    "writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,"items" to emptyList<Any>()),learner.token,
+                    "writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,"items" to session["items"].map {
+                        mapOf("itemId" to it["itemId"].asText(),"answer" to mapOf("optionKeys" to listOf("A")),"confirmed" to true) }),learner.token,
                     extraHeaders=mapOf("X-Perf-Measure" to "true"))
                 assertEquals(200,finished.statusCode(),finished.body())
                 val result=json.readTree(finished.body())
