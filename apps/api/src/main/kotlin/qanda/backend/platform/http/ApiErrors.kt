@@ -54,8 +54,8 @@ class ApiException(
 
 @Component
 class ErrorWriter(private val mapper: ObjectMapper,private val audits: ObjectProvider<AuditFailures>) {
-    fun write(request: HttpServletRequest, response: HttpServletResponse, error: ApiException) {
-        try { audits.ifAvailable?.record(request,error.code) } catch(_: Exception) { LoggerFactory.getLogger(javaClass).warn("Failure audit unavailable") }
+    fun write(request: HttpServletRequest, response: HttpServletResponse, error: ApiException, recordFailure: Boolean=true) {
+        if(recordFailure) try { audits.ifAvailable?.record(request,error.code) } catch(_: Exception) { LoggerFactory.getLogger(javaClass).warn("Failure audit unavailable") }
         response.status = error.status.value()
         response.contentType = "application/json"
         response.characterEncoding = "UTF-8"

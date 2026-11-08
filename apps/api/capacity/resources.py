@@ -60,6 +60,9 @@ def series(samples):
             row[role + '_pool_pending'] = total(now, 'hikaricp_connections_pending')
             row[role + '_pool_active'] = total(now, 'hikaricp_connections_active')
             row[role + '_http_busy_threads'] = http_busy(now)
+            if any(name == 'qanda_http_inflight' for name, _, _ in now):
+                row[role + '_http_inflight'] = total(now, 'qanda_http_inflight')
+                row[role + '_overload_rejections'] = total(now, 'qanda_http_overload_rejections_total')
             row[role + '_pool_acquire_max_ms'] = total(now, 'hikaricp_connections_acquire_seconds_max') * 1000
             if dt > 0:
                 old = list(metrics(previous['application'].get('qanda-application-' + role + '-1', {}).get('metrics', '')))

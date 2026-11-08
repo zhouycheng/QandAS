@@ -2,6 +2,7 @@ import http from 'k6/http';
 import exec from 'k6/execution';
 import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
+import { retryDelay } from './retry-delay.mjs';
 
 const users = new SharedArray('users', () => JSON.parse(open(__ENV.DATASET)).users);
 const banks = new SharedArray('banks', () => JSON.parse(open(__ENV.DATASET)).banks);
@@ -73,9 +74,13 @@ async function persist(user, state, changes, duration) {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const r = await call(user, p.accepted ? 'GET' : 'POST', path + (p.accepted ? '/' + p.key : ''), p.accepted ? undefined : p.body, p.accepted ? undefined : p.key);
-    if (r.status === 429) { await wait(Math.min(60000, Number(r.headers['Retry-After'] || 60) * 1000)); continue; }
-    if (r.status >= 500 || !r.status) { await wait(1000); continue; }
+    if (r.status === 429 || r.status >= 500 || !r.status) {
+      p.failures = (p.failures || 0) + 1;
+      await wait(retryDelay(p.failures, r.headers['Retry-After'] || (r.data && r.data.details && r.data.details.retryAfterSeconds)));
+      continue;
+    }
     const value = requireOk(r);
+    p.failures = 0;
     if (!p.accepted) { accepted.add(1); event('accepted', { id: p.key, session: state.session.id, sequence: p.body.clientSequence, items: p.body.items }); p.accepted = true; }
     if (value.state === 'COMMITTED') {
       if (value.acknowledgement.acknowledgedSequence !== p.body.clientSequence) throw new Error('SEQUENCE_MISMATCH');

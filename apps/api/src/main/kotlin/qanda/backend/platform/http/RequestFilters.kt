@@ -55,7 +55,7 @@ class RequestIdFilter(private val errors: ErrorWriter) : OncePerRequestFilter() 
 private const val MAX_JSON_BYTES = 8 * 1024 * 1024
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 2)
+@Order(Ordered.HIGHEST_PRECEDENCE + 5)
 class JsonBodyFilter(private val errors: ErrorWriter) : OncePerRequestFilter() {
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         if (!request.requestURI.startsWith("/api/v1/") || request.contentType?.substringBefore(';')?.trim()?.lowercase() != MediaType.APPLICATION_JSON_VALUE) {

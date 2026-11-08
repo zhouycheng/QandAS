@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 import sys
+import subprocess
 import time
 import unittest
 import uuid
@@ -21,6 +22,18 @@ import tunnel as transport_tunnel
 
 
 class CapacityTests(unittest.TestCase):
+    def test_sync_retry_matches_client_backoff_jitter_and_retry_after(self):
+        subprocess.run(['node', '--input-type=module', '-e', '''
+import assert from 'node:assert/strict';
+import { retryDelay } from './retry-delay.mjs';
+assert.equal(retryDelay(1, 0, 0), 500);
+assert.equal(retryDelay(2, 0, 1), 2000);
+assert.equal(retryDelay(10, 0, 1), 60000);
+assert.equal(retryDelay(1, '60', 0), 60000);
+assert.equal(retryDelay(2, 1, 0), 1000);
+assert.equal(retryDelay(1, 'invalid', 1), 1000);
+'''], cwd=Path(__file__).parent, check=True, capture_output=True)
+
     def test_async_transport_pins_host_verification_and_project_listener(self):
         listener = SimpleNamespace(close=Mock(), wait_closed=AsyncMock())
         connection = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(stdout='{"tunnel_ready":true,"nofile_soft":32768}')),

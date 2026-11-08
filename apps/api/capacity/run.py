@@ -330,7 +330,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary.update(scenario=scenario, target=target, limits=limits, label=label, duration=1 if scenario.startswith('burst') else seconds, wall_seconds=time.time() - wall_start, stop_reason=reason, exit_code=child.returncode)
         summary['tunnel_exit_code'] = tunnel.poll()
         source = Path(__file__).parent
-        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py', 'tunnel.py', 'resources.py', 'requirements.txt'))).hexdigest()
+        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'retry-delay.mjs', 'remote.py', 'client.py', 'tunnel.py', 'resources.py', 'requirements.txt'))).hexdigest()
         summary['backend_revision'] = remote.config['expected_revision']
         summary['source_run'] = remote.state.name
         summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
