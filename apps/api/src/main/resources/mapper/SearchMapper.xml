@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.content.SearchMapper">
-  <sql id="results">WITH banks AS(SELECT b.* FROM question_bank b WHERE bank_visible(b.id) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade})), results AS(
+  <sql id="results">WITH banks AS(SELECT b.* FROM question_bank b WHERE b.id IN (SELECT id FROM visible_question_bank) AND bank_matches_category(b.id,#{filter.collegeId},#{filter.majorId},#{filter.grade})), results AS(
     SELECT 'BANK' kind,b.id,b.subject_id,b.id question_bank_id,NULL::uuid chapter_id,NULL::uuid question_id,b.name title,left(b.description,240) summary,NULL::text question_type
     FROM banks b WHERE #{questionType}::text IS NULL AND (position(lower(#{keyword}) in lower(b.name))>0 OR position(lower(#{keyword}) in lower(b.description))>0)
     UNION ALL
