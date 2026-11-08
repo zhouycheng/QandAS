@@ -42,7 +42,7 @@ def generate(state, output):
     (output / 'trials.json').write_text(json.dumps(public, ensure_ascii=False, indent=2))
     lines = ['# 题小搭后端容量实测', '', '生成时间：' + datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds'), '', '整套测试完成：' + str(completion['suite_complete']) + '。', '',
              '测试对象为新后端，经 Mac 原生 k6 与私有 SSH 隧道发压。数据使用独立数据库卷及 RabbitMQ vhost，压测期间保留现有应用和基础服务资源限制。', '',
-             'A 组保留每来源每 60 秒 60000 次、每账号读取 600 次和写入 120 次的固定窗口限流；B 组关闭普通业务请求限流。认证和权限校验在两组中均启用。', '',
+             'A 组使用所测后端版本的默认业务请求保护，B 组在隔离环境关闭对应保护；具体配额以版本及运行配置记录为准。两组均启用认证和权限校验。', '',
              '| 场景 | 限流 | 最高通过档 | 首个未通过档 | 通过档最高成功 RPS | 30 分钟稳定档 |', '|---|---|---:|---:|---:|---:|']
     for scenario in dict.fromkeys(x['scenario'] for x in trials):
         for policy in ('on', 'off'):
