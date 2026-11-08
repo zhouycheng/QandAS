@@ -246,6 +246,7 @@ def audit():
 
 def restore(clean=False):
     m = manifest()
+    assert json.loads(Path('/var/lib/qanda-deploy/current.json').read_text())['revision'] == m['revision'], 'Deployment revision changed; preserve the newer release for review'
     assert hashlib.sha256(Path('/srv/qanda/production.env').read_bytes()).hexdigest() == m['env_sha256'], 'Original configuration changed; preserve it for review'
     command(['docker', 'stop', '-t', '120', *APP])
     for name in [m['postgres'], m['rabbit']]:

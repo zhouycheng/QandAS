@@ -11,13 +11,14 @@ from zoneinfo import ZoneInfo
 def generate(state, output):
     state, output = Path(state), Path(output); output.mkdir(parents=True, exist_ok=True)
     trials = json.loads((state / 'results.json').read_text())
+    completion = json.loads((state / 'completion.json').read_text()) if (state / 'completion.json').exists() else {'suite_complete': False}
     restored = json.loads((state / 'restoration.json').read_text()) if (state / 'restoration.json').exists() else {'restored': False}
     columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'recovery_seconds', 'integrity_passed']
     with (output / 'trials.csv').open('w') as f:
         writer = csv.DictWriter(f, columns, extrasaction='ignore'); writer.writeheader(); writer.writerows(trials)
     public = [{key: row.get(key) for key in columns} for row in trials]
     (output / 'trials.json').write_text(json.dumps(public, ensure_ascii=False, indent=2))
-    lines = ['# 题小搭后端容量实测', '', '生成时间：' + datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds'), '',
+    lines = ['# 题小搭后端容量实测', '', '生成时间：' + datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds'), '', '整套测试完成：' + str(completion['suite_complete']) + '。', '',
              '测试对象为新后端，经 Mac 原生 k6 与私有 SSH 隧道发压。数据使用独立数据库卷及 RabbitMQ vhost，压测期间保留现有应用和基础服务资源限制。', '',
              'A 组保留每来源每 60 秒 60000 次、每账号读取 600 次和写入 120 次的固定窗口限流；B 组关闭普通业务请求限流。认证和权限校验在两组中均启用。', '',
              '| 场景 | 限流 | 最高通过档 | 首个未通过档 | 最高实发 RPS | 30 分钟稳定档 |', '|---|---|---:|---:|---:|---:|']

@@ -4,6 +4,7 @@ import collections
 import concurrent.futures
 from datetime import datetime
 import gzip
+import hashlib
 import json
 import math
 import os
@@ -103,6 +104,24 @@ def queue_size(sample):
     return sum(float(line.rsplit(' ', 1)[1]) for line in metrics.splitlines() if line.startswith(('rabbitmq_detailed_queue_messages_ready{', 'rabbitmq_detailed_queue_messages_unacked{')) and 'queue="qanda.sync.progress"' in line)
 
 
+def backlog_violations(samples):
+    if not samples: return []
+    end = samples[-1]['observed_at']
+    window = [s for s in samples if s['observed_at'] >= end - 60]
+    if len(window) < 6 or window[-1]['observed_at'] - window[0]['observed_at'] < 45: return []
+    earlier = [s for s in window if s['observed_at'] <= end - 30]
+    recent = [s for s in window if s['observed_at'] > end - 30]
+    if not earlier or not recent: return []
+    mean = lambda rows, get: sum(get(s) for s in rows) / len(rows)
+    faults = []
+    previous = mean(earlier, queue_size)
+    if mean(recent, queue_size) > previous + 10 and all(queue_size(s) > previous + 10 for s in recent[-3:]): faults.append('queue_growth')
+    pending = lambda s: s.get('postgres', {}).get('activity_pending', 0)
+    # The projection consumes one-second batches; normal subsecond sawtooth is not sustained lag.
+    if mean(recent, pending) > mean(earlier, pending) + 10 and all(s.get('postgres', {}).get('activity_oldest_seconds', 0) >= 5 for s in recent[-3:]): faults.append('activity_projection_growth')
+    return faults
+
+
 class Guard:
     def __init__(self, baseline):
         self.baseline = baseline; self.low_memory_since = None; self.unhealthy_since = None
@@ -175,6 +194,16 @@ def prepare_finishes(remote, target):
     path = remote.state / 'prepared.json'; private_json(path, values); return path
 
 
+def stop_k6(child):
+    if child is None: return
+    for timeout in (.2, 5):
+        if child.poll() is not None: return
+        child.send_signal(signal.SIGINT)
+        try: child.wait(timeout=timeout)
+        except subprocess.TimeoutExpired: continue
+    if child.poll() is None: child.kill(); child.wait()
+
+
 def trial(remote, scenario, target, limits, seconds, label):
     user_pool(remote, max(target, 1000))
     folder = remote.state / 'trials' / label; folder.mkdir(parents=True)
@@ -219,8 +248,7 @@ def trial(remote, scenario, target, limits, seconds, label):
                     if now - last_window >= 60:
                         faults = violations(sample['window'])
                         if sample['window']['elapsed'] >= 50 and sample['window']['server_failure_rate'] >= .5: reason = 'persistent_server_failure'
-                        if len(samples) >= 13 and queue_size(samples[-1]) > queue_size(samples[-13]) + 10: faults.append('queue_growth')
-                        if len(samples) >= 13 and sample.get('postgres', {}).get('activity_pending', 0) > samples[-13].get('postgres', {}).get('activity_pending', 0) + 10: faults.append('activity_projection_growth')
+                        faults.extend(backlog_violations(samples))
                         bad_windows = bad_windows + 1 if faults else 0
                         if bad_windows >= 2 and first_unstable is None: first_unstable = time.time()
                         if '-soak' in label and bad_windows >= 2: reason = 'soak_sla_breach'
@@ -230,14 +258,16 @@ def trial(remote, scenario, target, limits, seconds, label):
                     ssh_errors += 1
                     if ssh_errors >= 2: reason = 'management_connection_timeout'
                 if reason:
-                    child.send_signal(signal.SIGINT)
-                    try: child.wait(timeout=15)
-                    except subprocess.TimeoutExpired: child.kill(); child.wait()
+                    stop_k6(child)
                     break
             child.wait()
         metrics.update(raw)
         summary = summarize(full_metrics(raw)) if raw.exists() else {}
         summary.update(scenario=scenario, target=target, limits=limits, label=label, duration=1 if scenario.startswith('burst') else seconds, wall_seconds=time.time() - wall_start, stop_reason=reason, exit_code=child.returncode)
+        source = Path(__file__).parent
+        summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'remote.py', 'client.py'))).hexdigest()
+        summary['backend_revision'] = remote.config['expected_revision']
+        summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
         summary['observed_seconds'] = max(1, time.time() - wall_start - (30 if scenario.startswith('burst') else 0))
         events = list(read_events(folder / 'events.jsonl'))
         ledger = [x for x in events if x.get('event') == 'accepted']
@@ -259,9 +289,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         summary['violations'] = violations(summary)
         active_samples = [s for s in samples if s['observed_at'] <= load_start + seconds + (60 if scenario == 'journey' else 0)]
         if not scenario.startswith('burst') and len(active_samples) >= 13:
-            end, before = active_samples[-1], active_samples[-13]
-            if queue_size(end) > queue_size(before) + 10: summary['violations'].append('queue_growth')
-            if end.get('postgres', {}).get('activity_pending', 0) > before.get('postgres', {}).get('activity_pending', 0) + 10: summary['violations'].append('activity_projection_growth')
+            summary['violations'].extend(backlog_violations(active_samples))
         summary['first_unstable_time'] = first_unstable
         summary['unstable_windows'] = sum(bool(violations(s['window'])) for s in samples if s['window']['elapsed'] >= 50)
         summary['stable'] = not reason and first_unstable is None and child.returncode == 0 and not summary['violations'] and summary['integrity_passed'] and summary.get('dropped_iterations', 0) == 0 and summary.get('burst_schedule_valid', True)
@@ -276,7 +304,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         print(json.dumps({'completed_trial': label, 'stable': summary['stable'], 'rps': summary.get('rps'), 'reason': reason, 'integrity': summary['integrity_passed']}), flush=True)
         return summary
     finally:
-        if child and child.poll() is None: child.terminate(); child.wait(timeout=20)
+        stop_k6(child)
         tunnel.terminate(); tunnel.wait(timeout=10)
 
 

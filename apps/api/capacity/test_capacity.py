@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from run import Guard, Metrics, epoch, next_target, summarize, violations
+from run import Guard, Metrics, backlog_violations, epoch, next_target, summarize, violations
 from seed import question
 import remote
 
@@ -20,6 +20,14 @@ class CapacityTests(unittest.TestCase):
         value = question('bank', 'chapter', 3)
         self.assertEqual(value['type'], 'FILL_BLANK')
         self.assertEqual(value['stem'].count('{{1}}'), len(value['blanks']))
+
+    def test_subsecond_projection_batches_are_not_sustained_backlog(self):
+        rows = [{'observed_at': i * 5, 'postgres': {'activity_pending': 0 if i < 6 else 14, 'activity_oldest_seconds': .94}} for i in range(13)]
+        self.assertEqual(backlog_violations(rows), [])
+
+    def test_growing_projection_lag_is_detected(self):
+        rows = [{'observed_at': i * 5, 'postgres': {'activity_pending': i * 5, 'activity_oldest_seconds': i}} for i in range(13)]
+        self.assertIn('activity_projection_growth', backlog_violations(rows))
     def sample(self, **host):
         return {'host': {'available': 2 * 1024 ** 3, 'disk_free': 20 * 1024 ** 3, **host}, 'containers': {'api': {'oom': False, 'restarts': 0, 'running': True, 'memory_events': {'oom_kill': '9'}}}}
 
