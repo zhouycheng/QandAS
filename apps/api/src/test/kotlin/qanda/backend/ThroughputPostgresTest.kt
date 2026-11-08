@@ -69,6 +69,20 @@ class ThroughputPostgresTest : PostgresFixture() {
         jdbc.update("UPDATE subject SET status='ACTIVE' WHERE id=?",f.subject);visible(true)
     }
 
+    @Test fun `bank aggregates retain empty administrator banks and zero learner progress`() {
+        val f=fixture()
+        val empty=id(call("POST","/admin/question-banks",mapOf("subjectId" to f.subject,"name" to "空题库聚合验证")))
+        val admin=call("GET","/admin/question-banks?subjectId=${f.subject}")
+        assertEquals(2,admin["total"].asInt())
+        val emptyView=admin["items"].first { it["id"].asText()==empty.toString() }
+        assertEquals(0,emptyView["questionCount"].asInt());assertEquals(0,emptyView["activeQuestionCount"].asInt())
+        val learner=student()
+        val banks=call("GET","/question-banks?subjectId=${f.subject}&includeProgress=true",token=learner.token)
+        assertEquals(1,banks["total"].asInt())
+        assertEquals(4,banks["items"].first()["activeQuestionCount"].asInt())
+        for(field in listOf("answeredCount","correctCount","wrongCount","wrongBookCount")) assertEquals(0,banks["items"].first()["progress"][field].asInt())
+    }
+
     @Test fun `practice snapshots share their bank lock while content writers wait`() {
         val f=fixture();val locked=CountDownLatch(2);val release=CountDownLatch(1)
         val pool=Executors.newFixedThreadPool(2)
