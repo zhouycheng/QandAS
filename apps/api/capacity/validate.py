@@ -21,14 +21,14 @@ def validate(remote):
             with concurrent.futures.ThreadPoolExecutor(4) as pool:
                 read = collections.Counter(pool.map(lambda _: request('GET', '/me'), range(610)))
                 write = collections.Counter(pool.map(lambda _: request('POST', '/me/activity/heartbeat'), range(130)))
-            assert read == ({200: 600, 429: 10} if policy == 'on' else {200: 610}), dict(read)
-            assert write == ({200: 120, 429: 10} if policy == 'on' else {200: 130}), dict(write)
+            assert read == {200: 610}, dict(read)
+            assert write == {200: 130}, dict(write)
             if policy == 'off':
                 api = Api(remote.config['port'])
                 assert api.request('GET', '/me')[0] == 401
                 assert api.request('GET', '/me', token='invalid')[0] == 401
                 assert api.request('GET', '/admin/test-accounts', token=user['token'])[0] == 403
-            rows.append({'limits': policy, 'read': dict(read), 'write': dict(write), 'authentication_and_permissions': 'retained'})
+            rows.append({'limits': policy, 'read': dict(read), 'write': dict(write), 'account_request_quota': 'none', 'authentication_and_permissions': 'retained'})
             print(json.dumps(rows[-1]), flush=True)
         finally: tunnel.terminate(); tunnel.wait(timeout=10)
     private_json(remote.state / 'limits-live.json', rows)

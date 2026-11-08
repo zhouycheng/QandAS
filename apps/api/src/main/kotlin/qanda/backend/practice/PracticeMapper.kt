@@ -16,6 +16,7 @@ class PracticeChoiceRow { var itemId: UUID?=null;var optionKey: String="" }
     fun clearChoices(@Param("itemId") itemId: UUID)
     fun addChoice(@Param("itemId") itemId: UUID,@Param("revisionId") revisionId: UUID,@Param("key") key: String)
     fun updateAnswer(@Param("item") item: PracticeItem)
+    fun gradeItems(@Param("items") items: List<PracticeItem>)
     fun result(@Param("sessionId") sessionId: UUID): PracticeResult?
     fun history(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<PracticeSession>
     fun historyCount(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?): Long

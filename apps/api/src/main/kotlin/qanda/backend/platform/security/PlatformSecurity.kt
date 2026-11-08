@@ -16,13 +16,11 @@ import org.springframework.web.filter.OncePerRequestFilter
 import qanda.backend.identity.Sessions
 import qanda.backend.platform.http.*
 import org.springframework.http.HttpStatus
-import org.springframework.core.env.Environment
 
 @Configuration
 @ConditionalOnWebApplication(type=ConditionalOnWebApplication.Type.SERVLET)
 class PlatformSecurity {
-    private val accountLimiter=RequestLimiter()
-    @Bean fun apiSecurity(http: HttpSecurity,sessions: Sessions,errors: ErrorWriter,environment: Environment): SecurityFilterChain = http
+    @Bean fun apiSecurity(http: HttpSecurity,sessions: Sessions,errors: ErrorWriter): SecurityFilterChain = http
         .csrf { it.disable() }.requestCache { it.disable() }.httpBasic { it.disable() }.formLogin { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .authorizeHttpRequests { it.anyRequest().permitAll() }
@@ -36,9 +34,6 @@ class PlatformSecurity {
                     if(headers.isNotEmpty()) {
                         if(headers.size!=1 || !headers[0].startsWith("Bearer ")) throw ApiException(HttpStatus.UNAUTHORIZED,"UNAUTHENTICATED","请先登录后再试")
                         val actor=sessions.authenticate(headers[0].substring(7))
-                        val read=request.method in setOf("GET","HEAD")
-                        val budget=environment.getProperty("qanda.backend.request-limits."+if(read) "read-per-account" else "write-per-account",Int::class.java,if(read) 600 else 120)
-                        if(environment.getProperty("qanda.backend.request-limits.enabled",Boolean::class.java,true) && !accountLimiter.reserve("${actor.kind}:${actor.id}:$read",budget)) throw ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","请求过于频繁",details=ErrorDetails(retryAfterSeconds=60))
                         SecurityContextHolder.getContext().authentication=UsernamePasswordAuthenticationToken(actor,null,emptyList())
                     }
                     if(!public) {

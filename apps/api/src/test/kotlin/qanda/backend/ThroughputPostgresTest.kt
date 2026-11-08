@@ -20,6 +20,13 @@ import java.util.zip.GZIPInputStream
 class ThroughputPostgresTest : PostgresFixture() {
     @Autowired lateinit var content: ContentLibrary
 
+    @Test fun `student credential changes invalidate the next authenticated request`() {
+        val learner=student()
+        call("GET","/me",token=learner.token)
+        jdbc.update("UPDATE user_account SET credential_version=credential_version+1 WHERE id=?",learner.id)
+        call("GET","/me",token=learner.token,status=401)
+    }
+
     @Test fun `active question reads preserve inactive parent and standalone rules`() {
         val f=fixture()
         val parent=id(call("POST","/admin/questions",question(f.bank,"READING") + mapOf(

@@ -118,9 +118,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);item.answerBlanks!=null -> AnswerInput(blanks=json.readValue(item.answerBlanks,Array<String>::class.java).toList());else -> null }
     }
     private fun views(session: PracticeSession,items: List<PracticeItem> = sql.items(session.id!!),
-                      full: List<QuestionView> = content.revisions(items.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)): List<PracticeItemView> {
+                      full: List<QuestionView> = content.revisions(items.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true),
+                      choices: Map<UUID?,List<PracticeChoiceRow>> = if(items.isEmpty()) emptyMap() else sql.batchChoices(items.map { it.id!! }).groupBy { it.itemId }): List<PracticeItemView> {
         val configuration=json.readValue(session.configurationSnapshot,PracticeConfiguration::class.java)
-        val choices=if(items.isEmpty()) emptyMap() else sql.batchChoices(items.map { it.id!! }).groupBy { it.itemId }
         return items.zip(full).map { (item,revision) ->
             val reveal=session.status=="SUBMITTED" || configuration.mode=="view" || session.feedback=="IMMEDIATE" && item.confirmed && revision.type!="SHORT_ANSWER"
             PracticeItemView(item.id!!,item.position,if(reveal) revision else display(revision),answer(item,choices[item.id].orEmpty().map { it.optionKey }),item.confirmed,item.marked,item.outcome.takeIf { reveal },item.selfAssessment.takeIf { reveal })
@@ -164,10 +164,10 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     private fun duration(row: PracticeSession,value: Int) {
         if(value<row.durationSeconds || value.toLong()>Duration.between(row.createdAt,clock.instant()).seconds.coerceAtLeast(0)+5) invalid("/durationSeconds")
     }
-    private fun applyAnswers(row: PracticeSession,items: List<PracticeItem>,changes: List<ItemProgress>) {
+    private fun applyAnswers(row: PracticeSession,items: List<PracticeItem>,changes: List<ItemProgress>,revisions: Map<UUID,QuestionView>?=null) {
         if(changes.size>items.size || changes.map { it.itemId }.distinct().size!=changes.size) invalid("/items")
         val byId=items.associateBy { it.id }
-        val full=content.revisions(changes.map { change -> val item=byId[change.itemId] ?: invalid("/items/itemId");RevisionReference(item.questionId!!,item.revisionId,item.materialRevisionId) },true).associateBy { it.id }
+        val full=revisions ?: content.revisions(changes.map { change -> val item=byId[change.itemId] ?: invalid("/items/itemId");RevisionReference(item.questionId!!,item.revisionId,item.materialRevisionId) },true).associateBy { it.id }
         val choices=if(changes.isEmpty()) emptyMap() else sql.batchChoices(changes.map { it.itemId }).groupBy { it.itemId }
         changes.forEach { change ->
             val item=byId[change.itemId] ?: invalid("/items/itemId")
@@ -189,29 +189,40 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         if(json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java).mode=="view") conflict("STUDY_NOT_SCORED","背题通过结束浏览完成")
         ownership.requireDrained(id)
         writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version);if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
-        duration(row,input.durationSeconds);val items=sql.items(id);applyAnswers(row,items,input.items)
-        val finalItems=sql.items(id)
-        val full=content.revisions(finalItems.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true).associateBy { it.id }
+        duration(row,input.durationSeconds);val finalItems=sql.items(id)
+        val pinned=content.revisions(finalItems.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)
+        val full=pinned.associateBy { it.id }
+        applyAnswers(row,finalItems,input.items,full)
         val choices=sql.batchChoices(finalItems.map { it.id!! }).groupBy { it.itemId }
+        val graded=mutableListOf<PracticeItem>()
         finalItems.forEach { item ->
             val question=full.getValue(item.questionId!!)
             val submitted=answer(item,choices[item.id].orEmpty().map { it.optionKey })?.takeIf { Grading.hasInput(it) }
-            item.confirmed=submitted!=null
-            item.outcome=Grading.outcome(question,submitted);sql.updateAnswer(item)
+            val confirmed=submitted!=null;val outcome=Grading.outcome(question,submitted)
+            if(item.confirmed!=confirmed || item.outcome!=outcome) {
+                item.confirmed=confirmed;item.outcome=outcome;graded.add(item)
+            }
         }
+        if(graded.isNotEmpty()) sql.gradeItems(graded)
         val short=finalItems.filter { full.getValue(it.questionId!!).type=="SHORT_ANSWER" }
         val objective=finalItems-short.toSet()
         val result=PracticeResult().apply { this.id=UUID.randomUUID();sessionId=id;totalCount=finalItems.size;objectiveCount=objective.size;shortAnswerCount=short.size
             correctCount=objective.count { it.outcome=="CORRECT" };wrongCount=objective.count { it.outcome=="WRONG" };unansweredCount=objectiveCount-correctCount-wrongCount
             answeredCount=finalItems.count { it.outcome!="UNANSWERED" };durationSeconds=input.durationSeconds;createdAt=clock.instant() }
         results.insert(result);row.status="SUBMITTED";row.submittedAt=clock.instant();row.updatedAt=row.submittedAt!!;row.durationSeconds=input.durationSeconds;row.autoAddWrongBook=input.autoAddWrongBook;row.version++;rows.updateById(row)
-        activity.record(actor.id);return result(actor.id,id)
+        activity.record(actor.id)
+        // Keep the database timestamp precision while reusing the loaded grading data.
+        val submitted=rows.selectById(id) ?: missing()
+        return resultView(submitted,result,views(submitted,finalItems,pinned,choices))
     }
     fun result(userId: UUID,id: UUID): ResultView {
         val session=owned(userId,id);if(session.status!="SUBMITTED") conflict("RESULT_NOT_READY","练习尚未交卷")
-        val result=sql.result(id) ?: missing();val items=views(session);val short=items.filter { it.question.type=="SHORT_ANSWER" }
+        return resultView(session,sql.result(id) ?: missing(),views(session))
+    }
+    private fun resultView(session: PracticeSession,result: PracticeResult,items: List<PracticeItemView>): ResultView {
+        val short=items.filter { it.question.type=="SHORT_ANSWER" }
         val rated=short.count { it.selfAssessment!=null };val answered=short.count { it.outcome=="SELF_RATED" };
-        return ResultView(result.id!!,id,session.version,result.totalCount,result.answeredCount,result.durationSeconds,
+        return ResultView(result.id!!,session.id!!,session.version,result.totalCount,result.answeredCount,result.durationSeconds,
             objectiveMetrics(result.objectiveCount,result.correctCount,result.wrongCount),
             SelfMetrics(short.size,answered,rated,short.count { it.selfAssessment=="CORRECT" },short.count { it.selfAssessment=="WRONG" },short.size-rated),items,session.submittedAt!!)
     }

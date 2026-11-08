@@ -10,8 +10,10 @@ import java.time.Clock
 import java.util.UUID
 
 @Service
-class Sessions(private val sql: IdentityMapper, private val users: UserAccountMapper, private val admins: AdminAccountMapper,
+class Sessions(private val sql: IdentityMapper, private val admins: AdminAccountMapper,
                private val policies: SecurityPolicyMapper, private val crypto: IdentityCrypto, private val clock: Clock) {
+    private val userToken=Regex("u_[A-Za-z0-9_-]{43}")
+    private val adminToken=Regex("a_[A-Za-z0-9_-]{43}")
     fun optional(): Actor? = SecurityContextHolder.getContext().authentication?.principal as? Actor
     fun current(): Actor = optional() ?: unauthenticated()
     fun student(): Actor = current().also { if(it.kind!="USER") forbidden() }
@@ -21,21 +23,21 @@ class Sessions(private val sql: IdentityMapper, private val users: UserAccountMa
     @Transactional
     fun authenticate(token: String): Actor {
         val now=clock.instant()
+        val touchBefore=now.minusSeconds(30)
         return when {
-            token.matches(Regex("u_[A-Za-z0-9_-]{43}")) -> {
-                val session=sql.userSession(crypto.tokenDigest(token)) ?: unauthenticated()
-                val user=users.selectById(session.userId) ?: unauthenticated()
-                checkTestAccount(sql.testAccountAccess(user.id!!),now)
-                if(session.revokedAt!=null || !session.expiresAt.isAfter(now) || user.status!="ACTIVE" || session.credentialVersion!=user.credentialVersion) unauthenticated()
-                sql.touchUserSession(session.id!!,now)
-                Actor(user.id!!,session.id!!,"USER","MINI_PROGRAM")
+            token.matches(userToken) -> {
+                val session=sql.userSessionAccess(crypto.tokenDigest(token)) ?: unauthenticated()
+                checkTestAccount(session.testExpiresAt?.let { TestAccountAccess(it,session.testDisabledAt) },now)
+                if(session.revokedAt!=null || !session.expiresAt.isAfter(now) || session.status!="ACTIVE" || session.sessionCredentialVersion!=session.accountCredentialVersion) unauthenticated()
+                if(session.lastSeenAt.isBefore(touchBefore)) sql.touchUserSession(session.id!!,now,touchBefore)
+                Actor(session.userId!!,session.id!!,"USER","MINI_PROGRAM")
             }
-            token.matches(Regex("a_[A-Za-z0-9_-]{43}")) -> {
+            token.matches(adminToken) -> {
                 val session=sql.adminSession(crypto.tokenDigest(token)) ?: unauthenticated()
                 val admin=admins.selectById(session.adminId) ?: unauthenticated()
                 val policy=policies.selectById(1)
                 if(session.revokedAt!=null || !session.expiresAt.isAfter(now) || !session.lastSeenAt.plusSeconds(policy.sessionMinutes*60L).isAfter(now) || admin.status!="ACTIVE" || admin.role!="SUPER_ADMIN" || session.credentialVersion!=admin.credentialVersion) unauthenticated()
-                sql.touchAdminSession(session.id!!,now)
+                if(session.lastSeenAt.isBefore(touchBefore)) sql.touchAdminSession(session.id!!,now,touchBefore)
                 Actor(admin.id!!,session.id!!,"ADMIN","ADMIN_WEB",admin.role)
             }
             else -> unauthenticated()
