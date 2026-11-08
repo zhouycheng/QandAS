@@ -60,6 +60,7 @@ qanda:
     prometheus-url: ${BACKEND_PROMETHEUS_URL:http://127.0.0.1:9090}
     mode: ${BACKEND_MODE:production}
     request-limits:
+      enabled: ${BACKEND_REQUEST_LIMITS_ENABLED:true}
       window-seconds: ${BACKEND_REQUEST_LIMIT_WINDOW_SECONDS:60}
       read-per-account: ${BACKEND_REQUEST_LIMIT_READ_PER_ACCOUNT:600}
       write-per-account: ${BACKEND_REQUEST_LIMIT_WRITE_PER_ACCOUNT:120}
