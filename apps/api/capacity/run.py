@@ -365,7 +365,7 @@ def suite(remote):
                     private_json(remote.state / 'trials' / result['label'] / 'result.json', result)
                     private_json(remote.state / 'results.json', all_results)
                     active[policy] = False
-            target = next_target(target, any(x is not None for x in first_bad.values()))
+            target = next_target(target)
         for policy in ('on', 'off'):
             low, high = stable[policy], first_bad[policy]
             if low is None and high and high > 1:
@@ -399,8 +399,8 @@ def suite(remote):
     return all_results
 
 
-def next_target(current, degraded):
-    return max(current + 1, math.ceil(current * (1.25 if degraded else 2)))
+def next_target(current):
+    return current * 2
 
 
 def stop_requested(*_):

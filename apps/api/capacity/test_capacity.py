@@ -105,9 +105,9 @@ class CapacityTests(unittest.TestCase):
         self.assertEqual(g.check(value, 1), 'container_oom:api')
 
     def test_adaptive_target_has_no_fixed_4000_ceiling(self):
-        self.assertEqual(next_target(4000, False), 8000)
-        self.assertEqual(next_target(4000, True), 5000)
-        self.assertGreater(next_target(10 ** 9, False), 10 ** 9)
+        self.assertEqual(next_target(4000), 8000)
+        self.assertEqual(next_target(1), 2)
+        self.assertGreater(next_target(10 ** 9), 10 ** 9)
 
     def test_partial_metric_lines_are_retried(self):
         with tempfile.TemporaryDirectory() as root:
