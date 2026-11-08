@@ -13,7 +13,7 @@ class ContentLibraryService(private val access: ContentAccess,private val querie
     private fun bankRef(row: QuestionBank)=BankReference(row.id!!,row.subjectId!!,row.contentVersion)
     private fun questionRef(row: Question)=QuestionReference().apply { id=row.id;bankId=row.bankId;currentRevisionId=row.currentRevisionId;readingParentId=row.readingParentId;status=row.status }
     override fun bank(actor: Actor?,id: UUID,write: Boolean)=bankRef(access.bank(actor,id,write))
-    override fun lockBank(id: UUID)=bankRef(queries.lockBank(id) ?: missing())
+    override fun lockBank(id: UUID)=bankRef(queries.lockBankForRead(id) ?: missing())
     override fun visibleBankSubject(id: UUID,userId: UUID)=queries.bank(id,userId)?.subjectId
     override fun chapterBelongs(id: UUID,bankId: UUID)=chapters.selectById(id)?.bankId==bankId
     override fun questions(ids: List<UUID>)=if(ids.isEmpty()) emptyList() else questions.selectByIds(ids).map(::questionRef)

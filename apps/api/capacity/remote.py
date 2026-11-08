@@ -160,6 +160,7 @@ def reset(enabled):
     command(['docker', 'exec', m['postgres'], 'dropdb', '-U', 'qanda_backend', '--force', 'qanda_backend'])
     command(['docker', 'exec', m['postgres'], 'createdb', '-U', 'qanda_backend', 'qanda_backend'])
     command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], (ROOT / 'seed.dump').read_bytes())
+    compose('run', '--rm', '--no-deps', 'schema-init')
     broker(True); mode(enabled)
     return {'reset': True, 'limits': enabled}
 
