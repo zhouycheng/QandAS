@@ -188,6 +188,7 @@ CREATE INDEX practice_statistics_idx ON practice_session(submitted_at,user_id) W
 CREATE TABLE practice_sync_state (
  session_id uuid PRIMARY KEY REFERENCES practice_session(id), writer_device_id uuid, writer_token uuid,
  acknowledged_sequence bigint NOT NULL DEFAULT 0 CHECK(acknowledged_sequence>=0),
+ accepted_sequence bigint NOT NULL DEFAULT 0 CHECK(accepted_sequence>=acknowledged_sequence), finish_sequence bigint,
  CHECK((writer_device_id IS NULL)=(writer_token IS NULL))
 );
 CREATE TABLE practice_item (
@@ -256,14 +257,18 @@ CREATE TABLE sync_command (
  id uuid PRIMARY KEY, session_id uuid NOT NULL, user_id uuid NOT NULL, actor_session_id uuid NOT NULL,
  writer_token uuid NOT NULL,
  client_sequence bigint NOT NULL CHECK(client_sequence>0), payload_digest bytea NOT NULL, digest_key_version integer NOT NULL,
- request_id uuid NOT NULL, state varchar(20) NOT NULL CHECK(state IN ('ACCEPTING','QUEUED','RETRYING','COMMITTED','REJECTED','DEAD_LETTER')),
+ request_id uuid NOT NULL, kind varchar(8) NOT NULL CHECK(kind IN ('SAVE','FINISH')), payload_json text NOT NULL,
+ next_attempt_at timestamptz NOT NULL DEFAULT now(), dispatch_until timestamptz,
+ state varchar(20) NOT NULL CHECK(state IN ('QUEUED','RETRYING','COMMITTED','REJECTED','DEAD_LETTER')),
  attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0), error_code varchar(64), error_message varchar(200), error_status integer,
  receipt_id uuid UNIQUE REFERENCES command_receipt(id), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz,
  FOREIGN KEY(session_id,user_id) REFERENCES practice_session(id,user_id),
  FOREIGN KEY(actor_session_id,user_id) REFERENCES user_session(id,user_id),
  CHECK((state='COMMITTED')=(receipt_id IS NOT NULL)), CHECK((state IN ('COMMITTED','REJECTED'))=(completed_at IS NOT NULL))
 );
-CREATE UNIQUE INDEX sync_command_one_pending_idx ON sync_command(session_id) WHERE state IN ('ACCEPTING','QUEUED','RETRYING','DEAD_LETTER');
+CREATE INDEX sync_command_pending_idx ON sync_command(next_attempt_at,created_at) WHERE state IN ('QUEUED','RETRYING');
+CREATE INDEX sync_command_user_pending_idx ON sync_command(user_id) WHERE state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED');
+CREATE INDEX sync_command_order_idx ON sync_command(session_id,client_sequence);
 CREATE UNIQUE INDEX sync_command_sequence_idx ON sync_command(session_id,writer_token,client_sequence) WHERE state<>'REJECTED';
 CREATE INDEX sync_command_committed_idx ON sync_command(completed_at) WHERE state='COMMITTED';
 CREATE TABLE domain_event_outbox (
@@ -395,6 +400,7 @@ BEGIN
 END $$;
 CREATE TRIGGER practice_item_content_valid BEFORE INSERT OR UPDATE ON practice_item FOR EACH ROW EXECUTE FUNCTION validate_practice_item_content();
 
+CREATE VIEW monitoring_sync_backlog AS SELECT state,count(*) total,min(created_at) oldest FROM sync_command WHERE state IN ('QUEUED','RETRYING','DEAD_LETTER') GROUP BY state;
 CREATE VIEW monitoring_sync_completion AS SELECT created_at,completed_at FROM sync_command WHERE state='COMMITTED';
 CREATE VIEW monitoring_jobs AS SELECT
  (SELECT count(*) FROM domain_event_outbox WHERE processed_at IS NULL) AS activity,

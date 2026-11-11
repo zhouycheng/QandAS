@@ -6,10 +6,17 @@ import org.slf4j.LoggerFactory
 import org.springframework.amqp.core.Message
 import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.stereotype.Component
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.core.env.Environment
 import qanda.backend.sync.api.*
 
 @Component
-class ProgressConsumer(private val commands: ProgressCommands,private val queue: ProgressQueue,private val json: ObjectMapper) {
+class ProgressConsumer(private val commands: ProgressCommands,private val queue: ProgressQueue,private val json: ObjectMapper,private val environment: Environment) {
+    @Scheduled(fixedDelay=100)
+    fun dispatch() {
+        if(environment.getProperty("qanda.backend.worker-enabled",Boolean::class.java,false))
+            try { commands.dispatch() } catch(error: Exception) { log.warn("Sync dispatch deferred: {}",error.javaClass.simpleName) }
+    }
     private val log=LoggerFactory.getLogger(javaClass)
     @RabbitListener(queues=[ProgressQueues.READY],concurrency="4",ackMode="MANUAL",autoStartup="\${qanda.backend.worker-enabled:false}")
     fun receive(message: Message,channel: Channel) {
@@ -22,8 +29,8 @@ class ProgressConsumer(private val commands: ProgressCommands,private val queue:
             }
             try { commands.consume(envelope) }
             catch(error: Exception) {
-                val (route,delay)=commands.failure(envelope.commandId,error)
-                if(route!="done") queue.publish(message.body,envelope.commandId,route,delay.takeIf { it>0 })
+                val (route,_)=commands.failure(envelope.commandId,error)
+                if(route=="dead") queue.publish(message.body,envelope.commandId,"dead")
             }
             channel.basicAck(tag,false)
         } catch(error: Exception) {

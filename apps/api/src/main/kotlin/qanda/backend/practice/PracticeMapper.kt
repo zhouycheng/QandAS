@@ -6,9 +6,11 @@ import qanda.backend.content.api.QuestionReference
 import java.util.UUID
 
 class PracticeChoiceRow { var itemId: UUID?=null;var optionKey: String="" }
+class EligibilityGroupRow { var id: UUID?=null;var size: Long=0;var availableCount: Long=0 }
 @Mapper interface PracticeQueries {
     fun batchChoices(@Param("ids") ids: List<UUID>): List<PracticeChoiceRow>
-    fun eligible(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): List<QuestionReference>
+    fun candidateGroups(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput,@Param("limit") limit: Int): List<EligibilityGroupRow>
+    fun groupQuestions(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput,@Param("groupIds") groupIds: List<UUID>): List<QuestionReference>
     fun eligibleCount(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): Long
     fun insertItems(@Param("items") items: List<PracticeItem>)
     fun lockSession(@Param("id") id: UUID): PracticeSession?

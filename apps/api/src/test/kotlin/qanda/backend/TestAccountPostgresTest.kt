@@ -81,12 +81,12 @@ class TestAccountPostgresTest: PostgresFixture() {
         val row=create();val id=id(row);val s=login(id);val session=createPractice(s,fixture());val sessionId=id(session);val key=UUID.randomUUID()
         consumers.stop()
         try {
-            call("POST","/practice/sessions/$sessionId/progress-commands",progressBody(session),s.token,202,key)
+            call("POST","/practice/sessions/$sessionId/sync-commands",progressBody(session),s.token,202,key)
             jdbc.update("UPDATE test_account SET expires_at=now()-interval '1 second' WHERE user_id=?",id)
             call("GET","/me",token=s.token,status=401)
             val c=call("GET","/admin/test-accounts?keyword=${s.email}&status=EXPIRED");assertEquals(1,c["total"].asInt())
             call("GET","/admin/test-accounts/$id/credentials",status=409)
-            val envelope=qanda.backend.application.ProgressEnvelope(key,json.convertValue(progressBody(session),qanda.backend.practice.ProgressInput::class.java))
+            val envelope=qanda.backend.application.ProgressEnvelope(key)
             assertEquals("UNAUTHENTICATED",assertThrows(ApiException::class.java) { progressCommands.consume(envelope) }.code)
         } finally { consumers.start() }
         eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="REJECTED" }
@@ -105,9 +105,9 @@ class TestAccountPostgresTest: PostgresFixture() {
         val f=fixture()
         for(s in listOf(normal,excluded,included)) {
             val session=createPractice(s,f);val sessionId=id(session)
-            progress("/practice/sessions/$sessionId/progress-commands",progressBody(session),s.token)
+            progress("/practice/sessions/$sessionId/sync-commands",progressBody(session),s.token)
             jdbc.update("UPDATE practice_session SET created_at=now()-interval '1 minute' WHERE id=?",sessionId)
-            call("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 30,"writerToken" to session["writer"]["writerToken"].asText()),s.token)
+            finish("/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 30,"writerToken" to session["writer"]["writerToken"].asText()),s.token)
             call("POST","/me/activity/heartbeat",token=s.token)
             assertEquals(4,call("GET","/me/learning-overview",token=s.token)["answeredCount"].asInt())
         }

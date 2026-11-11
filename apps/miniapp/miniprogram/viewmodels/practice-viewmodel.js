@@ -38,6 +38,7 @@ class PracticeViewModel {
         const snapshot = await this.online.prepare(this.routeOptions);
         this.routeOptions = Object.assign({}, this.routeOptions, snapshot.route || {});
         this.online.activeId = snapshot.id;
+        if (snapshot.finishIntent && !snapshot.result && snapshot.feedback !== 'IMMEDIATE') return { data: { loadError: '批改中，不可进入' }, startTimer: false, stopTimer: true };
         const quiz = this.online.quiz(snapshot);
         const restored = this.online.restored(snapshot);
         this.session = new PracticeSession({ quiz, restored, mode: snapshot.configuration && snapshot.configuration.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : (this.routeOptions.mode || 'practice')), feedback: snapshot.feedback,
@@ -46,6 +47,17 @@ class PracticeViewModel {
         this.session.reset();
         this.session.restore(restored);
         this.editingLocked = false;
+        if (options.review === '1' || snapshot.finishIntent) {
+            this.readOnlyReview = true;
+            this.session.state.isViewMode = true;
+            this.session.state.review = true;
+            this.session.state.reviewPending = !snapshot.result && snapshot.feedback !== 'IMMEDIATE';
+            this.session.state.awaitingResult = !snapshot.result;
+            this.session.state.isCompleted = false;
+            this.session.state.isTimed = false;
+            this.session.showQuestionAtIndex(this.session.state.currentIndex || 0);
+            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: !snapshot.result, reviewPending: this.session.state.reviewPending, loadError: '' }), startTimer: false, stopTimer: true };
+        }
         if (restored.status === SESSION_STATUS.SUBMITTED) {
             this.session.finish();
             if (snapshot.result)
@@ -69,7 +81,23 @@ class PracticeViewModel {
         return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
     }
     observeSaveStatus(listener) {
-        return this.online && this.session ? this.online.observeStatus(this.session.meta.sessionId, listener) : () => { };
+        return this.online && this.session ? this.online.observeStatus(this.session.meta.sessionId, data => {
+            if (this.readOnlyReview && this.session.state.awaitingResult) {
+                const snapshot = this.online.get(this.session.meta.sessionId);
+                if (snapshot && snapshot.result) {
+                    const index = this.session.state.currentIndex;
+                    this.session.state.isViewMode = false;
+                    this.applyOfficialResult(snapshot.result);
+                    this.session.state.isViewMode = true;
+                    this.session.state.reviewPending = false;
+                    this.session.state.awaitingResult = false;
+                    this.session.state.isCompleted = false;
+                    this.session.showQuestionAtIndex(index);
+                    data = Object.assign({}, data, this.session.getViewData(), { reviewPending: false, awaitingResult: false });
+                }
+            }
+            listener(data);
+        }) : () => { };
     }
     async retrySync() {
         if (!this.online || !this.session)
@@ -255,7 +283,7 @@ class PracticeViewModel {
             this.persistSession(true);
             return { data: this.session.getViewData() };
         }
-        if (!this.online || !this.session || !this.session.state.isCompleted)
+        if (!this.online || !this.session || (!this.session.state.isCompleted && !this.readOnlyReview) || this.session.state.awaitingResult)
             return null;
         const snapshot = this.online.get(this.session.meta.sessionId);
         const item = snapshot.items.find(row => row.question.id === questionId);
@@ -263,7 +291,14 @@ class PracticeViewModel {
             return null;
         const result = await this.online.assess(snapshot.id, item.itemId, value);
         require('../repositories/remote-data-repository.js').invalidateLearning();
+        const index = this.session.state.currentIndex;
+        if (this.readOnlyReview) this.session.state.isViewMode = false;
         this.applyOfficialResult(result);
+        if (this.readOnlyReview) {
+            this.session.state.isViewMode = true;
+            this.session.state.isCompleted = false;
+            return this.session.showQuestionAtIndex(index);
+        }
         return this.session.setResultFilter(this.session.state.resultFilter);
     }
     toggleFavoriteQuestion() {
@@ -325,7 +360,7 @@ class PracticeViewModel {
         if (!this.session) {
             return null;
         }
-        if (this.online && this.session.state.isViewMode && this.session.state.isLastQuestion) {
+        if (!this.readOnlyReview && this.online && this.session.state.isViewMode && this.session.state.isLastQuestion) {
             return this.online.completeView(this.session).then(() => this.session.goNext())
                 .catch(error => ({ command: { type: 'toast', title: error.message || '保存失败，请重试' } }));
         }
@@ -388,6 +423,7 @@ class PracticeViewModel {
      * 游标包含完整草稿；多选勾选、文字和填空变化都进入持久态。
      */
     persistSession(force) {
+        if (this.readOnlyReview) return;
         if (!this.session)
             return;
         if (this.trial) {
@@ -401,7 +437,7 @@ class PracticeViewModel {
             this.online.put(id, snapshot);
             return;
         }
-        if (snapshot && snapshot.status !== 'SUBMITTED')
+        if (snapshot && snapshot.status !== 'SUBMITTED' && !snapshot.finishIntent)
             this.online.save(this.session);
     }
     /** 页面退出（onHide / onUnload）时强制落盘，防止最后一步操作丢 */
@@ -460,6 +496,7 @@ class PracticeViewModel {
         if (this.online) {
             return this.online.finish(this.session).then((official) => {
                 require('../repositories/remote-data-repository.js').invalidateLearning();
+                if (!official) { this.editingLocked = true; return { data: { editingLocked: true }, stopTimer: true, command: { type: 'navigate', url: '/page/practice-records/index' } }; }
                 this.applyOfficialResult(official);
                 return this.applySubmitOutcome(result, { ok: true, syncStatus: SYNC_STATUS.SYNCED });
             }).catch(error => this.applySubmitOutcome(result, { ok: false, syncStatus: SYNC_STATUS.SYNC_PENDING, reason: error.message }));

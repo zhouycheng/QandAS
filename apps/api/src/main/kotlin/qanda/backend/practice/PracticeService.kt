@@ -22,7 +22,7 @@ import java.util.UUID
 class PracticeService(private val rows: PracticeSessionMapper,private val results: PracticeResultMapper,
                       private val content: ContentLibrary,
                       private val sql: PracticeQueries,private val system: TransactionLocks,private val clock: Clock,private val json: ObjectMapper,
-                      private val ownership: WriteOwnership,private val activity: ActivityEvents) {
+                      private val ownership: WriteOwnership,private val activity: ActivityEvents,private val selections: PracticeSelections) {
     private fun validateScope(actor: Actor?,scope: ScopeInput): List<BankReference> {
         if(scope.count !in 1..1000 || scope.order !in setOf("SEQUENTIAL","RANDOM") || scope.selectionKind !in setOf("NORMAL","WRONG","FAVORITE")) invalid("/scope")
         if(actor==null && scope.selectionKind!="NORMAL") forbidden()
@@ -43,8 +43,8 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         return banks
     }
     fun preview(actor: Actor?,scope: ScopeInput): ScopeView {
-        val banks=validateScope(actor,scope);val selected=sql.eligible(actor?.id,scope)
-        return ScopeView(sql.eligibleCount(actor?.id,scope),banks.first { it.id==scope.questionBankId }.contentVersion,selected.size,selected.map { it.id!! },banks.associate { it.id to it.contentVersion })
+        val banks=validateScope(actor,scope);val selected=selections.preview(actor?.id,scope,banks)
+        return ScopeView(selected.availableCount,banks.first { it.id==scope.questionBankId }.contentVersion,selected.questions.size,selected.questions.map { it.id!! },banks.associate { it.id to it.contentVersion })
     }
     private fun lockScope(actor: Actor?,scope: ScopeInput,expected: Long,versions: Map<UUID,Long>): List<BankReference> {
         val banks=validateScope(actor,scope)
@@ -68,7 +68,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         val banks=lockScope(null,input.scope,input.expectedContentVersion,input.expectedContentVersions)
         val bank=banks.first { it.id==input.scope.questionBankId }
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
-        val selected=sql.eligible(null,input.scope)
+        val selected=selections.choose(null,input.scope,banks)
         if(selected.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val grading=mutableListOf<OfflineGrading>()
         val full=content.revisions(selected.map { RevisionReference(it.id!!,it.currentRevisionId) },true)
@@ -87,7 +87,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         val banks=lockScope(actor,input.scope,input.expectedContentVersion,input.expectedContentVersions)
         val bank=banks.first { it.id==input.scope.questionBankId }
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
-        val chosen=sql.eligible(actor.id,input.scope)
+        val chosen=selections.choose(actor.id,input.scope,banks)
         if(chosen.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
         session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,bank.contentVersion,chosen.map { it.id!! },input.scope.collectionChip,input.mode,input.timeLimitSeconds,banks.map { it.id },banks.associate { it.id to it.contentVersion }))
@@ -108,11 +108,11 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     }
     private fun writeState(row: PracticeSession)=WriteState(row.writerDeviceId,row.writerToken,row.acknowledgedSequence)
     fun admitProgress(actor: Actor,id: UUID,input: ProgressInput) {
-        val row=owned(actor.id,id,true);writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version)
+        val row=owned(actor.id,id,true);writer(row,input.writerToken)
         if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
-        if(input.clientSequence<=row.acknowledgedSequence) invalid("/clientSequence")
+        if(input.kind !in setOf("SAVE","FINISH") || input.clientSequence<=0 || input.durationSeconds<0) invalid("/command")
         if(input.items.size>1000 || input.items.map { it.itemId }.distinct().size!=input.items.size) invalid("/items")
-        ownership.requireDrained(id)
+        duration(row,input.durationSeconds)
     }
     private fun answer(item: PracticeItem,choices: List<String>): AnswerInput? {
         return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);item.answerBlanks!=null -> AnswerInput(blanks=json.readValue(item.answerBlanks,Array<String>::class.java).toList());else -> null }
@@ -136,6 +136,8 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
             json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java),grading,writerView(row,deviceId),content.favorites(row.userId!!,items.map { it.question.id }))
     }
     fun read(userId: UUID,id: UUID): PracticeView = view(owned(userId,id))
+    fun version(userId: UUID,id: UUID)=owned(userId,id).version
+    fun lockSync(userId: UUID,id: UUID) { owned(userId,id,true) }
     private fun writer(row: PracticeSession,token: UUID) {
         if(row.writerToken!=token) conflict("WRITER_REVOKED","请在创建练习的设备继续作答")
     }
@@ -161,6 +163,14 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         val row=saveProgress(actor,id,input)
         return ProgressAck(id,row.version,row.acknowledgedSequence,writerView(row,row.writerDeviceId))
     }
+    fun processSync(actor: Actor,id: UUID,input: ProgressInput): Pair<ProgressAck,ResultView?> {
+        val row=owned(actor.id,id,true)
+        if(input.kind=="SAVE") return progressAck(actor,id,input.copy(expectedVersion=row.version)) to null
+        val result=finish(actor,id,FinishInput(row.version,input.durationSeconds,input.writerToken,input.items,input.autoAddWrongBook),input.clientSequence)
+        row.acknowledgedSequence=input.clientSequence
+        ownership.save(id,writeState(row))
+        return ProgressAck(id,result.version,input.clientSequence,WriterView(row.writerDeviceId,row.writerToken,result.version,input.clientSequence)) to result
+    }
     private fun duration(row: PracticeSession,value: Int) {
         if(value<row.durationSeconds || value.toLong()>Duration.between(row.createdAt,clock.instant()).seconds.coerceAtLeast(0)+5) invalid("/durationSeconds")
     }
@@ -183,11 +193,11 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
             sql.clearChoices(item.id!!);normalized?.optionKeys?.forEach { sql.addChoice(item.id!!,item.revisionId!!,it) };sql.updateAnswer(item)
         }
     }
-    fun finish(actor: Actor,id: UUID,input: FinishInput): ResultView {
+    fun finish(actor: Actor,id: UUID,input: FinishInput,commandSequence: Long=Long.MAX_VALUE): ResultView {
         val row=owned(actor.id,id,true)
         if(row.status=="SUBMITTED") return result(actor.id,id)
         if(json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java).mode=="view") conflict("STUDY_NOT_SCORED","背题通过结束浏览完成")
-        ownership.requireDrained(id)
+        ownership.requireDrained(id,commandSequence)
         writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version);if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
         duration(row,input.durationSeconds);val finalItems=sql.items(id)
         val pinned=content.revisions(finalItems.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)
@@ -238,5 +248,8 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         ownership.requireDrained(id)
         row.status="CANCELLED";row.version++;row.updatedAt=clock.instant();rows.updateById(row);return MutationResult(id,row.version)
     }
-    fun history(userId: UUID,p: PageSpec,deviceId: UUID?): Page<PracticeSummary> = Page(sql.history(userId,deviceId,p.offset,p.pageSize).map { PracticeSummary(it.id!!,it.bankId!!,it.status,it.version,it.durationSeconds,it.createdAt,it.submittedAt,it.writerDeviceId) },sql.historyCount(userId,deviceId),p.page,p.pageSize)
+    fun history(userId: UUID,p: PageSpec,deviceId: UUID?): Page<PracticeSummary> = Page(sql.history(userId,deviceId,p.offset,p.pageSize).map {
+        val config=json.readValue(it.configurationSnapshot,PracticeConfiguration::class.java)
+        PracticeSummary(it.id!!,it.bankId!!,it.status,it.version,it.durationSeconds,it.createdAt,it.submittedAt,it.writerDeviceId,it.finishSequence!=null,config.count,config.mode,it.bankName)
+    },sql.historyCount(userId,deviceId),p.page,p.pageSize)
 }

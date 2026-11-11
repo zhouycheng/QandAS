@@ -1,0 +1,11 @@
+<page-header title="最近练习" show-back="{{true}}" />
+<view class="records">
+  <view wx:if="{{error}}" class="hint" bindtap="handleRetry" hover-class="pressed">{{error}} · 点击重试</view>
+  <view wx:for="{{items}}" wx:key="id" class="record record-{{item.state}}" data-id="{{item.id}}" bindtap="handleOpen" hover-class="pressed" aria-role="button" aria-label="{{item.title}}，{{item.statusText}}，{{item.actionText}}">
+    <view class="record-head"><text class="title">{{item.title}}</text><text class="status">{{item.statusText}}</text></view>
+    <view class="tags"><text class="mode">{{item.modeText}}</text><text wx:if="{{item.feedbackText}}" class="feedback">{{item.feedbackText}}</text><text class="count">{{item.countText}}</text></view>
+    <view class="record-foot"><text class="time">{{item.timeText}}</text><view class="action"><text>{{item.actionText}}</text><text class="arrow">›</text></view></view>
+  </view>
+  <view wx:if="{{loading}}" class="hint">正在读取练习记录…</view>
+  <view wx:elif="{{!items.length && !error}}" class="hint">还没有练习记录</view>
+</view>

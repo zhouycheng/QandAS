@@ -210,7 +210,6 @@
 | `POST /api/v1/practice/sessions` | `Practice_create_POST` | 用户会话 |
 | `GET /api/v1/practice/sessions/{id}` | `Practice_read_GET` | 用户会话 |
 | `POST /api/v1/practice/sessions/{id}/cancel` | `Practice_cancel_POST` | 用户会话 |
-| `POST /api/v1/practice/sessions/{id}/finish` | `Practice_finish_POST` | 用户会话 |
 | `PUT /api/v1/practice/sessions/{id}/items/{itemId}/self-assessment` | `Practice_assess_PUT` | 用户会话 |
 | `GET /api/v1/practice/sessions/{id}/result` | `Practice_result_GET` | 用户会话 |
 | `GET /api/v1/practice/sessions/{id}/snapshot` | `Practice_snapshot_GET` | 用户会话 |
@@ -222,8 +221,9 @@
 | --- | --- | --- |
 | `POST /api/v1/admin/sync/dead-letters/{commandId}/replay` | `SyncRecovery_replay_POST` | 管理员会话 |
 | `GET /api/v1/admin/sync/dead-letters/head` | `SyncRecovery_head_GET` | 管理员会话 |
-| `POST /api/v1/practice/sessions/{id}/progress-commands` | `ProgressCommand_submit_POST` | 用户会话 |
-| `GET /api/v1/practice/sessions/{id}/progress-commands/{commandId}` | `ProgressCommand_read_GET` | 用户会话 |
+| `GET /api/v1/practice/sessions/{id}/sync-commands` | `ProgressCommand_checkpoint_GET` | 用户会话 |
+| `POST /api/v1/practice/sessions/{id}/sync-commands` | `ProgressCommand_submit_POST` | 用户会话 |
+| `GET /api/v1/practice/sessions/{id}/sync-commands/{commandId}` | `ProgressCommand_read_GET` | 用户会话 |
 
 ## 验收记录
 

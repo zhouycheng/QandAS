@@ -49,6 +49,14 @@ async function call(user, method, path, body, key) {
   let data; try { data = response.json(); } catch (_) { data = null; }
   return { status: response.status, data, headers: response.headers };
 }
+async function reliable(user, method, path, body, key) {
+  let failures = 0;
+  while (true) {
+    const result = await call(user, method, path, body, key);
+    if (kind !== 'journey' || result.status && result.status !== 429 && result.status < 500) return result;
+    await wait(retryDelay(++failures, result.headers['Retry-After']));
+  }
+}
 function requireOk(response) {
   if (response.status < 200 || response.status >= 300 || !response.data) throw new Error('HTTP_' + response.status + '_' + (response.data && response.data.code || 'unavailable'));
   return response.data;
@@ -63,16 +71,17 @@ function answer(item) {
 }
 function items(session) { return session.items.map(x => ({ itemId: x.itemId, answer: answer(x), confirmed: true })); }
 async function create(user, bank) {
-  return requireOk(await call(user, 'POST', '/practice/sessions', { scope: bank.scope, expectedContentVersion: bank.preview.contentVersion, expectedContentVersions: bank.preview.contentVersions, deviceId: user.deviceId }, uuid()));
+  const key = uuid();
+  return requireOk(await reliable(user, 'POST', '/practice/sessions', { scope: bank.scope, expectedContentVersion: bank.preview.contentVersion, expectedContentVersions: bank.preview.contentVersions, deviceId: user.deviceId }, key));
 }
 async function persist(user, state, changes, duration) {
   if (!state.pending) {
     state.pending = { key: uuid(), start: Date.now(), accepted: false, body: { expectedVersion: state.session.version, writerToken: state.session.writer.writerToken, clientSequence: ++state.sequence, currentIndex: Math.min(state.session.items.length - 1, changes.length - 1), durationSeconds: duration, items: changes } };
     event('intent', { id: state.pending.key, session: state.session.id, userIndex: exec.vu.idInTest - 1, body: state.pending.body });
   }
-  const p = state.pending, path = '/practice/sessions/' + state.session.id + '/progress-commands';
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
+  const p = state.pending, path = '/practice/sessions/' + state.session.id + '/sync-commands';
+  let polls = 0;
+  while (true) {
     const r = await call(user, p.accepted ? 'GET' : 'POST', path + (p.accepted ? '/' + p.key : ''), p.accepted ? undefined : p.body, p.accepted ? undefined : p.key);
     if (r.status === 429 || r.status >= 500 || !r.status) {
       p.failures = (p.failures || 0) + 1;
@@ -88,19 +97,33 @@ async function persist(user, state, changes, duration) {
       committed.add(1); commitLatency.add(Date.now() - p.start); return true;
     }
     if (value.state === 'REJECTED' || value.state === 'DEAD_LETTER') throw new Error('COMMAND_' + value.state);
-    await wait(1000);
+    await wait(Math.min(10000, 1000 * 2 ** Math.min(polls++, 4)) * (1 + Math.random() * 0.25));
   }
-  return false;
 }
-async function finish(user, session, progress, duration) {
-  const result = requireOk(await call(user, 'POST', '/practice/sessions/' + session.id + '/finish', { expectedVersion: session.version, writerToken: session.writer.writerToken, durationSeconds: duration, items: progress }, uuid()));
-  if (result.answeredCount !== progress.length || result.objective.wrong !== 0) throw new Error('RESULT_MISMATCH');
-  event('finished', { session: session.id, result: result.id }); return result;
+async function finish(user, session, progress, duration, sequence = 1) {
+  const key = uuid(), path = '/practice/sessions/' + session.id + '/sync-commands';
+  const body = { kind: 'FINISH', expectedVersion: session.version, writerToken: session.writer.writerToken, clientSequence: sequence, currentIndex: session.items.length - 1, durationSeconds: duration, items: progress };
+  event('intent', { id: key, session: session.id, userIndex: exec.vu.idInTest - 1, body });
+  let known = false, attempts = 0;
+  while (true) {
+    const response = await call(user, known ? 'GET' : 'POST', path + (known ? '/' + key : ''), known ? undefined : body, known ? undefined : key);
+    if (!response.status || response.status === 429 || response.status >= 500) { await wait(retryDelay(++attempts, response.headers['Retry-After'])); continue; }
+    const state = requireOk(response);
+    if (!known) { known = true; accepted.add(1); event('accepted', { id: key, session: session.id, sequence, items: progress }); }
+    if (state.state === 'COMMITTED') {
+      const result = state.result;
+      if (result.answeredCount !== progress.length || result.objective.wrong !== 0) throw new Error('RESULT_MISMATCH');
+      committed.add(1); event('finished', { session: session.id, result: result.id }); return result;
+    }
+    if (['REJECTED', 'DEAD_LETTER'].includes(state.state)) throw new Error('COMMAND_' + state.state);
+    await wait(Math.min(10000, 1000 * 2 ** Math.min(attempts++, 4)) * (1 + Math.random() * 0.25));
+  }
 }
+
 let writeState;
 async function journey(user, bank) {
-  requireOk(await call(user, 'GET', '/question-banks?includeProgress=true&pageSize=20'));
-  const preview = requireOk(await call(user, 'POST', '/practice/scope-preview', bank.scope));
+  requireOk(await reliable(user, 'GET', '/question-banks?includeProgress=true&pageSize=20'));
+  const preview = requireOk(await reliable(user, 'POST', '/practice/scope-preview', bank.scope));
   const session = await create(user, { ...bank, preview }), state = { session, sequence: 0, pending: null };
   let done = false, dirty = [], backgroundError;
   const begun = Date.now();
@@ -127,7 +150,7 @@ async function journey(user, bank) {
     done = true; await background;
     if (backgroundError) throw backgroundError;
     if (dirty.length && !await persist(user, state, dirty, Math.floor((Date.now() - begun) / 1000))) throw new Error('COMMIT_TIMEOUT');
-    await finish(user, session, progress, Math.floor((Date.now() - begun) / 1000));
+    await finish(user, session, progress, Math.floor((Date.now() - begun) / 1000), state.sequence + 1);
     requireOk(await call(user, 'GET', '/practice/sessions/' + session.id + '/result'));
   } finally { done = true; clearInterval(heart); await background; }
 }
@@ -142,7 +165,7 @@ export default async function () {
       event('burst_start', { index, time: Date.now() });
     }
     if (kind === 'journey') await journey(user, bank);
-    else if (kind === 'read') requireOk(await call(user, 'GET', '/question-banks?includeProgress=true&pageSize=20'));
+    else if (kind === 'read') requireOk(await reliable(user, 'GET', '/question-banks?includeProgress=true&pageSize=20'));
     else if (kind === 'create' || kind === 'burst_create') await create(user, bank);
     else if (kind === 'sync') {
       if (!writeState) writeState = { session: await create(user, bank), sequence: 0, pending: null, started: Date.now() };

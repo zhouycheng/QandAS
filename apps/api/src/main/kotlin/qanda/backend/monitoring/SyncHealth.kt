@@ -52,11 +52,14 @@ class SyncHealth(private val json: ObjectMapper,private val jdbc: JdbcTemplate,p
                 avg(extract(epoch FROM completed_at-created_at)*1000) average,
                 percentile_cont(0.95) WITHIN GROUP(ORDER BY extract(epoch FROM completed_at-created_at)*1000) p95
                 FROM monitoring_sync_completion WHERE completed_at>=now()-interval '60 seconds'""")
+            val backlog=jdbc.queryForList("SELECT state,total,extract(epoch FROM now()-oldest) oldest_seconds FROM monitoring_sync_backlog")
+            val pending=backlog.filter { it["state"] in setOf("QUEUED","RETRYING") }.sumOf { (it["total"] as Number).toDouble() }
+            val retrying=backlog.filter { it["state"]=="RETRYING" }.sumOf { (it["total"] as Number).toDouble() }
             val sampled=(value("qanda_sync_samples") ?: 0.0)>=12
             val reset=(value("qanda_sync_resets") ?: 0.0)>0
             latest=SyncHealthView(now,now,60,if(reset) "RESET" else if(sampled) "HEALTHY" else "SAMPLING",if(reset) "队列计数器已重置，正在重新采样" else if(!sampled) "正在积累 60 秒样本" else null,
-                SyncMetrics(value("qanda_sync_ready"),value("qanda_sync_unacked"),value("qanda_sync_produced").takeIf { sampled && !reset },value("qanda_sync_consumed").takeIf { sampled && !reset },
-                    (database["committed"] as? Number)?.toDouble(),value("qanda_sync_retry"),value("qanda_sync_dead"),value("qanda_sync_consumers"),
+                SyncMetrics(maxOf(0.0,pending-(value("qanda_sync_unacked") ?: 0.0)),value("qanda_sync_unacked"),value("qanda_sync_produced").takeIf { sampled && !reset },value("qanda_sync_consumed").takeIf { sampled && !reset },
+                    (database["committed"] as? Number)?.toDouble(),retrying,value("qanda_sync_dead"),value("qanda_sync_consumers"),
                     (database["average"] as? Number)?.toDouble(),(database["p95"] as? Number)?.toDouble()))
             jobs=jdbc.queryForObject("SELECT * FROM monitoring_jobs",{ r,_ -> r.getLong("activity") to r.getLong("mail") })!!
         } catch(_: Exception) {

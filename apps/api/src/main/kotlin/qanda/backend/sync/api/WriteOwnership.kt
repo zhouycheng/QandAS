@@ -21,8 +21,8 @@ class WriteOwnership(private val jdbc: JdbcTemplate) {
             state.deviceId,state.token,state.acknowledgedSequence,id)
     }
     // Callers hold the practice row lock, including command admission and finalization.
-    fun requireDrained(id: UUID) {
-        if(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM sync_command WHERE session_id=? AND state IN ('ACCEPTING','QUEUED','RETRYING','DEAD_LETTER'))",Boolean::class.java,id)==true)
+    fun requireDrained(id: UUID,before: Long=Long.MAX_VALUE) {
+        if(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM sync_command WHERE session_id=? AND state IN ('QUEUED','RETRYING','DEAD_LETTER') AND client_sequence<?)",Boolean::class.java,id,before)==true)
             conflict("SYNC_PENDING","答题进度正在保存，请等待完成后重试")
     }
 }

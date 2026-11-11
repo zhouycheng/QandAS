@@ -5,6 +5,7 @@ import concurrent.futures
 from datetime import datetime
 import gzip
 import hashlib
+import http.client
 import json
 import math
 import os
@@ -74,7 +75,7 @@ def summarize(points):
         elif metric == 'http_req_duration':
             durations.append(value)
             endpoints[tags.get('name', 'unknown')].append(value)
-            if tags.get('name', '').startswith('POST ') and tags.get('name', '').endswith('/progress-commands'): accepts.append(value)
+            if tags.get('name', '').startswith('POST ') and tags.get('name', '').endswith('/sync-commands'): accepts.append(value)
         elif metric == 'command_commit_latency': commits.append(value)
         elif metric == 'business_success': business.append(value)
         elif metric == 'vus': vus_peak = value if vus_peak is None else max(vus_peak, value)
@@ -100,7 +101,7 @@ def violations(value):
     if not value.get('journey_window', False) and value.get('business_success') is not None and value['business_success'] < .99: result.append('business_errors')
     for metric, limit in [('p95_ms', 2000), ('accept_p95_ms', 1000), ('commit_p95_ms', 5000), ('commit_p99_ms', 15000)]:
         if value.get(metric) is not None and value[metric] > limit: result.append(metric)
-    if any(latency > (1000 if name.startswith('POST ') and name.endswith('/progress-commands') else 2000) for name, latency in value.get('endpoint_p95_ms', {}).items()): result.append('endpoint_p95_ms')
+    if any(latency > (1000 if name.startswith('POST ') and name.endswith('/sync-commands') else 2000) for name, latency in value.get('endpoint_p95_ms', {}).items()): result.append('endpoint_p95_ms')
     return result
 
 
@@ -207,6 +208,31 @@ def wait_drain(remote, timeout=600, log=None):
         previous = value if quiet else None
         if time.monotonic() >= end: return value
         time.sleep(5)
+
+
+def deliver_pending_intents(remote, dataset, events, folder, timeout=600):
+    """Finish delivery of durable client commands after the load generator stops."""
+    accepted = {row['id'] for row in events if row.get('event') == 'accepted'}
+    all_intents = {row['id']: row for row in events if row.get('event') == 'intent'}
+    pending = {key: row for key, row in all_intents.items() if key not in accepted}
+    if not pending: return {'intents': len(all_intents), 'delivered': len(all_intents), 'recovered_uploads': 0}
+    deadline = time.monotonic() + timeout
+    api_by_user = {}
+    while pending:
+        for key, row in list(pending.items()):
+            api = api_by_user.setdefault(row['userIndex'], Api(remote.config['port'], dataset['users'][row['userIndex']]['token']))
+            path = '/practice/sessions/' + row['session'] + '/sync-commands'
+            try:
+                status, state = api.request('GET', path + '/' + key)
+                if status == 404: status, state = api.request('POST', path, row['body'], key)
+                if status in (200, 202):
+                    if state.get('state') in ('REJECTED', 'DEAD_LETTER'): raise RuntimeError('Durable command was rejected')
+                    del pending[key]
+            except (OSError, TimeoutError, http.client.HTTPException):
+                pass
+            if time.monotonic() >= deadline: raise RuntimeError('Durable client commands did not reach the server before recovery deadline')
+        if pending: time.sleep(2)
+    return {'intents': len(all_intents), 'delivered': len(all_intents), 'recovered_uploads': len(set(all_intents) - accepted)}
 
 
 def audit_after_drain(remote, intents, folder, timeout=600):
@@ -367,7 +393,10 @@ def trial(remote, scenario, target, limits, seconds, label):
         intents = {x['id']: {'id': x['id'], 'sequence': x['body']['clientSequence'], 'items': x['body']['items'],
                              'client_accepted': x['id'] in accepted_ids} for x in events if x.get('event') == 'intent'}
         for value in ledger: intents.setdefault(value['id'], value)
-        recovery_started = time.monotonic(); summary['database'], summary['audit'] = audit_after_drain(remote, list(intents.values()), folder)
+        recovery_started = time.monotonic()
+        summary['client_delivery'] = deliver_pending_intents(remote, dataset, events, folder)
+        summary['client_delivery_seconds'] = time.monotonic() - recovery_started
+        summary['database'], summary['audit'] = audit_after_drain(remote, list(intents.values()), folder)
         summary['database_before'] = database_before
         summary['new_commands'] = sum(summary['database']['commands'].values()) - sum(database_before['commands'].values())
         summary['recovery_seconds'] = time.monotonic() - recovery_started

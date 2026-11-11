@@ -12,7 +12,7 @@ data class TrialSnapshotInput(val scope: ScopeInput,val expectedContentVersion: 
 data class TrialSnapshotView(val id: UUID,val questionBankId: UUID,val feedback: String,val configuration: PracticeConfiguration,val items: List<PracticeItemView>,val offlineGrading: List<OfflineGrading>,val createdAt: Instant)
 data class AnswerInput(val optionKeys: List<String>?=null,val value: Boolean?=null,val text: String?=null,val blanks: List<String>?=null)
 data class ItemProgress(val itemId: UUID,val answer: AnswerInput?=null,val confirmed: Boolean=false,val marked: Boolean=false)
-data class ProgressInput(val expectedVersion: Long,val currentIndex: Int,val durationSeconds: Int,val writerToken: UUID,val clientSequence: Long,val items: List<ItemProgress> = emptyList())
+data class ProgressInput(val expectedVersion: Long,val currentIndex: Int,val durationSeconds: Int,val writerToken: UUID,val clientSequence: Long,val items: List<ItemProgress> = emptyList(),@field:Schema(allowableValues=["SAVE","FINISH"]) val kind: String="SAVE",val autoAddWrongBook: Boolean=true)
 data class FinishInput(val expectedVersion: Long,val durationSeconds: Int,val writerToken: UUID,val items: List<ItemProgress> = emptyList(),val autoAddWrongBook: Boolean=true)
 data class ExpectedVersionInput(val expectedVersion: Long,val writerToken: UUID)
 data class SelfAssessmentInput(val expectedVersion: Long,@field:Schema(allowableValues=["CORRECT","WRONG"]) val assessment: String)
@@ -21,7 +21,7 @@ data class PracticeView(val id: UUID,val questionBankId: UUID,val status: String
 data class ObjectiveMetrics(val count: Int,val answered: Int,val correct: Int,val wrong: Int,val unanswered: Int,val accuracy: Double?,val score: Int?=null)
 data class SelfMetrics(val count: Int,val answered: Int,val rated: Int,val correct: Int,val wrong: Int,val unrated: Int)
 data class ResultView(val id: UUID,val sessionId: UUID,val version: Long,val totalCount: Int,val answeredCount: Int,val durationSeconds: Int,val objective: ObjectiveMetrics,val shortAnswer: SelfMetrics,val items: List<PracticeItemView>,val submittedAt: Instant)
-data class PracticeSummary(val id: UUID,val questionBankId: UUID,val status: String,val version: Long,val durationSeconds: Int,val createdAt: Instant,val submittedAt: Instant?,val deviceId: UUID?=null)
+data class PracticeSummary(val id: UUID,val questionBankId: UUID,val status: String,val version: Long,val durationSeconds: Int,val createdAt: Instant,val submittedAt: Instant?,val deviceId: UUID?=null,val finishIntent: Boolean=false,val questionCount: Int=0,val mode: String?=null,val title: String?=null)
 
 // Offline grading data stays separate from the question presentation DTO.
 data class PracticeConfiguration(val chapterIds: List<UUID>,val count: Int,val order: String,val selectionKind: String,val feedback: String,val contentVersion: Long,val questionIds: List<UUID> = emptyList(),val collectionChip: String="all",@field:Schema(allowableValues=["order","practice","test","view"]) val mode: String?=null,@field:Schema(minimum="1",maximum="86400") val timeLimitSeconds: Int?=null,val questionBankIds: List<UUID> = emptyList(),val contentVersions: Map<UUID,Long> = emptyMap())

@@ -124,8 +124,7 @@ async function main() {
     getRemoteRecent: () => [{ id: 'reading', status: 'IN_PROGRESS', createdAt: '2026-11-01T10:00:00Z' }, { id: 'graded', status: 'SUBMITTED' }, { id: 'closed', status: 'CANCELLED' }],
     getScopeMeta: () => null
   } }).openRecent()
-  assert.deepStrictEqual(historyChoices.command.choices.map(choice => choice.id), ['reading', 'graded'], '最近练习同时提供续答与历史结果入口')
-  assert(historyChoices.command.choices[0].label.endsWith('11-01 18:00'), '历史菜单使用北京时间')
+  assert.strictEqual(historyChoices.command.payload.url, '/page/login/index', '练习记录沿用登录入口')
 
   await remote.refreshProfile(storage)
   await remote.saveProfile(storage, { nickname: '新昵称' })

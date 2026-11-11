@@ -46,6 +46,14 @@ async function main() {
     }
   }
   await vm.forceSubmit()
+  const deadline = Date.now() + 45000
+  while (!runtime.get(vm.session.meta.sessionId).result) {
+    assert(Date.now() < deadline, '异步交卷未完成')
+    await runtime.flush(vm.session.meta.sessionId)
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
+  vm.applyOfficialResult(runtime.get(vm.session.meta.sessionId).result)
+  vm.editingLocked = false
   const subjective = vm.session.state.questions.find(question => question.isShortAnswer)
   await vm.assessResult(subjective.id, 'CORRECT')
   const completed = runtime.get(vm.session.meta.sessionId)
@@ -57,7 +65,7 @@ async function main() {
   await Promise.all([remote.refresh(storage, 'home'), remote.refresh(storage, 'recent')])
   const recent = remote.getRecent(storage)
   assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'))
-  assert.ok(requests.some(item => item.path.endsWith('/progress-commands')))
+  assert.ok(requests.some(item => item.path.endsWith('/sync-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
   runtime.queue.stop()
   console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.result.objective.correct, selfRated: completed.result.shortAnswer.rated }))

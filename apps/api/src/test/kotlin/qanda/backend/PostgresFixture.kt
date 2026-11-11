@@ -163,6 +163,19 @@ abstract class PostgresFixture {
         assertEquals(200,status)
         return command["acknowledgement"]
     }
+    protected fun finish(path: String,body: Any,token: String?=adminToken,status: Int=200,key: UUID?=UUID.randomUUID()): JsonNode {
+        val id=UUID.fromString(path.substringAfter("/practice/sessions/").substringBefore('/'))
+        val old=jdbc.query("SELECT client_sequence FROM sync_command WHERE id=?",{r,_->r.getLong(1)},key).firstOrNull()
+        val seq=old ?: (jdbc.queryForObject("SELECT accepted_sequence FROM practice_sync_state WHERE session_id=?",Long::class.java,id)!!+1)
+        val input=json.convertValue(body,Map::class.java).entries.associate { it.key.toString() to it.value }+mapOf("kind" to "FINISH","clientSequence" to seq,"currentIndex" to 0)
+        val route=path.removeSuffix("/finish")+"/sync-commands"
+        val response=raw("POST",route,input,token,key)
+        if(response.statusCode()!=202) { assertEquals(status,response.statusCode(),response.body());return json.readTree(response.body()) }
+        var value=json.readTree(response.body())
+        eventually { value=call("GET","$route/$key",token=token);value["state"].asText() in setOf("COMMITTED","REJECTED","DEAD_LETTER") }
+        if(value["state"].asText()!="COMMITTED") { assertEquals(status,value["failure"]["status"].asInt(),value.toString());return value["failure"] }
+        assertEquals(200,status);return value["result"]
+    }
     protected fun call(method: String,path: String,body: Any?=null,token: String?=adminToken,status: Int=200,key: UUID?=UUID.randomUUID()): JsonNode {
         val operation=qanda.backend.contentsafety.ContentMutations.operation(method,path)
         val proof=if(status in setOf(200,201,409,422,500) && token!=null && body!=null && operation!=null && contentSafety.required(operation)) {

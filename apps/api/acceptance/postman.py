@@ -99,7 +99,7 @@ def main():
                     concrete["deviceId"] = str(uuid.UUID(int=1))
                 if route.startswith("/api/v1/practice/sessions/{id}/") and entry["method"] in ("PUT", "POST") and not route.endswith("self-assessment"):
                     concrete["writerToken"] = str(uuid.UUID(int=1))
-                    if route.endswith("progress-commands"):
+                    if route.endswith("sync-commands"):
                         concrete["clientSequence"] = 1
                 assert not contracts.errors(concrete, schema, owner), operation_id
                 body_sample = template(concrete)

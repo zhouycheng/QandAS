@@ -28,6 +28,10 @@ class PracticeSession {
     var writerToken: UUID? = null
     @TableField(exist = false)
     var acknowledgedSequence: Long = 0
+    @TableField(exist = false)
+    var finishSequence: Long? = null
+    @TableField(exist = false)
+    var bankName: String? = null
 }
 
 @TableName("practice_item")

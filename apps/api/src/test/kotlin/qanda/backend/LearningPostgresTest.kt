@@ -39,8 +39,8 @@ class LearningPostgresTest : PostgresFixture() {
                     answer+mapOf("answer" to mapOf("optionKeys" to listOf(if(correct) "A" else "B"))) else answer
             }
             val body=progressBody(session)+mapOf("items" to items)
-            val saved=progress("/practice/sessions/${id(session)}/progress-commands",body,s.token)
-            val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to saved["version"].asLong(),"durationSeconds" to 0,"writerToken" to body["writerToken"],"autoAddWrongBook" to collect),s.token)
+            val saved=progress("/practice/sessions/${id(session)}/sync-commands",body,s.token)
+            val result=finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to saved["version"].asLong(),"durationSeconds" to 0,"writerToken" to body["writerToken"],"autoAddWrongBook" to collect),s.token)
             assertEquals(if(correct) 0 else 1,result["objective"]["wrong"].asInt())
         }
         fun wrongCount()=call("GET","/me/wrong-questions",token=s.token)["total"].asInt()
@@ -113,17 +113,17 @@ class LearningPostgresTest : PostgresFixture() {
         val originalQuestion=UUID.fromString(originalItem["question"]["id"].asText())
         call("PUT","/admin/questions/$originalQuestion",question(f.bank,"TRUE_FALSE")+mapOf("stem" to "更新后的题干","correctValue" to true,"expectedVersion" to 1))
         val progress=mapOf("expectedVersion" to 1,"currentIndex" to 1,"durationSeconds" to 0,"items" to answers(session),"writerToken" to session["writer"]["writerToken"].asText(),"clientSequence" to 1)
-        val saved=progress("/practice/sessions/$sessionId/progress-commands",progress,s.token)
-        progress("/practice/sessions/$sessionId/progress-commands",progress,s.token,409)
+        val saved=progress("/practice/sessions/$sessionId/sync-commands",progress,s.token)
+        progress("/practice/sessions/$sessionId/sync-commands",progress,s.token,409)
         val restored=call("GET","/practice/sessions/$sessionId",token=s.token)
         assertEquals(session["items"].map { it["itemId"].asText() },restored["items"].map { it["itemId"].asText() })
         assertEquals("原题TRUE_FALSE",restored["items"].first { it["question"]["type"].asText()=="TRUE_FALSE" }["question"]["stem"].asText())
         val finish=mapOf("expectedVersion" to saved["version"].asLong(),"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText())
-        val result=call("POST","/practice/sessions/$sessionId/finish",finish,s.token)
+        val result=finish("/practice/sessions/$sessionId/finish",finish,s.token)
         assertEquals(result,call("GET","/practice/sessions/$sessionId/result",token=s.token))
         assertEquals(1,call("GET","/admin/students/${s.id}/statistics?period=ALL")["practiceCount"].asInt())
         assertEquals(3,result["objective"]["correct"].asInt());assertEquals(1,result["shortAnswer"]["unrated"].asInt())
-        assertEquals(result["id"],call("POST","/practice/sessions/$sessionId/finish",finish,s.token)["id"])
+        assertEquals(result["id"],call("GET","/practice/sessions/$sessionId/result",token=s.token)["id"])
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,sessionId))
         val short=result["items"].first { it["question"]["type"].asText()=="SHORT_ANSWER" }
         call("PUT","/practice/sessions/$sessionId/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to result["version"].asLong(),"assessment" to "WRONG"),s.token)
@@ -145,7 +145,7 @@ class LearningPostgresTest : PostgresFixture() {
 
     @Test fun `statistics use Shanghai calendar days and count one user once across repeated activity`() {
         val s=student();val f=fixture();val session=createPractice(s,f)
-        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
+        val result=finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
         jdbc.update("UPDATE practice_session SET submitted_at=? WHERE id=?",java.sql.Timestamp.from(Instant.parse("2026-10-27T16:30:00Z")),id(session))
         val days=call("GET","/me/statistics/days?startDate=2026-10-27&endDateExclusive=2026-10-29",token=s.token)
         assertEquals(0,days[0]["practiceCount"].asInt());assertEquals(1,days[1]["practiceCount"].asInt())
@@ -192,8 +192,8 @@ class LearningPostgresTest : PostgresFixture() {
         val items=session["items"].map { item -> mapOf("itemId" to item["itemId"].asText(),"answer" to when(item["question"]["type"].asText()) {
             "TRUE_FALSE" -> mapOf("value" to true);"SHORT_ANSWER" -> mapOf("text" to "练习回答");else -> mapOf("optionKeys" to listOf("C"))
         },"confirmed" to true) }
-        progress("/practice/sessions/${id(session)}/progress-commands",mapOf("expectedVersion" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to items),s.token)
-        call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText()),s.token)
+        progress("/practice/sessions/${id(session)}/sync-commands",mapOf("expectedVersion" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to items),s.token)
+        finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText()),s.token)
         val wrong=call("GET","/me/wrong-questions?pageSize=5&sort=urgent&chip=recent",token=s.token)
         assertEquals(6,wrong["total"].asInt());assertEquals(5,wrong["items"].size())
         val wrongSummary=call("GET","/me/question-collections/summary?kind=WRONG",token=s.token)

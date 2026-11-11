@@ -123,19 +123,26 @@ def smoke(port, dataset):
     items = [{'itemId': x['itemId'], 'answer': answer(x), 'confirmed': True} for x in session['items']]
     body = {'expectedVersion': session['version'], 'currentIndex': len(items) - 1, 'durationSeconds': 0, 'writerToken': session['writer']['writerToken'], 'clientSequence': 1, 'items': items}
     key = str(uuid.uuid4()); path = '/practice/sessions/' + session['id']
-    first = api.call('POST', path + '/progress-commands', body, key)
-    api.call('POST', path + '/progress-commands', body, key)
+    first = api.call('POST', path + '/sync-commands', body, key)
+    api.call('POST', path + '/sync-commands', body, key)
     deadline = time.monotonic() + 30
     while True:
-        value = api.call('GET', path + '/progress-commands/' + key)
+        value = api.call('GET', path + '/sync-commands/' + key)
         if value['state'] == 'COMMITTED':
             break
         assert value['state'] not in ('REJECTED', 'DEAD_LETTER'), value['state']
         assert time.monotonic() < deadline, 'Smoke commit timeout'; time.sleep(0.1)
     ack = value['acknowledgement']; assert ack['acknowledgedSequence'] == 1
-    finish = {'expectedVersion': ack['version'], 'durationSeconds': 0, 'writerToken': session['writer']['writerToken'], 'items': items}
-    key = str(uuid.uuid4()); result = api.call('POST', path + '/finish', finish, key)
-    duplicate = api.call('POST', path + '/finish', finish, key)
+    finish = dict(body, expectedVersion=ack['version'], clientSequence=2, kind='FINISH')
+    key = str(uuid.uuid4()); api.call('POST', path + '/sync-commands', finish, key)
+    api.call('POST', path + '/sync-commands', finish, key)
+    deadline = time.monotonic() + 30
+    while True:
+        value = api.call('GET', path + '/sync-commands/' + key)
+        if value['state'] == 'COMMITTED': break
+        assert value['state'] not in ('REJECTED', 'DEAD_LETTER'), value['state']
+        assert time.monotonic() < deadline, 'Smoke finalization timeout'; time.sleep(0.1)
+    result = value['result']; duplicate = api.call('GET', path + '/sync-commands/' + key)['result']
     assert duplicate['id'] == result['id'] and result['answeredCount'] == len(items)
     assert result['objective']['wrong'] == 0
     return {'passed': True, 'accepted_state': first['state'], 'committed': True, 'duplicate_finish_same_result': True, 'answered': result['answeredCount']}

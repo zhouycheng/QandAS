@@ -248,7 +248,7 @@ def collect():
         status, data = fetch(row, 9091, '/actuator/prometheus')
         ready, _ = fetch(row, 9091, '/actuator/health/readiness')
         result['containers'][row['Name'].lstrip('/')]['probe_ok'] = ready == 200
-        keep = ('http_server_requests_', 'hikaricp_', 'jvm_gc_', 'jvm_memory_', 'process_cpu_', 'tomcat_threads_', 'qanda_http_', 'qanda_content_cache_')
+        keep = ('http_server_requests_', 'hikaricp_', 'jvm_gc_', 'jvm_memory_', 'process_cpu_', 'tomcat_threads_', 'qanda_http_', 'qanda_content_cache_', 'qanda_sync_')
         return row['Name'].lstrip('/'), {'status': status, 'metrics': '\n'.join(line for line in data.splitlines() if line.startswith(keep))}
     with concurrent.futures.ThreadPoolExecutor(3) as pool:
         result['application'] = dict(pool.map(metrics, rows[:3]))

@@ -76,7 +76,9 @@ async function main() {
   complete({ ok: true, version: 2 })
   await first
   assert.strictEqual(queue.get('s1').acknowledgedSequence, 1)
-  assert.strictEqual(queue.get('s1').sequence, 2)
+  assert.strictEqual(queue.get('s1').revision, 2)
+  assert.strictEqual(queue.get('s1').sequence, 1)
+  clock += 5000
   const second = queue.flush('s1')
   await Promise.resolve()
   complete({ ok: false, statusCode: 0 })
@@ -131,12 +133,13 @@ async function main() {
   accepted.save('async', { answer: 2 })
   accepted.stop()
   const afterKill = createSyncQueue(Object.assign({}, settings, { send: async (_id, command) => {
-    assert.deepStrictEqual(command, acceptedCommand, '重启后保持原请求和幂等键')
+    assert.deepStrictEqual(command.payload, acceptedCommand.payload, '重启后保持原请求正文')
+    assert.strictEqual(command.idempotencyKey, acceptedCommand.idempotencyKey)
     return { ok: true, acknowledgedSequence: command.sequence }
   } }))
-  clock += 1000
+  clock += 2000
   await afterKill.flush('async')
-  assert.strictEqual(afterKill.get('async').sequence, 2)
+  assert.strictEqual(afterKill.get('async').revision, 2)
   assert.strictEqual(afterKill.get('async').acknowledgedSequence, 1, '仅确认已发送序号')
   assert.deepStrictEqual(afterKill.get('async').payload, { answer: 2 })
   assert.strictEqual(afterKill.removeConfirmed('async'), false)

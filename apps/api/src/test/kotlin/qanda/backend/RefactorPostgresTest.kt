@@ -34,7 +34,7 @@ class RefactorPostgresTest : PostgresFixture() {
         val s=student();val f=fixture()
         repeat(2) {
             val session=createPractice(s,f)
-            call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,
+            finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,
                 "writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
         }
         val bank=call("GET","/admin/question-banks/"+f.bank)

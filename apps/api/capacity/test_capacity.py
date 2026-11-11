@@ -23,6 +23,19 @@ import tunnel as transport_tunnel
 
 
 class CapacityTests(unittest.TestCase):
+    def test_pending_local_intents_are_reconciled_and_delivered_before_audit(self):
+        from run import deliver_pending_intents
+        remote=SimpleNamespace(config={'port': 1})
+        api=Mock();api.request.side_effect=[(404, {}),(202, {'state': 'QUEUED'})]
+        events=[{'event': 'intent','id': 'known','userIndex': 0,'session': 'practice','body': {'clientSequence': 1}},
+                {'event': 'accepted','id': 'known'},
+                {'event': 'intent','id': 'pending','userIndex': 0,'session': 'practice','body': {'clientSequence': 2}}]
+        with patch('run.Api',return_value=api):
+            result=deliver_pending_intents(remote,{'users':[{'token':'isolated'}]},events,Path('.'))
+        self.assertEqual(result,{'intents':2,'delivered':2,'recovered_uploads':1})
+        self.assertEqual(api.request.call_args_list[0].args[:2],('GET','/practice/sessions/practice/sync-commands/pending'))
+        self.assertEqual(api.request.call_args_list[1].args,('POST','/practice/sessions/practice/sync-commands',{'clientSequence':2},'pending'))
+
     def test_sync_retry_matches_client_backoff_jitter_and_retry_after(self):
         subprocess.run(['node', '--input-type=module', '-e', '''
 import assert from 'node:assert/strict';
@@ -310,7 +323,7 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertAlmostEqual(value['successful_rps'], .5)
 
     def test_busy_polling_cannot_hide_slow_session_creation(self):
-        rows = [(i, 'http_req_duration', 20, {'name': 'GET /progress-commands/:id'}) for i in range(100)]
+        rows = [(i, 'http_req_duration', 20, {'name': 'GET /sync-commands/:id'}) for i in range(100)]
         rows.append((101, 'http_req_duration', 5000, {'name': 'POST /practice/sessions'}))
         value = summarize(rows)
         self.assertEqual(value['p95_ms'], 20)

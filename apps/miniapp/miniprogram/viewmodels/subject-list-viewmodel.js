@@ -14,7 +14,7 @@ const questionSearch = require('../utils/question-search.js');
 const STUDY_ENTRIES = [
     {
         key: 'recent',
-        label: '最近练习',
+        label: '练习记录',
         description: '接着上次的题库继续'
     },
     {
@@ -364,46 +364,10 @@ class SubjectListViewModel {
         return null;
     }
     /** 最近练习同时提供续答和历史成绩入口。 */
-    openRecent(loaded) {
-        if (!loaded)
-            return this.repository.refreshRemote(this.storage, 'recent').then(() => this.openRecent(true));
-        const recent = this.repository.getRemoteRecent(this.storage).filter(item => ['IN_PROGRESS', 'SUBMITTED'].includes(item.status));
-        const runtime = require('../repositories/online-practice.js').current();
-        if (recent.length > 1) {
-            const choices = [];
-            recent.filter(item => !choices.some(choice => choice.id === item.id)).forEach(item => {
-                const meta = this.repository.getScopeMeta(item.questionBankId);
-                const snapshot = runtime && runtime.get && runtime.get(item.id);
-                if (snapshot && snapshot.viewCompleted)
-                    return;
-                const createdAt = Date.parse(item.createdAt);
-                const time = Number.isFinite(createdAt) ? new Date(createdAt + 8 * 3600000).toISOString().slice(5, 16).replace('T', ' ') : '';
-                choices.push({ id: item.id, label: `${item.status === 'SUBMITTED' ? '结果' : '继续'} · ${meta ? meta.title : snapshot && snapshot.title || '练习'} · ${time}` });
-            });
-            return { command: { type: 'choosePractice', choices } };
-        }
-        const record = recent.find((item) => item.status === 'IN_PROGRESS') || recent.find((item) => item.status === 'SUBMITTED');
-        if (record)
-            return this.openPractice(`/page/practice/index?sessionId=${encodeURIComponent(record.id)}`, record.status === 'SUBMITTED' ? '查看练习结果' : '继续练习');
-        const lastPractice = this.buildLastPractice(this.repository.getProgress(this.storage));
-        if (lastPractice && lastPractice.resumed && lastPractice.url) {
-            return this.openPractice(lastPractice.url, lastPractice.title);
-        }
-        if (lastPractice) {
-            return {
-                command: {
-                    type: 'toast',
-                    title: `上次做过「${lastPractice.title}」，去题库继续`
-                }
-            };
-        }
-        return {
-            command: {
-                type: 'toast',
-                title: '还没有练习记录，先去题库开始第一套'
-            }
-        };
+    openRecent() {
+        return this.openPersonalPage('/page/practice-records/index');
     }
+
     openMock() {
         return { command: { type: 'switchTab', url: '/page/bank-detail/index', target: { intent: 'test' } } };
     }

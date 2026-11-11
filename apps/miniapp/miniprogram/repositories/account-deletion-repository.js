@@ -6,7 +6,7 @@ function clean(storage, id) {
   const runtime = require('./online-practice.js').current()
   if (runtime && runtime.userId === id && runtime.queue) runtime.queue.stop()
   const prefixes = ['qandaOnline:', 'qandaSync:v1:'].map(prefix => prefix + id + ':')
-  const exact = ['qandaReadCache:', 'qandaOnlineLast:', 'qandaOnlineCreate:', 'qandaOnlineCompleted:', 'qandaViewClosures:'].map(prefix => prefix + id)
+  const exact = ['qandaReadCache:', 'qandaOnlineLast:', 'qandaOnlineCreate:', 'qandaPracticeRecords:', 'qandaOnlineCompleted:', 'qandaViewClosures:'].map(prefix => prefix + id)
   const keys = storage.keysStrict ? storage.keysStrict() : storage.keys()
   keys.filter(key => exact.includes(key) || prefixes.some(prefix => key.startsWith(prefix))).forEach(key => storage.remove(key))
   const preview = storage.get('qandaScopePreview')
