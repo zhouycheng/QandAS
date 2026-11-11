@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import org.apache.ibatis.session.SqlSessionFactory
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -28,6 +29,14 @@ class ContentRedisPostgresTest: PostgresFixture() {
             r.add("spring.data.redis.host") { redis.host };r.add("spring.data.redis.port") { redis.getMappedPort(6379) }
             r.add("spring.data.redis.password") { "isolated-cache-password" }
             r.add("qanda.backend.content-cache.namespace") { namespace }
+        }
+    }
+    @Autowired lateinit var cache: ContentCache
+    @BeforeEach fun waitForHealthyCache() {
+        // A cold connection may trip the short production timeout and its recovery window.
+        eventually {
+            cache.put("readiness",mapOf("ready" to CachedBankCounts(1,1)))
+            cache.read("readiness",listOf("ready"),CachedBankCounts::class.java)["ready"]==CachedBankCounts(1,1)
         }
     }
     @Autowired lateinit var cacheRedis: StringRedisTemplate
@@ -92,7 +101,7 @@ class ContentRedisPostgresTest: PostgresFixture() {
     @Test fun `cache timeout falls back to PostgreSQL and recovers`() {
         val f=fixture();val learner=student();call("GET","/question-banks/${f.bank}",token=learner.token)
         val failures=meters.get("qanda.content.cache.failures").counter().count()
-        val paused=redis.execInContainer("sh","-c","REDISCLI_AUTH=isolated-cache-password redis-cli CLIENT PAUSE 350 ALL")
+        val paused=redis.execInContainer("sh","-c","REDISCLI_AUTH=isolated-cache-password redis-cli CLIENT PAUSE 1500 ALL")
         assertEquals(0,paused.exitCode)
         assertEquals(4,call("GET","/question-banks/${f.bank}",token=learner.token)["questionCount"].asInt())
         assertTrue(meters.get("qanda.content.cache.failures").counter().count()>failures)
