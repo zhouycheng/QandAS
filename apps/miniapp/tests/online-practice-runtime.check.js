@@ -165,6 +165,7 @@ async function main() {
   shortSnapshot.items[0].confirmed = true
   shortSnapshot.items[0].outcome = 'SELF_RATED'
   shortSnapshot.items[0].selfAssessment = 'WRONG'
+  shortSnapshot.result.items = copy(shortSnapshot.items)
   restarted.put('s4', shortSnapshot)
   const assessmentVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}) } })
   assessmentVm.online = restarted
@@ -205,6 +206,8 @@ async function main() {
   assert.strictEqual(reviewedAssessment.data.isViewMode, true)
   assert.strictEqual(reviewedAssessment.data.isCompleted, false)
   assert.strictEqual(reviewedAssessment.data.answerLocked, true)
+  const reopened = restarted.restored(restarted.get('s4'))
+  assert.strictEqual(reopened.answers[0].selfAssessment, 'CORRECT', '重新打开使用最新正式自评')
   assessmentVm.session.state.awaitingResult = true
   assert.strictEqual(await assessmentVm.assessResult('q1', 'WRONG'), null)
   assessmentVm.session.state.awaitingResult = false

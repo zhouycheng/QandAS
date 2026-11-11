@@ -17,7 +17,7 @@ function records(remoteItems, localItems) {
 }
 
 class PracticeRecordsViewModel {
-  constructor(storage) { this.storage = storage; this.remoteItems = []; this.page = 0; this.owner = auth.getAuth(storage).userId }
+  constructor(storage) { this.storage = storage; this.remoteItems = []; this.page = 0; this.visiblePage = 0; this.owner = auth.getAuth(storage).userId }
   local() {
     const runtime = online.current(), identity = auth.getAuth(this.storage)
     if (!runtime || !identity.loggedIn || identity.userId !== this.owner) return []
@@ -38,16 +38,18 @@ class PracticeRecordsViewModel {
     }
     return Object.values(entries || {})
   }
-  view() { return records(this.remoteItems, this.local()).slice(0, Math.max(1, this.page) * 20) }
+  view() { return records(this.remoteItems, this.local()).slice(0, Math.max(1, this.visiblePage) * 20) }
   open(item) { return openRecord(item) }
   async load(reset) {
     const identity = auth.getAuth(this.storage)
     if (!identity.loggedIn || identity.userId !== this.owner) return { items: [], error: '请登录原账号后查看练习记录', hasMore: false }
-    const page = reset ? 1 : this.page + 1
+    this.visiblePage = reset ? 1 : this.visiblePage + 1
+    if (reset) this.page = 0
+    const page = this.page + 1
     const result = await http.request('GET', `/me/recent-learning?page=${page}&pageSize=20&deviceId=${auth.deviceId(this.storage)}`, null, { token: identity.token })
     if (auth.getAuth(this.storage).userId !== this.owner) return { items: [], error: '账号已切换', hasMore: false }
-    if (result.ok) { this.page = page; this.remoteItems = (reset ? [] : this.remoteItems).concat(result.data.items); this.total = result.data.total }
-    return { items: this.view(), error: result.ok ? '' : result.reason || '暂时无法读取服务器记录，本机记录已保留', hasMore: this.remoteItems.length < (this.total || 0) || merge(this.remoteItems, this.local()).length > this.page * 20 }
+    if (result.ok) { this.page = page; this.remoteItems = (page === 1 ? [] : this.remoteItems).concat(result.data.items); this.total = result.data.total }
+    return { items: this.view(), error: result.ok ? '' : result.reason || '暂时无法读取服务器记录，本机记录已保留', hasMore: this.remoteItems.length < (this.total || 0) || merge(this.remoteItems, this.local()).length > this.visiblePage * 20 }
   }
 }
 module.exports = { PracticeRecordsViewModel, records }

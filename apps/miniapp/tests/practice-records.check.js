@@ -1,6 +1,7 @@
 const assert = require('assert')
 const { summarize, openRecord } = require('../miniprogram/models/practice-record-summary.js')
-const { records } = require('../miniprogram/viewmodels/practice-records-viewmodel.js')
+const http = require('../miniprogram/repositories/http-gateway.js')
+const { records, PracticeRecordsViewModel } = require('../miniprogram/viewmodels/practice-records-viewmodel.js')
 const { createSyncQueue } = require('../miniprogram/repositories/practice-sync-queue.js')
 async function main() {
   const list = records([{ id: 'one', status: 'IN_PROGRESS', createdAt: '2026-11-01' }, { id: 'two', status: 'SUBMITTED', createdAt: '2026-11-02' }], [{ id: 'one', finishIntent: true, createdAt: '2026-11-03', items: [{}, {}] }])
@@ -37,6 +38,23 @@ async function main() {
   assert(queue.save('session', { progress: { items: [{ answer: 'changed' }] } }).unchanged)
   assert.strictEqual(queue.get('session').payload.progress.items[0].answer, 'final')
   queue.stop()
+  const ownerStorage = { get: key => key === 'qandaAuth' ? { provider: 'email', userId: 'owner', token: 'token' } : 'device' }
+  const vm = new PracticeRecordsViewModel(ownerStorage)
+  vm.local = () => Array.from({ length: 35 }, (_, i) => ({ id: 'local-' + i, status: 'IN_PROGRESS' }))
+  vm.page = 5
+  const request = http.request, pages = []
+  http.request = async (_method, path) => { pages.push(path); return { ok: false } }
+  try {
+    assert.strictEqual((await vm.load(true)).items.length, 20)
+    const next = await vm.load(false)
+    assert.strictEqual(next.items.length, 35)
+    assert.strictEqual(next.hasMore, false)
+    assert(pages.every(path => path.includes('page=1&')), '离线翻页不跳过未成功读取的远端页')
+    http.request = async (_method, path) => { pages.push(path); return { ok: true, data: { items: [], total: 0 } } }
+    await vm.load(false)
+    assert(pages.at(-1).includes('page=1&'))
+    assert.strictEqual(vm.page, 1)
+  } finally { http.request = request }
   console.log('practice records and durable finalization survive twelve transient failures and restarts')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
