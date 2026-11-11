@@ -43,6 +43,10 @@ class IntegrationEnvironmentTest(unittest.TestCase):
                     self.assertNotIn("password", config[name])
                 self.assertIn("BACKEND_CONTENT_SAFETY_PROVIDER=local", (private / "backend.env").read_text())
                 self.assertIn("BACKEND_MAIL_TRANSPORT=local-capture", (private / "backend.env").read_text())
+                values=dict(line.split('=',1) for line in (private/'backend.env').read_text().splitlines() if '=' in line)
+                self.assertGreaterEqual(len(values['BACKEND_REDIS_PASSWORD']),16)
+                self.assertEqual('56380',values['BACKEND_REDIS_PORT'])
+                self.assertTrue(values['BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS'].startswith('1:'))
                 with self.assertRaises(RuntimeError):
                     integration.initialize()
                 self.assertEqual(original, integration.CONFIG.read_bytes())

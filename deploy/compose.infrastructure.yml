@@ -37,6 +37,27 @@ services:
       retries: 30
     restart: unless-stopped
     mem_limit: 384m
+  redis:
+    image: redis:8.10.3-alpine
+    user: redis
+    entrypoint: [/bin/sh, /usr/local/bin/qanda-redis-start]
+    environment:
+      BACKEND_REDIS_PASSWORD: ${BACKEND_REDIS_PASSWORD:?required}
+    volumes: [./redis-start.sh:/usr/local/bin/qanda-redis-start:ro]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=1m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      data:
+        aliases: [qanda-redis]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$BACKEND_REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    mem_limit: 192m
   prometheus:
     image: prom/prometheus:v3.5.0
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=15d]

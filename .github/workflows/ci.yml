@@ -95,7 +95,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.scope != 'frontend' && vars.QANDA_PREPARE_INFRA == 'true'
         run: |
           set -euo pipefail
-          images=(postgres:17.6-alpine rabbitmq:4.2.5-management prom/prometheus:v3.5.0 nginx:1.28-alpine)
+          images=(postgres:17.6-alpine rabbitmq:4.2.5-management redis:8.10.3-alpine prom/prometheus:v3.5.0 nginx:1.28-alpine)
           for image in "${images[@]}"; do docker pull --platform linux/amd64 "$image"; done
           docker save "${images[@]}" | gzip -1 > release/infrastructure.tar.gz
           cd release

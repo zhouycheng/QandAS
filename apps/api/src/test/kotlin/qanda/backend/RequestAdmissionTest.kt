@@ -18,11 +18,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class RequestAdmissionTest {
-    private class Fixture(capacity: Int=1) {
+    private class Fixture(capacity: Int=1,queue: Int=0,wait: Long=0) {
         val audit=mock(AuditFailures::class.java)
         val errors=ErrorWriter(jacksonObjectMapper(),StaticListableBeanFactory(mapOf("audit" to audit)).getBeanProvider(AuditFailures::class.java))
         val registry=SimpleMeterRegistry()
-        val filter=RequestAdmissionFilter(errors,MockEnvironment().withProperty("qanda.backend.max-concurrent-requests",capacity.toString()),registry)
+        val filter=RequestAdmissionFilter(errors,MockEnvironment().withProperty("qanda.backend.max-concurrent-requests",capacity.toString())
+            .withProperty("qanda.backend.request-queue-capacity",queue.toString()).withProperty("qanda.backend.request-queue-wait-ms",wait.toString()),registry)
         fun request(path: String="/api/v1/me")=MockHttpServletRequest("GET",path)
     }
 
@@ -51,6 +52,41 @@ class RequestAdmissionTest {
         var served=false
         f.filter.doFilter(f.request(),MockHttpServletResponse(),FilterChain { _,_ -> served=true })
         assertTrue(served);assertEquals(0.0,f.registry.get("qanda.http.inflight").gauge().value())
+    }
+
+    @Test fun `short bursts wait within the bounded queue and reuse released capacity`() {
+        val f=Fixture(queue=1,wait=1000);val firstEntered=CountDownLatch(1);val release=CountDownLatch(1);val pool=Executors.newFixedThreadPool(2)
+        val first=pool.submit { f.filter.doFilter(f.request(),MockHttpServletResponse(),FilterChain { _,_ -> firstEntered.countDown();check(release.await(5,TimeUnit.SECONDS)) }) }
+        try {
+            assertTrue(firstEntered.await(5,TimeUnit.SECONDS))
+            val response=MockHttpServletResponse();val served=CountDownLatch(1)
+            val queued=pool.submit { f.filter.doFilter(f.request(),response,FilterChain { _,_ -> served.countDown() }) }
+            val deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(2)
+            while(f.registry.get("qanda.http.queued").gauge().value()==0.0 && System.nanoTime()<deadline) Thread.yield()
+            assertEquals(1.0,f.registry.get("qanda.http.queued").gauge().value())
+            val excess=MockHttpServletResponse()
+            f.filter.doFilter(f.request(),excess,FilterChain { _,_ -> fail<Unit>("The waiting queue must remain bounded") })
+            assertEquals(503,excess.status)
+            release.countDown();first.get(5,TimeUnit.SECONDS);queued.get(5,TimeUnit.SECONDS)
+            assertTrue(served.await(1,TimeUnit.SECONDS));assertEquals(200,response.status)
+            assertEquals(0.0,f.registry.get("qanda.http.queued").gauge().value());assertEquals(0.0,f.registry.get("qanda.http.inflight").gauge().value())
+        } finally { release.countDown();pool.shutdownNow() }
+    }
+
+    @Test fun `waiting requests expire and interrupted waiters release their queue slot`() {
+        val f=Fixture(queue=1,wait=20)
+        f.filter.doFilter(f.request(),MockHttpServletResponse(),FilterChain { _,_ ->
+            val response=MockHttpServletResponse();val start=System.nanoTime()
+            f.filter.doFilter(f.request(),response,FilterChain { _,_ -> fail<Unit>("Expired work must not enter the handler") })
+            assertEquals(503,response.status);assertTrue(System.nanoTime()-start>=TimeUnit.MILLISECONDS.toNanos(15))
+            assertEquals(0.0,f.registry.get("qanda.http.queued").gauge().value())
+        })
+        Thread.currentThread().interrupt()
+        try {
+            val response=MockHttpServletResponse();f.filter.doFilter(f.request(),response,FilterChain { _,_ -> fail<Unit>("Interrupted work must not enter the handler") })
+            assertEquals(503,response.status);assertTrue(Thread.currentThread().isInterrupted)
+        } finally { Thread.interrupted() }
+        assertEquals(0.0,f.registry.get("qanda.http.inflight").gauge().value())
     }
 
     @Test fun `health and management probes remain available while business capacity is occupied`() {
@@ -82,5 +118,7 @@ class RequestAdmissionTest {
 
     @Test fun `nonpositive request capacity is rejected at startup`() {
         assertThrows(IllegalArgumentException::class.java) { Fixture(0) }
+        assertThrows(IllegalArgumentException::class.java) { Fixture(queue=-1) }
+        assertThrows(IllegalArgumentException::class.java) { Fixture(wait=1001) }
     }
 }

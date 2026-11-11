@@ -18,18 +18,23 @@ import com.fasterxml.jackson.databind.ObjectMapper
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
                      private val revisions: QuestionRevisionMapper,private val categories: BankCategoryMapper,private val files: FileAssetMapper,
                      private val accounts: AccountDirectory,private val directory: CatalogDirectory,
-                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val reader: QuestionReader) {
+                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val reader: QuestionReader,private val cache: ContentCache) {
     fun bankViewsByIds(ids: List<UUID>): List<BankView> = if(ids.isEmpty()) emptyList() else bankViews(banks.selectByIds(ids),false)
     fun bankView(row: QuestionBank,admin: Boolean): BankView = bankViews(listOf(row),admin).first()
     private fun bankViews(rows: List<QuestionBank>,admin: Boolean,userId: UUID?=null): List<BankView> {
         if(rows.isEmpty()) return emptyList()
-        val ids=rows.map { it.id!! };val facts=sql.bankListFacts(ids,userId).associateBy { it.bankId }
+        val ids=rows.map { it.id!! };val versions=rows.associate { it.id!! to "${it.id}:${it.contentVersion}" }
+        val cached=cache.read("bank-counts",versions.values.toList(),CachedBankCounts::class.java)
+            .filterValues { it.questionCount>=0 && it.activeQuestionCount in 0..it.questionCount }
+        val missing=ids.filter { versions.getValue(it) !in cached }
+        val facts=sql.bankListFacts(ids,userId,missing).associateBy { it.bankId }
+        cache.put("bank-counts",missing.associate { id -> val fact=facts.getValue(id);versions.getValue(id) to CachedBankCounts(fact.questionCount,fact.activeQuestionCount) })
         val audienceRows=sql.bankCategories(ids).groupBy { it.bankId }
         val maintainers=if(admin) sql.bankMaintainers(ids).groupBy { it.bankId } else emptyMap()
-        return rows.map { row -> val f=facts.getValue(row.id)
+        return rows.map { row -> val f=facts.getValue(row.id);val counts=cached[versions.getValue(row.id!!)] ?: CachedBankCounts(f.questionCount,f.activeQuestionCount)
             BankView(row.id!!,row.subjectId!!,row.name,row.description,row.textbook,row.status,row.publicationStatus,
                 audienceRows[row.id].orEmpty().map { CategoryInput(it.collegeId,it.majorId,it.grade) },
-                maintainers[row.id].orEmpty().map { it.adminId!! },row.version,row.contentVersion,if(admin) f.questionCount else f.activeQuestionCount,f.activeQuestionCount,row.updatedAt,f.subjectName,
+                maintainers[row.id].orEmpty().map { it.adminId!! },row.version,row.contentVersion,if(admin) counts.questionCount else counts.activeQuestionCount,counts.activeQuestionCount,row.updatedAt,f.subjectName,
                 userId?.let { BankProgressView(f.answeredCount,f.correctCount,f.wrongCount,f.wrongBookCount) })
         }
     }

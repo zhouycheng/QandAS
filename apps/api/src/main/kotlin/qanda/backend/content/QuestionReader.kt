@@ -8,7 +8,7 @@ import java.util.UUID
 
 @Service
 class QuestionReader(private val questions: QuestionMapper, private val revisions: QuestionRevisionMapper,
-                     private val sql: ContentQueries, private val json: ObjectMapper) {
+                     private val sql: ContentQueries, private val json: ObjectMapper,private val cache: ContentCache) {
     fun read(refs: List<RevisionReference>, answers: Boolean): List<QuestionView> {
         if (refs.isEmpty()) return emptyList()
         val questionRows = questions.selectByIds(refs.map { it.questionId }.distinct()).associateBy { it.id }.toMutableMap()
@@ -16,21 +16,32 @@ class QuestionReader(private val questions: QuestionMapper, private val revision
         if (parents.isNotEmpty()) questions.selectByIds(parents).forEach { questionRows[it.id] = it }
         val revisionRows = mutableMapOf<UUID, QuestionRevision>()
         val metadata = mutableMapOf<UUID, QuestionContentData>()
+        val options = mutableMapOf<UUID,List<QuestionOption>>()
+        val attachments = mutableMapOf<UUID,List<UUID>>()
+        val uncached = mutableSetOf<UUID>()
         var needed = refs.flatMap { ref -> listOfNotNull(ref.revisionId ?: questionRows[ref.questionId]?.currentRevisionId,
             ref.materialRevisionId ?: questionRows[questionRows[ref.questionId]?.readingParentId]?.currentRevisionId) }.distinct()
         while (needed.isNotEmpty()) {
-            val loaded = revisions.selectByIds(needed)
+            val cached=cache.read("question-revision",needed.map(UUID::toString),CachedRevision::class.java)
+                .filter { (id,value) -> value.revision.id?.toString()==id }
+            val misses=needed.filter { it.toString() !in cached };uncached.addAll(misses)
+            val loadedRows=if(misses.isEmpty()) emptyList() else revisions.selectByIds(misses)
+            val loaded=cached.values.map { it.revision }+loadedRows
             if (loaded.size != needed.size) missing()
+            cached.values.forEach { options[it.revision.id!!]=it.options;attachments[it.revision.id!!]=it.attachments }
             loaded.forEach { row -> revisionRows[row.id!!] = row; metadata[row.id!!] = json.readValue(row.contentData, QuestionContentData::class.java) }
             val children = loaded.flatMap { metadata.getValue(it.id!!).children }
             val ids = children.map { it.id }.filter { it !in questionRows }.distinct()
             if (ids.isNotEmpty()) questions.selectByIds(ids).forEach { questionRows[it.id] = it }
             needed = children.map { it.revisionId }.filter { it !in revisionRows }.distinct()
         }
-        val ids = revisionRows.keys.toList()
-        val options = sql.batchOptions(ids).groupBy { it.revisionId }
-        val attachments = sql.batchAttachments(ids).groupBy { it.revisionId }
-        fun assets(id: UUID) = attachments[id].orEmpty().map { it.fileId!! }
+        if(uncached.isNotEmpty()) {
+            val ids=uncached.toList()
+            sql.batchOptions(ids).groupBy { it.revisionId }.forEach { (id,rows) -> options[id!!]=rows }
+            sql.batchAttachments(ids).groupBy { it.revisionId }.forEach { (id,rows) -> attachments[id!!]=rows.map { it.fileId!! } }
+            cache.put("question-revision",ids.associate { id -> id.toString() to CachedRevision(revisionRows.getValue(id),options[id].orEmpty(),attachments[id].orEmpty()) })
+        }
+        fun assets(id: UUID) = attachments[id].orEmpty()
         fun view(ref: RevisionReference): QuestionView {
             val q = questionRows[ref.questionId] ?: missing()
             val r = revisionRows[ref.revisionId ?: q.currentRevisionId] ?: missing()

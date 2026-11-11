@@ -8,20 +8,22 @@
 
 ## 运行结构
 
-主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ 和 Prometheus 独立运行，普通发布只更新应用服务。
+主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ、Redis 和 Prometheus 独立运行，普通发布只更新应用服务。
 
 运行目录为 `/srv/qanda`，生产配置为该目录内权限 `600` 的 `production.env`，字段见 `deploy/production.env.example`。数据库、队列、附件、指标分别保存在固定的 `qanda-production-*` Docker 卷中。部署不清理镜像或持久卷。
 
-当前资源限制面向小规模起步：API 堆 256 MiB、worker 堆 192 MiB、monitor 堆 128 MiB；容器分别限制为 448、384、384 MiB，保留 JVM 本地内存空间。全套容器上限合计约 2.1 GiB；实际容量须依据内存、GC、延迟和同步积压测量。首次部署要求至少 1.5 GiB 可用内存、3 GiB 可用磁盘。
+当前资源限制面向小规模起步：API 堆 256 MiB、worker 堆 192 MiB、monitor 堆 128 MiB；容器分别限制为 448、384、384 MiB，保留 JVM 本地内存空间。Redis 容器上限 192 MiB，缓存数据上限 96 MiB，采用 LFU 淘汰并关闭持久化。后端全套容器上限合计约 2.3 GiB；实际容量须依据内存、GC、延迟和同步积压测量。首次部署要求至少 1.5 GiB 可用内存、3 GiB 可用磁盘。
 
 普通业务请求按来源 IP 限流：同一来源每 60 秒最多 60000 次，账号读写不设固定配额。`BACKEND_REQUEST_LIMITS_ENABLED` 默认 `true`，控制该来源 IP 保护。隔离容量测试可临时设为 `false`；认证、权限、验证码发送间隔和登录失败保护继续生效，测试结束后恢复原配置。
 
-每个后端进程默认同时执行最多 32 个业务 HTTP 请求，由 `BACKEND_MAX_CONCURRENT_REQUESTS` 配置为正整数。入口拥挤时返回 `503 SERVER_BUSY` 和 `Retry-After: 1`，客户端保留草稿并沿用幂等键重试；健康及管理探针保持独立。入口拒绝在进入业务事务前完成，拥挤次数通过 `qanda_http_overload_rejections_total` 统计，同时处理数通过 `qanda_http_inflight` 观察。来源 IP 超额拒绝同样直接返回 429；两类入口拒绝使用运行指标记录，普通业务与身份失败继续写入审计。
+每个后端进程默认同时执行最多 32 个业务 HTTP 请求，由 `BACKEND_MAX_CONCURRENT_REQUESTS` 配置为正整数；`BACKEND_REQUEST_QUEUE_CAPACITY` 默认 64，`BACKEND_REQUEST_QUEUE_WAIT_MS` 默认 100 毫秒，允许范围为 0–1000 毫秒。等待人数或时限超出后返回 `503 SERVER_BUSY` 和 `Retry-After: 1`，客户端保留草稿并沿用幂等键重试；健康及管理探针保持独立。入口准入在身份及业务事务前完成，处理数、等待人数、等待耗时和拒绝数量分别提供指标。来源 IP 超额直接返回 429，普通业务与身份失败继续写入审计。
+
+`BACKEND_CONTENT_CACHE_ENABLED` 在安装模板中为 `true`。题库题量及不可变题目修订使用 Redis；权限、会话、个人进度和练习记录实时读取 PostgreSQL。Redis 只连接 Docker 数据内网，需要独立随机密码，不发布主机端口。缓存连接或命令超时后回源，并短暂绕过缓存；其可用性不参与业务就绪判定。
 
 ## 首次安装
 
 1. 核对主服务器的 Tailscale 身份、已有服务、端口和 Docker 网络；`172.29.71.0/24` 需未被占用。
-2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信和腾讯云 SES 参数，并为数据库、队列、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置会保留；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
+2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信和腾讯云 SES 参数，并为数据库、队列、缓存、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置会补齐缺失的缓存字段；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
 3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
 5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 执行已发布的数据库迁移。
@@ -33,6 +35,8 @@
 Actions runner 使用 GitHub 托管环境。服务器上的 Compose、脚本和配置均由 root 管理。`qanda-deploy` 负责发布、回滚和发布状态；`qanda-debug` 负责题小搭应用容器的状态、日志、Shell 和重启，权限通过受限入口校验。
 
 分包配置可以先单独验证运维连接：安装对应的 `node.json` 和 `node.env` 后运行 `sudo bash deploy/install.sh --control-only`。此模式安装运维入口并准备网络，保留正在运行的应用、基础服务和备份计时器；登记 SSH 公钥、完成容器节点登录并启动运维服务后，运行 Actions 的 `check`。业务切换时再执行完整安装和 `deploy`。
+
+已有后端首次升级到缓存版本时，管理员先复制当前版本部署文件并运行一次完整 `deploy/install.sh`，安装器自动补齐缓存配置、安装候选检查及 Redis 启动脚本，并创建 Redis 基础服务。随后运行 **Deploy backend → deploy**。常规 Actions 仅传应用镜像和发布请求，后续应用更新继续使用该入口；基础设施升级由管理员执行。
 
 ## GitHub 与 Tailscale
 
@@ -60,13 +64,13 @@ Subject 使用 `gh api repos/<当前仓库全名>/actions/oidc/customization/sub
 }
 ```
 
-`2222` 使用经过 Tailscale 的普通 OpenSSH，服务器强制执行 `remote-entry.py`，并关闭 SSH 转发、SFTP 和主机交互 Shell；Docker 操作由服务器端白名单检查。两个 GHCR 软件包 `qanda-backend`、`qanda-web` 及其构建缓存保持私有，授予本仓库 Actions 读写权限。后端 workflow 经受限 SSH 提交不可变镜像摘要和短期 `GITHUB_TOKEN`，服务器登录 GHCR 并拉取该摘要，随后核对仓库来源标签和源码提交标签。管理端 workflow 则经同一受限入口流式传输镜像归档，runner、服务器分别校验 SHA-256，服务器核对 Docker manifest 和镜像标签后加载。服务器收到的请求由 root-only 状态目录暂存，systemd 开始应用后立即移除；Docker 登录配置只保存在 `/run` 下的临时目录。
+`2222` 使用经过 Tailscale 的普通 OpenSSH，服务器强制执行 `remote-entry.py`，并关闭 SSH 转发、SFTP 和主机交互 Shell；Docker 操作由服务器端白名单检查。两个 GHCR 软件包 `qanda-backend`、`qanda-web` 及其构建缓存保持私有，授予本仓库 Actions 读写权限。两个 workflow 均经受限入口传输已核对 SHA-256 的应用镜像归档，服务器检查 Docker manifest、仓库来源和源码提交标签后加载。服务器收到的发布请求由 root-only 状态目录暂存，systemd 开始应用后立即移除；需要注册表认证的管理员操作只在 `/run` 下保存临时 Docker 登录配置。
 
 SSH 私钥在 runner 的私有临时目录中使用，结束时删除。`*_DEPLOY_SSH_KNOWN_HOSTS` 分别使用 `qanda-backend`、`qanda-frontend` 主机别名和所有者核验过的服务器公钥；连接强制检查服务器身份。首次安装后，从受信任的管理通道读取 `/etc/qanda/ssh_host_ed25519_key.pub` 并保存到对应 Secret。
 
 ## 发布与回滚
 
-手动部署固定使用触发时的 `main` SHA。后端工作流运行后端验证并生成 JAR；管理端工作流运行共享内容包和管理端验证并生成静态资源。每个工作流只构建自己的产物，通过带 SHA-256 清单的缓存交给镜像阶段，再发布各自固定 GHCR 仓库的镜像摘要。后端节点按摘要从 GHCR 拉取镜像；管理端节点接收由摘要派生本地标签的镜像归档。服务器 Compose 按发布摘要记录版本，网络网关使用独立固定摘要的 Nginx 镜像。
+手动部署固定使用触发时的 `main` SHA。后端工作流运行后端验证并生成 JAR；管理端工作流运行共享内容包和管理端验证并生成静态资源。每个工作流只构建自己的产物，通过带 SHA-256 清单的缓存交给镜像阶段，再发布各自固定 GHCR 仓库的镜像摘要。对应节点接收由摘要派生本地标签的镜像归档。服务器 Compose 按发布摘要记录版本，网络网关使用独立固定摘要的 Nginx 镜像。
 
 发布产物使用提交、运行编号及尝试次数组成的精确缓存键中转，发布阶段使用验证任务实际输出的缓存键，要求精确命中并核对 SHA-256；仅重跑发布任务时继续使用此前验证成功的产物。缓存缺失或校验失败会停止部署。常规发布保留验证阶段生成的同一份 JAR 与管理端文件；离线基础设施包按 `QANDA_PREPARE_INFRA` 配置单独保留下载入口。
 

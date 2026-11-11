@@ -14,7 +14,7 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun batchAttachments(@Param("ids") ids: List<UUID>): List<QuestionAttachmentRow>
     fun chapterCounts(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean,@Param("userId") userId: UUID?=null): List<ChapterCount>
     fun favoriteQuestionIds(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
-    fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<BankListFacts>
+    fun bankListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?,@Param("countIds") countIds: List<UUID> = ids): List<BankListFacts>
     fun bankCategories(@Param("ids") ids: List<UUID>): List<BankCategory>
     fun bankMaintainers(@Param("ids") ids: List<UUID>): List<BankMaintainerRow>
     fun questionSummaries(@Param("ids") ids: List<UUID>): List<QuestionSummaryRow>

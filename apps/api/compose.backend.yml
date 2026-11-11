@@ -17,6 +17,9 @@ services:
       BACKEND_ROLE: api
       BACKEND_RABBIT_HOST: rabbitmq
       BACKEND_RABBIT_PASSWORD: ${BACKEND_RABBIT_PASSWORD:?configure a private queue password}
+      BACKEND_REDIS_HOST: redis
+      BACKEND_REDIS_PORT: 6379
+      BACKEND_REDIS_PASSWORD: ${BACKEND_REDIS_PASSWORD:?configure a private cache password}
       TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
       TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
       TENCENT_SES_REGION: ${TENCENT_SES_REGION:-}
@@ -85,6 +88,25 @@ services:
       timeout: 5s
       retries: 30
     restart: unless-stopped
+  redis:
+    image: redis:8.10.3-alpine
+    user: redis
+    entrypoint: [/bin/sh, /usr/local/bin/qanda-redis-start]
+    environment:
+      BACKEND_REDIS_PASSWORD: ${BACKEND_REDIS_PASSWORD:?configure a private cache password}
+    volumes: [../../deploy/redis-start.sh:/usr/local/bin/qanda-redis-start:ro]
+    ports: ["127.0.0.1:${BACKEND_REDIS_PORT:-56379}:6379"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=1m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$BACKEND_REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    restart: unless-stopped
+    mem_limit: 192m
   prometheus:
     image: prom/prometheus:v3.5.0
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]

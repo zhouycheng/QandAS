@@ -17,7 +17,7 @@ node apps/api/scripts/backend.mjs test
 node apps/api/scripts/backend.mjs verify
 ```
 
-完整验收使用隔离 PostgreSQL、RabbitMQ、Prometheus 和邮件捕获容器。合同、HTTP Schema 和 Postman 的生成检查见[接口验收入口](../apps/api/acceptance/README.md)。测试报告与去敏运行证据放在 Git 忽略目录，记录实际执行范围。
+完整验收使用隔离 PostgreSQL、RabbitMQ、Redis、Prometheus 和邮件捕获容器。合同、HTTP Schema 和 Postman 的生成检查见[接口验收入口](../apps/api/acceptance/README.md)。测试报告与去敏运行证据放在 Git 忽略目录，记录实际执行范围。
 
 ## 业务回归
 
@@ -30,6 +30,8 @@ node apps/api/scripts/backend.mjs verify
 错题收录开关覆盖关闭后不收录新错题、开启后收录、已有错题继续更新、错题筛选与练习范围一致，以及成绩和正确率保持完整统计。交卷重试保持第一次提交的偏好和幂等键。
 
 暂停消费者后，进度应可靠积压；恢复后按原命令确认。重复消息仅落库一次，技术失败可重试并进入死信，管理员可恢复。未完成进度阻止正式交卷，恢复后只产生一份成绩。队列与监控均属于核心验收范围。
+
+`ContentRedisPostgresTest` 使用真实 Redis 和 PostgreSQL，核对缓存命中后的题目、答案隐藏、交卷与成绩；内容版本更新、下架和个人进度应及时反映。回滚事务不得发布可复用版本号的缓存，Redis 超时应回源并恢复。该测试上下文在类结束时关闭，避免额外消费者干扰队列暂停用例。`RequestAdmissionTest` 覆盖等待容量、时限、线程中断、许可回收和探针独立性。
 
 ## 性能记录
 

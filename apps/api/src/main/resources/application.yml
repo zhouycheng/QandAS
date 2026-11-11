@@ -28,6 +28,13 @@ spring:
       simple:
         prefetch: 1
         missing-queues-fatal: false
+  data:
+    redis:
+      host: ${BACKEND_REDIS_HOST:127.0.0.1}
+      port: ${BACKEND_REDIS_PORT:6379}
+      password: ${BACKEND_REDIS_PASSWORD:}
+      connect-timeout: 100ms
+      timeout: 100ms
   task:
     scheduling:
       pool:
@@ -63,6 +70,11 @@ qanda:
     prometheus-url: ${BACKEND_PROMETHEUS_URL:http://127.0.0.1:9090}
     mode: ${BACKEND_MODE:production}
     max-concurrent-requests: ${BACKEND_MAX_CONCURRENT_REQUESTS:32}
+    request-queue-capacity: ${BACKEND_REQUEST_QUEUE_CAPACITY:64}
+    request-queue-wait-ms: ${BACKEND_REQUEST_QUEUE_WAIT_MS:100}
+    content-cache:
+      enabled: ${BACKEND_CONTENT_CACHE_ENABLED:false}
+      namespace: ${BACKEND_CONTENT_CACHE_NAMESPACE:qanda:content:v1}
     request-limits:
       enabled: ${BACKEND_REQUEST_LIMITS_ENABLED:true}
       window-seconds: ${BACKEND_REQUEST_LIMIT_WINDOW_SECONDS:60}
@@ -79,6 +91,9 @@ qanda:
       root: ${BACKEND_FILE_ROOT:${user.home}/.local/share/qanda-backend/assets}
 
 management:
+  health:
+    redis:
+      enabled: false
   endpoint:
     health:
       probes:

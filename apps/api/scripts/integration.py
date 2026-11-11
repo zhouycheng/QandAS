@@ -71,8 +71,9 @@ def initialize():
                    "BACKEND_MAIL_UI_PORT": "58026", "BACKEND_IMAGE": "qanda-backend:integration",
                    "BACKEND_ENV_FILE": str(PRIVATE / "backend.env"),
                    "BACKEND_CONTENT_SAFETY_PROVIDER": "local",
-                   "BACKEND_DB_PASSWORD": secrets.token_urlsafe(32), "BACKEND_RABBIT_PASSWORD": secrets.token_urlsafe(32)})
-    for key in ["COMMAND_DIGEST", "IDENTITY_MAC", "MAIL_ENCRYPTION"]:
+                   "BACKEND_DB_PASSWORD": secrets.token_urlsafe(32), "BACKEND_RABBIT_PASSWORD": secrets.token_urlsafe(32),
+                   "BACKEND_REDIS_PORT": "56380", "BACKEND_REDIS_PASSWORD": secrets.token_urlsafe(32)})
+    for key in ["COMMAND_DIGEST", "IDENTITY_MAC", "MAIL_ENCRYPTION", "TEST_ACCOUNT_ENCRYPTION"]:
         values["BACKEND_" + key + "_KEYS"] = "1:" + base64.b64encode(secrets.token_bytes(32)).decode()
     values["BACKEND_IDENTITY_RATE_KEY"] = base64.b64encode(secrets.token_bytes(32)).decode()
     PRIVATE.mkdir(parents=True, exist_ok=True, mode=0o700)

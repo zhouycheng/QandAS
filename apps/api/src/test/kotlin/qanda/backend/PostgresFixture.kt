@@ -32,6 +32,7 @@ import javax.imageio.ImageIO
 
 @Tag("postgres")
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.TestPropertySource(properties=["qanda.backend.content-cache.enabled=false"])
 @org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class PostgresFixture {
@@ -41,10 +42,10 @@ abstract class PostgresFixture {
         protected val queueNetwork=org.testcontainers.containers.Network.newNetwork()
         @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql"),"/docker-entrypoint-initdb.d/001-schema.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql"),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__active_question_queries.sql"),"/docker-entrypoint-initdb.d/003-active-questions.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__visible_bank_queries.sql"),"/docker-entrypoint-initdb.d/004-visible-banks.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__active_question_queries.sql",0b110_100_100),"/docker-entrypoint-initdb.d/003-active-questions.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__visible_bank_queries.sql",0b110_100_100),"/docker-entrypoint-initdb.d/004-visible-banks.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
