@@ -36,6 +36,8 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 后端测试需要可访问的 Docker daemon。运行脚本会识别默认 Colima socket；使用其他已运行的本机 Colima 实例时，为本次命令设置 `DOCKER_HOST` 指向该实例的 socket，并设置 `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`。Testcontainers 创建独立测试容器，运行结束后清理。
 
+持久联调入口 `apps/api/scripts/integration.py` 在调用 Compose 前自动补齐已有私有环境中缺失的 Redis 字段，保留已配置密码、端口、账号及数据；新文件保持权限 `600`，已有配置无需重新初始化。
+
 ## 日常维护
 
 修改代码后运行 `rebuild.mjs`，再执行 `backend.mjs docker-up`。日志使用 `docker-logs`，停止使用 `docker-stop`。健康接口为 `/api/v1/health`，Swagger 为 `/swagger-ui/index.html`，运行时合同为 `/v3/api-docs`。
