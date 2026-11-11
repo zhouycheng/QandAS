@@ -557,6 +557,8 @@ class PracticeSession {
       answerText: savedAnswer ? savedAnswer.text || '' : '',
       blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: String.fromCharCode(9312 + i), value: this.state.isViewMode && !this.state.review ? ((question.blanks[i] || {}).answers || []).join(' / ') : savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
       hasAnswered,
+      canAssessCurrent: !!this.state.review && !this.state.awaitingResult && question.isShortAnswer && hasAnswered,
+      currentSelfAssessment: savedAnswer && savedAnswer.selfAssessment || '',
       answerLocked: this.state.isViewMode || this.state.isCompleted || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer),
       shouldRevealAnswer,
       isCurrentAnswerCorrect: this.state.isViewMode || (savedAnswer ? !!savedAnswer.isCorrect : false),

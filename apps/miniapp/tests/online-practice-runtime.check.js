@@ -197,6 +197,17 @@ async function main() {
   assert.deepStrictEqual(assessmentVm.session.state.wrongQuestionIds, [])
   assert.strictEqual(assessmentVm.session.state.wrongCount, 0)
   assert.strictEqual(assessmentVm.session.state.filteredResultItems.length, 0)
+  assessmentVm.readOnlyReview = true
+  Object.assign(assessmentVm.session.state, { review: true, isViewMode: true, isCompleted: false, awaitingResult: false })
+  assert.strictEqual(assessmentVm.session.showQuestionAtIndex(0).data.canAssessCurrent, true)
+  const reviewedAssessment = await assessmentVm.assessResult('q1', 'CORRECT')
+  assert.strictEqual(reviewedAssessment.data.currentSelfAssessment, 'CORRECT')
+  assert.strictEqual(reviewedAssessment.data.isViewMode, true)
+  assert.strictEqual(reviewedAssessment.data.isCompleted, false)
+  assert.strictEqual(reviewedAssessment.data.answerLocked, true)
+  assessmentVm.session.state.awaitingResult = true
+  assert.strictEqual(await assessmentVm.assessResult('q1', 'WRONG'), null)
+  assessmentVm.session.state.awaitingResult = false
   const pairedAssessment = Object.assign({}, copy(shortSnapshot), { id: 's7', version: 3, result: Object.assign({}, result, { sessionId: 's7' }), assessmentCommands: {}, assessed: {} })
   pairedAssessment.items = [copy(shortSnapshot.items[0]), copy(shortSnapshot.items[0])]
   pairedAssessment.items.forEach((item, index) => { item.itemId = `i7${index}`; item.question.id = `q7${index}` })

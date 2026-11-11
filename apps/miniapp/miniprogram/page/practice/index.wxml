@@ -18,7 +18,16 @@
       </block>
       <block wx:else><include src="../../templates/practice-content.wxml" /></block>
     </view>
-    <view class="pra-footer"><include src="../../templates/practice-actions.wxml" /></view>
+    <view class="pra-footer">
+      <view wx:if="{{canAssessCurrent}}" class="res-self-assessment">
+        <text class="res-item-label">这道题掌握了吗？</text>
+        <view class="res-assessment-actions">
+          <button class="q-button q-button--compact res-assessment-option {{currentSelfAssessment === 'CORRECT' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{currentQuestion.id}}" data-value="CORRECT" hover-class="q-button-hover">已掌握</button>
+          <button class="q-button q-button--compact res-assessment-option {{currentSelfAssessment === 'WRONG' ? 'is-selected' : ''}}" catchtap="assessResult" data-id="{{currentQuestion.id}}" data-value="WRONG" hover-class="q-button-hover">还需复习</button>
+        </view>
+      </view>
+      <include src="../../templates/practice-actions.wxml" />
+    </view>
 
     <root-portal enable="{{true}}" wx:if="{{shouldRevealAnswer && hasAnswered && feedback === 'IMMEDIATE' && !isViewMode && analysisAreaHeight && !analysisSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked}}">
       <view class="portal-theme analysis-layer font-{{preferences.fontSize}}" style="top:{{analysisAreaTop}}px;height:{{analysisAreaHeight}}px;">

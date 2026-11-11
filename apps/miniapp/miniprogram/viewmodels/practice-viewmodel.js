@@ -283,7 +283,7 @@ class PracticeViewModel {
             this.persistSession(true);
             return { data: this.session.getViewData() };
         }
-        if (!this.online || !this.session || !this.session.state.isCompleted)
+        if (!this.online || !this.session || (!this.session.state.isCompleted && !this.readOnlyReview) || this.session.state.awaitingResult)
             return null;
         const snapshot = this.online.get(this.session.meta.sessionId);
         const item = snapshot.items.find(row => row.question.id === questionId);
@@ -291,7 +291,14 @@ class PracticeViewModel {
             return null;
         const result = await this.online.assess(snapshot.id, item.itemId, value);
         require('../repositories/remote-data-repository.js').invalidateLearning();
+        const index = this.session.state.currentIndex;
+        if (this.readOnlyReview) this.session.state.isViewMode = false;
         this.applyOfficialResult(result);
+        if (this.readOnlyReview) {
+            this.session.state.isViewMode = true;
+            this.session.state.isCompleted = false;
+            return this.session.showQuestionAtIndex(index);
+        }
         return this.session.setResultFilter(this.session.state.resultFilter);
     }
     toggleFavoriteQuestion() {

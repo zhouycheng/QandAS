@@ -31,6 +31,8 @@ function getInitialPracticeViewData() {
     submitting: false,
     favoriteSaving: false,
     editingLocked: false,
+    canAssessCurrent: false,
+    currentSelfAssessment: '',
     answerText: '',
     blankInputs: [],
     mode: PRACTICE_MODES.PRACTICE,
