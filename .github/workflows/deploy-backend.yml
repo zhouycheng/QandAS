@@ -54,7 +54,7 @@ jobs:
         run: bash deploy/publish-image.sh
   deploy:
     needs: [guard, verify, publish]
-    if: always() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.publish.result == 'success')
+    if: ${{ !cancelled() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
