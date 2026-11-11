@@ -52,7 +52,7 @@ from pathlib import Path
 spec=importlib.util.spec_from_file_location('deadline_deployctl',{str(Path(deploy.__file__).resolve())!r})
 d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
 d.STATE=Path({str(root)!r});d.INPUT_TIMEOUT_SECONDS=1
-d.os.geteuid=lambda:0;d.preflight=lambda **kwargs:None;d.node_role=lambda:'backend'
+d.os.geteuid=lambda:0;d.protected=lambda path:None;d.preflight=lambda **kwargs:None;d.node_role=lambda:'backend'
 sys.argv=['qanda-deployctl','deploy']
 try:d.main()
 except TimeoutError:print('DEPLOY_INPUT_TIMEOUT')
