@@ -14,7 +14,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, policy_stop_reason, summarize, suite, trial, violations, wait_drain
+from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, observation_gap, policy_stop_reason, summarize, suite, trial, violations, wait_drain
 from seed import question
 from resources import http_busy, metrics, server_p95, series
 import remote
@@ -142,6 +142,17 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         remote.shell.side_effect = TimeoutError()
         self.assertEqual(collection_failure(remote, 1, 0), (1, None))
         self.assertEqual(collection_failure(remote, 2, 1), (2, 'management_connection_timeout'))
+
+    def test_sleep_and_clock_changes_are_generator_boundaries(self):
+        self.assertIsNone(observation_gap(100, 105))
+        self.assertIsNone(observation_gap(100, 130))
+        self.assertEqual(observation_gap(100, 131), 'generator_observation_gap')
+        self.assertEqual(observation_gap(100, 99), 'generator_observation_gap')
+
+    def test_restored_services_cannot_be_sampled_as_the_experiment(self):
+        with patch.object(remote, 'assert_capacity', side_effect=AssertionError('restored')), patch.object(remote, 'inspect') as inspect:
+            with self.assertRaisesRegex(AssertionError, 'restored'): remote.collect()
+            inspect.assert_not_called()
 
     def test_drained_queue_does_not_imply_ready_application(self):
         remote = Mock()

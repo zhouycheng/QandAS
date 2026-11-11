@@ -262,6 +262,11 @@ def collection_failure(remote, failures, ssh_errors):
     return ssh_errors, reason
 
 
+def observation_gap(previous, current):
+    if not 0 <= current - previous <= 30: return 'generator_observation_gap'
+    return None
+
+
 def trial(remote, scenario, target, limits, seconds, label):
     folder = remote.state / 'trials' / label
     if (folder / 'result.json').exists():
@@ -290,9 +295,12 @@ def trial(remote, scenario, target, limits, seconds, label):
         command = [remote.config['k6'], 'run', '--quiet', '--no-usage-report', '--no-color', '--log-format=json', '--out', 'json=' + str(raw), '--summary-export', str(folder / 'k6-summary.json'), str(Path(__file__).with_name('load.js'))]
         with (folder / 'stdout.log').open('wb') as out, (folder / 'events.jsonl').open('wb') as err, (folder / 'samples.jsonl').open('w') as sample_log:
             child = subprocess.Popen(command, env=env, stdout=out, stderr=err)
-            load_start = time.time()
+            load_start = time.time(); last_observed = load_start
             while child.poll() is None:
                 time.sleep(5)
+                reason = observation_gap(last_observed, time.time())
+                if reason:
+                    stop_k6(child); break
                 if tunnel.poll() is not None:
                     reason = 'private_tunnel_exited'; stop_k6(child); break
                 metrics.update(raw); now = time.monotonic()
@@ -331,10 +339,15 @@ def trial(remote, scenario, target, limits, seconds, label):
                     ssh_errors, reason = collection_failure(remote, collection_errors, ssh_errors)
                     with (folder / 'collection-errors.jsonl').open('a') as errors:
                         errors.write(json.dumps({'time': time.time(), 'collection_errors': collection_errors, 'ssh_errors': ssh_errors, 'stop_reason': reason}) + '\n')
+                if reason is None: reason = observation_gap(last_observed, time.time())
+                last_observed = time.time()
                 if reason:
                     stop_k6(child)
                     break
             child.wait()
+        if reason is None: reason = observation_gap(last_observed, time.time())
+        if reason == 'generator_observation_gap':
+            private_json(folder / 'source-interruption.json', {'stop_reason': reason, 'detected_at': time.time()})
         if reason is None and tunnel.poll() is not None: reason = 'private_tunnel_exited'
         metrics.update(raw)
         summary = summarize(full_metrics(raw)) if raw.exists() else {}

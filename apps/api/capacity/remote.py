@@ -200,6 +200,7 @@ def fetch(row, port, path):
 
 
 def collect():
+    assert_capacity()
     m = manifest(); rows = inspect(APP + [m['postgres'], m['rabbit'], 'qanda-infrastructure-prometheus-1', 'qanda-tailnet', 'qanda-tailnet-gateway-1'])
     mem = {line.split(':')[0]: int(line.split()[1]) * 1024 for line in Path('/proc/meminfo').read_text().splitlines()}
     disk = os.statvfs('/var/lib/docker')
