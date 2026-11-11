@@ -6,6 +6,8 @@
 
 后端由 Actions 经受限 SSH 提交固定镜像摘要和短期注册表凭据，服务器从 GHCR 拉取并复用已有镜像层。管理端由 runner 按摘要拉取、打包，经受限 SSH 传入节点。节点核对镜像来源和版本后启动应用，继续执行迁移、健康检查及回滚流程。
 
+后端镜像按 [Spring Boot 分层布局](https://docs.spring.io/spring-boot/3.5/reference/packaging/container-images/dockerfiles.html) 分开保存依赖和应用代码，依赖未变化时可复用对应镜像层。CI 使用已验证的 JAR 构建实际镜像，在独立 PostgreSQL、RabbitMQ 和 Redis 上验证重复初始化与应用就绪；运行入口仍为 `/app/app.jar`，API、worker、monitor 和运维命令共用该镜像。
+
 ## 运行结构
 
 主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ、Redis 和 Prometheus 独立运行，普通发布只更新应用服务。

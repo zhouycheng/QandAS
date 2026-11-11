@@ -73,6 +73,11 @@ jobs:
           node apps/api/scripts/backend.mjs init
           node apps/api/scripts/backend.mjs verify
           sudo python3 deploy/tests/db_admin_integration.py
+      - name: Verify the packaged backend image
+        if: inputs.scope != 'frontend'
+        run: |
+          docker build -t qanda-backend-ci:${{ github.sha }} apps/api
+          python3 deploy/candidate-check.py qanda-backend-ci:${{ github.sha }}
       - name: Verify container network isolation
         run: |
           docker pull nginx:1.28-alpine
