@@ -1000,16 +1000,6 @@
     }
   },
   {
-    "operationId": "Practice_finish_POST",
-    "method": "POST",
-    "path": "/api/v1/practice/sessions/{id}/finish",
-    "body": {
-      "expectedVersion": "{{expectedVersion}}",
-      "durationSeconds": 0,
-      "writerToken": "{{writerToken}}"
-    }
-  },
-  {
     "operationId": "Practice_cancel_POST",
     "method": "POST",
     "path": "/api/v1/practice/sessions/{id}/cancel",
@@ -1048,9 +1038,15 @@
     "body": null
   },
   {
+    "operationId": "ProgressCommand_checkpoint_GET",
+    "method": "GET",
+    "path": "/api/v1/practice/sessions/{id}/sync-commands",
+    "body": null
+  },
+  {
     "operationId": "ProgressCommand_submit_POST",
     "method": "POST",
-    "path": "/api/v1/practice/sessions/{id}/progress-commands",
+    "path": "/api/v1/practice/sessions/{id}/sync-commands",
     "body": {
       "expectedVersion": "{{expectedVersion}}",
       "currentIndex": 0,
@@ -1068,7 +1064,7 @@
   {
     "operationId": "ProgressCommand_read_GET",
     "method": "GET",
-    "path": "/api/v1/practice/sessions/{id}/progress-commands/{commandId}",
+    "path": "/api/v1/practice/sessions/{id}/sync-commands/{commandId}",
     "body": null
   },
   {

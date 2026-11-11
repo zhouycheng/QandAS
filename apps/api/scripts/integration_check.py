@@ -65,13 +65,15 @@ def main():
     session_path = "/practice/sessions/" + session["id"]
     subprocess.run(compose(config, "stop", "worker"), check=True, capture_output=True)
     try:
-        command = r("POST", session_path + "/progress-commands", body, token=student, key=command_key, expected=202)
-        duplicate = r("POST", session_path + "/progress-commands", body, token=student, key=command_key, expected=202)
+        command = r("POST", session_path + "/sync-commands", body, token=student, key=command_key, expected=202)
+        duplicate = r("POST", session_path + "/sync-commands", body, token=student, key=command_key, expected=202)
         check("重复进度命令复用同一标识", command["commandId"] == duplicate["commandId"])
-        queued = r("GET", session_path + "/progress-commands/" + command_key, token=student)
+        queued = r("GET", session_path + "/sync-commands/" + command_key, token=student)
         check("消费者停止时命令持久排队", queued["state"] == "QUEUED")
-        blocked = r("POST", session_path + "/finish", {"expectedVersion": session["version"], "durationSeconds": 1, "writerToken": session["writer"]["writerToken"]}, token=student, expected=409)
-        check("交卷等待排队进度落库", blocked["code"] == "SYNC_PENDING")
+        final_key = str(uuid.uuid4())
+        final_body = {**body, "kind": "FINISH", "clientSequence": 2}
+        final = r("POST", session_path + "/sync-commands", final_body, token=student, key=final_key, expected=202)
+        check("交卷可靠接收并排在进度之后", final["state"] == "QUEUED")
         deadline = time.monotonic() + 25
         while True:
             health = snapshot()
@@ -83,15 +85,19 @@ def main():
         subprocess.run(compose(config, "start", "worker"), check=True, capture_output=True)
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        command = r("GET", session_path + "/progress-commands/" + command_key, token=student)
+        command = r("GET", session_path + "/sync-commands/" + command_key, token=student)
         if command["state"] in ["COMMITTED", "REJECTED", "DEAD_LETTER"]:
             break
         time.sleep(1)
     check("恢复消费者后唯一落库并确认序号", command["state"] == "COMMITTED" and command["acknowledgement"]["acknowledgedSequence"] == 1)
-    finish_key = str(uuid.uuid4())
-    finish_body = {"expectedVersion": command["acknowledgement"]["version"], "durationSeconds": 1, "writerToken": session["writer"]["writerToken"]}
-    result = r("POST", session_path + "/finish", finish_body, token=student, key=finish_key)
-    again = r("POST", session_path + "/finish", finish_body, token=student, key=finish_key)
+    deadline = time.monotonic() + 45
+    while True:
+        final = r("GET", session_path + "/sync-commands/" + final_key, token=student)
+        if final["state"] == "COMMITTED": break
+        assert time.monotonic() < deadline
+        time.sleep(1)
+    result = final["result"]
+    again = r("GET", session_path + "/sync-commands/" + final_key, token=student)["result"]
     check("交卷幂等且客观题全部正确", result["id"] == again["id"] and result["objective"]["correct"] == 6)
     short = next(i for i in result["items"] if i["question"]["type"] == "SHORT_ANSWER")
     result = r("PUT", session_path + "/items/" + short["itemId"] + "/self-assessment", {"expectedVersion": result["version"], "assessment": "CORRECT"}, token=student)

@@ -4,7 +4,7 @@ DO $$ BEGIN
 END $$;
 GRANT qanda_monitor, qanda_activity_writer TO CURRENT_USER;
 GRANT USAGE ON SCHEMA public TO qanda_monitor,qanda_activity_writer;
-GRANT SELECT ON monitoring_student,monitoring_learning,monitoring_session,monitoring_sync_completion,monitoring_jobs,user_activity,session_presence TO qanda_monitor;
+GRANT SELECT ON monitoring_student,monitoring_learning,monitoring_session,monitoring_sync_completion,monitoring_sync_backlog,monitoring_jobs,user_activity,session_presence TO qanda_monitor;
 -- The account module validates and touches sessions inside the monitor process.
 GRANT SELECT ON user_account,user_session,admin_account,admin_session,security_policy TO qanda_monitor;
 GRANT UPDATE(last_seen_at) ON user_session,admin_session TO qanda_monitor;

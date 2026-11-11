@@ -40,7 +40,7 @@ class ContentPostgresTest : PostgresFixture() {
                 val reading=java.util.concurrent.CompletableFuture.supplyAsync { raw("GET","/announcements",null,s.token) }
                 call("GET","/me",token=s.token)
                 call("GET","/subjects",token=null)
-                progress("/practice/sessions/${id(session)}/progress-commands",progressBody(session),s.token)
+                progress("/practice/sessions/${id(session)}/sync-commands",progressBody(session),s.token)
                 val unavailable=reading.get(10,java.util.concurrent.TimeUnit.SECONDS)
                 assertEquals(503,unavailable.statusCode())
                 assertEquals("TEMPORARILY_UNAVAILABLE",json.readTree(unavailable.body())["code"].asText())
@@ -89,7 +89,7 @@ class ContentPostgresTest : PostgresFixture() {
             assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE request_id=?",Int::class.java,requestId))
         } finally { process.destroy();if(!process.waitFor(10,java.util.concurrent.TimeUnit.SECONDS)) process.destroyForcibly() }
         val s=student();val f=fixture();val session=createPractice(s,f)
-        progress("/practice/sessions/${id(session)}/progress-commands",progressBody(session),s.token)
+        progress("/practice/sessions/${id(session)}/sync-commands",progressBody(session),s.token)
         call("GET","/announcements",token=s.token)
     }
 
@@ -178,14 +178,14 @@ class ContentPostgresTest : PostgresFixture() {
         val session=create(listOf(f.questions[0],codeId,fillId));val sid=id(session);val writer=session["writer"]["writerToken"].asText()
         assertEquals("practice",session["configuration"]["mode"].asText());assertEquals(120,session["configuration"]["timeLimitSeconds"].asInt())
         val drafts=session["items"].filter { it["question"]["id"].asText()!=f.questions[0].toString() }.map { item -> mapOf("itemId" to item["itemId"].asText(),"confirmed" to false,"answer" to if(item["question"]["type"].asText()=="SHORT_ANSWER") mapOf("text" to "function add(a, b) {\n  return a + b;\n}") else mapOf("blanks" to listOf(" api "))) }
-        progress("/practice/sessions/$sid/progress-commands",mapOf("expectedVersion" to 1,"writerToken" to writer,"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to drafts),s.token)
+        progress("/practice/sessions/$sid/sync-commands",mapOf("expectedVersion" to 1,"writerToken" to writer,"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to drafts),s.token)
         val saved=call("GET","/practice/sessions/$sid",token=s.token)
         assertTrue(saved["items"].all { it["question"]["referenceAnswer"].isNull && it["question"]["explanation"].isNull })
         val codeItem=saved["items"].first { it["question"]["id"].asText()==codeId.toString() }
         assertEquals("CODE_ANALYSIS",codeItem["question"]["presentation"].asText());assertEquals("MARKDOWN",codeItem["question"]["contentFormat"].asText())
         call("PUT","/admin/questions/$codeId",code+mapOf("expectedVersion" to 1,"contentFormat" to "PLAIN_TEXT","stem" to "新版题干"))
         val finish=mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to writer)
-        val result=call("POST","/practice/sessions/$sid/finish",finish,s.token)
+        val result=finish("/practice/sessions/$sid/finish",finish,s.token)
         assertEquals(2,result["answeredCount"].asInt());assertEquals(0,result["objective"]["score"].asInt());assertEquals(1,result["objective"]["wrong"].asInt());assertEquals(1,result["objective"]["unanswered"].asInt())
         val short=result["items"].first { it["question"]["id"].asText()==codeId.toString() }
         assertTrue(short["confirmed"].asBoolean());assertEquals("说明 `return a + b` 的作用。",short["question"]["stem"].asText());assertEquals("MARKDOWN",short["question"]["contentFormat"].asText())
@@ -196,10 +196,10 @@ class ContentPostgresTest : PostgresFixture() {
         val latestBank=call("GET","/question-banks/${f.bank}",token=s.token)
         val subjective=call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(codeId)),"expectedContentVersion" to latestBank["contentVersion"].asLong(),"feedback" to "IMMEDIATE","deviceId" to UUID.randomUUID()),s.token)
         val answer=mapOf("itemId" to subjective["items"].first()["itemId"].asText(),"answer" to mapOf("text" to "我的理解"),"confirmed" to true)
-        progress("/practice/sessions/${id(subjective)}/progress-commands",mapOf("expectedVersion" to 1,"writerToken" to subjective["writer"]["writerToken"].asText(),"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to listOf(answer)),s.token)
+        progress("/practice/sessions/${id(subjective)}/sync-commands",mapOf("expectedVersion" to 1,"writerToken" to subjective["writer"]["writerToken"].asText(),"clientSequence" to 1,"currentIndex" to 0,"durationSeconds" to 0,"items" to listOf(answer)),s.token)
         val hidden=call("GET","/practice/sessions/${id(subjective)}",token=s.token)
         assertTrue(hidden["items"].first()["question"]["referenceAnswer"].isNull)
-        val done=call("POST","/practice/sessions/${id(subjective)}/finish",mapOf("expectedVersion" to 2,"writerToken" to subjective["writer"]["writerToken"].asText(),"durationSeconds" to 0),s.token)
+        val done=finish("/practice/sessions/${id(subjective)}/finish",mapOf("expectedVersion" to 2,"writerToken" to subjective["writer"]["writerToken"].asText(),"durationSeconds" to 0),s.token)
         assertTrue(done["objective"]["score"].isNull);assertTrue(done["objective"]["accuracy"].isNull)
         val stats=call("GET","/me/statistics?period=ALL",token=s.token);assertEquals(3,stats["answeredCount"].asInt());assertEquals(1,stats["wrongCount"].asInt());assertEquals(1,stats["selfRatedWrongCount"].asInt())
         assertEquals(0,done["shortAnswer"]["rated"].asInt());assertEquals(0,done["shortAnswer"]["correct"].asInt());assertEquals(0,done["shortAnswer"]["wrong"].asInt())
@@ -215,7 +215,7 @@ class ContentPostgresTest : PostgresFixture() {
         val studyInput=mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(codeId)),"expectedContentVersion" to latestBank["contentVersion"].asLong(),"feedback" to "AFTER_FINISH","mode" to "view","deviceId" to UUID.randomUUID())
         val study=call("POST","/practice/sessions",studyInput,s.token)
         assertFalse(study["items"].first()["question"]["referenceAnswer"].isNull)
-        call("POST","/practice/sessions/${id(study)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to study["writer"]["writerToken"].asText()),s.token,409)
+        finish("/practice/sessions/${id(study)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to study["writer"]["writerToken"].asText()),s.token,409)
         val trial=call("POST","/practice/trial-snapshots",studyInput.filterKeys { it!="deviceId" },null)
         assertFalse(trial["items"].first()["question"]["referenceAnswer"].isNull)
         assertEquals("view",trial["configuration"]["mode"].asText())
@@ -255,7 +255,7 @@ class ContentPostgresTest : PostgresFixture() {
             }
             mapOf("itemId" to item["itemId"].asText(),"answer" to answer,"confirmed" to true)
         }
-        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changes),s.token)
+        val result=finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changes),s.token)
         assertEquals(7,result["answeredCount"].asInt());assertEquals(5,result["objective"]["correct"].asInt())
         assertEquals("CORRECT",result["items"].first { it["question"]["id"].asText()==fillId.toString() }["outcome"].asText())
         assertEquals("观点明确",result["items"].last()["question"]["scoringPoints"][0].asText())
@@ -312,16 +312,16 @@ class ContentPostgresTest : PostgresFixture() {
         val itemId=multiple["itemId"].asText();val questionId=multiple["question"]["id"].asText()
         fun progress(version: Int,keys: List<String>,confirmed: Boolean)=mapOf("expectedVersion" to version,"currentIndex" to 0,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"clientSequence" to version,
             "items" to listOf(mapOf("itemId" to itemId,"answer" to mapOf("optionKeys" to keys),"confirmed" to confirmed)))
-        progress("/practice/sessions/$sessionId/progress-commands",progress(1,listOf("A"),false),s.token)
+        progress("/practice/sessions/$sessionId/sync-commands",progress(1,listOf("A"),false),s.token)
         val draft=call("GET","/practice/sessions/$sessionId",token=s.token)
         assertTrue(draft["items"].first { it["itemId"].asText()==itemId }["question"]["correctAnswer"].isNull)
-        progress("/practice/sessions/$sessionId/progress-commands",progress(2,listOf("B","A"),true),s.token)
+        progress("/practice/sessions/$sessionId/sync-commands",progress(2,listOf("B","A"),true),s.token)
         val confirmed=call("GET","/practice/sessions/$sessionId",token=s.token)
         assertEquals("CORRECT",confirmed["items"].first { it["itemId"].asText()==itemId }["outcome"].asText())
-        progress("/practice/sessions/$sessionId/progress-commands",progress(3,listOf("A","B"),true),s.token)
-        progress("/practice/sessions/$sessionId/progress-commands",progress(4,listOf("A"),true),s.token,409)
+        progress("/practice/sessions/$sessionId/sync-commands",progress(3,listOf("A","B"),true),s.token)
+        progress("/practice/sessions/$sessionId/sync-commands",progress(4,listOf("A"),true),s.token,409)
         call("POST","/practice/sessions/$sessionId/cancel",mapOf("expectedVersion" to 4,"writerToken" to session["writer"]["writerToken"].asText()),s.token)
-        progress("/practice/sessions/$sessionId/progress-commands",progress(5,listOf("A","B"),true),s.token,409)
+        progress("/practice/sessions/$sessionId/sync-commands",progress(5,listOf("A","B"),true),s.token,409)
         call("GET","/practice/sessions/$sessionId/result",token=s.token,status=409)
         call("PUT","/me/favorites/$questionId",token=s.token)
         fun scope(kind: String)=mapOf("questionBankId" to f.bank,"count" to 1,"order" to "SEQUENTIAL","selectionKind" to kind)
@@ -332,11 +332,11 @@ class ContentPostgresTest : PostgresFixture() {
         }
         val favorite=selected("FAVORITE")
         assertEquals(questionId,favorite["items"].first()["question"]["id"].asText())
-        call("POST","/practice/sessions/${id(favorite)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to favorite["writer"]["writerToken"].asText(),
+        finish("/practice/sessions/${id(favorite)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to favorite["writer"]["writerToken"].asText(),
             "items" to listOf(mapOf("itemId" to favorite["items"].first()["itemId"].asText(),"answer" to mapOf("optionKeys" to listOf("A")),"confirmed" to true))),s.token)
         assertEquals(1,call("GET","/me/wrong-questions?questionBankId=${f.bank}",token=s.token)["total"].asInt())
         val wrong=selected("WRONG")
-        call("POST","/practice/sessions/${id(wrong)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to wrong["writer"]["writerToken"].asText(),"items" to answers(wrong)),s.token)
+        finish("/practice/sessions/${id(wrong)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to wrong["writer"]["writerToken"].asText(),"items" to answers(wrong)),s.token)
         assertEquals(0,call("GET","/me/wrong-questions?questionBankId=${f.bank}",token=s.token)["total"].asInt())
         assertEquals(1,call("GET","/me/wrong-questions?status=MASTERED&questionBankId=${f.bank}",token=s.token)["total"].asInt())
         assertEquals(id(wrong).toString(),call("GET","/me/recent-learning",token=s.token)["items"].first()["id"].asText())

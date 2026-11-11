@@ -3,6 +3,7 @@ package qanda.backend
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.*
+import qanda.backend.application.ProgressEnvelope
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -31,7 +32,82 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class SyncPostgresTest : PostgresFixture() {
-    @Test fun `practice stays bound to its creating device and never reveals credentials on reads`() {
+    @Test fun `broker outage accepts complete task and scanner delivers without another client request`() {
+        val owner=student();val session=createPractice(owner,fixture());val id=id(session);val key=UUID.randomUUID();val body=progressBody(session)
+        consumers.stop();rabbit.dockerClient.pauseContainerCmd(rabbit.containerId).exec()
+        try {
+            val accepted=call("POST","/practice/sessions/$id/sync-commands",body,owner.token,202,key)
+            assertEquals("QUEUED",accepted["state"].asText())
+            assertEquals(body["clientSequence"].toString(),json.readTree(jdbc.queryForObject("SELECT payload_json FROM sync_command WHERE id=?",String::class.java,key))["clientSequence"].asText())
+            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id))
+        } finally { rabbit.dockerClient.unpauseContainerCmd(rabbit.containerId).exec();consumers.start() }
+        eventually(40) { progressCommands.dispatch();jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
+        val checkpoint=call("GET","/practice/sessions/$id/sync-commands",token=owner.token)
+        assertEquals(1,checkpoint["acceptedSequence"].asInt());assertEquals(1,checkpoint["processedSequence"].asInt())
+    }
+    @Test fun `save and final snapshot queue in order and duplicate delivery commits a single result`() {
+        val owner=student();val session=createPractice(owner,fixture());val id=id(session);val saveKey=UUID.randomUUID();val finishKey=UUID.randomUUID()
+        val save=progressBody(session)
+        val finish=save+mapOf("kind" to "FINISH","clientSequence" to 2,"items" to answers(session))
+        consumers.stop()
+        try {
+            call("POST","/practice/sessions/$id/sync-commands",save,owner.token,202,saveKey)
+            call("POST","/practice/sessions/$id/sync-commands",finish,owner.token,202,finishKey)
+            call("POST","/practice/sessions/$id/sync-commands",finish,owner.token,202,finishKey)
+            call("POST","/practice/sessions/$id/sync-commands",save+mapOf("clientSequence" to 3),owner.token,409)
+            progressCommands.consume(ProgressEnvelope(finishKey))
+            assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id))
+            progressCommands.consume(ProgressEnvelope(saveKey));progressCommands.consume(ProgressEnvelope(saveKey))
+            progressCommands.consume(ProgressEnvelope(finishKey));progressCommands.consume(ProgressEnvelope(finishKey))
+            val done=call("GET","/practice/sessions/$id/sync-commands/$finishKey",token=owner.token)
+            assertEquals("COMMITTED",done["state"].asText());assertEquals(4,done["result"]["answeredCount"].asInt())
+            assertEquals(0,done["result"]["objective"]["wrong"].asInt())
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id))
+            assertEquals(2,call("GET","/practice/sessions/$id/sync-commands",token=owner.token)["processedSequence"].asInt())
+            call("GET","/practice/sessions/$id/sync-commands/$finishKey",token=student().token,status=404)
+        } finally { consumers.start() }
+    }
+    @Test fun `response loss identity conflicts and gaps are resolved by durable receipts`() {
+        val owner=student();val session=createPractice(owner,fixture());val id=id(session);val key=UUID.randomUUID();val input=progressBody(session)
+        consumers.stop()
+        try {
+            val first=call("POST","/practice/sessions/$id/sync-commands",input,owner.token,202,key)
+            assertEquals(first,call("POST","/practice/sessions/$id/sync-commands",input,owner.token,202,key))
+            call("POST","/practice/sessions/$id/sync-commands",input+mapOf("durationSeconds" to 1),owner.token,409,key)
+            call("POST","/practice/sessions/$id/sync-commands",input+mapOf("clientSequence" to 3),owner.token,409)
+            progressCommands.consume(ProgressEnvelope(key))
+            assertEquals("COMMITTED",call("POST","/practice/sessions/$id/sync-commands",input,owner.token,202,key)["state"].asText())
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM command_receipt WHERE command_id=?",Int::class.java,key))
+        } finally { consumers.start() }
+    }
+    @Test fun `temporary failures beyond eight retries and expired dispatch leases recover automatically`() {
+        val owner=student();val session=createPractice(owner,fixture());val id=id(session);val key=UUID.randomUUID()
+        consumers.stop()
+        try {
+            call("POST","/practice/sessions/$id/sync-commands",progressBody(session),owner.token,202,key)
+            repeat(12) { val result=progressCommands.failure(key,java.io.IOException("transient outage"));assertEquals("retry",result.first);assertTrue(result.second in 1..60000) }
+            assertEquals("RETRYING",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key))
+            jdbc.update("UPDATE sync_command SET next_attempt_at=now(),dispatch_until=now()-interval '1 second' WHERE id=?",key)
+            progressCommands.dispatch();consumers.start()
+            eventually(40) { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
+        } finally { consumers.start() }
+    }
+    @Test fun `accepted work survives natural token expiry but explicit revocation prevents execution`() {
+        val owner=student();val session=createPractice(owner,fixture());val id=id(session);val key=UUID.randomUUID()
+        consumers.stop()
+        try {
+            call("POST","/practice/sessions/$id/sync-commands",progressBody(session),owner.token,202,key)
+            jdbc.update("UPDATE user_session SET issued_at=now()-interval '1 day',last_seen_at=now()-interval '2 seconds',expires_at=now()-interval '1 second' WHERE user_id=?",owner.id)
+            progressCommands.consume(ProgressEnvelope(key))
+            assertEquals("COMMITTED",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key))
+            val other=student();val next=createPractice(other,fixture());val rejected=UUID.randomUUID()
+            call("POST","/practice/sessions/${id(next)}/sync-commands",progressBody(next),other.token,202,rejected)
+            jdbc.update("UPDATE user_session SET revoked_at=now() WHERE user_id=?",other.id)
+            val error=assertThrows(qanda.backend.platform.http.ApiException::class.java) { progressCommands.consume(ProgressEnvelope(rejected)) }
+            progressCommands.failure(rejected,error)
+            assertEquals("REJECTED",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,rejected))
+        } finally { consumers.start() }
+    }    @Test fun `practice stays bound to its creating device and never reveals credentials on reads`() {
         val owner=student();val session=createPractice(owner,fixture());val sessionId=id(session)
         val writer=session["writer"];val token=writer["writerToken"].asText();val device=writer["deviceId"].asText()
         val other=createPractice(owner,fixture())
@@ -49,100 +125,9 @@ class SyncPostgresTest : PostgresFixture() {
             extraHeaders=mapOf("X-Practice-Writer" to token))
         assertEquals(200,restored.statusCode());assertEquals(token,json.readTree(restored.body())["writer"]["writerToken"].asText())
         call("GET","/practice/sessions/$sessionId",token=student().token,status=404)
-        val saved=progress("/practice/sessions/$sessionId/progress-commands",progressBody(session),owner.token)
+        val saved=progress("/practice/sessions/$sessionId/sync-commands",progressBody(session),owner.token)
         assertEquals(token,saved["writer"]["writerToken"].asText())
         assertEquals(device,saved["writer"]["deviceId"].asText())
-    }
-
-    @Test fun `broker outage preserves registration while account catalog and announcements remain available`() {
-        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val key=UUID.randomUUID();val body=progressBody(session)
-        consumers.stop();rabbit.dockerClient.pauseContainerCmd(rabbit.containerId).exec()
-        try {
-            val sending=java.util.concurrent.CompletableFuture.supplyAsync { raw("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,key) }
-            call("GET","/me",token=s.token)
-            call("GET","/subjects",token=null)
-            call("GET","/announcements",token=s.token)
-            assertEquals(503,sending.get(12,java.util.concurrent.TimeUnit.SECONDS).statusCode())
-            assertEquals("ACCEPTING",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key))
-            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-        } finally { rabbit.dockerClient.unpauseContainerCmd(rabbit.containerId).exec();consumers.start() }
-        call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
-        eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
-        assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-    }
-
-    @Test fun `queued commands retain drafts barriers and commit once after delivery and confirm loss`() {
-        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val key=UUID.randomUUID();val body=progressBody(session)
-        consumers.stop()
-        try {
-            val pending=call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
-            assertEquals("QUEUED",pending["state"].asText());assertTrue(pending["acknowledgement"].isNull)
-            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-            assertEquals(pending,call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key))
-            call("POST","/practice/sessions/$sessionId/progress-commands",body+mapOf("durationSeconds" to 1),s.token,409,key)
-            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,409)
-            call("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to body["writerToken"]),s.token,409)
-            call("POST","/practice/sessions/$sessionId/cancel",mapOf("expectedVersion" to 1,"writerToken" to body["writerToken"]),s.token,409)
-            // A lost publisher confirmation leaves registration pending; the original request is republished.
-            jdbc.update("UPDATE sync_command SET state='ACCEPTING' WHERE id=?",key)
-            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
-            val envelope=qanda.backend.application.ProgressEnvelope(key,json.convertValue(body,qanda.backend.practice.ProgressInput::class.java))
-            progressCommands.consume(envelope)
-            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-            // Commit happened before ACK; the real queued copies are now redelivered to consumers.
-            consumers.start()
-            eventually { syncHealth.sample();syncHealth.snapshot().metrics.queued==0.0 }
-            progressCommands.consume(envelope)
-            val done=call("GET","/practice/sessions/$sessionId/progress-commands/$key",token=s.token)
-            assertEquals("COMMITTED",done["state"].asText());assertEquals(1,done["acknowledgement"]["acknowledgedSequence"].asInt())
-            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM command_receipt WHERE command_id=?",Int::class.java,key))
-            call("GET","/practice/sessions/$sessionId/progress-commands/$key",token=student().token,status=404)
-            call("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to 2,"durationSeconds" to 0,"writerToken" to body["writerToken"]),s.token)
-        } finally { consumers.start() }
-    }
-
-    @Test fun `expired credentials reject queued writes and technical failures support reviewed replay`() {
-        val s=student();val f=fixture();val session=createPractice(s,f);val sessionId=id(session);val body=progressBody(session);val key=UUID.randomUUID()
-        consumers.stop()
-        try {
-            call("POST","/practice/sessions/$sessionId/progress-commands",body,s.token,202,key)
-            repeat(8) { attempt ->
-                val result=progressCommands.failure(key,IllegalStateException("test transport failure"))
-                assertEquals(if(attempt==7) "dead" else "retry",result.first);assertTrue(result.second<=60000)
-            }
-            val envelope=qanda.backend.application.ProgressEnvelope(key,json.convertValue(body,qanda.backend.practice.ProgressInput::class.java))
-            progressQueue.publish(json.writeValueAsBytes(envelope),key,"dead")
-            assertEquals(key.toString(),call("GET","/admin/sync/dead-letters/head")["item"]["commandId"].asText())
-            call("POST","/admin/sync/dead-letters/$key/replay",token=s.token,status=403)
-            val replayKey=UUID.randomUUID()
-            call("POST","/admin/sync/dead-letters/$key/replay",key=replayKey)
-            call("POST","/admin/sync/dead-letters/$key/replay",key=replayKey)
-            consumers.start()
-            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key)=="COMMITTED" }
-            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-            progressQueue.publish(json.writeValueAsBytes(envelope),key,"dead")
-            assertTrue(call("GET","/admin/sync/dead-letters/head")["item"]["reason"].asText().contains("最终回执"))
-            call("POST","/admin/sync/dead-letters/$key/replay")
-            assertTrue(call("GET","/admin/sync/dead-letters/head")["item"].isNull)
-            assertEquals(2,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,sessionId))
-            consumers.stop()
-            val rejected=createPractice(s,f);val rejectedKey=UUID.randomUUID()
-            call("POST","/practice/sessions/${id(rejected)}/progress-commands",progressBody(rejected),s.token,202,rejectedKey)
-            jdbc.update("UPDATE user_session SET revoked_at=now() WHERE user_id=?",s.id)
-            consumers.start()
-            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,rejectedKey)=="REJECTED" }
-            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(rejected)))
-            assertEquals(401,jdbc.queryForObject("SELECT error_status FROM sync_command WHERE id=?",Int::class.java,rejectedKey))
-            consumers.stop()
-            val owner=student();val staleWriter=createPractice(owner,f);val staleKey=UUID.randomUUID()
-            call("POST","/practice/sessions/${id(staleWriter)}/progress-commands",progressBody(staleWriter),owner.token,202,staleKey)
-            jdbc.update("UPDATE practice_sync_state SET writer_token=? WHERE session_id=?",UUID.randomUUID(),id(staleWriter))
-            consumers.start()
-            eventually { jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,staleKey)=="REJECTED" }
-            assertEquals(409,jdbc.queryForObject("SELECT error_status FROM sync_command WHERE id=?",Int::class.java,staleKey))
-            assertEquals(1,jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(staleWriter)))
-        } finally { consumers.start() }
     }
 
     @Test fun `real broker metrics show paused backlog and SSE revokes expired administrators`() {
@@ -155,11 +140,11 @@ class SyncPostgresTest : PostgresFixture() {
         val consumedBefore=queueCounter("rabbitmq_detailed_queue_messages_acked_total")
         try {
             sessions.forEach { session ->
-                call("POST","/practice/sessions/${id(session)}/progress-commands",progressBody(session),s.token,202)
+                call("POST","/practice/sessions/${id(session)}/sync-commands",progressBody(session),s.token,202)
                 Thread.sleep(500)
             }
             assertEquals(12.0,queueCounter("rabbitmq_detailed_queue_exchange_messages_published_total")-producedBefore)
-            eventually(75) { syncHealth.sample();syncHealth.snapshot().status=="HEALTHY" && syncHealth.snapshot().metrics.queued==12.0 }
+            eventually(75) { syncHealth.sample();syncHealth.snapshot().status=="HEALTHY" && syncHealth.snapshot().metrics.queued==12.0 && syncHealth.snapshot().metrics.processing==0.0 && syncHealth.snapshot().metrics.consumers==0.0 }
             val queued=syncHealth.snapshot()
             assertEquals(0.0,queued.metrics.processing);assertEquals(0.0,queued.metrics.consumers)
             assertTrue(queued.metrics.productionPerSecond!!>=0);assertTrue(queued.metrics.consumptionPerSecond!=null)
@@ -221,7 +206,7 @@ class SyncPostgresTest : PostgresFixture() {
             val original=session["items"].first { it["itemId"].asText()==item["itemId"] }
             if(original["question"]["type"].asText()=="SINGLE_CHOICE") item+mapOf("answer" to mapOf("optionKeys" to listOf("B"))) else item
         }
-        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changed),s.token)
+        val result=finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to changed),s.token)
         assertEquals(5,result["totalCount"].asInt());assertEquals(2,result["objective"]["wrong"].asInt())
         val progress=call("GET","/question-banks?subjectId=${f.subject}&includeProgress=true",token=s.token)["items"]
         assertEquals(4,progress.first { it["id"].asText()==f.bank.toString() }["progress"]["answeredCount"].asInt())
@@ -246,7 +231,7 @@ class SyncPostgresTest : PostgresFixture() {
         val bank=call("GET","/question-banks/${f.bank}",token=s.token)
         val session=call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"chapterIds" to listOf(first),"count" to 10,"order" to "SEQUENTIAL"),"expectedContentVersion" to bank["contentVersion"].asLong(),"deviceId" to UUID.randomUUID()),s.token)
         assertEquals(1,session["items"].size());assertEquals(f.questions[0].toString(),session["items"].first()["question"]["id"].asText())
-        call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
+        finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 1,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
         val chapters=call("GET","/question-banks/${f.bank}/chapters",token=s.token)
         assertEquals(1,chapters.first()["progress"]["answeredCount"].asInt());assertEquals(1,chapters.first()["progress"]["correctCount"].asInt())
         assertEquals(0,chapters.last()["progress"]["answeredCount"].asInt())
@@ -263,7 +248,7 @@ class SyncPostgresTest : PostgresFixture() {
         val input=mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 4),"expectedContentVersion" to bank["contentVersion"].asLong())
         call("POST","/practice/sessions",input,s.token,400)
         val session=createPractice(s,f);val sessionId=id(session)
-        progress("/practice/sessions/$sessionId/progress-commands",mapOf("expectedVersion" to 1,"currentIndex" to 0,"durationSeconds" to 0),s.token,400)
+        progress("/practice/sessions/$sessionId/sync-commands",mapOf("expectedVersion" to 1,"currentIndex" to 0,"durationSeconds" to 0),s.token,400)
         call("PUT","/practice/sessions/$sessionId/progress",mapOf("expectedVersion" to 1),s.token,404)
         call("GET","/me/profile",token=s.token,status=405)
         call("GET","/me",token=s.token)
@@ -291,12 +276,12 @@ class SyncPostgresTest : PostgresFixture() {
         call("GET","/questions?keyword="+"x".repeat(201),token=s.token,status=422)
         assertEquals(2,call("GET","/questions?keyword=$marker",token=null)["total"].asInt())
         val session=createPractice(s,f)
-        val result=call("POST","/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
+        val result=finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText(),"items" to answers(session)),s.token)
         val short=result["items"].first { it["question"]["type"].asText()=="SHORT_ANSWER" }
         call("PUT","/practice/sessions/${id(session)}/items/${short["itemId"].asText()}/self-assessment",mapOf("expectedVersion" to result["version"].asLong(),"assessment" to "WRONG"),s.token)
         val again=createPractice(s,f)
         val single=again["items"].first { it["question"]["type"].asText()=="SINGLE_CHOICE" }
-        call("POST","/practice/sessions/${id(again)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to again["writer"]["writerToken"].asText(),"items" to listOf(mapOf("itemId" to single["itemId"].asText(),"answer" to mapOf("optionKeys" to listOf("C")),"confirmed" to true))),s.token)
+        finish("/practice/sessions/${id(again)}/finish",mapOf("expectedVersion" to 1,"durationSeconds" to 0,"writerToken" to again["writer"]["writerToken"].asText(),"items" to listOf(mapOf("itemId" to single["itemId"].asText(),"answer" to mapOf("optionKeys" to listOf("C")),"confirmed" to true))),s.token)
 
     }
 

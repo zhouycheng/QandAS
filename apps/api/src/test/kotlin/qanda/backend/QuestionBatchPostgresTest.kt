@@ -75,15 +75,17 @@ class QuestionBatchPostgresTest : PostgresFixture() {
                 }
                 statements.httpCount.set(0)
                 val finishStart=System.nanoTime()
-                val finished=raw("POST","/practice/sessions/$sessionId/finish",mapOf("expectedVersion" to session["version"].asLong(),
-                    "writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,"items" to session["items"].map {
-                        mapOf("itemId" to it["itemId"].asText(),"answer" to mapOf("optionKeys" to listOf("A")),"confirmed" to true) }),learner.token,
-                    extraHeaders=mapOf("X-Perf-Measure" to "true"))
-                assertEquals(200,finished.statusCode(),finished.body())
-                val result=json.readTree(finished.body())
+                val key=UUID.randomUUID()
+                val body=mapOf("expectedVersion" to session["version"].asLong(),"writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,"items" to emptyList<Any>(),"kind" to "FINISH","clientSequence" to 1,"currentIndex" to 0)
+                call("POST","/practice/sessions/$sessionId/sync-commands",body,learner.token,202,key)
+                consumers.stop()
+                statements.count.set(0)
+                progressCommands.consume(qanda.backend.application.ProgressEnvelope(key))
+                val workSql=statements.count.get();statements.count.remove();consumers.start()
+                val result=call("GET","/practice/sessions/$sessionId/result",token=learner.token)
                 assertEquals(size,result["answeredCount"].asInt());assertEquals(size,result["objective"]["correct"].asInt())
                 assertEquals(result,call("GET","/practice/sessions/$sessionId/result",token=learner.token))
-                if(finishSql==null) finishSql=statements.httpCount.get() else assertEquals(finishSql,statements.httpCount.get(),"Grading saved answers must not add SQL round trips")
+                if(finishSql==null) finishSql=workSql else assertEquals(finishSql,workSql,"Grading saved answers must not add SQL round trips")
                 println("PRACTICE_FINISH_EVIDENCE size=$size mybatisSql=${statements.httpCount.get()} elapsedMs=${(System.nanoTime()-finishStart)/1000000}")
             }
         } finally { statements.count.remove() }

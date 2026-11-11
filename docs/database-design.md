@@ -692,11 +692,14 @@
 | `writer_device_id` | `uuid` | 是 | — |
 | `writer_token` | `uuid` | 是 | — |
 | `acknowledged_sequence` | `bigint` | 否 | `0` |
+| `accepted_sequence` | `bigint` | 否 | `0` |
+| `finish_sequence` | `bigint` | 是 | — |
 
 | 约束 | 定义 |
 | --- | --- |
 | `practice_sync_state_acknowledged_sequence_check` | `CHECK ((acknowledged_sequence >= 0))` |
-| `practice_sync_state_check` | `CHECK (((writer_device_id IS NULL) = (writer_token IS NULL)))` |
+| `practice_sync_state_check` | `CHECK ((accepted_sequence >= acknowledged_sequence))` |
+| `practice_sync_state_check1` | `CHECK (((writer_device_id IS NULL) = (writer_token IS NULL)))` |
 | `practice_sync_state_pkey` | `PRIMARY KEY (session_id)` |
 | `practice_sync_state_session_id_fkey` | `FOREIGN KEY (session_id) REFERENCES practice_session(id)` |
 
@@ -941,6 +944,10 @@
 | `payload_digest` | `bytea` | 否 | — |
 | `digest_key_version` | `integer` | 否 | — |
 | `request_id` | `uuid` | 否 | — |
+| `kind` | `character varying(8)` | 否 | — |
+| `payload_json` | `text` | 否 | — |
+| `next_attempt_at` | `timestamp with time zone` | 否 | `now()` |
+| `dispatch_until` | `timestamp with time zone` | 是 | — |
 | `state` | `character varying(20)` | 否 | — |
 | `attempts` | `integer` | 否 | `0` |
 | `error_code` | `character varying(64)` | 是 | — |
@@ -958,16 +965,18 @@
 | `sync_command_check` | `CHECK ((((state)::text = 'COMMITTED'::text) = (receipt_id IS NOT NULL)))` |
 | `sync_command_check1` | `CHECK ((((state)::text = ANY ((ARRAY['COMMITTED'::character varying, 'REJECTED'::character varying])::text[])) = (completed_at IS NOT NULL)))` |
 | `sync_command_client_sequence_check` | `CHECK ((client_sequence > 0))` |
+| `sync_command_kind_check` | `CHECK (((kind)::text = ANY ((ARRAY['SAVE'::character varying, 'FINISH'::character varying])::text[])))` |
 | `sync_command_pkey` | `PRIMARY KEY (id)` |
 | `sync_command_receipt_id_fkey` | `FOREIGN KEY (receipt_id) REFERENCES command_receipt(id)` |
 | `sync_command_receipt_id_key` | `UNIQUE (receipt_id)` |
 | `sync_command_session_id_user_id_fkey` | `FOREIGN KEY (session_id, user_id) REFERENCES practice_session(id, user_id)` |
-| `sync_command_state_check` | `CHECK (((state)::text = ANY ((ARRAY['ACCEPTING'::character varying, 'QUEUED'::character varying, 'RETRYING'::character varying, 'COMMITTED'::character varying, 'REJECTED'::character varying, 'DEAD_LETTER'::character varying])::text[])))` |
+| `sync_command_state_check` | `CHECK (((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'RETRYING'::character varying, 'COMMITTED'::character varying, 'REJECTED'::character varying, 'DEAD_LETTER'::character varying])::text[])))` |
 
 其他索引：
 
 - `CREATE INDEX sync_command_committed_idx ON public.sync_command USING btree (completed_at) WHERE ((state)::text = 'COMMITTED'::text)`
-- `CREATE UNIQUE INDEX sync_command_one_pending_idx ON public.sync_command USING btree (session_id) WHERE ((state)::text = ANY ((ARRAY['ACCEPTING'::character varying, 'QUEUED'::character varying, 'RETRYING'::character varying, 'DEAD_LETTER'::character varying])::text[]))`
+- `CREATE INDEX sync_command_order_idx ON public.sync_command USING btree (session_id, client_sequence)`
+- `CREATE INDEX sync_command_pending_idx ON public.sync_command USING btree (next_attempt_at, created_at) WHERE ((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'RETRYING'::character varying])::text[]))`
 - `CREATE UNIQUE INDEX sync_command_sequence_idx ON public.sync_command USING btree (session_id, writer_token, client_sequence) WHERE ((state)::text <> 'REJECTED'::text)`
 
 ### `test_account`

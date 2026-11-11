@@ -43,6 +43,12 @@ class Sessions(private val sql: IdentityMapper, private val admins: AdminAccount
             else -> unauthenticated()
         }
     }
+    fun checkAccepted(actor: Actor) {
+        val user=sql.lockUser(actor.id) ?: unauthenticated()
+        val session=sql.lockUserSession(actor.sessionId) ?: unauthenticated()
+        checkTestAccount(sql.testAccountAccess(actor.id),clock.instant())
+        if(user.status!="ACTIVE" || session.userId!=actor.id || session.revokedAt!=null || session.credentialVersion!=user.credentialVersion) unauthenticated()
+    }
     fun checkInTransaction(actor: Actor) {
         val now=clock.instant()
         if(actor.kind=="USER") {

@@ -22,7 +22,13 @@ class Commands(private val sql: SystemMapper, private val receipts: CommandRecei
     }
     @Transactional
     fun <T: Any> run(actor: Actor?, key: UUID, operation: String, input: Any, resultType: Class<T>, requestId: UUID, work: () -> T): T {
-        actor?.let { sessions.checkInTransaction(it) }
+        return execute(actor,key,operation,input,resultType,requestId,work,false)
+    }
+    @Transactional
+    fun <T: Any> runAccepted(actor: Actor,key: UUID,operation: String,input: Any,resultType: Class<T>,requestId: UUID,work: () -> T): T =
+        execute(actor,key,operation,input,resultType,requestId,work,true)
+    private fun <T: Any> execute(actor: Actor?,key: UUID,operation: String,input: Any,resultType: Class<T>,requestId: UUID,work: () -> T,accepted: Boolean): T {
+        actor?.let { if(accepted) sessions.checkAccepted(it) else sessions.checkInTransaction(it) }
         val scope = actor?.let { "${it.kind}:${it.id}" } ?: "ANONYMOUS"
         sql.lock("command:$scope:$operation:$key")
         val bytes = json.writeValueAsBytes(input)

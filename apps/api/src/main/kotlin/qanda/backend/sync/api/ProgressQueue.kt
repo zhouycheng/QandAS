@@ -25,7 +25,7 @@ class ProgressQueueConfiguration {
         val exchange=DirectExchange(ProgressQueues.EXCHANGE,true,false)
         val dead=QueueBuilder.durable(ProgressQueues.DEAD).quorum().withArgument("x-delivery-limit",-1).build()
         val ready=QueueBuilder.durable(ProgressQueues.READY).quorum()
-            // Command failures have a database-backed retry budget; an unavailable database must not exhaust it.
+            // PostgreSQL retains complete tasks; notification redelivery must not discard them.
             .withArgument("x-delivery-limit",-1).deadLetterExchange(ProgressQueues.EXCHANGE).deadLetterRoutingKey("dead")
             .withArgument("x-dead-letter-strategy","at-least-once").withArgument("x-overflow","reject-publish").build()
         val retry=QueueBuilder.durable(ProgressQueues.RETRY).quorum().deadLetterExchange(ProgressQueues.EXCHANGE).deadLetterRoutingKey("progress")

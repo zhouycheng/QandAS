@@ -28,6 +28,7 @@ class ContentCache(private val redis: StringRedisTemplate,private val json: Obje
     }
 
     private fun available()=enabled && System.nanoTime()>=retryAt.get()
+    fun isEnabled()=enabled
     private fun key(region: String,id: String)="$namespace:$region:$id"
     private fun count(region: String,result: String,n: Int) {
         if(n>0) registry.counter("qanda.content.cache.requests","cache",region,"result",result).increment(n.toDouble())
@@ -72,13 +73,17 @@ class ContentCache(private val redis: StringRedisTemplate,private val json: Obje
                 } catch(_: Exception) { failed() }
             }
         }
-        // A rolled-back content version can be reused; publish only committed cache entries.
-        if(TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(object: TransactionSynchronization {
-                override fun afterCommit() { write() }
-            })
-        } else write()
+        afterContentCommit(write)
     }
+}
+
+internal fun afterContentCommit(write: () -> Unit) {
+    // A rolled-back content version can be reused; publish only committed cache entries.
+    if(TransactionSynchronizationManager.isSynchronizationActive()) {
+        TransactionSynchronizationManager.registerSynchronization(object: TransactionSynchronization {
+            override fun afterCommit() { write() }
+        })
+    } else write()
 }
 
 data class CachedBankCounts(val questionCount: Long,val activeQuestionCount: Long)
