@@ -336,6 +336,8 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         self.assertEqual(next_target(4000), 8000)
         self.assertEqual(next_target(1), 2)
         self.assertGreater(next_target(10 ** 9), 10 ** 9)
+        self.assertEqual(next_target(900,True),1125)
+        self.assertEqual(next_target(1,True),2)
 
     def test_partial_metric_lines_are_retried(self):
         with tempfile.TemporaryDirectory() as root:
