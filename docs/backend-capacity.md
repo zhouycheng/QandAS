@@ -1,6 +1,6 @@
 # 后端容量测试
 
-容量工具位于 `apps/api/capacity/`。测试从独立 Mac 上的原生 k6 发起，经仅监听本机的 SSH 隧道进入新后端。结果记录真实请求吞吐、完整练习成功率、异步落库和恢复情况。
+容量工具位于 `apps/api/capacity/`。测试从独立 Mac 上的原生 k6 发起，经仅监听本机的 SSH 隧道进入新后端。结果记录真实请求吞吐、完整练习成功率、异步落库和恢复情况；实测数据见[后端容量实测记录](backend-capacity-results.md)。
 
 ## 运行条件
 
@@ -21,7 +21,7 @@
 
 ## 数据隔离与准备
 
-数据库保护要求使用固定库名 `qanda_backend`。准备程序停止本项目应用及原 PostgreSQL、RabbitMQ 容器，保留原卷，使用同一镜像、内存限制和网络别名启动带运行标签的临时基础服务。压测数据使用独立 PostgreSQL 卷及 RabbitMQ vhost。原备份计时器在窗口内暂停，恢复后重启。
+数据库保护要求使用固定库名 `qanda_backend`。准备程序停止本项目应用及原 PostgreSQL、RabbitMQ、Redis 容器，保留原卷，使用相同镜像 ID、内存限制和网络别名启动带运行标签的临时基础服务。压测数据使用独立 PostgreSQL 卷、RabbitMQ vhost 和临时 Redis。每轮恢复数据基线后只清空本次拥有的 Redis，缓存命名空间包含运行编号。原备份计时器在窗口内暂停，恢复后重启。
 
 程序通过既有交互式首管、题库导入及测试账号接口准备数据：20 个题库，共 10000 道可作答题，覆盖单选、多选、判断、填空、简答和阅读题组。阅读材料单独占父记录，因此物理题目行数高于可作答题数。每次从快照恢复后，在隔离数据库执行 `ANALYZE`，为查询规划准备统计信息。测试账号计入统计，各用户使用独立令牌、设备和练习。测试调用范围排除邮件和微信提供端。
 
@@ -45,6 +45,12 @@ A 组保留来源 IP 限流，B 组在隔离测试中关闭该层保护；两组
 
 HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练习的实际成本；集中交卷场景使用提前创建的独立练习。真实学生场景保留思考时间、五秒同步、每秒回执查询、六十秒心跳及幂等重试，流程失败后等待一秒再开始下一轮。独立到达率场景继续按目标速率发压。202 只计受理，保存成功以 COMMITTED 及实际答案核对为准。
 
+每次按 20 题上限创建练习，阅读组保持完整，实际题数以练习快照为准。HTTP 成功率、延迟和保存确认指标全程判定。`commit_p95_ms`、`commit_p99_ms` 从首次提交到客户端观察到 COMMITTED，包含重试、排队和回执轮询；命令实际完成数量另外核对。学生流程包含数分钟思考时间，流程成功率按整轮所有已结束流程核对；滚动一分钟窗口监测请求、保存和队列指标。完成吞吐按成功完成事件统计，强制停止时从保留的原始指标补齐实际 VU，结果保留重建标记。
+
+`ready_and_drained_seconds` 记录停压后证实服务就绪、请求结束且队列排空的时间；`audit_seconds` 记录持久化核验耗时；`recovery_seconds` 包含两者及最终复核。各轮同时保留核验前后的计数快照。
+
+各轮结果的 `seed_sha256` 对应实际恢复的数据快照；账号池扩充后会保存新的快照，便于核对同档 A/B 的数据基线。运行配置中的摘要记录初始快照，实际账号规模同时保存在逐轮结果中。各轮从应用指标读取实际并发、等待容量、等待时限和缓存开关，记录在逐轮结果字段；比较缓存与准入策略时同时核对这些值。
+
 吞吐场景每档使用 [k6 独立到达率调度](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/)，避免响应变慢时自动降低目标发压。未发出的操作以 [dropped iterations](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/dropped-iterations/) 单列；判断边界时同时检查发压端资源与可用 VU，按[官方大规模测试指引](https://grafana.com/docs/k6/latest/testing-guides/running-large-tests/) 区分发压端和服务端限制。
 
 常规判定为成功率至少 99%，各接口 HTTP P95 不超过 2 秒，保存受理 P95 不超过 1 秒，落库 P95 不超过 5 秒、P99 不超过 15 秒，队列不持续增长。积压比较一分钟内前后半段的均值及连续样本；统计投影按一秒批处理，等待不足五秒的批次波动不计持续滞后。429、5xx、网络错误、未启动迭代和中断流程分别记录。
@@ -66,16 +72,16 @@ HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练
 `--restore` 在退出时恢复原基础服务与应用配置，并校验原配置摘要。套件完成后清理带本次运行标签的临时容器、卷和凭据文件；异常中断时保留临时数据供诊断。独立的服务器计时器在五分钟未收到测试端心跳后尝试恢复原服务，降低发压机离线造成的影响。
 
 ```sh
-python3 apps/api/capacity/report.py --state "$CAPACITY_STATE" --output docs/capacity-results
+"$CAPACITY_PYTHON" apps/api/capacity/report.py --state "$CAPACITY_STATE" --output docs/capacity-results
 ```
 
 导出报告包含中文说明、CSV、JSON 和可交互 HTML 图表。连接参数和令牌留在私有目录。报告区分已验证稳定容量、首次失稳、容器失败以及发压端／链路限制；公网全链路容量需要独立验收。
 
-报告资源趋势包含主机 CPU、可用内存、网络发送、容器 CPU/内存、JVM 堆与 GC、连接池等待、数据库锁等待、答案队列和统计投影。服务端 P95 使用直方图桶上界估计，结合客户端 P95 判断应用处理与测试链路耗时。
+报告资源趋势包含主机 CPU、可用内存、网络发送、容器 CPU/内存、JVM 堆与 GC、连接池等待、数据库锁等待、答案队列和统计投影，以及 HTTP 等待人数、等待耗时、缓存命中／回源和 Redis 内存、连接及淘汰。服务端 P95 使用直方图桶上界估计，结合客户端 P95 判断应用处理与测试链路耗时。
 
 工具自身检查：
 
 ```sh
-python3 -m unittest discover -s apps/api/capacity -p 'test_*.py' -v
+"$CAPACITY_PYTHON" -m unittest discover -s apps/api/capacity -p 'test_*.py' -v
 node --check apps/api/capacity/load.js
 ```

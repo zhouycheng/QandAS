@@ -126,8 +126,9 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
             def command(args, data=None):
                 if 'pg_restore' in args:
                     self.assertEqual(data, b'original baseline'); seed.write_bytes(b'later baseline')
-            with patch.object(remote, 'ROOT', Path(root), create=True), patch.object(remote, 'assert_capacity'), patch.object(remote, 'manifest', return_value={'postgres': 'isolated'}), patch.object(remote, 'compose'), patch.object(remote, 'sql'), patch.object(remote, 'broker'), patch.object(remote, 'mode'), patch.object(remote, 'command', side_effect=command):
+            with patch.object(remote, 'ROOT', Path(root), create=True), patch.object(remote, 'assert_capacity'), patch.object(remote, 'manifest', return_value={'postgres': 'isolated', 'redis': 'isolated-cache'}), patch.object(remote, 'redis_output') as cache, patch.object(remote, 'compose'), patch.object(remote, 'sql'), patch.object(remote, 'broker'), patch.object(remote, 'mode'), patch.object(remote, 'command', side_effect=command):
                 result = remote.reset(True)
+            cache.assert_called_once_with('isolated-cache','FLUSHDB')
             self.assertEqual(result['seed_sha256'], hashlib.sha256(b'original baseline').hexdigest())
 
     def test_invalid_start_load_cannot_touch_the_remote_environment(self):
@@ -153,6 +154,30 @@ assert.equal(retryDelay(1, 'invalid', 1), 1000);
         with patch.object(remote, 'assert_capacity', side_effect=AssertionError('restored')), patch.object(remote, 'inspect') as inspect:
             with self.assertRaisesRegex(AssertionError, 'restored'): remote.collect()
             inspect.assert_not_called()
+
+    def test_cache_collection_uses_container_environment_for_authentication(self):
+        with patch.object(remote,'command',return_value=b'PONG') as command:
+            self.assertEqual(remote.redis_output('isolated-cache','PING'),'PONG')
+        args=command.call_args.args[0]
+        self.assertIn('REDISCLI_AUTH="$BACKEND_REDIS_PASSWORD"',args[5])
+        self.assertEqual(args[-1],'PING');self.assertEqual(command.call_args.kwargs['timeout'],2)
+
+    def test_cache_and_admission_metrics_export_rates_without_private_keys(self):
+        def sample(stamp,hits,misses):
+            text='\n'.join(['qanda_http_inflight 2','qanda_http_queued 3','qanda_http_queue_wait_seconds_max 0.1',
+                f'qanda_content_cache_requests_total{{cache="bank-counts",result="hit"}} {hits}',
+                f'qanda_content_cache_requests_total{{cache="bank-counts",result="miss"}} {misses}',
+                'qanda_content_cache_failures_total 0'])
+            return {'observed_at':stamp,'host':{'available':1024**3,'swap_used':0,'disk_free':10*1024**3,'cpu_ticks':[stamp,0,0,100,0,0,0,0],'network':{}},
+                    'containers':{'qanda-capacity-redis-test':{'memory':20*1024**2,'restarts':0,'cpu':{'usage_usec':stamp*1000}}},
+                    'application':{'qanda-application-api-1':{'metrics':text}},'window':{},
+                    'redis':{'used_memory':10*1024**2,'connected_clients':3,'keyspace_hits':hits,'keyspace_misses':misses,'evicted_keys':0}}
+        value=series([sample(1,0,0),sample(6,90,10)])[-1]
+        self.assertEqual(value['api_cache_hit_percent'],90)
+        self.assertEqual(value['redis_hit_percent'],90)
+        self.assertEqual(value['api_http_queued'],3)
+        self.assertEqual(value['api_queue_wait_max_ms'],100)
+        self.assertEqual(value['redis_memory_mib'],20)
 
     def test_drained_queue_does_not_imply_ready_application(self):
         remote = Mock()

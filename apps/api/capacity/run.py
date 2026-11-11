@@ -356,6 +356,7 @@ def trial(remote, scenario, target, limits, seconds, label):
         source = Path(__file__).parent
         summary['harness_sha256'] = hashlib.sha256(b''.join((source / name).read_bytes() for name in ('run.py', 'load.js', 'retry-delay.mjs', 'remote.py', 'client.py', 'tunnel.py', 'resources.py', 'requirements.txt'))).hexdigest()
         summary['backend_revision'] = remote.config['expected_revision']
+        summary.update(baseline.get('runtime_settings', {}))
         summary['source_run'] = remote.state.name
         summary['fixture_users'] = len(dataset['users']); summary['fixture_banks'] = len(dataset['banks'])
         summary['seed_sha256'] = reset['seed_sha256']
