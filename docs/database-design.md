@@ -1,8 +1,8 @@
 # 数据库设计
 
-应用与 API 版本为 `1.0.0`。数据库使用 V1 初始化入口，结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控只读权限由同目录 `monitoring-permissions.sql` 定义。下表根据隔离 PostgreSQL 实际初始化后的结构整理，共 45 张业务表。启动时校验既有 V1 结构；结构不一致时停止启动，按[开发与运行](development.md)核实专用开发／测试环境及恢复条件后处理。
+应用与 API 版本为 `1.0.0`。V1 初始化结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控只读权限由同目录 `monitoring-permissions.sql` 定义。V2、V3 迁移分别提供可用题目与可见题库视图，生产部署由 Flyway 顺序执行。下表根据隔离 PostgreSQL 实际初始化后的结构整理，共 45 张业务表。启动时校验当前结构；结构不一致时停止启动，按[开发与运行](development.md)核实迁移记录、备份和目标环境后处理。
 
-普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。公开条件由 `bank_visible` 与 `question_active` 统一计算；分类列表使用 `bank_matches_category`。
+普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。批量查询通过 `visible_question_bank` 与 `active_question` 视图计算可见性和可用题目；`bank_visible`、`question_active` 提供同一规则的单项判断，分类列表使用 `bank_matches_category`。
 
 题目稳定身份与不可变修订分离，练习固定题目和材料修订。历史结果、同步序号与交卷屏障沿用数据库约束。内容检测上下文、请求、媒体和回调持久化；注销证明完成后与账号及会话外键解耦，保留限时幂等回执。个人头像和待检测媒体随对应账号／任务清理。具体事务与访问规则见[产品规则](product-rules.md)、[内容安全](content-safety.md)及[同步监控](sync-monitoring.md)。
 

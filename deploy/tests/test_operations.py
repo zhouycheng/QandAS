@@ -171,12 +171,17 @@ class OperationsTests(unittest.TestCase):
             dispatch.execute('backend-node', 'deploy')
             self.assertEqual(set(remote.call_args_list[0].args[2]['release']), {'revision', 'backend'})
         def command(args, **kwargs):
-            return SimpleNamespace(stdout='{"status":"UP"}' if 'curl' in args else '')
+            output='{"status":"UP"}' if 'curl' in args else ('PONG' if any('redis-cli ping' in arg for arg in args) else '')
+            return SimpleNamespace(stdout=output)
         with patch.object(candidate.subprocess, 'run', side_effect=command) as docker, patch('builtins.print'):
             candidate.check('backend-image')
         commands = [call.args[0] for call in docker.call_args_list]
         self.assertEqual(sum('schema-init' in command for command in commands), 2)
         self.assertFalse(any('wget' in command for command in commands))
+        cache=next(command for command in commands if 'redis:8.10.3-alpine' in command)
+        self.assertIn('--read-only',cache)
+        self.assertIn('--memory',cache)
+        self.assertNotIn('-p',cache)
 
     def test_dispatch_streams_only_the_hash_checked_image_archive(self):
         archive = b'docker image archive'

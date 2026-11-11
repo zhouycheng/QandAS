@@ -72,7 +72,7 @@ def render(text, values):
     return '\n'.join(lines) + '\n'
 
 
-def install_config(content, replace_empty):
+def install_config(content, replace_empty, expected_content=None):
     fd, temporary = tempfile.mkstemp(prefix='.production.env.', dir=ROOT)
     try:
         os.fchown(fd, 0, 0)
@@ -86,6 +86,8 @@ def install_config(content, replace_empty):
             identity = (current.st_dev, current.st_ino, current.st_size)
             if not stat.S_ISREG(current.st_mode) or identity != replace_empty:
                 fail('production.env 状态已变化；未覆盖现有配置。')
+            if expected_content is not None and TARGET.read_bytes() != expected_content:
+                fail('production.env 内容已变化；未覆盖现有配置。')
             os.replace(temporary, TARGET)
             temporary = ''
         else:
@@ -98,7 +100,42 @@ def install_config(content, replace_empty):
             Path(temporary).unlink(missing_ok=True)
 
 
+def extend_cache_config(text):
+    keys = template_keys(text)
+    defaults = {'BACKEND_REDIS_HOST': 'qanda-redis', 'BACKEND_CONTENT_CACHE_ENABLED': 'true'}
+    lines = text.splitlines(keepends=True)
+    password_present = False
+    for index, line in enumerate(lines):
+        if line.startswith('BACKEND_REDIS_PASSWORD='):
+            password_present = True
+            if line.partition('=')[2].strip() in ('', "''", '""'):
+                lines[index] = 'BACKEND_REDIS_PASSWORD=' + single_quoted(secrets.token_hex(32)) + '\n'
+    if not password_present:
+        defaults['BACKEND_REDIS_PASSWORD'] = secrets.token_hex(32)
+    extra = ''.join(key + '=' + single_quoted(value) + '\n' for key, value in defaults.items() if key not in keys)
+    value = ''.join(lines)
+    return value + ('\n' if extra and value and not value.endswith('\n') else '') + extra
+
+
+def ensure_cache():
+    if os.geteuid() != 0 or ROOT.is_symlink() or TARGET.is_symlink():
+        fail('缓存配置升级需要 root 管理的普通配置文件。')
+    root = ROOT.stat(); current = TARGET.lstat()
+    if root.st_uid != 0 or root.st_mode & 0o022 or not stat.S_ISREG(current.st_mode) or current.st_uid != 0 or current.st_mode & 0o077 or not current.st_size:
+        fail('现有配置目录、文件属主或权限不符合要求；未修改缓存配置。')
+    original = TARGET.read_bytes()
+    updated = extend_cache_config(original.decode('utf-8')).encode('utf-8')
+    if updated != original:
+        install_config(updated.decode('utf-8'), (current.st_dev, current.st_ino, current.st_size), expected_content=original)
+    print('缓存配置已就绪，现有业务配置和密钥保持原值。')
+
+
 def main():
+    if sys.argv[1:] == ['--ensure-cache']:
+        ensure_cache()
+        return
+    if sys.argv[1:]:
+        fail('用法：configure-production-env.py [--ensure-cache]')
     if os.geteuid() != 0:
         fail('请通过 sudo bash deploy/install.sh 运行首次安装。')
     if not sys.stdin.isatty() or not sys.stdout.isatty():
@@ -126,7 +163,7 @@ def main():
     except OSError:
         fail('缺少 deploy/production.env.example；配置文件未创建。')
     missing = {
-        'BACKEND_DB_PASSWORD', 'BACKEND_RABBIT_PASSWORD',
+        'BACKEND_DB_PASSWORD', 'BACKEND_RABBIT_PASSWORD', 'BACKEND_REDIS_PASSWORD',
         'BACKEND_COMMAND_DIGEST_KEYS', 'BACKEND_IDENTITY_MAC_KEYS',
         'BACKEND_IDENTITY_RATE_KEY', 'BACKEND_MAIL_ENCRYPTION_KEYS',
         'BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS', 'BACKEND_WECHAT_APP_ID',
@@ -152,6 +189,7 @@ def main():
     values = {
         'BACKEND_DB_PASSWORD': secrets.token_hex(32),
         'BACKEND_RABBIT_PASSWORD': secrets.token_hex(32),
+        'BACKEND_REDIS_PASSWORD': secrets.token_hex(32),
         'BACKEND_COMMAND_DIGEST_KEYS': '1:' + token(),
         'BACKEND_COMMAND_DIGEST_ACTIVE_VERSION': '1',
         'BACKEND_IDENTITY_MAC_KEYS': '1:' + token(),

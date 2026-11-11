@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, statSync, lstatSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -14,12 +14,34 @@ function environment() {
   if ((statSync(config).mode & 0o077) !== 0) throw new Error('.env.backend 权限须为600');
   const env = { ...process.env };
   const seen = new Set();
-  for (const line of readFileSync(config, 'utf8').split('\n')) {
+  const original = readFileSync(config, 'utf8');
+  for (const line of original.split('\n')) {
     if (!line.trim() || line.trimStart().startsWith('#')) continue;
     const entry = line.match(/^(BACKEND_[A-Z0-9_]+)=(.*)$/);
     if (!entry || seen.has(entry[1])) throw new Error('.env.backend 配置格式或重复字段错误');
     seen.add(entry[1]);
     env[entry[1]] ??= entry[2];
+  }
+  let updated = original;
+  const cacheDefaults = { BACKEND_REDIS_HOST: '127.0.0.1', BACKEND_REDIS_PORT: '56379', BACKEND_CONTENT_CACHE_ENABLED: 'true' };
+  if (!seen.has('BACKEND_REDIS_PASSWORD') || /^BACKEND_REDIS_PASSWORD=$/m.test(original)) {
+    const password = randomBytes(32).toString('base64url');
+    if (seen.has('BACKEND_REDIS_PASSWORD')) updated = updated.replace(/^BACKEND_REDIS_PASSWORD=$/m, `BACKEND_REDIS_PASSWORD=${password}`);
+    else cacheDefaults.BACKEND_REDIS_PASSWORD = password;
+    if (!env.BACKEND_REDIS_PASSWORD) env.BACKEND_REDIS_PASSWORD = password;
+  }
+  for (const [key, value] of Object.entries(cacheDefaults)) {
+    if (!seen.has(key)) { updated += `${updated.endsWith('\n') ? '' : '\n'}${key}=${value}\n`;env[key] ??= value; }
+  }
+  if (updated !== original) {
+    if (!lstatSync(config).isFile()) throw new Error('私有配置升级需要普通文件');
+    const runtime = join(apiRoot, '.backend-runtime');mkdirSync(runtime, { recursive: true });
+    const temporary = join(runtime, `cache-env-${randomBytes(8).toString('hex')}`);
+    try {
+      writeFileSync(temporary, updated, { mode: 0o600, flag: 'wx' });
+      if (readFileSync(config, 'utf8') !== original) throw new Error('私有配置已变化，保留现有内容');
+      renameSync(temporary, config);
+    } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
   const sesConfig = join(homedir(), '.config/qanda/tencent-ses.env');
   if (existsSync(sesConfig)) {
@@ -65,7 +87,8 @@ try {
     if (existsSync(config)) throw new Error('.env.backend 已存在，保留现有配置');
     let values = readFileSync(join(apiRoot, '.env.backend.example'), 'utf8')
       .replace('BACKEND_DB_PASSWORD=\n', `BACKEND_DB_PASSWORD=${randomBytes(32).toString('base64url')}\n`)
-      .replace('BACKEND_RABBIT_PASSWORD=\n', `BACKEND_RABBIT_PASSWORD=${randomBytes(32).toString('base64url')}\n`);
+      .replace('BACKEND_RABBIT_PASSWORD=\n', `BACKEND_RABBIT_PASSWORD=${randomBytes(32).toString('base64url')}\n`)
+      .replace('BACKEND_REDIS_PASSWORD=\n', `BACKEND_REDIS_PASSWORD=${randomBytes(32).toString('base64url')}\n`);
     for (const name of ['COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION', 'TEST_ACCOUNT_ENCRYPTION']) {
       values = values.replace(`BACKEND_${name}_KEYS=\n`, `BACKEND_${name}_KEYS=1:${randomBytes(32).toString('base64')}\n`);
     }
@@ -73,7 +96,7 @@ try {
     writeFileSync(config, values, { mode: 0o600, flag: 'wx' });
     console.log('已生成独立后端私有配置，权限600');
   } else if (command === 'deps' || command === 'stop-deps') {
-    await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', ...(command === 'deps' ? ['up', '-d', '--wait', 'postgres'] : ['stop', 'postgres', 'mailpit'])]);
+    await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', ...(command === 'deps' ? ['up', '-d', '--wait', 'postgres', 'redis'] : ['stop', 'postgres', 'redis', 'mailpit'])]);
   } else if (command === 'capture') {
     await run('docker', ['compose', '-p', 'qanda-backend', '--env-file', '.env.backend', '-f', 'compose.backend.yml', 'up', '-d', 'mailpit']);
   } else if (command === 'docker-build') {

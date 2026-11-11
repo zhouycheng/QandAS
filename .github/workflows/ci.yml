@@ -44,6 +44,7 @@ jobs:
         run: |
           case "$BUILD_SCOPE" in all|backend|frontend) ;; *) exit 1 ;; esac
           python3 -m unittest discover -s deploy/tests -v
+          python3 -m unittest discover -s apps/api/scripts -p '*_test.py' -v
           python3 -m unittest discover -s apps/api/capacity -p 'test_*.py' -v
           node --check apps/api/capacity/load.js
       - name: Verify shared content and admin
@@ -95,7 +96,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.scope != 'frontend' && vars.QANDA_PREPARE_INFRA == 'true'
         run: |
           set -euo pipefail
-          images=(postgres:17.6-alpine rabbitmq:4.2.5-management prom/prometheus:v3.5.0 nginx:1.28-alpine)
+          images=(postgres:17.6-alpine rabbitmq:4.2.5-management redis:8.10.3-alpine prom/prometheus:v3.5.0 nginx:1.28-alpine)
           for image in "${images[@]}"; do docker pull --platform linux/amd64 "$image"; done
           docker save "${images[@]}" | gzip -1 > release/infrastructure.tar.gz
           cd release

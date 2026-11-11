@@ -17,7 +17,7 @@ import time
 import uuid
 
 APP = ['qanda-application-' + role + '-1' for role in ('api', 'worker', 'monitor')]
-ORIGINAL = ['qanda-infrastructure-postgres-1', 'qanda-infrastructure-rabbitmq-1']
+ORIGINAL = ['qanda-infrastructure-postgres-1', 'qanda-infrastructure-rabbitmq-1', 'qanda-infrastructure-redis-1']
 
 
 def command(args, data=None, timeout=300):
@@ -46,7 +46,7 @@ def assert_capacity():
     m = manifest()
     assert not (ROOT / 'restored').exists(), 'The run was restored; use a new run identifier'
     assert all(not x['State']['Running'] for x in inspect(ORIGINAL)), 'Original infrastructure must remain stopped during the experiment'
-    assert all(x['State']['Running'] and x['Config']['Labels'].get('qanda.capacity.run') == RUN for x in inspect([m['postgres'], m['rabbit']])), 'Temporary infrastructure ownership or state mismatch'
+    assert all(x['State']['Running'] and x['Config']['Labels'].get('qanda.capacity.run') == RUN for x in inspect([m['postgres'], m['rabbit'], m['redis']])), 'Temporary infrastructure ownership or state mismatch'
 
 
 def tunnel():
@@ -97,11 +97,19 @@ def sql(query):
     return command(['docker', 'exec', manifest()['postgres'], 'psql', '-U', 'qanda_backend', '-d', 'qanda_backend', '-Atqc', query]).decode().strip()
 
 
-def wait_infra(pg, rabbit):
+def redis_output(name, *args):
+    return command(['docker', 'exec', name, 'sh', '-c', 'REDISCLI_AUTH="$BACKEND_REDIS_PASSWORD" exec redis-cli --raw "$@"', 'qanda-cache', *args], timeout=2).decode().strip()
+
+
+def wait_infra(pg, rabbit, cache=None):
     for _ in range(90):
         a = subprocess.run(['docker', 'exec', pg, 'pg_isready', '-U', 'qanda_backend'], capture_output=True)
         b = subprocess.run(['docker', 'exec', rabbit, 'rabbitmq-diagnostics', '-q', 'check_running'], capture_output=True)
-        if a.returncode == b.returncode == 0:
+        healthy_cache = cache is None
+        if cache is not None:
+            try: healthy_cache = redis_output(cache, 'PING') == 'PONG'
+            except (subprocess.SubprocessError, RuntimeError): pass
+        if a.returncode == b.returncode == 0 and healthy_cache:
             return
         time.sleep(2)
     raise RuntimeError('Infrastructure readiness timeout')
@@ -133,6 +141,7 @@ def prepare():
     m = {'run': RUN, 'image': old[0]['Config']['Image'], 'revision': state['revision'],
          'original_ids': {x['Name'].lstrip('/'): x['Id'] for x in old},
          'postgres': 'qanda-capacity-pg-' + RUN, 'rabbit': 'qanda-capacity-rabbit-' + RUN,
+         'redis': 'qanda-capacity-redis-' + RUN,
          'vhost': 'qanda-capacity-' + RUN,
          'volumes': ['qanda-capacity-' + RUN + '-' + role for role in ('pg', 'rabbit')],
          'env_sha256': hashlib.sha256(Path('/srv/qanda/production.env').read_bytes()).hexdigest(),
@@ -155,11 +164,22 @@ def prepare():
                 '--restart', 'unless-stopped', '--env-file', envfile, '-v', volume + (':/var/lib/postgresql/data' if role == 'pg' else ':/var/lib/rabbitmq')]
         if role == 'rabbit':
             args += ['-v', '/srv/qanda/rabbitmq-plugins:/etc/rabbitmq/enabled_plugins:ro']
-        command(args + [row['Config']['Image']])
-    wait_infra(m['postgres'], m['rabbit']); broker()
+        command(args + [row['Image']])
+    row = old[5]
+    envfile = ROOT / 'redis.env';envfile.write_text('\n'.join(row['Config']['Env']) + '\n');envfile.chmod(0o600)
+    command(['docker', 'run', '-d', '--name', m['redis'], '--label', 'qanda.capacity.run=' + RUN,
+             '--network', 'qanda-data', '--network-alias', 'qanda-redis', '--user', 'redis',
+             '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=1m', '--cap-drop', 'ALL',
+             '--security-opt', 'no-new-privileges:true', '--entrypoint', '/bin/sh',
+             '--memory', str(row['HostConfig']['Memory']), '--memory-swap', str(row['HostConfig']['MemorySwap']),
+             '--restart', 'unless-stopped', '--env-file', envfile,
+             '-v', '/srv/qanda/redis-start.sh:/usr/local/bin/qanda-redis-start:ro', row['Image'], '/usr/local/bin/qanda-redis-start'])
+    wait_infra(m['postgres'], m['rabbit'], m['redis']); broker()
     settings = {'BACKEND_REQUEST_LIMITS_ENABLED': 'false', 'SPRING_RABBITMQ_VIRTUAL_HOST': m['vhost'],
                 'SERVER_TOMCAT_MBEANREGISTRY_ENABLED': 'true',
                 'BACKEND_MAIL_DISPATCH_ENABLED': 'false',
+                'BACKEND_CONTENT_CACHE_ENABLED': 'true', 'BACKEND_REDIS_HOST': 'qanda-redis',
+                'BACKEND_CONTENT_CACHE_NAMESPACE': 'qanda:capacity:' + RUN,
                 'BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS': '1:' + base64.b64encode(secrets.token_bytes(32)).decode(),
                 'BACKEND_TEST_ACCOUNT_ENCRYPTION_ACTIVE_VERSION': '1'}
     save(ROOT / 'override.json', {'services': {role: {'environment': settings.copy()} for role in ('api', 'worker', 'monitor', 'schema-init')}})
@@ -180,11 +200,13 @@ def reset(enabled):
     m = manifest(); compose('stop', 'api', 'worker', 'monitor')
     command(['docker', 'exec', m['postgres'], 'dropdb', '-U', 'qanda_backend', '--force', 'qanda_backend'])
     command(['docker', 'exec', m['postgres'], 'createdb', '-U', 'qanda_backend', 'qanda_backend'])
-    command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], (ROOT / 'seed.dump').read_bytes())
+    seed = (ROOT / 'seed.dump').read_bytes()
+    command(['docker', 'exec', '-i', m['postgres'], 'pg_restore', '-U', 'qanda_backend', '-d', 'qanda_backend', '--exit-on-error'], seed)
     compose('run', '--rm', '--no-deps', 'schema-init')
     sql('ANALYZE')
+    redis_output(m['redis'], 'FLUSHDB')
     broker(True); mode(enabled)
-    return {'reset': True, 'limits': enabled}
+    return {'reset': True, 'limits': enabled, 'seed_sha256': hashlib.sha256(seed).hexdigest()}
 
 
 def fetch(row, port, path):
@@ -199,7 +221,8 @@ def fetch(row, port, path):
 
 
 def collect():
-    m = manifest(); rows = inspect(APP + [m['postgres'], m['rabbit'], 'qanda-infrastructure-prometheus-1', 'qanda-tailnet', 'qanda-tailnet-gateway-1'])
+    assert_capacity()
+    m = manifest(); rows = inspect(APP + [m['postgres'], m['rabbit'], 'qanda-infrastructure-prometheus-1', 'qanda-tailnet', 'qanda-tailnet-gateway-1', m['redis']])
     mem = {line.split(':')[0]: int(line.split()[1]) * 1024 for line in Path('/proc/meminfo').read_text().splitlines()}
     disk = os.statvfs('/var/lib/docker')
     result = {'time': time.time(), 'host': {'available': mem['MemAvailable'], 'total': mem['MemTotal'], 'swap_used': mem['SwapTotal'] - mem['SwapFree'], 'disk_free': disk.f_bavail * disk.f_frsize, 'load': os.getloadavg()}, 'containers': {}}
@@ -225,10 +248,17 @@ def collect():
         status, data = fetch(row, 9091, '/actuator/prometheus')
         ready, _ = fetch(row, 9091, '/actuator/health/readiness')
         result['containers'][row['Name'].lstrip('/')]['probe_ok'] = ready == 200
-        keep = ('http_server_requests_', 'hikaricp_', 'jvm_gc_', 'jvm_memory_', 'process_cpu_', 'tomcat_threads_', 'qanda_http_')
+        keep = ('http_server_requests_', 'hikaricp_', 'jvm_gc_', 'jvm_memory_', 'process_cpu_', 'tomcat_threads_', 'qanda_http_', 'qanda_content_cache_')
         return row['Name'].lstrip('/'), {'status': status, 'metrics': '\n'.join(line for line in data.splitlines() if line.startswith(keep))}
     with concurrent.futures.ThreadPoolExecutor(3) as pool:
         result['application'] = dict(pool.map(metrics, rows[:3]))
+    settings = {'qanda_http_capacity': 'max_concurrent_requests', 'qanda_http_queue_capacity': 'request_queue_capacity',
+                'qanda_http_queue_wait_limit': 'request_queue_wait_ms', 'qanda_content_cache_enabled': 'content_cache_enabled'}
+    text = result['application'].get(APP[0], {}).get('metrics', '')
+    result['runtime_settings'] = {}
+    for metric, setting in settings.items():
+        value = re.search(r'^' + metric + r'(?:\{[^}]*\})?\s+([0-9.]+)$', text, re.MULTILINE)
+        if value: result['runtime_settings'][setting] = bool(float(value[1])) if setting == 'content_cache_enabled' else int(float(value[1]))
     status, data = fetch(rows[4], 15692, '/metrics/detailed?family=queue_coarse_metrics&family=queue_consumer_count&family=queue_delivery_metrics&family=queue_exchange_metrics')
     result['rabbit'] = {'status': status, 'metrics': '\n'.join(line for line in data.splitlines() if ('vhost="' + m['vhost'] + '"') in line)}
     try:
@@ -237,6 +267,11 @@ def collect():
         result['postgres'] = json.loads(raw)
     except (subprocess.SubprocessError, RuntimeError, ValueError):
         result['postgres'] = {'metrics_unavailable': True}
+    try:
+        allowed = {'used_memory', 'used_memory_rss', 'maxmemory', 'keyspace_hits', 'keyspace_misses', 'evicted_keys', 'expired_keys', 'connected_clients', 'rejected_connections', 'total_commands_processed'}
+        result['redis'] = {key: int(value) for line in redis_output(m['redis'], 'INFO').splitlines() if ':' in line for key, value in [line.split(':', 1)] if key in allowed}
+    except (subprocess.SubprocessError, RuntimeError, ValueError):
+        result['redis'] = {'metrics_unavailable': True}
     return result
 
 
@@ -284,7 +319,7 @@ def restore(clean=False):
     assert json.loads(Path('/var/lib/qanda-deploy/current.json').read_text())['revision'] == m['revision'], 'Deployment revision changed; preserve the newer release for review'
     assert hashlib.sha256(Path('/srv/qanda/production.env').read_bytes()).hexdigest() == m['env_sha256'], 'Original configuration changed; preserve it for review'
     command(['docker', 'stop', '-t', '120', *APP])
-    for name in [m['postgres'], m['rabbit']]:
+    for name in [m['postgres'], m['rabbit'], m['redis']]:
         row = subprocess.run(['docker', 'inspect', name], capture_output=True)
         if row.returncode == 0:
             value = json.loads(row.stdout)[0]
@@ -298,7 +333,7 @@ def restore(clean=False):
     subprocess.run(['systemctl', 'stop', 'qanda-capacity-guard-' + RUN + '.timer'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     (ROOT / 'restored').touch()
     if clean:
-        for name in [m['postgres'], m['rabbit']]:
+        for name in [m['postgres'], m['rabbit'], m['redis']]:
             found = subprocess.run(['docker', 'inspect', name], capture_output=True)
             if found.returncode == 0:
                 assert json.loads(found.stdout)[0]['Config']['Labels'].get('qanda.capacity.run') == RUN
@@ -309,7 +344,7 @@ def restore(clean=False):
                 info = json.loads(found.stdout)[0]
                 assert info['Labels'].get('qanda.capacity.run') == RUN
                 command(['docker', 'volume', 'rm', volume])
-        for private in ('seed.dump', 'pg.env', 'rabbit.env', 'override.json', 'original-config.tar'):
+        for private in ('seed.dump', 'pg.env', 'rabbit.env', 'redis.env', 'override.json', 'original-config.tar'):
             (ROOT / private).unlink(missing_ok=True)
     return {'restored': True, 'temporary_data_cleaned': clean, 'revision': m['revision']}
 

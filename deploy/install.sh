@@ -29,11 +29,15 @@ if test "${1:-}" != --control-only; then
   test -s /srv/qanda/production.env
   test "$(stat -c '%a' /srv/qanda/production.env)" = 600
   test "$(stat -c '%U:%G' /srv/qanda/production.env)" = root:root
+  if test "$qanda_node_role" != frontend; then
+    python3 "$qanda_source_dir/configure-production-env.py" --ensure-cache
+  fi
 fi
 install -d -o root -g root -m 0755 /srv/qanda/web-assets /usr/local/lib/qanda
 install -d -o root -g root -m 0700 /var/lib/qanda-deploy /etc/qanda
 install -m 0644 "$qanda_source_dir"/compose.*.yml "$qanda_source_dir"/prometheus.yml /srv/qanda/
 install -m 0644 "$qanda_source_dir"/../apps/api/monitoring/{rabbitmq-plugins,sync-rules.yml} /srv/qanda/
+install -m 0755 "$qanda_source_dir/redis-start.sh" /srv/qanda/redis-start.sh
 install -m 0755 "$qanda_source_dir/deployctl.py" /usr/local/sbin/qanda-deployctl
 install -m 0755 "$qanda_source_dir/network-guard.py" /usr/local/lib/qanda/network-guard.py
 install -m 0755 "$qanda_source_dir/remote-entry.py" /usr/local/lib/qanda/remote-entry.py
@@ -43,6 +47,7 @@ install -m 0644 "$qanda_source_dir/tailnet-serve.json" /srv/qanda/tailnet-config
 install -m 0644 "$qanda_source_dir"/qanda-{tailnet,ops}.service /etc/systemd/system/
 install -m 0644 "$qanda_source_dir/qanda-ops.sshd.conf" /etc/ssh/qanda-ops.conf
 install -m 0755 "$qanda_source_dir/candidate-check.py" /usr/local/lib/qanda/candidate-check.py
+install -m 0755 "$qanda_source_dir/redis-start.sh" /usr/local/lib/qanda/redis-start.sh
 install -m 0755 "$qanda_source_dir/restore-check.py" /usr/local/lib/qanda/restore-check.py
 install -m 0755 "$qanda_source_dir/backup.sh" /usr/local/sbin/qanda-backup
 install -m 0755 "$qanda_source_dir/db-admin.sh" /usr/local/sbin/qanda-db

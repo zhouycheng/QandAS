@@ -17,10 +17,10 @@ def check(backend, web=None):
     names = []
     def docker(*args):
         return subprocess.run(['docker', *args], check=True, text=True, capture_output=True).stdout.strip()
-    def start(suffix, image, *args):
+    def start(suffix, image, *args, command=()):
         name = prefix + '-' + suffix
         names.append(name)
-        return docker('run', '-d', '--name', name, '--network', prefix, *args, image)
+        return docker('run', '-d', '--name', name, '--network', prefix, *args, image, *command)
     docker('network', 'create', prefix)
     try:
         with tempfile.TemporaryDirectory(prefix='qanda-check-') as temporary:
@@ -30,6 +30,8 @@ def check(backend, web=None):
                       'BACKEND_DB_USER': 'qanda_backend', 'BACKEND_DB_PASSWORD': 'isolated-candidate-password',
                       'BACKEND_RABBIT_HOST': prefix + '-rabbit', 'BACKEND_RABBIT_USER': 'qanda',
                       'BACKEND_RABBIT_PASSWORD': 'isolated-queue-password', 'BACKEND_WECHAT_PROVIDER': 'local',
+                      'BACKEND_REDIS_HOST': prefix + '-cache', 'BACKEND_REDIS_PASSWORD': 'isolated-cache-password',
+                      'BACKEND_CONTENT_CACHE_ENABLED': 'true',
                       'BACKEND_IDENTITY_RATE_KEY': key, 'BACKEND_ROLE': 'all', 'BACKEND_WORKER_ENABLED': 'true',
                       **{f'BACKEND_{kind}_KEYS': '1:' + key for kind in ('COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION', 'TEST_ACCOUNT_ENCRYPTION')}}
             path = Path(temporary) / 'test.env'
@@ -37,10 +39,19 @@ def check(backend, web=None):
             path.chmod(0o600)
             start('db', 'postgres:17.6-alpine', '-e', 'POSTGRES_DB=qanda_backend', '-e', 'POSTGRES_USER=qanda_backend', '-e', 'POSTGRES_PASSWORD=isolated-candidate-password')
             start('rabbit', 'rabbitmq:4.2.5-management', '-e', 'RABBITMQ_DEFAULT_USER=qanda', '-e', 'RABBITMQ_DEFAULT_PASS=isolated-queue-password', '-e', 'RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=+S 2:2')
+            start('cache', 'redis:8.10.3-alpine',
+                  '--env-file', str(path), '--user', 'redis', '--entrypoint', '/bin/sh', '--read-only',
+                  '--tmpfs', '/tmp:rw,noexec,nosuid,size=1m', '--memory', '192m', '--cap-drop', 'ALL',
+                  '--security-opt', 'no-new-privileges:true',
+                  '-v', str(Path(__file__).with_name('redis-start.sh')) + ':/usr/local/bin/qanda-redis-start:ro',
+                  command=('/usr/local/bin/qanda-redis-start',))
             for _ in range(90):
                 try:
                     docker('exec', prefix + '-db', 'pg_isready', '-h', '127.0.0.1', '-U', 'qanda_backend', '-d', 'qanda_backend')
                     docker('exec', prefix + '-rabbit', 'rabbitmq-diagnostics', '-q', 'ping')
+                    if docker('exec', prefix + '-cache', 'sh', '-c', 'REDISCLI_AUTH="$BACKEND_REDIS_PASSWORD" redis-cli ping') != 'PONG':
+                        time.sleep(2)
+                        continue
                     break
                 except subprocess.CalledProcessError:
                     time.sleep(2)

@@ -10,6 +10,7 @@ import select
 import string
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -23,6 +24,31 @@ OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def compose_environment():
+    path=PRIVATE / 'backend.env'
+    if path.exists():
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
+            raise RuntimeError('联调环境文件须为权限 600 的普通文件')
+        original=path.read_text();values={}
+        for line in original.splitlines():
+            if not line.strip() or line.lstrip().startswith('#'): continue
+            entry=re.fullmatch(r'(BACKEND_[A-Z0-9_]+)=(.*)',line)
+            if not entry or entry[1] in values: raise RuntimeError('联调环境字段格式或重复字段错误')
+            values[entry[1]]=entry[2]
+        defaults={'BACKEND_REDIS_HOST':'127.0.0.1','BACKEND_REDIS_PORT':'56380','BACKEND_CONTENT_CACHE_ENABLED':'true'}
+        updated=original
+        if not values.get('BACKEND_REDIS_PASSWORD'):
+            password=secrets.token_urlsafe(32)
+            if 'BACKEND_REDIS_PASSWORD' in values: updated=re.sub(r'^BACKEND_REDIS_PASSWORD=$','BACKEND_REDIS_PASSWORD='+password,updated,flags=re.MULTILINE)
+            else: defaults['BACKEND_REDIS_PASSWORD']=password
+        for key,value in defaults.items():
+            if key not in values: updated+=('' if updated.endswith('\n') else '\n')+key+'='+value+'\n'
+        if updated!=original:
+            fd,temporary=tempfile.mkstemp(prefix='.backend-cache-',dir=PRIVATE)
+            try:
+                with os.fdopen(fd,'w') as stream: stream.write(updated)
+                if path.is_symlink() or path.read_text()!=original: raise RuntimeError('联调环境文件已变化，保留现有内容')
+                os.replace(temporary,path)
+            finally: Path(temporary).unlink(missing_ok=True)
     env = {**os.environ, "BACKEND_ENV_FILE": str(PRIVATE / "backend.env")}
     ses = Path.home() / ".config/qanda/tencent-ses.env"
     if ses.exists():
@@ -71,8 +97,9 @@ def initialize():
                    "BACKEND_MAIL_UI_PORT": "58026", "BACKEND_IMAGE": "qanda-backend:integration",
                    "BACKEND_ENV_FILE": str(PRIVATE / "backend.env"),
                    "BACKEND_CONTENT_SAFETY_PROVIDER": "local",
-                   "BACKEND_DB_PASSWORD": secrets.token_urlsafe(32), "BACKEND_RABBIT_PASSWORD": secrets.token_urlsafe(32)})
-    for key in ["COMMAND_DIGEST", "IDENTITY_MAC", "MAIL_ENCRYPTION"]:
+                   "BACKEND_DB_PASSWORD": secrets.token_urlsafe(32), "BACKEND_RABBIT_PASSWORD": secrets.token_urlsafe(32),
+                   "BACKEND_REDIS_PORT": "56380", "BACKEND_REDIS_PASSWORD": secrets.token_urlsafe(32)})
+    for key in ["COMMAND_DIGEST", "IDENTITY_MAC", "MAIL_ENCRYPTION", "TEST_ACCOUNT_ENCRYPTION"]:
         values["BACKEND_" + key + "_KEYS"] = "1:" + base64.b64encode(secrets.token_bytes(32)).decode()
     values["BACKEND_IDENTITY_RATE_KEY"] = base64.b64encode(secrets.token_bytes(32)).decode()
     PRIVATE.mkdir(parents=True, exist_ok=True, mode=0o700)

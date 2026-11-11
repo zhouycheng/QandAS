@@ -46,6 +46,31 @@ class ProductionEnvironmentTests(unittest.TestCase):
                     configure.install_config("A='new'\n", replace_empty=None)
             self.assertEqual('existing\n', target.read_text())
 
+    def test_cache_upgrade_generates_only_missing_credentials_and_is_repeatable(self):
+        original="BACKEND_DB_PASSWORD='kept'\nBACKEND_REQUEST_LIMITS_ENABLED=true\n"
+        value=configure.extend_cache_config(original)
+        self.assertTrue(value.startswith(original))
+        self.assertIn("BACKEND_REDIS_HOST='qanda-redis'",value)
+        self.assertIn("BACKEND_CONTENT_CACHE_ENABLED='true'",value)
+        password=next(line.partition('=')[2].strip("'") for line in value.splitlines() if line.startswith('BACKEND_REDIS_PASSWORD='))
+        self.assertEqual(32,len(bytes.fromhex(password)))
+        self.assertEqual(value,configure.extend_cache_config(value))
+
+    def test_cache_upgrade_preserves_operator_values_and_fills_an_empty_password(self):
+        original="BACKEND_REDIS_HOST='custom-cache'\nBACKEND_CONTENT_CACHE_ENABLED=false\nBACKEND_REDIS_PASSWORD=''\n"
+        value=configure.extend_cache_config(original)
+        self.assertIn("BACKEND_REDIS_HOST='custom-cache'",value)
+        self.assertIn('BACKEND_CONTENT_CACHE_ENABLED=false',value)
+        self.assertNotIn("BACKEND_REDIS_PASSWORD=''",value)
+
+    def test_cache_upgrade_refuses_a_concurrently_changed_config(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);target=root/'production.env';target.write_text("A='new'\n")
+            current=target.stat();identity=(current.st_dev,current.st_ino,current.st_size)
+            with patch.object(configure,'ROOT',root),patch.object(configure,'TARGET',target),patch.object(configure.os,'fchown'),redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):configure.install_config("A='replacement'\n",identity,expected_content=b"A='old'\n")
+            self.assertEqual("A='new'\n",target.read_text())
+
 
 if __name__ == '__main__':
     unittest.main()

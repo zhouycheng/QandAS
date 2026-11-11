@@ -46,7 +46,7 @@ def series(samples):
             row['host_cpu_percent'] = 100 * (1 - (delta[3] + delta[4]) / max(1, sum(delta)))
             row['network_tx_mbps'] = sum(max(0, values[8] - previous['host']['network'].get(name, values)[8]) for name, values in host['network'].items()) * 8 / dt / 1e6
         for name, container in sample['containers'].items():
-            role = next((x for x in ('api', 'worker', 'monitor', 'postgres', 'rabbitmq') if name == 'qanda-application-' + x + '-1' or x == 'postgres' and name.startswith('qanda-capacity-pg-') or x == 'rabbitmq' and name.startswith('qanda-capacity-rabbit-')), None)
+            role = next((x for x in ('api', 'worker', 'monitor', 'postgres', 'rabbitmq', 'redis') if name == 'qanda-application-' + x + '-1' or x == 'postgres' and name.startswith('qanda-capacity-pg-') or x == 'rabbitmq' and name.startswith('qanda-capacity-rabbit-') or x == 'redis' and name.startswith('qanda-capacity-redis-')), None)
             if not role: continue
             if 'memory' in container: row[role + '_memory_mib'] = container['memory'] / 1024 ** 2
             row[role + '_restarts'] = container['restarts']
@@ -63,10 +63,27 @@ def series(samples):
             if any(name == 'qanda_http_inflight' for name, _, _ in now):
                 row[role + '_http_inflight'] = total(now, 'qanda_http_inflight')
                 row[role + '_overload_rejections'] = total(now, 'qanda_http_overload_rejections_total')
+                row[role + '_http_queued'] = total(now, 'qanda_http_queued')
+                row[role + '_queue_wait_max_ms'] = total(now, 'qanda_http_queue_wait_seconds_max') * 1000
             row[role + '_pool_acquire_max_ms'] = total(now, 'hikaricp_connections_acquire_seconds_max') * 1000
             if dt > 0:
                 old = list(metrics(previous['application'].get('qanda-application-' + role + '-1', {}).get('metrics', '')))
                 row[role + '_gc_pause_percent'] = max(0, total(now, 'jvm_gc_pause_seconds_sum') - total(old, 'jvm_gc_pause_seconds_sum')) * 100 / dt
+                if any(name == 'qanda_content_cache_failures_total' for name, _, _ in now):
+                    hits = max(0, total(now, 'qanda_content_cache_requests_total', result='hit') - total(old, 'qanda_content_cache_requests_total', result='hit'))
+                    misses = max(0, total(now, 'qanda_content_cache_requests_total', result='miss') - total(old, 'qanda_content_cache_requests_total', result='miss'))
+                    if hits + misses: row[role + '_cache_hit_percent'] = 100 * hits / (hits + misses)
+                    row[role + '_cache_bypass_per_second'] = max(0, total(now, 'qanda_content_cache_requests_total', result='bypass') - total(old, 'qanda_content_cache_requests_total', result='bypass')) / dt
+                    row[role + '_cache_failures_per_second'] = max(0, total(now, 'qanda_content_cache_failures_total') - total(old, 'qanda_content_cache_failures_total')) / dt
+        cache = sample.get('redis', {})
+        if 'used_memory' in cache: row['redis_data_memory_mib'] = cache['used_memory'] / 1024 ** 2
+        if 'connected_clients' in cache: row['redis_clients'] = cache['connected_clients']
+        if dt > 0 and 'keyspace_hits' in cache:
+            old = previous.get('redis', {})
+            hits = max(0, cache['keyspace_hits'] - old.get('keyspace_hits', cache['keyspace_hits']))
+            misses = max(0, cache['keyspace_misses'] - old.get('keyspace_misses', cache['keyspace_misses']))
+            if hits + misses: row['redis_hit_percent'] = 100 * hits / (hits + misses)
+            row['redis_evictions_per_second'] = max(0, cache['evicted_keys'] - old.get('evicted_keys', cache['evicted_keys'])) / dt
         rabbit = list(metrics(sample.get('rabbit', {}).get('metrics', '')))
         row['progress_queue'] = total(rabbit, 'rabbitmq_detailed_queue_messages', queue='qanda.sync.progress')
         row['dead_queue'] = total(rabbit, 'rabbitmq_detailed_queue_messages', queue='qanda.sync.dead')
