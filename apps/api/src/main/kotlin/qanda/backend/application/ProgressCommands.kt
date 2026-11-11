@@ -55,9 +55,9 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
             }
             val payload=json.writeValueAsString(input)
             store.requireUnblocked(id);store.requireRoom(actor.id,id,payload)
-            store.insert(key,id,actor,input.writerToken,input.clientSequence,digest(id,input),digests.activeVersion,requestId,input.kind,payload)
+            val inserted=store.insert(key,id,actor,input.writerToken,input.clientSequence,digest(id,input),digests.activeVersion,requestId,input.kind,payload)
             meters.counter("qanda.sync.commands","stage","received").increment()
-            view(store.find(key)!!)
+            view(inserted)
         }
     }!!
     fun dispatch() {
