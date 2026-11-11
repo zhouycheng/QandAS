@@ -267,6 +267,7 @@ CREATE TABLE sync_command (
  CHECK((state='COMMITTED')=(receipt_id IS NOT NULL)), CHECK((state IN ('COMMITTED','REJECTED'))=(completed_at IS NOT NULL))
 );
 CREATE INDEX sync_command_pending_idx ON sync_command(next_attempt_at,created_at) WHERE state IN ('QUEUED','RETRYING');
+CREATE INDEX sync_command_user_pending_idx ON sync_command(user_id) WHERE state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED');
 CREATE INDEX sync_command_order_idx ON sync_command(session_id,client_sequence);
 CREATE UNIQUE INDEX sync_command_sequence_idx ON sync_command(session_id,writer_token,client_sequence) WHERE state<>'REJECTED';
 CREATE INDEX sync_command_committed_idx ON sync_command(completed_at) WHERE state='COMMITTED';

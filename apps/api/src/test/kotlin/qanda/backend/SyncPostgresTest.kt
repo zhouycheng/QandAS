@@ -32,6 +32,34 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class SyncPostgresTest : PostgresFixture() {
+    @Test fun `pending command budgets reject excess storage and stop appending behind terminal failures`() {
+        val owner=student();val f=fixture();val session=createPractice(owner,f);val sessionId=id(session);val input=progressBody(session)
+        val path="/practice/sessions/$sessionId/sync-commands"
+        consumers.stop()
+        fun clear() { jdbc.update("DELETE FROM sync_command WHERE session_id=?",sessionId);jdbc.update("UPDATE practice_sync_state SET accepted_sequence=0 WHERE session_id=?",sessionId) }
+        fun copies(count: Int) {
+            jdbc.update("""INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state)
+                SELECT gen_random_uuid(),session_id,user_id,actor_session_id,writer_token,n+1,payload_digest,digest_key_version,request_id,kind,payload_json,'QUEUED'
+                FROM sync_command CROSS JOIN generate_series(1,?) n WHERE session_id=? AND client_sequence=1""",count,sessionId)
+            jdbc.update("UPDATE practice_sync_state SET accepted_sequence=? WHERE session_id=?",count+1,sessionId)
+        }
+        try {
+            call("POST",path,input,owner.token,202);copies(63)
+            val full=raw("POST",path,input+mapOf("clientSequence" to 65),owner.token)
+            assertEquals(503,full.statusCode());assertEquals("5",full.headers().firstValue("Retry-After").orElse(null))
+            assertEquals(64,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id=?",Int::class.java,sessionId))
+            clear();call("POST",path,input,owner.token,202)
+            jdbc.update("UPDATE sync_command SET payload_json=repeat('x',16777216) WHERE session_id=?",sessionId)
+            call("POST",path,input+mapOf("clientSequence" to 2),owner.token,503)
+            jdbc.update("UPDATE sync_command SET payload_json='{}' WHERE session_id=?",sessionId);copies(255)
+            val next=createPractice(owner,f)
+            call("POST","/practice/sessions/${id(next)}/sync-commands",progressBody(next),owner.token,503)
+            clear();val key=UUID.randomUUID();call("POST",path,input,owner.token,202,key)
+            progressCommands.failure(key,qanda.backend.platform.http.ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,"INVALID_ANSWER","作答无效"))
+            call("POST",path,input+mapOf("clientSequence" to 2),owner.token,409)
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id=?",Int::class.java,sessionId))
+        } finally { clear();consumers.start() }
+    }
     @Test fun `broker outage accepts complete task and scanner delivers without another client request`() {
         val owner=student();val session=createPractice(owner,fixture());val id=id(session);val key=UUID.randomUUID();val body=progressBody(session)
         consumers.stop();rabbit.dockerClient.pauseContainerCmd(rabbit.containerId).exec()
@@ -101,11 +129,22 @@ class SyncPostgresTest : PostgresFixture() {
             progressCommands.consume(ProgressEnvelope(key))
             assertEquals("COMMITTED",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,key))
             val other=student();val next=createPractice(other,fixture());val rejected=UUID.randomUUID()
-            call("POST","/practice/sessions/${id(next)}/sync-commands",progressBody(next),other.token,202,rejected)
+            val original=progressBody(next)+mapOf("kind" to "FINISH")
+            call("POST","/practice/sessions/${id(next)}/sync-commands",original,other.token,202,rejected)
             jdbc.update("UPDATE user_session SET revoked_at=now() WHERE user_id=?",other.id)
             val error=assertThrows(qanda.backend.platform.http.ApiException::class.java) { progressCommands.consume(ProgressEnvelope(rejected)) }
             progressCommands.failure(rejected,error)
             assertEquals("REJECTED",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,rejected))
+            call("POST","/practice/sessions/${id(next)}/sync-commands",original,other.token,401,rejected)
+            jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",other.email)
+            val proof=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to other.email),null,201)
+            val login=call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(proof),"code" to code(id(proof)),"deviceId" to UUID.randomUUID()),null)
+            val token=login["accessToken"].asText()
+            call("POST","/practice/sessions/${id(next)}/sync-commands",original+mapOf("durationSeconds" to 1),token,409,rejected)
+            assertEquals("QUEUED",call("POST","/practice/sessions/${id(next)}/sync-commands",original,token,202,rejected)["state"].asText())
+            progressCommands.consume(ProgressEnvelope(rejected))
+            assertEquals("COMMITTED",call("GET","/practice/sessions/${id(next)}/sync-commands/$rejected",token=token)["state"].asText())
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id(next)))
         } finally { consumers.start() }
     }    @Test fun `practice stays bound to its creating device and never reveals credentials on reads`() {
         val owner=student();val session=createPractice(owner,fixture());val sessionId=id(session)

@@ -18,6 +18,7 @@ async function main() {
   let holdProgress = false
   let finishLost = false
   let ratingLost = false
+  let authRenewed = false
   let submitted = false
   let version = 1
   const replies = {}
@@ -52,6 +53,7 @@ async function main() {
       if (createLost) { createLost = false; input.fail({ errMsg: 'request:fail timeout' }); return }
     }
     else if (input.url.endsWith('/sync-commands')) {
+      if (authRenewed && replies[key] && replies[key].state === 'REJECTED') delete replies[key]
       if (!replies[key]) replies[key] = { state: 'COMMITTED', acknowledgement: { id: 's1', version: ++version, acknowledgedSequence: input.data.clientSequence, writer: Object.assign({}, writer, { version, acknowledgedSequence: input.data.clientSequence }) }, result: input.data.kind === 'FINISH' ? result : null }
       body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : replies[key]
       if (input.data.kind === 'FINISH') { submitted = true; if (finishLost) { finishLost = false; input.fail({ errMsg: 'request:fail timeout' }); return } }
@@ -295,6 +297,26 @@ async function main() {
   assert.strictEqual(blocked.data.loadError, '批改中，不可进入')
   assert.strictEqual(blockedVm.session, null)
   reviewRuntime.queue.stop()
+  const reauthorized = new OnlinePractice(storage); reauthorized.identity()
+  const reauthSnapshot = Object.assign({}, copy(snapshot), { id: 'reauth', route: {} })
+  reauthorized.put('reauth', reauthSnapshot)
+  reauthorized.queue.save('reauth', { progress: { currentIndex: 0, durationSeconds: 0, items: [] } })
+  holdProgress = true
+  await flushNow(reauthorized, 'reauth')
+  const rejectedKey = reauthorized.queue.get('reauth').pending.idempotencyKey
+  replies[rejectedKey] = { state: 'REJECTED', failure: { status: 401, message: '会话已撤销' } }
+  holdProgress = false
+  await flushNow(reauthorized, 'reauth')
+  assert.strictEqual(reauthorized.queue.get('reauth').paused, true)
+  storage.set('qandaAuth', { provider: 'email', userId: 'u1', token: 'renewed-token' })
+  authRenewed = true
+  reauthorized.identity()
+  await flushNow(reauthorized, 'reauth')
+  assert.strictEqual(reauthorized.queue.get('reauth').acknowledgedSequence, 1)
+  assert.strictEqual(reauthorized.queue.get('reauth').pending, null)
+  const recoveredPosts = requests.filter(r => r.url.includes('/reauth/sync-commands') && r.method === 'POST')
+  assert(recoveredPosts.every(r => r.header['Idempotency-Key'] === rejectedKey))
+  reauthorized.queue.stop()
   const beforeSwitch = requests.length
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })
   const denied = await restarted.send('s1', before, 'u1')

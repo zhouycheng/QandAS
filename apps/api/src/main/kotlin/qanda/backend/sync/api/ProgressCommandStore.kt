@@ -3,6 +3,8 @@ package qanda.backend.sync.api
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import qanda.backend.platform.security.Actor
+import qanda.backend.platform.http.*
+import org.springframework.http.HttpStatus
 import java.time.Instant
 import java.util.UUID
 
@@ -22,6 +24,24 @@ class ProgressCommandStore(private val jdbc: JdbcTemplate) {
     fun lockIntent(key: UUID) { jdbc.queryForObject("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(?,0))",Int::class.java,"sync:$key") }
     fun lock(key: UUID) = jdbc.queryForObject("SELECT id FROM sync_command WHERE id=? FOR UPDATE",UUID::class.java,key)
     fun checkpoint(id: UUID): Triple<Long,Long,Boolean> = jdbc.queryForObject("SELECT accepted_sequence,acknowledged_sequence,finish_sequence IS NOT NULL finishing FROM practice_sync_state WHERE session_id=?",{ r,_ -> Triple(r.getLong(1),r.getLong(2),r.getBoolean(3)) },id)!!
+    fun requireRoom(userId: UUID,id: UUID,payload: String,restoredKey: UUID?=null) {
+        // Admission already holds the user row lock, so concurrent practices share the same budget.
+        val bytes=payload.toByteArray(Charsets.UTF_8).size
+        val full=jdbc.queryForObject("""SELECT count(*)>=256 OR coalesce(sum(octet_length(payload_json)),0)+?>67108864
+            OR count(*) FILTER(WHERE session_id=?)>=64
+            OR coalesce(sum(octet_length(payload_json)) FILTER(WHERE session_id=?),0)+?>16777216
+            FROM sync_command WHERE user_id=? AND id IS DISTINCT FROM ? AND state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED')""",
+            Boolean::class.java,bytes,id,id,bytes,userId,restoredKey)==true
+        if(full) throw ApiException(HttpStatus.SERVICE_UNAVAILABLE,"SYNC_BACKLOG_FULL","同步任务暂时积压，请保留本机答案并稍后重试",details=ErrorDetails(retryAfterSeconds=5))
+    }
+    fun requireUnblocked(id: UUID) {
+        if(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM sync_command WHERE session_id=? AND state IN ('REJECTED','DEAD_LETTER'))",Boolean::class.java,id)==true)
+            conflict("SYNC_BLOCKED","请先恢复此前未完成的同步命令，本机答案已保留")
+    }
+    fun reauthorize(key: UUID,actor: Actor) {
+        jdbc.update("UPDATE sync_command SET actor_session_id=?,state='QUEUED',completed_at=NULL,next_attempt_at=now(),dispatch_until=NULL,error_code=NULL,error_message=NULL,error_status=NULL,updated_at=now() WHERE id=? AND state='REJECTED'",
+            actor.sessionId,key)
+    }
     fun insert(key: UUID,id: UUID,actor: Actor,writer: UUID,sequence: Long,digest: ByteArray,digestVersion: Int,requestId: UUID,kind: String,payload: String) {
         jdbc.update("INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED')",
             key,id,actor.id,actor.sessionId,writer,sequence,digest,digestVersion,requestId,kind,payload)

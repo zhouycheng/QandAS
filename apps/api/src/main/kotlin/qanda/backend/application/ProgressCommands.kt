@@ -39,7 +39,12 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
         val old=store.find(key)
         if(old!=null) {
             if(old.actor.id!=actor.id || old.sessionId!=id || !digests.matches(digest(id,input,old.digestVersion),old.digest)) conflict("IDEMPOTENCY_CONFLICT","同一请求标识的内容不同")
-            view(old)
+            if(old.state=="REJECTED" && old.error?.status in setOf(401,403) && old.actor.sessionId!=actor.sessionId) {
+                practice.admitProgress(actor,id,input)
+                store.requireRoom(actor.id,id,old.payload,key)
+                store.reauthorize(key,actor)
+                view(store.find(key)!!)
+            } else view(old)
         } else {
             practice.admitProgress(actor,id,input)
             val (accepted,processed,finishing)=store.checkpoint(id)
@@ -49,7 +54,9 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
                 val version=practice.version(actor.id,id)
                 requireVersion(input.expectedVersion,version)
             }
-            store.insert(key,id,actor,input.writerToken,input.clientSequence,digest(id,input),digests.activeVersion,requestId,input.kind,json.writeValueAsString(input))
+            val payload=json.writeValueAsString(input)
+            store.requireUnblocked(id);store.requireRoom(actor.id,id,payload)
+            store.insert(key,id,actor,input.writerToken,input.clientSequence,digest(id,input),digests.activeVersion,requestId,input.kind,payload)
             meters.counter("qanda.sync.commands","stage","received").increment()
             view(store.find(key)!!)
         }
