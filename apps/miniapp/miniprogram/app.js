@@ -33,6 +33,11 @@ App({
     remoteData.enable(true)
     remoteData.bind(storage)
     onlinePractice.enable(storage)
+    if (typeof wx.onNetworkStatusChange === 'function') wx.onNetworkStatusChange(event => {
+      if (!event.isConnected) return
+      const runtime = onlinePractice.current()
+      try { runtime.identity(); runtime.queue.flushAll().catch(() => {}) } catch (_) { /* 原账号登录后继续同步。 */ }
+    })
     try { require('./repositories/account-deletion-repository.js').resumeCleanup(storage) }
     catch (_) { wx.showToast({ title: '账号已注销，本机数据清理未完成，请重试', icon: 'none' }) }
     // 点击链路诊断的起点：逻辑层只要启动了，第一行日志就一定会有。

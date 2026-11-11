@@ -1,126 +1,117 @@
 const { uuid } = require('./api-transport.js')
 const PREFIX = 'qandaSync:v1:'
-const copy = (value) => JSON.parse(JSON.stringify(value))
+const copy = value => JSON.parse(JSON.stringify(value))
 function createSyncQueue(options) {
   const { storage, userId, send } = options
   if (!userId || !storage || typeof send !== 'function') throw new Error('暂时无法保存答题进度，请重新打开练习')
-  const now = options.now || Date.now
-  const random = options.random || Math.random
-  const setTimer = options.setTimer || setTimeout
-  const clearTimer = options.clearTimer || clearTimeout
-  const indexKey = `${PREFIX}${userId}:index`
-  const timers = {}
-  const sending = {}
+  const now = options.now || Date.now, random = options.random || Math.random
+  const setTimer = options.setTimer || setTimeout, clearTimer = options.clearTimer || clearTimeout
+  const indexKey = `${PREFIX}${userId}:index`, timers = {}, sending = {}
   let stopped = false
-  function key(id) { return `${PREFIX}${userId}:${id}` }
-  function ids() { const value = storage.get(indexKey); return Array.isArray(value) ? value : [] }
+  const key = id => `${PREFIX}${userId}:${id}`
+  function ids() {
+    const index = storage.get(indexKey) || []
+    const keys = storage.keysStrict ? storage.keysStrict() : storage.keys ? storage.keys() : []
+    return Array.from(new Set(index.concat(keys.filter(k => k.startsWith(`${PREFIX}${userId}:`) && k !== indexKey).map(k => k.slice(`${PREFIX}${userId}:`.length)))))
+  }
   function get(id) {
     const value = storage.get(key(id))
     if (!value) return null
-    if (value.formatVersion !== 1 || value.userId !== userId || value.sessionId !== id) throw new Error('答题记录暂时无法读取，请保留本机数据并联系支持')
+    if (value.userId !== userId || value.sessionId !== id) throw new Error('答题记录暂时无法读取，请保留本机数据')
     return copy(value)
   }
   function persist(id, value) {
-    storage.set(key(id), value)
+    // Register before writing content: an interrupted content write leaves a harmless empty index entry.
     const index = ids()
-    if (index.indexOf(id) < 0) storage.set(indexKey, index.concat(id))
+    if (!index.includes(id)) storage.set(indexKey, index.concat(id))
+    storage.set(key(id), value)
     if (options.onChange) options.onChange(id, copy(value))
   }
-  function cancelTimer(id) { if (timers[id] !== undefined) { clearTimer(timers[id]); delete timers[id] } }
+  function cancel(id) { if (timers[id] !== undefined) { clearTimer(timers[id]); delete timers[id] } }
   function schedule(id, delay) {
     if (stopped || timers[id] !== undefined) return
     timers[id] = setTimer(() => { delete timers[id]; flush(id) }, delay)
   }
-  function save(id, payload) {
-    if (stopped) return { ok: false, paused: true, reason: '同步已停止，请重新打开练习' }
+  function idle(draft) { return !draft || (!draft.pending && draft.revision <= draft.acknowledgedRevision && (!draft.finish || draft.finished)) }
+  function save(id, payload, finish = false) {
+    if (stopped) return { ok: false, paused: true }
     try {
       const previous = get(id)
-      if (previous && JSON.stringify(previous.payload.progress || previous.payload) === JSON.stringify(payload.progress || payload)) return { ok: true, draft: previous, unchanged: true }
-      const draft = Object.assign({ formatVersion: 1, userId, sessionId: id, sequence: 0, acknowledgedSequence: 0, pending: null, failures: 0, paused: false }, previous || {}, { sequence: (previous && previous.sequence || 0) + 1, payload: copy(payload), updatedAt: now() })
+      if (previous && previous.finish) return { ok: true, unchanged: true, draft: previous }
+      if (!finish && previous && JSON.stringify(previous.payload.progress || previous.payload) === JSON.stringify(payload.progress || payload)) return { ok: true, unchanged: true, draft: previous }
+      const draft = Object.assign({ userId, sessionId: id, revision: 0, acknowledgedRevision: 0, sequence: 0, acknowledgedSequence: 0, acceptedSequence: 0, pending: null, failures: 0 }, previous || {}, { payload: copy(payload), revision: (previous && previous.revision || 0) + 1, updatedAt: now() })
+      if (finish) draft.finish = true
       persist(id, draft)
-      if (!draft.paused && !sending[id]) schedule(id, Math.max(draft.nextAttemptAt ? draft.nextAttemptAt - now() : 0, 0, 5000 - (now() - (draft.lastAttemptAt || now()))))
+      schedule(id, finish ? 0 : 5000)
       return { ok: true, draft: copy(draft) }
-    } catch (error) { return { ok: false, storageError: true, reason: '答题数据保存失败，请检查设备存储空间' } }
+    } catch (_) { return { ok: false, storageError: true, reason: '答题数据保存失败，请检查设备存储空间' } }
   }
   function flush(id) {
     if (sending[id]) return sending[id]
-    cancelTimer(id)
+    cancel(id)
     let draft
     try {
       draft = get(id)
-      if (!draft || (!draft.pending && draft.sequence <= draft.acknowledgedSequence)) return Promise.resolve({ ok: true, idle: true })
-      if (draft.nextAttemptAt > now()) { schedule(id, draft.nextAttemptAt - now()); return Promise.resolve({ ok: false, deferred: true, retryAfter: draft.nextAttemptAt - now(), reason: draft.reason || '稍后重试同步' }) }
-      if (draft.paused || stopped) return Promise.resolve({ ok: false, paused: true, reason: draft.reason || '同步已暂停' })
-      if (!draft.pending) draft.pending = { sequence: draft.sequence, payload: copy(draft.payload), idempotencyKey: uuid() }
-      draft.lastAttemptAt = now()
+      if (idle(draft)) return Promise.resolve({ ok: true, idle: true })
+      if (draft.paused || stopped) return Promise.resolve({ ok: false, paused: true, reason: draft.reason })
+      if (draft.nextAttemptAt > now()) { schedule(id, draft.nextAttemptAt - now()); return Promise.resolve({ ok: false, deferred: true, retryAfter: draft.nextAttemptAt - now() }) }
+      if (!draft.pending) {
+        draft.sequence += 1
+        draft.pending = { sequence: draft.sequence, revision: draft.revision, kind: draft.finish ? 'FINISH' : 'SAVE', payload: copy(draft.payload), idempotencyKey: uuid() }
+      }
+      draft.pending.reconcile = !!draft.pending.attempted
+      draft.pending.attempted = true
       persist(id, draft)
-    } catch (error) { return Promise.resolve({ ok: false, storageError: true, reason: '答题数据保存失败，请检查设备存储空间' }) }
+    } catch (_) { return Promise.resolve({ ok: false, storageError: true, reason: '本机保存失败，请重试' }) }
     const command = copy(draft.pending)
-    sending[id] = Promise.resolve().then(() => send(id, command)).catch(() => ({ ok: false, statusCode: 0, reason: '网络请求失败' })).then((result) => {
+    sending[id] = Promise.resolve().then(() => send(id, command)).catch(() => ({ ok: false, statusCode: 0 })).then(result => {
       if (stopped) return result
       try {
         const current = get(id)
-        if (!current) return result
+        if (!current || !current.pending || current.pending.idempotencyKey !== command.idempotencyKey) return result
+        let delay = 0
         if (result.pending) {
           current.pending.serverAccepted = true
-          current.serverState = result.serverState || 'QUEUED'
+          current.acceptedSequence = Math.max(current.acceptedSequence, command.sequence)
+          current.polls = (current.polls || 0) + 1
+          current.failures = 0
+          delay = Math.min(10000, 1000 * Math.pow(2, Math.min(current.polls - 1, 4))) * (1 + random() * 0.25)
           current.reason = '本机已保存，服务器处理中'
-          current.failures = 0
-          current.nextAttemptAt = now() + 1000
-          persist(id, current)
-          schedule(id, 1000)
         } else if (result.ok) {
-          current.acknowledgedSequence = Math.max(current.acknowledgedSequence, command.sequence)
+          current.acknowledgedSequence = command.sequence
+          current.acceptedSequence = Math.max(current.acceptedSequence, command.sequence)
+          current.acknowledgedRevision = command.revision
           current.lastAcknowledgedKey = command.idempotencyKey
-          current.pending = null
-          current.failures = 0
-          current.nextAttemptAt = 0
-          current.reason = ''
-          current.serverState = 'COMMITTED'
+          current.pending = null; current.failures = 0; current.polls = 0; current.reason = ''
+          current.finished = command.kind === 'FINISH'
           current.lastResponse = result
-          persist(id, current)
-          if (current.sequence > current.acknowledgedSequence) schedule(id, 5000)
+          delay = current.finish ? 0 : 5000
         } else {
           current.failures += 1
-          current.reason = result.reason || '等待联网同步'
-          current.lastStatusCode = result.statusCode || 0
-          current.rejected = !!result.rejected
           const status = result.statusCode || 0
-          current.paused = status === 401 || status === 403 || status === 409 || (status >= 400 && status < 500 && status !== 408 && status !== 429)
-          const delay = Math.max(result.retryAfter || 0, Math.min(60000, 1000 * Math.pow(2, Math.min(current.failures - 1, 6))) * (0.5 + random() * 0.5))
-          current.nextAttemptAt = current.paused ? 0 : now() + delay
-          persist(id, current)
-          cancelTimer(id)
-          if (!current.paused) schedule(id, delay)
+          current.lastStatusCode = status; current.rejected = !!result.rejected
+          current.paused = [401, 403, 409].includes(status) || status >= 400 && status < 500 && ![408, 429].includes(status)
+          current.reason = result.reason || '本机已保存，等待同步'
+          delay = Math.max(result.retryAfter || 0, Math.min(60000, 1000 * Math.pow(2, Math.min(current.failures - 1, 6))) * (0.5 + random() * 0.5))
         }
+        current.nextAttemptAt = idle(current) || current.paused ? 0 : now() + delay
+        persist(id, current)
+        if (!idle(current) && !current.paused) schedule(id, delay)
         return result
-      } catch (error) { return { ok: false, storageError: true, reason: '同步确认保存失败，本地答案仍保留' } }
-    }).then((result) => { delete sending[id]; return result })
+      } catch (_) { schedule(id, 5000); return { ok: false, storageError: true, reason: '本机确认保存失败，正在自动恢复' } }
+    }).then(result => { delete sending[id]; return result })
     return sending[id]
   }
   function resume(id) {
-    try {
-      const value = get(id)
-      if (value) {
-        if (value.rejected && (value.lastStatusCode === 401 || value.lastStatusCode === 403)) { value.pending = null; value.rejected = false }
-        value.paused = false; value.reason = ''; value.nextAttemptAt = 0; persist(id, value)
-      }
-      return flush(id)
-    } catch (error) { return Promise.resolve({ ok: false, storageError: true, reason: '无法读取待同步答案' }) }
+    const draft = get(id)
+    if (draft && [401, 403].includes(draft.lastStatusCode)) { draft.paused = false; persist(id, draft) }
+    return flush(id)
   }
   function removeConfirmed(id) {
-    try {
-      const draft = get(id)
-      if (sending[id] || (draft && (draft.pending || draft.sequence > draft.acknowledgedSequence))) return false
-      cancelTimer(id)
-      storage.remove(key(id))
-      storage.set(indexKey, ids().filter((value) => value !== id))
-      return true
-    } catch (error) { return false }
+    if (sending[id] || !idle(get(id))) return false
+    cancel(id); storage.remove(key(id)); storage.set(indexKey, ids().filter(value => value !== id)); return true
   }
-  function resumeAuthOnly() { return Promise.all(ids().filter((id) => { const draft = get(id); return draft && draft.paused && (draft.lastStatusCode === 401 || draft.lastStatusCode === 403) }).map(resume)) }
-  function flushAll() { return Promise.all(ids().map(flush)) }
-  function stop() { stopped = true; Object.keys(timers).forEach(cancelTimer) }
-  return { save, get, flush, flushAll, resume, resumeAuthOnly, removeConfirmed, stop, sessionIds: ids }
+  const flushAll = () => Promise.all(ids().map(flush))
+  return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
 }
 module.exports = { createSyncQueue }

@@ -547,7 +547,7 @@ class PracticeSession {
     const selectedKeys = savedAnswer ? savedAnswer.selectedKeys || [] : []
     const hasAnswered = !!savedAnswer && savedAnswer.confirmed !== false
     // 模拟测试模式下不即时反馈，交卷后才统一公布答案
-    const shouldRevealAnswer = this.state.isViewMode || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer)
+    const shouldRevealAnswer = !this.state.reviewPending && (this.state.isViewMode || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer))
 
     return this.updateState(Object.assign({
       currentIndex: index,
@@ -555,7 +555,7 @@ class PracticeSession {
       currentQuestion: this.getQuestionView(question, selectedKeys, shouldRevealAnswer),
       selectedKeys,
       answerText: savedAnswer ? savedAnswer.text || '' : '',
-      blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: String.fromCharCode(9312 + i), value: this.state.isViewMode ? (question.blanks[i].answers || []).join(' / ') : savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
+      blankInputs: Array.from({ length: question.blankCount || 0 }, (_, i) => ({ index: i, label: String.fromCharCode(9312 + i), value: this.state.isViewMode && !this.state.review ? ((question.blanks[i] || {}).answers || []).join(' / ') : savedAnswer && savedAnswer.blanks ? savedAnswer.blanks[i] || '' : '' })),
       hasAnswered,
       answerLocked: this.state.isViewMode || this.state.isCompleted || (hasAnswered && this.state.feedback === 'IMMEDIATE' && !question.isShortAnswer),
       shouldRevealAnswer,

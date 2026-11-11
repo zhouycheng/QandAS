@@ -51,17 +51,15 @@ async function main() {
       body = replies[key]
       if (createLost) { createLost = false; input.fail({ errMsg: 'request:fail timeout' }); return }
     }
-    else if (input.url.endsWith('/progress-commands')) {
-      if (submitted && !replies[key]) { input.success({ statusCode: 409, data: { code: 'SESSION_CLOSED', message: '练习已结束' } }); return }
-      if (!replies[key]) replies[key] = { id: 's1', version: ++version, acknowledgedSequence: input.data.clientSequence, writer: Object.assign({}, writer, { version, acknowledgedSequence: input.data.clientSequence }) }
-      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : { state: 'COMMITTED', acknowledgement: replies[key] }
+    else if (input.url.endsWith('/sync-commands')) {
+      if (!replies[key]) replies[key] = { state: 'COMMITTED', acknowledgement: { id: 's1', version: ++version, acknowledgedSequence: input.data.clientSequence, writer: Object.assign({}, writer, { version, acknowledgedSequence: input.data.clientSequence }) }, result: input.data.kind === 'FINISH' ? result : null }
+      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : replies[key]
+      if (input.data.kind === 'FINISH') { submitted = true; if (finishLost) { finishLost = false; input.fail({ errMsg: 'request:fail timeout' }); return } }
       if (failProgressResponse) { failProgressResponse = false; input.fail({ errMsg: 'request:fail timeout' }); return }
-    } else if (/\/progress-commands\/[^/]+$/.test(input.url)) {
-      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : { state: 'COMMITTED', acknowledgement: replies[input.url.split('/').pop()] }
-    } else if (input.url.endsWith('/finish')) {
-      submitted = true
-      body = result
-      if (finishLost) { finishLost = false; input.fail({ errMsg: 'request:fail timeout' }); return }
+    } else if (/\/sync-commands\/[^/]+$/.test(input.url)) {
+      const known = replies[input.url.split('/').pop()]
+      if (!known) { input.success({ statusCode: 404, data: { code: 'NOT_FOUND' } }); return }
+      body = holdProgress ? { state: 'QUEUED', acknowledgement: null } : known
     } else if (input.url.endsWith('/cancel')) {
       body = { id: input.url.split('/').slice(-2)[0], version: input.data.expectedVersion + 1 }
     } else if (input.url.endsWith('/self-assessment')) {
@@ -74,6 +72,11 @@ async function main() {
     input.success({ statusCode: 200, data: copy(body) })
   } }
   http.configure({ baseUrl: 'https://example.test' })
+  async function flushNow(runtime, id) {
+    const draft = runtime.queue.get(id)
+    if (draft) { draft.nextAttemptAt = 0; storage.set(`qandaSync:v1:u1:${id}`, draft) }
+    return runtime.flush(id)
+  }
   let runtime = new OnlinePractice(storage)
   await assert.rejects(() => runtime.prepare({ bankId: 'b1', mode: 'practice' }), /请求超时/)
   runtime.queue.stop()
@@ -108,11 +111,10 @@ async function main() {
   assert.strictEqual(restored.localState.answers[0].selectedKeys[0], 'A')
   assert.strictEqual(restarted.queue.get('s1').pending.idempotencyKey, before.idempotencyKey)
   offline = false
-  await restarted.queue.resume('s1')
+  await flushNow(restarted, 's1')
   assert.strictEqual(restarted.queue.get('s1').acknowledgedSequence, before.sequence)
-  const progressRequests = requests.filter(r => r.url.endsWith('/progress-commands'))
-  assert.deepStrictEqual(progressRequests[0].data, progressRequests[1].data)
-  assert.strictEqual(progressRequests[0].header['Idempotency-Key'], progressRequests[1].header['Idempotency-Key'])
+  const progressRequests = requests.filter(r => r.url.endsWith('/sync-commands'))
+  assert.strictEqual(progressRequests.length, 1, '响应丢失后先对账，已接收内容无需重传')
   full = true
   assert.throws(() => restarted.save(session), /full/)
   assert.strictEqual(restarted.saveStatus('s1').saveStatusText, '本机保存失败，请重试')
@@ -120,16 +122,18 @@ async function main() {
   session.preferences.autoAddWrongBook = false
   session.finish()
   finishLost = true
-  await assert.rejects(() => restarted.finish(session), /请求超时/)
-  const beforeRetryProgress = requests.filter(r => r.url.endsWith('/progress-commands')).length
-  session.accumulatedMs += 2000
-  await restarted.finish(session)
-  assert.strictEqual(requests.filter(r => r.url.endsWith('/progress-commands')).length, beforeRetryProgress)
-  const finishRequests = requests.filter(r => r.url.endsWith('/finish'))
+  assert.strictEqual(await restarted.finish(session), null)
+  await flushNow(restarted, 's1')
+  const durableFinish = restarted.queue.get('s1').pending
+  assert(durableFinish)
+  restarted.queue.stop()
+  const finishRecovery = new OnlinePractice(storage); finishRecovery.identity()
+  await flushNow(finishRecovery, 's1')
+  assert.strictEqual(finishRecovery.get('s1').status, 'SUBMITTED')
+  const finishRequests = requests.filter(r => r.url.endsWith('/sync-commands') && r.data.kind === 'FINISH')
   assert.strictEqual(finishRequests[0].data.autoAddWrongBook, false)
-  assert.strictEqual(finishRequests[0].header['Idempotency-Key'], finishRequests[1].header['Idempotency-Key'])
-  assert.deepStrictEqual(finishRequests[0].data, finishRequests[1].data)
-  assert.strictEqual(restarted.get('s1').status, 'SUBMITTED')
+  assert.strictEqual(finishRecovery.queue.get('s1').acknowledgedSequence, durableFinish.sequence)
+  finishRecovery.queue.stop()
   const ratedSnapshot = Object.assign({}, snapshot, { id: 's2', status: 'SUBMITTED', result: Object.assign({}, result, { sessionId: 's2' }), version: 3 })
   restarted.put('s2', ratedSnapshot)
   const shortSession = { meta: { sessionId: 's2' }, state: { answers: [{ selfAssessment: 'CORRECT' }] } }
@@ -227,15 +231,9 @@ async function main() {
   restoreRuntime.put('s3', restoreSnapshot)
   const restoredVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}), getAuth: value => Object.assign({ loggedIn: true }, value.get('qandaAuth')) } })
   const restoreResult = await restoredVm.load({ sessionId: 's3' })
-  assert.strictEqual(restoreResult.submitOk, false)
-  assert(/重试/.test(restoreResult.submitError))
-  assert.strictEqual(restoreResult.data.isCompleted, true)
-  assert.strictEqual(restoredVm.routeOptions.bankId, 'b1')
-  assert.strictEqual(restoredVm.routeOptions.duration, '20')
-  assert(restoredVm.createRedoWrongCommand(['q1']).command.url.includes('bankId=b1'))
-  assert(restoredVm.createRedoWrongCommand(['q1']).command.url.includes('selectionKind=WRONG'))
-  const retriedResult = await restoredVm.retrySubmit()
-  assert.strictEqual(retriedResult.submitOk, true, '恢复后的交卷可以通过页面重试完成')
+  assert.strictEqual(restoreResult.command.url, '/page/practice-records/index')
+  await flushNow(restoreRuntime, 's3')
+  await flushNow(restoreRuntime, 's3')
   assert.strictEqual(restoreRuntime.get('s3').status, 'SUBMITTED')
   restoreRuntime.put('s6', Object.assign({}, copy(snapshot), { id: 's6', route: { bankId: 'b1', mode: 'view' } }))
   const viewVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}), saveSession: () => {} } })
@@ -277,12 +275,26 @@ async function main() {
   const after202 = new OnlinePractice(storage); after202.identity()
   assert.deepStrictEqual(after202.queue.get('waiting').pending, pending, '202 后重启保留原始命令')
   holdProgress = false
-  await after202.queue.resume('waiting')
+  await flushNow(after202, 'waiting')
   assert.strictEqual(requests.at(-1).method, 'GET')
-  assert(requests.at(-1).url.endsWith('/progress-commands/' + pending.idempotencyKey))
+  assert(requests.at(-1).url.endsWith('/sync-commands/' + pending.idempotencyKey))
   assert.strictEqual(after202.queue.get('waiting').acknowledgedSequence, pending.sequence)
   assert.strictEqual(after202.saveStatus('waiting').saveStatusText, '服务器已保存')
   after202.queue.stop()
+  const reviewRuntime = onlinePractice.enable(storage); reviewRuntime.identity()
+  reviewRuntime.put('review', Object.assign({}, copy(snapshot), { id: 'review', finishIntent: true, localState: Object.assign({}, runtime.restored(created), { sessionId: 'review', answers: [{ selectedKeys: ['B'], confirmed: true }] }) }))
+  const reviewVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}), getAuth: value => Object.assign({ loggedIn: true }, value.get('qandaAuth')) } })
+  const review = await reviewVm.load({ sessionId: 'review', review: '1' })
+  assert.strictEqual(review.data.isViewMode, true)
+  assert.strictEqual(review.data.shouldRevealAnswer, true, '即时反馈交卷后可只读回看原选项与答案')
+  assert.strictEqual(review.data.answerLocked, true)
+  assert.deepStrictEqual(review.data.selectedKeys, ['B'])
+  reviewRuntime.put('after-finish', Object.assign({}, copy(snapshot), { id: 'after-finish', feedback: 'AFTER_FINISH', finishIntent: true, route: {} }))
+  const blockedVm = new PracticeViewModel({ storage, repository: { getPreferences: () => ({}) } })
+  const blocked = await blockedVm.loadOnline({ sessionId: 'after-finish', review: '1' })
+  assert.strictEqual(blocked.data.loadError, '批改中，不可进入')
+  assert.strictEqual(blockedVm.session, null)
+  reviewRuntime.queue.stop()
   const beforeSwitch = requests.length
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })
   const denied = await restarted.send('s1', before, 'u1')
