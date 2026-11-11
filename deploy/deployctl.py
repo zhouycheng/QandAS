@@ -161,9 +161,9 @@ def require_image_labels(image, revision):
 def pull_image(image):
     for attempt in range(3):
         try:
-            run('docker', 'pull', image)
+            run('docker', 'pull', image, timeout=300)
             return
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             if attempt == 2:
                 raise
             time.sleep(5 * (attempt + 1))
