@@ -38,7 +38,15 @@ class SyncPostgresTest : PostgresFixture() {
         val body=progressBody(session)
         call("POST",path,body+mapOf("expectedVersion" to 999),owner.token,409)
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id=?",Int::class.java,sessionId))
-        call("POST",path,body,owner.token,202)
+        consumers.stop()
+        try {
+            val key=UUID.randomUUID()
+            val accepted=call("POST",path,body,owner.token,202,key)
+            assertEquals("QUEUED",accepted["state"].asText())
+            assertEquals(accepted,call("GET","$path/$key",token=owner.token))
+            assertEquals(accepted,call("POST",path,body,owner.token,202,key))
+            assertEquals(1,call("GET",path,token=owner.token)["acceptedSequence"].asInt())
+        } finally { consumers.start() }
     }
 
     @Test fun `pending command budgets reject excess storage and stop appending behind terminal failures`() {

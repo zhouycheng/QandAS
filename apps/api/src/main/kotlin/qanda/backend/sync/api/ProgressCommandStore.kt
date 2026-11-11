@@ -14,13 +14,14 @@ data class StoredCommand(val id: UUID,val sessionId: UUID,val actor: Actor,val d
 
 @Repository
 class ProgressCommandStore(private val jdbc: JdbcTemplate) {
-    fun find(key: UUID): StoredCommand? = jdbc.query("SELECT c.*,r.response_json FROM sync_command c LEFT JOIN command_receipt r ON r.id=c.receipt_id WHERE c.id=?",{ r,_ ->
+    private val rowMapper=org.springframework.jdbc.core.RowMapper<StoredCommand> { r,_ ->
         StoredCommand(r.getObject("id",UUID::class.java),r.getObject("session_id",UUID::class.java),
             Actor(r.getObject("user_id",UUID::class.java),r.getObject("actor_session_id",UUID::class.java),"USER","MINI_PROGRAM"),
             r.getBytes("payload_digest"),r.getInt("digest_key_version"),r.getObject("request_id",UUID::class.java),r.getString("state"),r.getInt("attempts"),
             r.getTimestamp("created_at").toInstant(),r.getTimestamp("updated_at").toInstant(),r.getString("response_json"),
             r.getString("error_code")?.let { StoredFailure(it,r.getString("error_message"),r.getInt("error_status")) },r.getString("payload_json"),r.getLong("client_sequence"))
-    },key).firstOrNull()
+    }
+    fun find(key: UUID): StoredCommand? = jdbc.query("SELECT c.*,r.response_json FROM sync_command c LEFT JOIN command_receipt r ON r.id=c.receipt_id WHERE c.id=?",rowMapper,key).firstOrNull()
     fun lockIntent(key: UUID) { jdbc.queryForObject("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(?,0))",Int::class.java,"sync:$key") }
     fun lock(key: UUID) = jdbc.queryForObject("SELECT id FROM sync_command WHERE id=? FOR UPDATE",UUID::class.java,key)
     fun checkpoint(id: UUID): Triple<Long,Long,Boolean> = jdbc.queryForObject("SELECT accepted_sequence,acknowledged_sequence,finish_sequence IS NOT NULL finishing FROM practice_sync_state WHERE session_id=?",{ r,_ -> Triple(r.getLong(1),r.getLong(2),r.getBoolean(3)) },id)!!
@@ -42,10 +43,11 @@ class ProgressCommandStore(private val jdbc: JdbcTemplate) {
         jdbc.update("UPDATE sync_command SET actor_session_id=?,state='QUEUED',completed_at=NULL,next_attempt_at=now(),dispatch_until=NULL,error_code=NULL,error_message=NULL,error_status=NULL,updated_at=now() WHERE id=? AND state='REJECTED'",
             actor.sessionId,key)
     }
-    fun insert(key: UUID,id: UUID,actor: Actor,writer: UUID,sequence: Long,digest: ByteArray,digestVersion: Int,requestId: UUID,kind: String,payload: String) {
-        jdbc.update("INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED')",
+    fun insert(key: UUID,id: UUID,actor: Actor,writer: UUID,sequence: Long,digest: ByteArray,digestVersion: Int,requestId: UUID,kind: String,payload: String): StoredCommand {
+        val inserted=jdbc.queryForObject("INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED') RETURNING *,NULL::text AS response_json",rowMapper,
             key,id,actor.id,actor.sessionId,writer,sequence,digest,digestVersion,requestId,kind,payload)
         jdbc.update("UPDATE practice_sync_state SET accepted_sequence=?,finish_sequence=CASE WHEN ?='FINISH' THEN ? ELSE finish_sequence END WHERE session_id=?",sequence,kind,sequence,id)
+        return inserted!!
     }
     fun claim(): List<UUID> = jdbc.query("""WITH due AS (
         SELECT c.id FROM sync_command c WHERE c.state IN ('QUEUED','RETRYING') AND c.next_attempt_at<=now()
