@@ -3,7 +3,8 @@ set -euo pipefail
 test "$(id -u)" = 0 || { echo 'Use sudo qanda-db' >&2; exit 1; }
 umask 077
 qanda_operation=${1:-}
-qanda_db=(docker compose -p qanda-infrastructure --env-file /srv/qanda/production.env -f /srv/qanda/compose.infrastructure.yml exec -T postgres)
+qanda_infra=(docker compose -p qanda-infrastructure --env-file /srv/qanda/production.env -f /srv/qanda/compose.infrastructure.yml)
+qanda_db=("${qanda_infra[@]}" exec -T postgres)
 case "$qanda_operation" in
   export)
     test "$#" = 2
@@ -53,6 +54,12 @@ END $$;
 SQL
       "${qanda_db[@]}" pg_restore -U qanda_backend -d qanda_backend --exit-on-error --single-transaction < "$2"
     "${qanda_db[@]}" psql -U qanda_backend -d qanda_backend -v ON_ERROR_STOP=1 -c 'ANALYZE;'
+    # A restored content version can reuse an older cache key; clear before accepting writes.
+    qanda_cache_id=$("${qanda_infra[@]}" ps -a -q redis)
+    if test -n "$qanda_cache_id"; then
+      "${qanda_infra[@]}" up -d --wait --wait-timeout 30 redis
+      "${qanda_infra[@]}" exec -T redis sh -c 'REDISCLI_AUTH="$BACKEND_REDIS_PASSWORD" exec redis-cli FLUSHDB' >/dev/null
+    fi
     if test -s "$qanda_state"; then
       "${qanda_app[@]}" up -d --no-build --pull never --wait --wait-timeout 240 "${qanda_services[@]}"
     else

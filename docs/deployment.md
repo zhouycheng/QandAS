@@ -38,6 +38,8 @@ Actions runner 使用 GitHub 托管环境。服务器上的 Compose、脚本和�
 
 已有后端首次升级到缓存版本时，管理员先复制当前版本部署文件并运行一次完整 `deploy/install.sh`，安装器自动补齐缓存配置、安装候选检查及 Redis 启动脚本，并创建 Redis 基础服务。随后运行 **Deploy backend → deploy**。常规 Actions 仅传应用镜像和发布请求，后续应用更新继续使用该入口；基础设施升级由管理员执行。
 
+通过 `qanda-db restore` 恢复数据库时，应用保持停止，恢复成功并更新数据库统计信息后清空本项目 Redis，再开放应用；清理缓存失败时保持停止供管理员核查。这样可避免恢复后的内容版本号复用旧题量。容量工具的逐轮基线恢复同样清空自己的临时 Redis。
+
 ## GitHub 与 Tailscale
 
 仓库 Secret `DEPLOY_TARGETS` 保存两个节点的私有配置；应用提供端密钥留在服务器。每个工作流只引用对应所有者的凭据：
