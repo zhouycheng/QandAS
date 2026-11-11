@@ -26,7 +26,7 @@ class RefactorPostgresTest : PostgresFixture() {
         val pool=Executors.newFixedThreadPool(2)
         try {
             val results=proofs.map { proof -> pool.submit<Int> { raw("DELETE","/me",mapOf("proof" to proof,"confirmed" to true),null).statusCode() } }.map { it.get() }
-            assertEquals(1,results.count { it==200 });assertTrue(results.all { it in setOf(200,401,409,422) },results.toString())
+            assertEquals(1,results.count { it==200 },results.toString());assertTrue(results.all { it in setOf(200,401,409,422) },results.toString())
             assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM user_account WHERE id=?",Int::class.java,id(test)))
         } finally { pool.shutdownNow() }
     }

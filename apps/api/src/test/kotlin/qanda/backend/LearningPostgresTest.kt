@@ -155,6 +155,19 @@ class LearningPostgresTest : PostgresFixture() {
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM user_activity WHERE user_id=?",Int::class.java,s.id))
     }
 
+    @Test fun `activity projection drains a burst beyond the old batch limit`() {
+        val owner=student()
+        org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult { status ->
+            jdbc.update("INSERT INTO domain_event_outbox(id,user_id,occurred_at) SELECT gen_random_uuid(),?,timestamp with time zone '2026-10-27 16:00:00+00'+n*interval '1 second' FROM generate_series(1,450) n",owner.id)
+            activityProjection.drain()
+            assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM domain_event_outbox WHERE user_id=? AND processed_at IS NULL",Int::class.java,owner.id))
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM user_activity WHERE user_id=? AND activity_date='2026-10-28'",Int::class.java,owner.id))
+            assertEquals(Instant.parse("2026-10-27T16:00:01Z"),jdbc.queryForObject("SELECT first_seen_at FROM user_activity WHERE user_id=? AND activity_date='2026-10-28'",java.sql.Timestamp::class.java,owner.id)!!.toInstant())
+            assertEquals(Instant.parse("2026-10-27T16:07:30Z"),jdbc.queryForObject("SELECT last_seen_at FROM user_activity WHERE user_id=? AND activity_date='2026-10-28'",java.sql.Timestamp::class.java,owner.id)!!.toInstant())
+            status.setRollbackOnly()
+        }
+    }
+
     @Test fun `statistics reject dates outside the supported database range`() {
         val s=student();val date="%2B999999999-12-31"
         call("GET","/me/statistics?period=DAY&periodDate=$date",token=s.token,status=422)
