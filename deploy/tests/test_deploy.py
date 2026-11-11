@@ -1,4 +1,5 @@
 import importlib.util
+import fcntl
 import hashlib
 import io
 import json
@@ -40,6 +41,33 @@ def saved_image(kind='backend', revision='a' * 40, repo_tag=None):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_stalled_header_and_archive_expire_without_queuing_a_release_or_holding_the_lock(self):
+        for payload in (b'{', (json.dumps({'username':'test','token':'isolated-token','release':release(),
+                                         'image_sha256':'a'*64})+'\n').encode()+b'partial archive'):
+            with self.subTest(archive=payload!=b'{'), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                code=f'''
+import importlib.util,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('deadline_deployctl',{str(Path(deploy.__file__).resolve())!r})
+d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
+d.STATE=Path({str(root)!r});d.INPUT_TIMEOUT_SECONDS=1
+d.os.geteuid=lambda:0;d.preflight=lambda **kwargs:None;d.node_role=lambda:'backend'
+sys.argv=['qanda-deployctl','deploy']
+try:d.main()
+except TimeoutError:print('DEPLOY_INPUT_TIMEOUT')
+'''
+                process=subprocess.Popen([sys.executable,'-c',code],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                try:
+                    process.stdin.write(payload);process.stdin.flush();process.wait(timeout=5)
+                    self.assertEqual(process.returncode,0,process.stderr.read().decode())
+                    self.assertIn(b'DEPLOY_INPUT_TIMEOUT',process.stdout.read())
+                    self.assertFalse((root/'request.json').exists());self.assertFalse((root/'operation.json').exists())
+                    with (root/'lock').open('a') as lock:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                finally:
+                    if process.poll() is None:process.kill();process.wait()
+                    process.stdin.close();process.stdout.close();process.stderr.close()
+
     def test_node_roles_select_only_the_owned_services(self):
         for role, expected in [('frontend', ('web',)), ('backend', ('api', 'worker', 'monitor')), ('combined', deploy.SERVICES)]:
             with self.subTest(role=role), patch.object(deploy, 'node_role', return_value=role):
