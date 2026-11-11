@@ -6,6 +6,8 @@
 
 后端由 Actions 经受限 SSH 提交固定镜像摘要和短期注册表凭据，服务器从 GHCR 拉取并复用已有镜像层。管理端由 runner 按摘要拉取、打包，经受限 SSH 传入节点。节点核对镜像来源和版本后启动应用，继续执行迁移、健康检查及回滚流程。
 
+后端镜像按 [Spring Boot 分层布局](https://docs.spring.io/spring-boot/3.5/reference/packaging/container-images/dockerfiles.html) 分开保存依赖和应用代码，依赖未变化时可复用对应镜像层。CI 使用已验证的 JAR 构建实际镜像，在独立 PostgreSQL、RabbitMQ 和 Redis 上验证重复初始化与应用就绪；运行入口仍为 `/app/app.jar`，API、worker、monitor 和运维命令共用该镜像。
+
 ## 运行结构
 
 主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ、Redis 和 Prometheus 独立运行，普通发布只更新应用服务。
@@ -81,6 +83,10 @@ SSH 私钥在 runner 的私有临时目录中使用，结束时删除。`*_DEPLO
 失败时恢复上一成功应用版本。数据库不自动降级，不用旧备份覆盖当前数据。应用版本固定为 `1.0.0`，数据库由单个 V1 初始化定义。已有 V1 结构按校验值核验；开发阶段修改初始结构时，通过明确授权的测试库重建上线。客户端合同、队列正文及仍在使用的密钥版本必须兼容。
 
 `/api/v1/health` 保持原响应。容器使用内部 `/actuator/health/readiness` 检查数据库、队列、附件目录及 worker 消费状态。Actuator 不经公网网关转发。入口覆盖外来转发头，后端只信任固定的应用网关地址。
+
+发布入口接收请求及镜像归档的总时限为十五分钟，超时退出并释放发布锁，保留当前运行版本。应用更新由请求完整接收、校验通过后启动；系统服务开始应用后沿用独立恢复流程。
+
+服务器拉取镜像时，单次最多等待五分钟，最多尝试三次；下载完成并核对来源后再进行备份、候选检查及应用切换。
 
 操作由 systemd 服务执行，SSH 或 Actions 断开不会终止已开始的更新。状态为 `/var/lib/qanda-deploy/operation.json`，当前、上一版本和期望版本保存在同目录。管理员查询：
 

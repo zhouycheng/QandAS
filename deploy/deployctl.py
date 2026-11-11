@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -16,6 +17,8 @@ import urllib.request
 
 ROOT = Path('/srv/qanda')
 STATE = Path('/var/lib/qanda-deploy')
+# shortcut: allow 15 minutes for input; revisit after measuring larger release archives.
+INPUT_TIMEOUT_SECONDS = 15 * 60
 SERVICES = ('api', 'worker', 'monitor', 'web')
 GATEWAY_IMAGE = 'nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236'
 
@@ -140,6 +143,10 @@ def local_image_ref(image):
     return repository + ':sha256-' + digest
 
 
+def input_timed_out(_signum, _frame):
+    raise TimeoutError('Deployment input exceeded its time budget')
+
+
 def image_labels(image):
     return json.loads(run('docker', 'image', 'inspect', '--format', '{{json .Config.Labels}}', image))
 
@@ -154,9 +161,9 @@ def require_image_labels(image, revision):
 def pull_image(image):
     for attempt in range(3):
         try:
-            run('docker', 'pull', image)
+            run('docker', 'pull', image, timeout=300)
             return
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             if attempt == 2:
                 raise
             time.sleep(5 * (attempt + 1))
@@ -482,23 +489,29 @@ def main():
             raise RuntimeError('An operation is already active')
         if (STATE / 'request.json').exists():
             raise RuntimeError('An earlier request requires reconciliation')
-        request = json.loads(sys.stdin.buffer.readline(16385))
-        expected = ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'})
-        if action == 'deploy' and 'image_sha256' in request:
-            expected.add('image_sha256')
-        if set(request) != expected:
-            raise ValueError('Unexpected request fields')
-        if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', request['username']) or not 1 <= len(request['token']) <= 4096:
-            raise ValueError('Invalid registry credentials')
-        release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
-        preflight(first=not (STATE / 'current.json').exists())
-        image_sha256 = request.pop('image_sha256', None)
-        if node_role() == 'frontend' and action == 'deploy' and not image_sha256:
-            raise ValueError('The frontend node requires the verified image archive')
-        if image_sha256:
-            load_image_archive(sys.stdin.buffer, release, image_sha256)
-        elif sys.stdin.buffer.read(1):
-            raise ValueError('Unexpected data after deployment request')
+        previous_handler = signal.signal(signal.SIGALRM, input_timed_out)
+        signal.alarm(INPUT_TIMEOUT_SECONDS)
+        try:
+            request = json.loads(sys.stdin.buffer.readline(16385))
+            expected = ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'})
+            if action == 'deploy' and 'image_sha256' in request:
+                expected.add('image_sha256')
+            if set(request) != expected:
+                raise ValueError('Unexpected request fields')
+            if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', request['username']) or not 1 <= len(request['token']) <= 4096:
+                raise ValueError('Invalid registry credentials')
+            release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
+            preflight(first=not (STATE / 'current.json').exists())
+            image_sha256 = request.pop('image_sha256', None)
+            if node_role() == 'frontend' and action == 'deploy' and not image_sha256:
+                raise ValueError('The frontend node requires the verified image archive')
+            if image_sha256:
+                load_image_archive(sys.stdin.buffer, release, image_sha256)
+            elif sys.stdin.buffer.read(1):
+                raise ValueError('Unexpected data after deployment request')
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous_handler)
         atomic(STATE / 'request.json', {**request, 'action': action, 'release': release})
         atomic(STATE / 'operation.json', {'phase': 'queued', 'revision': release['revision'], 'action': action})
         try:
