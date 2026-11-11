@@ -107,12 +107,13 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         return row
     }
     private fun writeState(row: PracticeSession)=WriteState(row.writerDeviceId,row.writerToken,row.acknowledgedSequence)
-    fun admitProgress(actor: Actor,id: UUID,input: ProgressInput) {
+    fun admitProgress(actor: Actor,id: UUID,input: ProgressInput): Long {
         val row=owned(actor.id,id,true);writer(row,input.writerToken)
         if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
         if(input.kind !in setOf("SAVE","FINISH") || input.clientSequence<=0 || input.durationSeconds<0) invalid("/command")
         if(input.items.size>1000 || input.items.map { it.itemId }.distinct().size!=input.items.size) invalid("/items")
         duration(row,input.durationSeconds)
+        return row.version
     }
     private fun answer(item: PracticeItem,choices: List<String>): AnswerInput? {
         return when { choices.isNotEmpty() -> AnswerInput(optionKeys=choices);item.answerBoolean!=null -> AnswerInput(value=item.answerBoolean);item.answerText!=null -> AnswerInput(text=item.answerText);item.answerBlanks!=null -> AnswerInput(blanks=json.readValue(item.answerBlanks,Array<String>::class.java).toList());else -> null }

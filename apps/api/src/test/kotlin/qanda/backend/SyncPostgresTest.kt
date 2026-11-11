@@ -32,6 +32,15 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class SyncPostgresTest : PostgresFixture() {
+    @Test fun `admission rejects stale version before accepting first command`() {
+        val owner=student();val session=createPractice(owner,fixture());val sessionId=id(session)
+        val path="/practice/sessions/$sessionId/sync-commands"
+        val body=progressBody(session)
+        call("POST",path,body+mapOf("expectedVersion" to 999),owner.token,409)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id=?",Int::class.java,sessionId))
+        call("POST",path,body,owner.token,202)
+    }
+
     @Test fun `pending command budgets reject excess storage and stop appending behind terminal failures`() {
         val owner=student();val f=fixture();val session=createPractice(owner,f);val sessionId=id(session);val input=progressBody(session)
         val path="/practice/sessions/$sessionId/sync-commands"

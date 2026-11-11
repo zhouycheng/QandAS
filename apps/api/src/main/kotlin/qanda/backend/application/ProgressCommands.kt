@@ -46,12 +46,11 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
                 view(store.find(key)!!)
             } else view(old)
         } else {
-            practice.admitProgress(actor,id,input)
+            val version=practice.admitProgress(actor,id,input)
             val (accepted,processed,finishing)=store.checkpoint(id)
             if(finishing) conflict("SESSION_CLOSED","已交卷，正在批改")
             if(input.clientSequence!=accepted+1) conflict("SYNC_SEQUENCE","请先同步前面的答题记录")
             if(accepted==processed) {
-                val version=practice.version(actor.id,id)
                 requireVersion(input.expectedVersion,version)
             }
             val payload=json.writeValueAsString(input)
