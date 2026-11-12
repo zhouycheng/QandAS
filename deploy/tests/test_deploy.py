@@ -121,12 +121,13 @@ except TimeoutError:print('DEPLOY_INPUT_TIMEOUT')
             run.assert_not_called()
 
     def test_registry_image_pull_retries_are_bounded(self):
-        for failure in (subprocess.CalledProcessError(1,['docker','pull']),subprocess.TimeoutExpired(['docker','pull'],300)):
+        self.assertEqual(deploy.PULL_TIMEOUT_SECONDS,15*60)
+        for failure in (subprocess.CalledProcessError(1,['docker','pull']),subprocess.TimeoutExpired(['docker','pull'],deploy.PULL_TIMEOUT_SECONDS)):
             with self.subTest(failure=type(failure).__name__):
                 with patch.object(deploy,'run',side_effect=[failure,failure,'']) as run, patch.object(deploy.time,'sleep') as sleep:
                     deploy.pull_image('ghcr.io/zhouycheng/qanda-backend@sha256:'+'a'*64)
                     self.assertEqual(run.call_count,3)
-                    self.assertTrue(all(call.kwargs['timeout']==300 for call in run.call_args_list))
+                    self.assertTrue(all(call.kwargs['timeout']==deploy.PULL_TIMEOUT_SECONDS for call in run.call_args_list))
                     self.assertEqual([call.args[0] for call in sleep.call_args_list],[5,10])
                 with patch.object(deploy,'run',side_effect=failure) as run, patch.object(deploy.time,'sleep') as sleep:
                     with self.assertRaises(type(failure)):deploy.pull_image('ghcr.io/zhouycheng/qanda-backend@sha256:'+'a'*64)

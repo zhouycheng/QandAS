@@ -21,6 +21,7 @@ STATE = Path('/var/lib/qanda-deploy')
 INPUT_TIMEOUT_SECONDS = 15 * 60
 SERVICES = ('api', 'worker', 'monitor', 'web')
 GATEWAY_IMAGE = 'nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236'
+PULL_TIMEOUT_SECONDS = 15 * 60
 
 
 def node_role():
@@ -161,7 +162,7 @@ def require_image_labels(image, revision):
 def pull_image(image):
     for attempt in range(3):
         try:
-            run('docker', 'pull', image, timeout=300)
+            run('docker', 'pull', image, timeout=PULL_TIMEOUT_SECONDS)
             return
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             if attempt == 2:
