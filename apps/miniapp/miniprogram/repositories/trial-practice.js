@@ -18,7 +18,10 @@ function read(storage) {
   record.sessions.forEach(vault.restore)
   return record
 }
-function put(storage, record) { storage.set(KEY, { ...record, sessions: record.sessions.map(vault.strip) }) }
+function put(storage, record) {
+  // Preserve other legacy sessions until each one is migrated on restore.
+  storage.set(KEY, { ...record, sessions: record.sessions.map(item => item.offlineGrading && item.offlineGrading.length ? item : vault.strip(item)) })
+}
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }
 function remaining(storage) { return Math.max(0, LIMIT - read(storage).usedCount) }
@@ -32,12 +35,18 @@ async function required(method, path, body) {
 async function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
   if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(async original => {
-    const snapshot = original
-    const options = normalizePracticeOptions(snapshot.route, getPreferences(storage))
-    if (Object.keys(options).some(key => !snapshot.route || snapshot.route[key] !== options[key])) {
-      snapshot.route = Object.assign({}, snapshot.route, options)
+    const normalized = normalizePracticeOptions(original.route, getPreferences(storage))
+    if (Object.keys(normalized).some(key => !original.route || original.route[key] !== normalized[key])) {
+      original.route = Object.assign({}, original.route, normalized)
     }
-    const record = read(storage); record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item); put(storage, record)
+    const legacy = original.offlineGrading && original.offlineGrading.length
+    let snapshot = original, migrated = false
+    try {
+      if (legacy) { snapshot = await vault.seal(storage, original, 'guest'); migrated = true }
+      const record = read(storage); record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item)
+      put(storage, record)
+      if (migrated) vault.publish(snapshot)
+    } catch (error) { if (migrated) vault.discard(snapshot, storage); throw error }
     return snapshot
   })
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))

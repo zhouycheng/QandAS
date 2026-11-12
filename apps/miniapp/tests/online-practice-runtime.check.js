@@ -90,6 +90,41 @@ async function main() {
   assert(recovered.get('s1').assessmentCommands.i1)
   offline = false; storage.remove('qandaSyncCooldown:v1:u1'); await recovered.replayAssessments('s1')
   assert(!recovered.get('s1').assessmentCommands.i1)
+  const secondSession = copy(recovered.get('s1'))
+  secondSession.id = 's2'; secondSession.resultId = 'result2'; secondSession.version = recovered.get('s1').version
+  secondSession.assessmentCommands = {}
+  secondSession.items.forEach(item => { item.itemId = `s2-${item.itemId}` })
+  secondSession.localResult.id = 'result2'; secondSession.localResult.sessionId = 's2'
+  secondSession.localResult.items.forEach(item => { item.itemId = `s2-${item.itemId}` })
+  recovered.put('s2', secondSession)
+  let releaseFirstAssessment, markFirstStarted, markSecondSent
+  const firstAssessmentGate = new Promise(resolve => { releaseFirstAssessment = resolve })
+  const firstAssessmentStarted = new Promise(resolve => { markFirstStarted = resolve })
+  const secondAssessmentSent = new Promise(resolve => { markSecondSent = resolve })
+  const regularRequest = http.request
+  const assessmentRequests = []
+  http.request = async (method, path, body, settings) => {
+    if (path.endsWith('/self-assessment')) {
+      assessmentRequests.push(path)
+      if (path === '/practice/sessions/s1/items/i1/self-assessment') {
+        markFirstStarted()
+        await firstAssessmentGate
+      }
+      if (path === '/practice/sessions/s2/items/s2-i1/self-assessment') markSecondSent()
+      return { ok: true, data: { version: ++version } }
+    }
+    return regularRequest(method, path, body, settings)
+  }
+  await recovered.assess('s1', 'i1', 'WRONG')
+  await firstAssessmentStarted
+  await recovered.assess('s2', 's2-i1', 'WRONG')
+  assert.deepEqual(assessmentRequests, ['/practice/sessions/s1/items/i1/self-assessment'], '首个自评请求占锁时不并发发送第二个请求')
+  releaseFirstAssessment()
+  await secondAssessmentSent
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(recovered.get('s2').assessmentCommands['s2-i1'], undefined, '首个请求完成后自动补传另一个会话的自评')
+  assert.equal(assessmentRequests.length, 2)
+  http.request = regularRequest
   const legacy = copy(snapshot)
   legacy.id = 'legacy'; legacy.route = { bankId: 'b1', mode: 'practice' }
   legacy.items.forEach((item, i) => { item.itemId = `legacy-i${i}` })

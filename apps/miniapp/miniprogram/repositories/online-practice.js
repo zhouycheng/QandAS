@@ -14,7 +14,7 @@ const { mapQuestion, quiz, restored } = require('../models/practice-snapshot.js'
 function enable(storage) { runtime = new OnlinePractice(storage); return runtime }
 function current() { return runtime }
 class OnlinePractice {
-  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.finishing = {}; this.creating = {}; this.assessing = {}; this.saveErrors = {}; this.statusListeners = new Set() }
+  constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.finishing = {}; this.creating = {}; this.assessing = {}; this.saveErrors = {}; this.statusListeners = new Set(); this.ratingInFlight = false; this.assessmentResumeNeeded = false }
   saveStatus(id) {
     if (this.saveErrors[id]) return { saveStatusText: '本次作答未能保存，请释放空间后重试', canRetrySync: true }
     const draft = this.queue && this.queue.get(id)
@@ -373,7 +373,8 @@ class OnlinePractice {
     if (this.assessmentTimer && this.assessmentTimer.unref) this.assessmentTimer.unref()
   }
   async resumeAssessments() {
-    if (!auth.getAuth(this.storage).loggedIn || this.ratingInFlight) return
+    if (!auth.getAuth(this.storage).loggedIn) return
+    if (this.ratingInFlight) { this.assessmentResumeNeeded = true; return }
     const entries = this.storage.get(`qandaPracticeRecords:${this.identity().userId}`) || {}
     for (const id of Object.keys(entries)) {
       const snapshot = this.get(id)
@@ -381,7 +382,7 @@ class OnlinePractice {
     }
   }
   async replayAssessments(id) {
-    if (this.ratingInFlight) return
+    if (this.ratingInFlight) { this.assessmentResumeNeeded = true; return }
     const userId = this.identity().userId
     const cooldownKey = `qandaSyncCooldown:v1:${userId}`, cooldown = this.storage.get(cooldownKey) || { until: 0, failures: 0 }
     if (cooldown.until > Date.now()) { this.scheduleAssessments(cooldown.until); return }
@@ -417,7 +418,10 @@ class OnlinePractice {
         this.put(id, latest)
         require('./remote-data-repository.js').invalidateLearning()
       }
-    } finally { this.ratingInFlight = false }
+    } finally {
+      this.ratingInFlight = false
+      if (this.assessmentResumeNeeded) { this.assessmentResumeNeeded = false; this.resumeAssessments().catch(() => {}) }
+    }
   }
   async finishSession(session) {
     const id = session.meta.sessionId
