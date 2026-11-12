@@ -406,6 +406,10 @@ class OnlinePractice {
               const latest = this.get(id), pending = latest.assessmentCommands[itemId]
               latest.version = current.data.version; latest.assessmentCommands[itemId] = { value: pending.nextValue || command.body.assessment, baseAssessment: pending.baseAssessment }
               this.put(id, latest); this.scheduleAssessments(Date.now() + 1000)
+            } else if (!current.statusCode || current.statusCode === 429 || current.statusCode >= 500) {
+              const old = this.storage.get(cooldownKey) || { failures: 0 }
+              const delay = Math.max(current.retryAfter || 0, Math.min(300000, 10000 * 2 ** Math.min(old.failures, 6)) * (0.5 + Math.random() * 0.5))
+              this.storage.set(cooldownKey, { until: Date.now() + delay, failures: old.failures + 1 }); this.scheduleAssessments(Date.now() + delay)
             }
           }
           return

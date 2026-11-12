@@ -125,6 +125,20 @@ async function main() {
   assert.equal(recovered.get('s2').assessmentCommands['s2-i1'], undefined, '首个请求完成后自动补传另一个会话的自评')
   assert.equal(assessmentRequests.length, 2)
   http.request = regularRequest
+  clearTimeout(recovered.assessmentTimer); recovered.assessmentTimer = null; storage.remove('qandaSyncCooldown:v1:u1')
+  const conflicted = recovered.get('s1')
+  conflicted.assessmentCommands.i1 = { value: 'CORRECT', baseAssessment: 'WRONG' }
+  recovered.put('s1', conflicted)
+  http.request = async (method, path, body, settings) => {
+    if (path.endsWith('/self-assessment')) return { ok: false, statusCode: 409, code: 'VERSION_CONFLICT' }
+    if (path === '/practice/sessions/s1/result') return { ok: false, statusCode: 503, retryAfter: 5000 }
+    return regularRequest(method, path, body, settings)
+  }
+  await recovered.replayAssessments('s1')
+  assert.equal(recovered.get('s1').assessmentCommands.i1.value, 'CORRECT', '冲突回读失败时保留本机自评命令')
+  assert(storage.get('qandaSyncCooldown:v1:u1').until > Date.now(), '冲突回读遇到暂时错误时安排退避重试')
+  assert(recovered.assessmentTimer, '冲突回读遇到暂时错误时创建重试定时器')
+  clearTimeout(recovered.assessmentTimer); recovered.assessmentTimer = null; http.request = regularRequest
   const legacy = copy(snapshot)
   legacy.id = 'legacy'; legacy.route = { bankId: 'b1', mode: 'practice' }
   legacy.items.forEach((item, i) => { item.itemId = `legacy-i${i}` })
