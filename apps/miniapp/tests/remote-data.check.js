@@ -8,20 +8,25 @@ const values = {}
 const storage = require('./helpers/encrypted-storage.js').encrypted({ get: (k) => values[k], set: (k,v) => { values[k] = v }, remove: (k) => delete values[k] })
 const calls = []
 let announcements = [{ id: 'n1', title: '课程通知', body: '公告正文', status: 'PUBLISHED' }]
+let wrongRows = [{ questionId: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '错题', rightCount: 1, wrongCount: 2, lastPracticedAt: '2026-10-28T01:00:00Z' }]
+let overviewData = { answeredCount: 1, correctCount: 1, wrongCount: 1, favoriteCount: 1, subjectCount: 1, bankCount: 1, totalCount: 3, durationSeconds: 600, practiceCount: 1 }
 api.request = async (method, path, body) => {
   calls.push([method,path,body])
   const lists = {
     '/subjects': [{ id: 's1', name: '课程一', bankCount: 1, questionCount: 3 }],
     '/question-banks': [{ id: 'b1', subjectId: 's1', name: '题库一', activeQuestionCount: 3, contentVersion: 8, progress: { answeredCount: 1, correctCount: 1, wrongCount: 0 } }],
     '/me/favorites': [{ questionId: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '收藏题' }],
-    '/me/wrong-questions': [{ questionId: 'q1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '错题', rightCount: 1, wrongCount: 2, lastPracticedAt: '2026-10-28T01:00:00Z' }],
     '/announcements': announcements,
     '/me/recommendations': [{ subject: { id: 's1', name: '课程一', questionCount: null }, banks: [{ bank: { activeQuestionCount: 3 } }] }],
     '/colleges': [{ id: 'c1', name: '学院一' }]
   }
+  if (path === '/me/wrong-questions') {
+    const page = body.page || 1, pageSize = body.pageSize || 5
+    return { ok: true, data: { total: wrongRows.length, page, pageSize, items: wrongRows.slice((page - 1) * pageSize, page * pageSize) } }
+  }
   if (lists[path]) return { ok: true, data: { total: lists[path].length, page: body.page, pageSize: body.pageSize, items: lists[path] } }
   if (path === '/subjects/s21') return { ok: true, data: { id: 's21', name: '直接进入的课程', bankCount: 30, questionCount: 600 } }
-  if (path === '/me/learning-overview') return { ok: true, data: { answeredCount: 1, correctCount: 1, wrongCount: 1, favoriteCount: 1, subjectCount: 1, bankCount: 1, totalCount: 3, durationSeconds: 600, practiceCount: 1 } }
+  if (path === '/me/learning-overview') return { ok: true, data: overviewData }
   if (path === '/me/question-collections/summary') return { ok: true, data: { total: 1, pendingCount: 1, repeatCount: 1, facets: [] } }
   if (path.startsWith('/me/recent-learning')) return { ok: true, data: { total: 1, page: 1, pageSize: 20, items: [{ id: 'p1', questionBankId: 'b1', status: 'IN_PROGRESS', deviceId: body.deviceId }] } }
   if (path === '/me') return { ok: true, data: { id: 'u1', nickname: '同学', version: 2, collegeId: 'c1', majorId: 'm1' } }
@@ -109,6 +114,15 @@ async function main() {
   assert.strictEqual((await detail.refreshRemote({ id: 'q1', sessionId: 'p1' })).data.explanation, '', '统一反馈交卷前不可显示')
   snapshot.status = 'SUBMITTED'; runtime.put('p1', snapshot)
   assert.strictEqual((await detail.refreshRemote({ id: 'q1', sessionId: 'p1' })).data.explanation, '确认后解析', '交卷后显示')
+  wrongRows = Array.from({ length: 6 }, (_, i) => ({ questionId: `q${i + 1}`, questionBankId: 'b1', subjectId: 's1', type: 'SINGLE_CHOICE', stem: `错题 ${i + 1}`, rightCount: 1, wrongCount: i === 5 ? 1 : 2, lastPracticedAt: '2026-11-01T01:00:00Z' }))
+  overviewData = { includedSessionIds: [], questionFacts: [{ questionId: 'q1', rightCount: 0, wrongCount: 2, judgment: 'WRONG', lastPracticedAt: '2026-11-01T01:00:00Z' }] }
+  const correctedQuestion = { id: 'q1', revisionId: 'r1', questionBankId: 'b1', subjectId: 's1', subjectName: '课程一', type: 'SINGLE_CHOICE', stem: '错题 1' }
+  runtime.put('pending-correction', { id: 'pending-correction', questionBankId: 'b1', title: '题库一', status: 'SUBMITTED', route: { subjectId: 's1' }, items: [{ itemId: 'i1', question: correctedQuestion }], localResult: { id: 'result-correction', sessionId: 'pending-correction', submittedAt: '2026-11-12T10:00:00Z', totalCount: 1, answeredCount: 1, objective: { answered: 1, correct: 1, wrong: 0 }, shortAnswer: { rated: 0, correct: 0, wrong: 0 }, items: [{ itemId: 'i1', question: correctedQuestion, outcome: 'CORRECT' }] } })
+  await remote.refresh(storage, 'collection', { kind: 'WRONG', page: 1, force: true })
+  const correctedPage = remote.getCollection(storage, { kind: 'WRONG', page: 1 }).data
+  assert.equal(correctedPage.total, 5)
+  assert.deepStrictEqual(correctedPage.items.map(item => item.questionId), ['q2', 'q3', 'q4', 'q5', 'q6'], '本地掌握一题后从服务器下一页补齐当前页')
+  assert(calls.some(call => call[1] === '/me/wrong-questions' && call[2].page === 2), '本地移出错题后读取下一页补位')
   runtime.queue.stop()
   const pendingSearch = {}
   const searchVm = new SubjectListViewModel({ storage, repository: { isRemoteEnabled: () => true, searchRemoteQuestions: (storage, text) => new Promise((resolve) => { pendingSearch[text] = resolve }) } })

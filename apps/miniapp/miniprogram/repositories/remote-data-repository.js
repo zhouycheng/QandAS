@@ -221,16 +221,33 @@ async function refreshCollection(storage, options) {
   if (localLearning.snapshots(storage).length) { try { await refreshOverview(storage, options) } catch (_) {} }
   const kind = options.kind === 'FAVORITE' ? 'FAVORITE' : 'WRONG'
   const query = collectionQuery(options)
-  return Promise.all([
+  const path = kind === 'FAVORITE' ? '/me/favorites' : '/me/wrong-questions'
+  const pageScope = queryKey(kind, { ...query, page: undefined })
+  const loadPage = page => resource(storage, 'collection:' + kind, { ...query, page }, TTL.learning, path, data => {
+    state[kind === 'FAVORITE' ? 'favorites' : 'wrong'] = data.items
+    const old = state.collectionPages[pageScope] || {}
+    state.collectionPages[pageScope] = { ...(page === 1 ? {} : old), [page]: data.items }
+    cacheQuestions(data.items.map(q => Object.assign({ id: q.questionId, view: 'summary' }, q)))
+  }, options.force)
+  const [summary, firstPage] = await Promise.all([
     resource(storage, 'collectionSummary', { kind }, TTL.learning, '/me/question-collections/summary', null, options.force),
-    resource(storage, 'collection:' + kind, query, TTL.learning, kind === 'FAVORITE' ? '/me/favorites' : '/me/wrong-questions', data => {
-      state[kind === 'FAVORITE' ? 'favorites' : 'wrong'] = data.items
-      const scope = queryKey(kind, { ...query, page: undefined })
-      const old = state.collectionPages[scope] || {}
-      state.collectionPages[scope] = { ...(query.page === 1 ? {} : old), [query.page]: data.items }
-      cacheQuestions(data.items.map(q => Object.assign({ id: q.questionId, view: 'summary' }, q)))
-    }, options.force)
+    loadPage(kind === 'WRONG' ? 1 : query.page)
   ])
+  if (kind !== 'WRONG') return [summary, firstPage]
+  const maxPage = Math.ceil((firstPage && firstPage.total || 0) / query.pageSize)
+  let currentPage = query.page === 1 ? firstPage : null
+  for (let page = 2; page <= query.page; page++) {
+    if (page > maxPage && page < query.page) break
+    if (page === query.page || options.force || !(state.collectionPages[pageScope] || {})[page]) currentPage = await loadPage(page)
+  }
+  if (!currentPage) currentPage = await loadPage(query.page)
+  let visible = getCollection(storage, { ...query, kind }).data
+  const expected = Math.min(query.pageSize, Math.max(0, visible.total - (query.page - 1) * query.pageSize))
+  for (let page = Math.max(1, Math.min(query.page, maxPage)) + 1; visible.items.length < expected && page <= maxPage; page++) {
+    if (options.force || !(state.collectionPages[pageScope] || {})[page]) await loadPage(page)
+    visible = getCollection(storage, { ...query, kind }).data
+  }
+  return [summary, currentPage]
 }
 function collectionLocal(storage) {
   const records = localLearning.snapshots(storage)
