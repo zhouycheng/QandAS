@@ -116,13 +116,8 @@ function normalizePreferences(rawPreferences) {
     }
   })
 
-  const weights = raw.practicePaneWeights
-  const migrated = weights && Number.isFinite(weights.stem) && weights.stem > 0 && Number.isFinite(weights.response) && weights.response > 0
-    ? Math.max(30, Math.min(70, Math.round(weights.stem / (weights.stem + weights.response) * 20) * 5)) : 50
-  next.practiceStemPercent = normalizeStemPercent(raw.practiceStemPercent === undefined ? migrated : raw.practiceStemPercent)
-  next.examCountdowns = normalizeExamList(Array.isArray(raw.examCountdowns)
-    ? raw.examCountdowns
-    : [{ id: 'legacy-exam', examName: next.examName, examDate: next.examDate }])
+  next.practiceStemPercent = normalizeStemPercent(raw.practiceStemPercent)
+  next.examCountdowns = normalizeExamList(raw.examCountdowns)
 
   Object.assign(next, normalizePresets(raw.practicePresets, raw.defaultPracticePresetId))
   return next

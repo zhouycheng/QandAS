@@ -14,7 +14,7 @@ const trials = require('../miniprogram/repositories/trial-practice.js')
 const auth = require('../miniprogram/repositories/auth-repository.js')
 const http = require('../miniprogram/repositories/http-gateway.js')
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
-function memory() { const data = {}; return { full: false, get: key => copy(data[key]), set(key, value) { if (this.full) throw new Error('存储已满'); data[key] = copy(value) }, remove: key => delete data[key] } }
+function memory() { const data = {}; return require('./helpers/encrypted-storage.js').encrypted({ full: false, get: key => copy(data[key]), set(key, value) { if (this.full) throw new Error('存储已满'); data[key] = copy(value) }, remove: key => delete data[key] }) }
 async function main() {
   for (const page of ['bank-detail', 'practice-presets']) {
     const config = JSON.parse(fs.readFileSync(require.resolve('../miniprogram/page/' + page + '/index.json'), 'utf8'))
@@ -127,7 +127,7 @@ async function main() {
     assert(['/practice/sessions', '/practice/trial-snapshots'].includes(path), path)
     assert.equal(body.timeLimitSeconds, null, '模拟考不限时不能回落为十分钟')
     return { ok: true, data: { id: 's' + ++id, questionBankId: 'bank', version: 1, status: 'IN_PROGRESS', feedback: body.feedback, configuration: { mode: body.mode, timeLimitSeconds: body.timeLimitSeconds }, writer: { deviceId: body.deviceId, writerToken: 'test' }, currentIndex: 0, durationSeconds: 0,
-      items: [0, 1].map(i => ({ itemId: 'i' + i, question: { id: 'q' + i, type: 'SINGLE_CHOICE', stem: '题干', options: [{ key: 'A', content: '甲' }], assetIds: [] } })), offlineGrading: [0, 1].map(i => ({ itemId: 'i' + i, correctAnswer: ['A'], explanation: '解析' })) } }
+      items: [0, 1].map(i => ({ itemId: 'i' + i, question: { id: 'q' + i, revisionId: 'r' + i, type: 'SINGLE_CHOICE', stem: '题干', options: [{ key: 'A', content: '甲' }], assetIds: [] } })), offlineGrading: [0, 1].map(i => ({ itemId: 'i' + i, correctAnswer: ['A'], explanation: '解析' })) } }
   }
   auth.saveAuth(store, { userId: 'student', provider: 'email', token: 'example' })
   const runtime = online.enable(store)

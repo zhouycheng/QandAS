@@ -9,7 +9,7 @@ const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmo
 const copy = value => JSON.parse(JSON.stringify(value))
 function storage() {
   const values = {}
-  return { get: key => values[key] && copy(values[key]), set: (key, value) => { values[key] = copy(value) }, remove: key => delete values[key] }
+  return require('./helpers/encrypted-storage.js').encrypted({ get: key => values[key] && copy(values[key]), set: (key, value) => { values[key] = copy(value) }, remove: key => delete values[key] })
 }
 async function main() {
   const store = storage()
@@ -28,7 +28,7 @@ async function main() {
     if (path === '/practice/sessions' || path === '/practice/trial-snapshots') return { ok: true, data: {
       id: 'practice-' + ++next, questionBankId: 'a', status: 'IN_PROGRESS', feedback: 'IMMEDIATE', currentIndex: 0, durationSeconds: 0,
       configuration: { questionBankIds: ['a', 'b'], chapterIds: [], count: 2, order: 'SEQUENTIAL', selectionKind: 'NORMAL', contentVersions: copy(preview.contentVersions), mode: 'order' },
-      items: ['a', 'b'].map(id => ({ itemId: 'i' + id, question: { id: 'q' + id, questionBankId: id, type: 'SINGLE_CHOICE', stem: '题目' + id, options: [{ key: 'A', content: '选项' }], assetIds: [] } })),
+      items: ['a', 'b'].map(id => ({ itemId: 'i' + id, question: { id: 'q' + id, revisionId: 'r' + id, questionBankId: id, type: 'SINGLE_CHOICE', stem: '题目' + id, options: [{ key: 'A', content: '选项' }], assetIds: [] } })),
       offlineGrading: ['a', 'b'].map(id => ({ itemId: 'i' + id, correctAnswer: ['A'] }))
     } }
     throw new Error('未预期请求 ' + path)

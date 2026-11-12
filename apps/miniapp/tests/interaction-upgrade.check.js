@@ -66,7 +66,7 @@ async function main() {
   disabledSession.meta.config.swipeEnabled = false
   assert.equal(normalizeSession(serializeSession(disabledSession.getPersistedState())).config.swipeEnabled, false)
   assert.equal(preferences.getPreferences({ get: () => ({ practiceStemPercent: 40 }) }).practiceStemPercent, 40)
-  assert.equal(preferences.getPreferences({ get: () => ({ practicePaneWeights: { stem: 26, response: 39, analysis: 35 } }) }).practiceStemPercent, 40, '旧三分区配置保留题干与作答相对比例')
+  assert.equal(preferences.getPreferences({ get: () => ({ practiceStemPercent: 40 }) }).practiceStemPercent, 40, '保留已保存的题干比例')
   assert.deepEqual(normalizeOrder(['tools', 'analysis', 'stem', 'info', 'response']), ['tools', 'stem', 'info', 'response'], '移除解析时保留其他模块的顺序')
   const layout = new PracticeLayoutViewModel({ storage: store })
   layout.load(); layout.setPercent(70)

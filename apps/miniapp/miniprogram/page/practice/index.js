@@ -43,10 +43,14 @@ Page(withPageLifecycle({
       storage: createWxStorageAdapter()
     })
     this.routeOptions = options || {}
-    this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')
+    this.practiceNetworkHandler = event => { if (event.isConnected) this.checkContentUpdates() }
+    if (wx.onNetworkStatusChange) wx.onNetworkStatusChange(this.practiceNetworkHandler)
+    Promise.resolve(this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')).then(() => this.checkContentUpdates())
   },
 
-  onForegroundReady() { this.updateWindowHeight(); this.scheduleMeasure() },
+  handleViewLatest(event) { this.applyViewModelResult(this.viewModel.viewLatestQuestion(event.currentTarget.dataset.id)) },
+  checkContentUpdates() { if (this.viewModel && this.pageVisible !== false) this.viewModel.checkContentUpdates().then(result => { if (!this._pageUnloaded && this.pageVisible !== false) this.applyViewModelResult(result) }).catch(() => {}) },
+  onForegroundReady() { this.checkContentUpdates(); this.updateWindowHeight(); this.scheduleMeasure() },
   onResize() { this.cancelReadingDrag(); this.setData({ analysisDragging: false, analysisSheetVersion: this.data.analysisSheetVersion + 1 }); this.updateWindowHeight(); this.scheduleMeasure() },
 
   updateWindowHeight() {
@@ -178,6 +182,7 @@ Page(withPageLifecycle({
 
   onShow() {
     this.pageVisible = true
+    this.checkContentUpdates()
     this.setData({ analysisSuspended: false, readingSuspended: false })
     this.textSelectionActive = false
     this.startElapsedTimer()
@@ -219,6 +224,7 @@ Page(withPageLifecycle({
   },
 
   onUnload() {
+    if (wx.offNetworkStatusChange && this.practiceNetworkHandler) wx.offNetworkStatusChange(this.practiceNetworkHandler)
     this.stopElapsedTimer()
     clearTimeout(this.measureTimer)
     this.pageVisible = false

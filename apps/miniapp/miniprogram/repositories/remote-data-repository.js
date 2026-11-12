@@ -1,3 +1,4 @@
+const localLearning = require('./local-learning.js')
 const api = require('./api-transport.js')
 const authRepository = require('./auth-repository.js')
 const { observable, runInAction } = require('mobx-miniprogram')
@@ -11,9 +12,10 @@ let owner = ''
 let sessionToken = ''
 let scope = ''
 let activeStorage = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+let overviewBase = null
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
-function reset() { cache.clear(); runInAction(() => Object.assign(state, empty())) }
+function reset() { overviewBase = null; cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
 function isEnabled() { return enabled }
 function bind(storage) {
@@ -34,13 +36,13 @@ function bind(storage) {
 }
 function persistSummary() {
   if (!owner || !activeStorage || !activeStorage.set) return
-  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: state.overview, profile: state.profile }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
+  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: overviewBase || state.overview, profile: state.profile }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
 }
 function checked(response) {
   if (!response.ok) throw Object.assign(new Error(response.reason || '请求失败'), { statusCode: response.statusCode })
   return response.data
 }
-function get(path, query) { return api.request('GET', path, query).then(checked) }
+function get(path, query) { return api.request(query && query.pendingSessionIds && /^\/me\/statistics(?:\/days)?$/.test(path) ? 'POST' : 'GET', path, query).then(checked) }
 function mutate(method, path, data) { return api.request(method, path, data, { idempotencyKey: api.uuid() }).then(checked) }
 function resource(storage, name, query, ttl, path, publish, force) {
   if (!enabled) return Promise.resolve(null)
@@ -54,9 +56,19 @@ function mergeById(previous, items) {
   items.forEach(item => byId.set(item.id, item))
   return Array.from(byId.values())
 }
-function refreshOverview(storage, options) {
-  return resource(storage, 'overview', { deviceId: authRepository.deviceId(storage) }, TTL.learning, '/me/learning-overview', data => { state.overview = data; persistSummary() }, options && options.force)
+async function refreshOverview(storage, options) {
+  bind(storage)
+  if (!owner) return null
+  const records = localLearning.snapshots(storage)
+  const query = { deviceId: authRepository.deviceId(storage) }
+  if (!records.length) return resource(storage, 'overview', query, TTL.learning, '/me/learning-overview', data => { overviewBase = data; state.overview = data; persistSummary() }, options && options.force)
+  const expected = owner
+  const data = await cache.load(queryKey('overview', { ...query, sessions: records.map(s => [s.id, s.localResult.submittedAt, s.assessmentCommands]) }), TTL.learning, async () => checked(await api.request('POST', '/me/learning-overview', { ...query, pendingSessionIds: records.map(s => s.id), pendingQuestionIds: [...new Set(records.flatMap(s => s.localResult.items.map(i => i.question.id)))], pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) })), null, options && options.force)
+  if (owner !== expected) return null
+  overviewBase = data; state.overview = data; persistSummary()
+  return state.overview
 }
+
 function refreshSubjects(storage, options) {
   bind(storage)
   const query = Object.assign({ page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(storage))
@@ -193,30 +205,71 @@ function refreshStatistics(storage, options) {
   const end = new Date(); end.setDate(end.getDate() + 1)
   const start = new Date(end); start.setDate(start.getDate() - 182)
   const date = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const records = localLearning.snapshots(storage), pendingSessionIds = records.map(s => s.id)
+  const local = pendingSessionIds.length ? { pendingSessionIds, pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) } : {}
   return Promise.all([
     refreshOverview(storage, options),
-    resource(storage, 'statistics', { period }, TTL.learning, '/me/statistics', data => { state.periodStatistics = Object.assign({}, state.periodStatistics, { [period]: data }); if (period === 'ALL') state.statistics = data }, options && options.force),
-    resource(storage, 'days', { startDate: date(start), endDateExclusive: date(end) }, TTL.learning, '/me/statistics/days', data => { state.days = data }, options && options.force)
+    resource(storage, 'statistics', { period, ...local }, TTL.learning, '/me/statistics', data => { state.periodStatistics = Object.assign({}, state.periodStatistics, { [period]: data }); if (period === 'ALL') state.statistics = data }, options && options.force),
+    resource(storage, 'days', { startDate: date(start), endDateExclusive: date(end), ...(pendingSessionIds.length ? { pendingSessionIds } : {}) }, TTL.learning, '/me/statistics/days', data => { state.days = data }, options && options.force)
   ])
 }
 function collectionQuery(options) {
   const input = options || {}
   return { subjectId: input.subjectId || undefined, questionBankId: input.questionBankId || undefined, chip: input.chip || 'all', sort: input.sort || (input.kind === 'FAVORITE' ? 'recent' : 'urgent'), page: input.page || 1, pageSize: 5 }
 }
-function refreshCollection(storage, options) {
+async function refreshCollection(storage, options) {
+  if (localLearning.snapshots(storage).length) { try { await refreshOverview(storage, options) } catch (_) {} }
   const kind = options.kind === 'FAVORITE' ? 'FAVORITE' : 'WRONG'
   const query = collectionQuery(options)
   return Promise.all([
     resource(storage, 'collectionSummary', { kind }, TTL.learning, '/me/question-collections/summary', null, options.force),
     resource(storage, 'collection:' + kind, query, TTL.learning, kind === 'FAVORITE' ? '/me/favorites' : '/me/wrong-questions', data => {
       state[kind === 'FAVORITE' ? 'favorites' : 'wrong'] = data.items
+      const scope = queryKey(kind, { ...query, page: undefined })
+      const old = state.collectionPages[scope] || {}
+      state.collectionPages[scope] = { ...(query.page === 1 ? {} : old), [query.page]: data.items }
       cacheQuestions(data.items.map(q => Object.assign({ id: q.questionId, view: 'summary' }, q)))
     }, options.force)
   ])
 }
-function getCollection(storage, options) { bind(storage); return cache.read(queryKey('collection:' + options.kind, collectionQuery(options))) }
-function getCollectionSummary(storage, kind) { bind(storage); return cache.read(queryKey('collectionSummary', { kind })).data }
-function getOverview(storage) { bind(storage); return state.overview }
+function collectionLocal(storage) {
+  const records = localLearning.snapshots(storage)
+  const base = overviewBase || { includedSessionIds: records.filter(s => s.cloudConfirmed).map(s => s.id) }
+  const enrich = row => { const bank = getBankMeta(row.questionBankId) || {}; return { ...row, subjectId: row.subjectId || bank.subjectId, subjectName: row.subjectName || bank.subjectName || '', questionBankName: row.questionBankName || bank.name || '' } }
+  return { before: localLearning.collectionRows(base, records, false).map(enrich), after: localLearning.collectionRows(base, records, true).map(enrich) }
+}
+function getCollection(storage, options) {
+  bind(storage)
+  const query = collectionQuery(options), cached = cache.read(queryKey('collection:' + options.kind, query))
+  if (options.kind !== 'WRONG') return cached
+  const local = collectionLocal(storage), base = cached.data || { items: [], total: 0, page: query.page, pageSize: query.pageSize }
+  const pages = state.collectionPages[queryKey('WRONG', { ...query, page: undefined })]
+  const original = pages ? Object.values(pages).flat() : base.items
+  const byId = new Map(original.map(i => [i.questionId, i]))
+  local.after.forEach(i => { if (localLearning.matchesCollection(i, query)) byId.set(i.questionId, i); else byId.delete(i.questionId) })
+  const items = Array.from(byId.values()).sort((a, b) => (query.sort === 'urgent' ? b.wrongCount - a.wrongCount : 0) || Date.parse(b.lastPracticedAt) - Date.parse(a.lastPracticedAt) || String(a.questionId).localeCompare(b.questionId))
+  const delta = local.after.filter(i => localLearning.matchesCollection(i, query)).length - local.before.filter(i => localLearning.matchesCollection(i, query)).length
+  return { ...cached, data: { ...base, items: items.slice((query.page - 1) * query.pageSize, query.page * query.pageSize), total: Math.max(0, base.total + delta) } }
+}
+function getCollectionSummary(storage, kind) {
+  bind(storage)
+  const base = cache.read(queryKey('collectionSummary', { kind })).data
+  if (kind !== 'WRONG') return base
+  const result = { total: 0, repeatCount: 0, recentCount: 0, rightCount: 0, wrongCount: 0, facets: [], subjectiveCount: 0, subjectiveFacets: [], ...base }
+  const local = collectionLocal(storage)
+  for (const [field, chip] of [['total', 'all'], ['repeatCount', 'repeat'], ['recentCount', 'recent'], ['subjectiveCount', 'subjective']]) result[field] += local.after.filter(i => localLearning.matchesCollection(i, { chip })).length - local.before.filter(i => localLearning.matchesCollection(i, { chip })).length
+  for (const field of ['rightCount', 'wrongCount']) result[field] += local.after.filter(i => localLearning.matchesCollection(i, {})).reduce((n, i) => n + i[field], 0) - local.before.filter(i => localLearning.matchesCollection(i, {})).reduce((n, i) => n + i[field], 0)
+  for (const [field, chip] of [['facets', 'all'], ['subjectiveFacets', 'subjective']]) {
+    const facets = new Map(result[field].map(f => [f.questionBankId, { ...f }]))
+    for (const [rows, sign] of [[local.before, -1], [local.after, 1]]) for (const row of rows.filter(i => localLearning.matchesCollection(i, { chip }))) {
+      const facet = facets.get(row.questionBankId) || { subjectId: row.subjectId, subjectName: row.subjectName, questionBankId: row.questionBankId, questionBankName: row.questionBankName, count: 0 }
+      facet.count += sign; facets.set(row.questionBankId, facet)
+    }
+    result[field] = Array.from(facets.values()).filter(f => f.count > 0)
+  }
+  return result
+}
+function getOverview(storage) { bind(storage); return localLearning.overview(overviewBase || state.overview, localLearning.snapshots(storage)) }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
 function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
 function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
@@ -246,10 +299,21 @@ function mapQuestion(q) {
   const options = type === 'judge' ? [{ key: 'true', label: 'A', text: '正确' }, { key: 'false', label: 'B', text: '错误' }] : (q.options || []).map((o) => ({ key: o.key, label: o.key, text: o.content === undefined ? o.text : o.content }))
   return { id: q.id, bankId: q.questionBankId, chapterId: q.chapterId, revisionId: q.revisionId, type, isMultiple: type === 'multiple', isJudge: type === 'judge', isFillBlank: type === 'fill', isShortAnswer: type === 'short', blankCount: q.blankCount || 0, blanks: q.blanks || [], blankMatch: q.blankMatch || {}, material: q.material || null, scoringPoints: q.scoringPoints || [], assetIds: q.assetIds || [], imagePaths: q.imagePaths || [], typeText: ({ single: '单选题', multiple: '多选题', judge: '判断题', fill: '填空题', short: '简答题' })[type], contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem || '', options, answerKeys: q.correctAnswer || (typeof q.correctValue === 'boolean' ? [String(q.correctValue)] : []), referenceAnswer: q.referenceAnswer || '', explanation: q.explanation || '', available: q.available !== false, complete: q.view !== 'summary', subjectId: q.subjectId || '', subjectName: q.subjectName || '', bankName: q.questionBankName || '' }
 }
-function cacheQuestions(questions) { questions.forEach((q) => { const mapped = mapQuestion(q); if (mapped.complete || !state.questions[mapped.id]) state.questions[mapped.id] = mapped }) }
-async function loadQuestion(storage, id) {
+function cacheQuestions(questions) { questions.forEach((q) => {
+  const mapped = mapQuestion(q)
+  if (mapped.complete || !state.questions[mapped.id]) {
+    const key = require('./content-revisions.js').revisionKey(q)
+    state.questionRevisions[key] = mapped
+    state.questions[mapped.id] = mapped
+  }
+}) }
+async function loadQuestion(storage, id, options) {
   const context = scopeKey(authRepository.getAuth(storage))
-  await resource(storage, 'question:' + id, {}, TTL.catalog, `/questions/${encodeURIComponent(id)}`, q => cacheQuestions([q]))
+  const snapshot = await require('./content-revisions.js').latest(storage, id)
+  const item = snapshot.items[0], grading = options && options.reveal ? await require('./answer-vault.js').read(storage, item.gradingRef, item.question) : {}
+  if (scopeKey(authRepository.getAuth(storage)) !== context) return
+  const complete = Object.assign({}, item.question, grading)
+  cacheQuestions([complete])
   const question = state.questions[id]
   if (!question) return
   const assets = require('./question-assets.js')
@@ -279,10 +343,10 @@ function getSubjectQuiz(id) { const s = getSubjectDetail(id); return s ? { subje
 function getQuestionIndex() { bind(activeStorage); const index = {}; Object.values(state.questions).forEach((q) => { const b = state.banks.find((b) => b.id === q.bankId); const s = b && state.subjects.find((s) => s.id === b.subjectId); index[q.id] = { id: q.id, question: q, bankId: q.bankId, bankName: q.bankName || b && b.name || '', subjectId: q.subjectId || s && s.id || '', subjectName: q.subjectName || s && s.name || '' } }); return index }
 function findQuestionEntries(ids) { const index = getQuestionIndex(); return ids.map((id) => index[id]).filter(Boolean) }
 function getFavorites(storage) { bind(storage); return { ids: state.favorites.map((q) => q.questionId) } }
-function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: state.mastered.indexOf(q) >= 0, updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
-function getDailyLog(storage) { bind(storage); const result = {}; state.days.forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, objectiveAnswered: d.objectiveAnsweredCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
-function getStudyTime(storage) { bind(storage); return { totalSeconds: state.overview && state.overview.durationSeconds || 0, sessionCount: state.overview && state.overview.practiceCount || 0 } }
-function getStatistics(storage, period) { bind(storage); return period ? state.periodStatistics[period] : state.statistics }
+function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered, localLearning.wrong(overviewBase || {}, localLearning.snapshots(storage))).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: q.lastOutcome === 'CORRECT', updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
+function getDailyLog(storage) { bind(storage); const result = {}; localLearning.days(state.days, localLearning.snapshots(storage)).forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, objectiveAnswered: d.objectiveAnsweredCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
+function getStudyTime(storage) { const overview = getOverview(storage); return { totalSeconds: overview.durationSeconds || 0, sessionCount: overview.practiceCount || 0 } }
+function getStatistics(storage, period) { bind(storage); return localLearning.statistics(period ? state.periodStatistics[period] : state.statistics, localLearning.snapshots(storage)) }
 function getProgress(storage) {
   bind(storage)
   const result = {}
@@ -369,3 +433,7 @@ module.exports.getChapters = getChapters
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })
 
 module.exports.getAnnouncementIndex = storage => { bind(storage); return state.announcementIndex }
+
+module.exports.releaseQuestion = function (id) {
+  for (const q of Object.values(state.questionRevisions)) if (q.id === id) { require('./answer-vault.js').release([q]); q.complete = false }
+}

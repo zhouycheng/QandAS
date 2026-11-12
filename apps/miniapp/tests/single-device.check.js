@@ -8,7 +8,7 @@ const copy = value => JSON.parse(JSON.stringify(value))
 
 async function main() {
   const records = { qandaAuth: { provider: 'email', userId: 'u1', token: 'token1' }, qandaDeviceId: 'device1' }
-  const storage = { get: key => records[key] && copy(records[key]), set: (key, value) => { records[key] = copy(value) }, remove: key => delete records[key] }
+  const storage = require('./helpers/encrypted-storage.js').encrypted({ get: key => records[key] && copy(records[key]), set: (key, value) => { records[key] = copy(value) }, remove: key => delete records[key] })
   const runtime = new OnlinePractice(storage)
   runtime.identity()
   const snapshot = { id: 's1', questionBankId: 'b1', status: 'IN_PROGRESS', version: 1, currentIndex: 0, durationSeconds: 0,

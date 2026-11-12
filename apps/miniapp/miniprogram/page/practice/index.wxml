@@ -5,13 +5,14 @@
 <view class="page practice-page pra-viewport {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
   <light-toast id="practice-hint" />
   <include src="../../templates/practice-head.wxml" />
+  <view wx:if="{{contentUpdateText}}" class="practice-content-update">{{contentUpdateText}}<button wx:if="{{canViewLatest}}" class="practice-latest-link" catchtap="handleViewLatest" aria-label="查看新版题目与答案" hover-class="text-hover">查看新版</button></view>
   <view wx:if="{{trialNotice}}" class="load-note">{{trialNotice}}</view>
   <view wx:if="{{loadingPractice}}" class="load-note">正在读取本次练习…</view>
-  <view wx:if="{{submitting}}" class="pra-modal"><view class="pra-modal-panel"><text>正在确认交卷结果…</text></view></view>
+  <view wx:if="{{submitting}}" class="pra-modal"><view class="pra-modal-panel"><text>正在保存本次练习…</text></view></view>
   <view wx:if="{{loadError}}" class="pra-modal"><view class="pra-modal-panel"><text>{{loadError}}</text><button class="q-button  pra-btn" bindtap="returnBankDetail" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">返回题库</button></view></view>
-  <view wx:if="{{awaitingResult}}" class="pra-save-status">已交卷，等待批改中</view>
+  <view wx:if="{{awaitingResult}}" class="pra-save-status">练习记录已保存在本机，正在恢复</view>
   <block wx:if="{{!isCompleted && !loadingPractice && !loadError}}">
-    <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重试同步</text></view>
+    <view wx:if="{{canRetrySync && saveStatusText}}" class="load-note" aria-live="polite">{{saveStatusText}}<text bindtap="retrySync" role="button" hover-class="text-hover" hover-start-time="0" hover-stay-time="80"> · 重新保存</text></view>
     <view class="pra-body {{readingLayout ? 'pra-reading' : ''}}" bindtap="onQuestionTap" hover-class="none" bindtouchstart="onQuestionTouchStart" bindtouchmove="onQuestionTouchMove" bindtouchend="onQuestionTouchEnd" bindtouchcancel="ignoreSwipe" bind:textselection="onTextSelection" bind:contentready="scheduleMeasure">
       <block wx:if="{{readingLayout}}">
         <include src="../../templates/practice-reading.wxml" />
@@ -214,6 +215,8 @@
           <view class="res-item-head">
             <text class="res-item-number">{{item.number}}</text>
             <text class="res-item-type">{{item.typeText}}</text>
+            <text wx:if="{{item.contentUpdated}}" class="res-item-type">题目已更新</text>
+            <button wx:if="{{item.contentUpdated && item.latestAvailable}}" class="practice-latest-link" data-id="{{item.id}}" catchtap="handleViewLatest" aria-label="查看新版题目与答案" hover-class="text-hover">查看新版</button>
             <text class="res-item-flag {{item.answered ? (item.isShortAnswer ? 'skip' : (item.isCorrect ? 'ok' : 'no')) : 'skip'}}">{{item.isShortAnswer ? (item.answered ? '已作答 · 不计分' : '未作答 · 不计分') : (item.answered ? (item.isCorrect ? '正确' : '错误') : '未答')}}</text>
           </view>
           <view class="pra-material" wx:if="{{item.material}}"><rich-content text="{{(item.material.passage) || ''}}" format="{{(item.material.contentFormat) || 'PLAIN_TEXT'}}" /></view>

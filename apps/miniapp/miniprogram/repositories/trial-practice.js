@@ -1,3 +1,4 @@
+const vault = require('./answer-vault.js')
 const { timeLimitSeconds, feedbackForMode } = require('../utils/practice-presets.js')
 const http = require('./http-gateway.js')
 const projection = require('../models/practice-snapshot.js')
@@ -11,12 +12,13 @@ function read(storage) {
   const value = storage.get(KEY)
   if (!value) return { version: 1, usedCount: 0, sessions: [] }
   if (value.version !== 1 || !Array.isArray(value.sessions)) throw new Error('试答记录无法读取，请联系支持')
-  const usedCount = value.usedCount === undefined ? 0 : value.usedCount
+  const usedCount = value.usedCount
   if (!Number.isInteger(usedCount) || usedCount < 0 || usedCount > LIMIT) throw new Error('试答记录无法读取，请联系支持')
   const record = JSON.parse(JSON.stringify({ ...value, usedCount }))
-  if (value.usedCount === undefined) storage.set(KEY, record)
+  record.sessions.forEach(vault.restore)
   return record
 }
+function put(storage, record) { storage.set(KEY, { ...record, sessions: record.sessions.map(vault.strip) }) }
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }
 function remaining(storage) { return Math.max(0, LIMIT - read(storage).usedCount) }
@@ -24,19 +26,18 @@ function quotaError() { const error = new Error('本机的两次试答已使用�
 function resumable(storage) { return list(storage).slice().reverse().find(item => item.status !== 'SUBMITTED') || null }
 async function required(method, path, body) {
   const response = await http.request(method, path, body, { token: '' })
-  if (!response.ok) throw new Error(response.reason || '读取试答失败，请联网后重试')
+  if (!response.ok) throw Object.assign(new Error(response.reason || '读取试答失败，请联网后重试'), { code: response.code })
   return response.data
 }
-function prepare(storage, options) {
+async function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
-  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(snapshot => {
+  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(async original => {
+    const snapshot = original
     const options = normalizePracticeOptions(snapshot.route, getPreferences(storage))
     if (Object.keys(options).some(key => !snapshot.route || snapshot.route[key] !== options[key])) {
       snapshot.route = Object.assign({}, snapshot.route, options)
-      const record = read(storage)
-      record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item)
-      storage.set(KEY, record)
     }
+    const record = read(storage); record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item); put(storage, record)
     return snapshot
   })
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))
@@ -44,7 +45,7 @@ function prepare(storage, options) {
   creating = create(storage, options).finally(() => { creating = null })
   return creating
 }
-async function create(storage, options) {
+async function create(storage, options, retried = false) {
   if (!remaining(storage)) throw quotaError()
   if (options.selectionKind && options.selectionKind !== 'NORMAL') throw new Error('登录后可按错题或收藏范围练习')
   if (!options.bankId) throw new Error('请选择一个题库开始试答')
@@ -56,7 +57,11 @@ async function create(storage, options) {
   let preview = options.selectionKey ? require('./remote-data-repository.js').getScopePreview(storage, options.selectionKey, bankIds) : null
   if (!preview && bankIds.length > 1) preview = await required('POST', '/practice/scope-preview', scope)
   if (preview) { scope.questionIds = preview.selectedQuestionIds; scope.count = preview.selectedCount; scope.order = 'SEQUENTIAL' }
-  const snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: feedbackForMode(options), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options) })
+  let snapshot
+  try { snapshot = await required('POST', '/practice/trial-snapshots', { scope, expectedContentVersions: preview && preview.contentVersions || {}, expectedContentVersion: preview ? preview.contentVersion : bank.contentVersion, feedback: feedbackForMode(options), mode: options.mode || 'practice', timeLimitSeconds: timeLimitSeconds(options), }) } catch (error) {
+    if (error.code === 'VERSION_CONFLICT' && !retried) return create(storage, { ...options, selectionKey: '' }, true)
+    throw error
+  }
   if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
   await require('./question-assets.js').completeSnapshot(storage, snapshot)
   snapshot.route = Object.assign({}, options, normalizePracticeOptions(null, getPreferences(storage)), { bankId: snapshot.questionBankId })
@@ -64,12 +69,14 @@ async function create(storage, options) {
   snapshot.status = 'IN_PROGRESS'
   snapshot.currentIndex = 0
   snapshot.durationSeconds = 0
+  snapshot = await vault.seal(storage, snapshot, 'guest')
   const record = read(storage)
   if (record.usedCount >= LIMIT) throw quotaError()
   record.sessions.push(snapshot)
   record.usedCount++
   // 快照与已用次数在同一次写入中保存；失败时不进入答题。
-  storage.set(KEY, record)
+  try { put(storage, record) } catch (error) { vault.discard(snapshot, storage); throw error }
+  vault.publish(snapshot)
   return snapshot
 }
 function quiz(snapshot) { return projection.quiz(snapshot) }
@@ -85,7 +92,12 @@ function save(storage, session) {
   snapshot.localState = state
   snapshot.status = state.status
   snapshot.updatedAt = new Date().toISOString()
-  storage.set(KEY, record)
+  if (state.status === 'SUBMITTED') {
+    const previous = snapshot.localResult
+    snapshot.localResult = require('../models/client-result.js').result(session, snapshot)
+    if (previous) Object.assign(snapshot.localResult, { submittedAt: previous.submittedAt, durationSeconds: previous.durationSeconds, objective: previous.objective })
+  }
+  put(storage, record)
 }
 function recent(storage) {
   return list(storage).slice().reverse().map(snapshot => ({ id: snapshot.id, questionBankId: snapshot.questionBankId, title: snapshot.title, questionBankName: snapshot.title, status: snapshot.status, mode: snapshot.route.mode, totalQuestions: snapshot.items.length, answeredCount: snapshot.localState ? snapshot.localState.answers.filter(answer => answer && answer.confirmed !== false).length : 0, createdAt: snapshot.createdAt }))

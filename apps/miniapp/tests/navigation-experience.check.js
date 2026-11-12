@@ -76,8 +76,8 @@ draft.pending = { serverAccepted: true }
 assert.equal(visible(), false, '服务端处理中不占行')
 draft.failures = 1
 draft.reason = '网络连接失败，请重试'
-assert.equal(visible(), true, '同步失败保留操作提示')
-draft.paused = 'auth'
+assert.equal(visible(), false, '短暂网络故障不打断练习')
+draft.paused = 'auth'; draft.lastStatusCode = 401
 draft.reason = '请先登录'
 assert.equal(visible(), true, '需要登录时保留提示')
 runtime.saveErrors.session = true

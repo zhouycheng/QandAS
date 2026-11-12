@@ -1,3 +1,4 @@
+const vault = require('../repositories/answer-vault.js');
 const { getDefaultPracticeRoute } = require('../repositories/preference-repository.js');
 const { routeQuery } = require('../utils/practice-presets.js');
 const practiceRepository = require('../repositories/practice-repository.js');
@@ -38,8 +39,10 @@ class PracticeViewModel {
         const snapshot = await this.online.prepare(this.routeOptions);
         this.routeOptions = Object.assign({}, this.routeOptions, snapshot.route || {});
         this.online.activeId = snapshot.id;
-        if (snapshot.finishIntent && !snapshot.result && snapshot.feedback !== 'IMMEDIATE') return { data: { loadError: '批改中，不可进入' }, startTimer: false, stopTimer: true };
+        this.answerSnapshot = snapshot;
+        this.revisionUpdates = snapshot.revisionUpdates || [];
         const quiz = this.online.quiz(snapshot);
+        await vault.hydrate(this.storage, snapshot, quiz.questions, (snapshot.localResult || snapshot.result) && options.review !== '1' ? quiz.questions.map((_, i) => i) : [snapshot.localState && snapshot.localState.currentIndex || snapshot.currentIndex || 0]);
         const restored = this.online.restored(snapshot);
         this.session = new PracticeSession({ quiz, restored, mode: snapshot.configuration && snapshot.configuration.mode || (snapshot.feedback === 'AFTER_FINISH' ? 'test' : (this.routeOptions.mode || 'practice')), feedback: snapshot.feedback,
             config: snapshot.route, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : snapshot.route.duration === '0' ? false : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage),
@@ -47,21 +50,22 @@ class PracticeViewModel {
         this.session.reset();
         this.session.restore(restored);
         this.editingLocked = false;
-        if (options.review === '1' || snapshot.finishIntent) {
+        if (options.review === '1' || snapshot.finishIntent && !snapshot.localResult) {
             this.readOnlyReview = true;
             this.session.state.isViewMode = true;
             this.session.state.review = true;
-            this.session.state.reviewPending = !snapshot.result && snapshot.feedback !== 'IMMEDIATE';
-            this.session.state.awaitingResult = !snapshot.result;
+            this.session.state.reviewPending = !snapshot.localResult && !snapshot.result && snapshot.feedback !== 'IMMEDIATE';
+            this.session.state.awaitingResult = !snapshot.localResult && !snapshot.result;
             this.session.state.isCompleted = false;
             this.session.state.isTimed = false;
             this.session.showQuestionAtIndex(this.session.state.currentIndex || 0);
-            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: !snapshot.result, reviewPending: this.session.state.reviewPending, loadError: '' }), startTimer: false, stopTimer: true };
+            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: !snapshot.localResult && !snapshot.result, reviewPending: this.session.state.reviewPending, loadError: '' }), startTimer: false, stopTimer: true };
         }
         if (restored.status === SESSION_STATUS.SUBMITTED) {
+            this.session.state.isCompleted = true;
             this.session.finish();
-            if (snapshot.result)
-                this.applyOfficialResult(snapshot.result);
+            if (snapshot.localResult || snapshot.result)
+                this.applyOfficialResult(snapshot.localResult || snapshot.result);
             else if (snapshot.status !== 'SUBMITTED') {
                 const outcome = await this.resolveSubmitOutcome({ data: this.session.getViewData() });
                 return Object.assign({}, outcome, {
@@ -79,6 +83,38 @@ class PracticeViewModel {
         this.editingLocked = true;
         this.session = null;
         return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
+    }
+    async checkContentUpdates() {
+        if (!this.answerSnapshot || !this.session) return null;
+        const expected = this.session;
+        try {
+            const updates = await require('../repositories/content-revisions.js').check(this.storage, this.answerSnapshot);
+            if (this.session !== expected) return null;
+            this.revisionUpdates = updates;
+            this.answerSnapshot.revisionUpdates = updates;
+            if (this.online) {
+                const snapshot = this.online.get(this.answerSnapshot.id);
+                if (snapshot) this.online.put(snapshot.id, { ...snapshot, revisionUpdates: updates });
+            }
+            return { data: this.contentUpdateData() };
+        } catch (_) { return null; }
+    }
+    contentUpdateData() {
+        const byId = new Map((this.revisionUpdates || []).map(row => [row.questionId, row]));
+        const update = byId.get((this.session && this.session.getCurrentBaseQuestion() || {}).id);
+        const data = { contentUpdateText: update ? this.session.state.isCompleted || this.readOnlyReview ? '题目已更新' : '题目已有更新，本次练习继续使用开始时的内容' : '', canViewLatest: !!(update && update.available) };
+        if (this.session && this.session.state.isCompleted) {
+            const items = this.session.state.resultItems.map(item => ({ ...item, contentUpdated: byId.has(item.id), latestAvailable: !!(byId.get(item.id) || {}).available }));
+            this.session.state.resultItems = items;
+            this.session.state.filteredResultItems = this.session.state.filteredResultItems.map(item => items.find(row => row.id === item.id));
+            Object.assign(data, { resultItems: items, filteredResultItems: this.session.state.filteredResultItems });
+        }
+        return data;
+    }
+    viewLatestQuestion(questionId) {
+        const question = this.session && (questionId ? this.session.state.questions.find(q => q.id === questionId) : this.session.getCurrentBaseQuestion());
+        if (!question) return null;
+        return { command: { type: 'navigate', url: '/page/question-detail/index?latest=1&id=' + encodeURIComponent(question.id) } };
     }
     observeSaveStatus(listener) {
         return this.online && this.session ? this.online.observeStatus(this.session.meta.sessionId, data => {
@@ -111,14 +147,7 @@ class PracticeViewModel {
         const result = await this.online.queue.resume(this.session.meta.sessionId);
         return { data: this.online.saveStatus(this.session.meta.sessionId), command: !result.ok && !result.pending ? { type: 'toast', title: result.reason } : null };
     }
-    /**
-     * 载入练习。两条路径：
-     * - 恢复：URL 带 sessionId，或带 resume=1，且仓储里确实有一份未提交的会话；
-     * - 新建：其余情况。
-     *
-     * 恢复时题目本体不来自 storage（存的是 id），而是用落盘的 config 重新取卷，
-     * 再用 questionIds + questionOrder 还原题序——这样题库更新后也不会读到脏题。
-     */
+    /** 固定快照恢复作答，题目修订与答案资料保持配套。 */
     load(options) { const route = options || {}; const savedTrial = route.sessionId && trials.get(this.storage, route.sessionId); return savedTrial || !this.repository.getAuth(this.storage).loggedIn ? this.loadTrial(route) : this.loadOnline(route); }
     async loadTrial(options) {
         this.online = null;
@@ -134,15 +163,33 @@ class PracticeViewModel {
             throw error;
         }
         this.routeOptions = snapshot.route;
+        this.answerSnapshot = snapshot;
+        this.revisionUpdates = snapshot.revisionUpdates || [];
+        const trialQuiz = trials.quiz(snapshot);
+        await vault.hydrate(this.storage, snapshot, trialQuiz.questions, snapshot.status === 'SUBMITTED' ? trialQuiz.questions.map((_, i) => i) : [snapshot.localState && snapshot.localState.currentIndex || 0]);
         const restored = trials.restored(snapshot);
-        this.session = new PracticeSession({ quiz: trials.quiz(snapshot), restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', feedback: snapshot.feedback, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : snapshot.route.duration === '0' ? false : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) });
+        this.session = new PracticeSession({ quiz: trialQuiz, restored, config: snapshot.route, mode: snapshot.route.mode || 'practice', feedback: snapshot.feedback, isTimed: snapshot.configuration && snapshot.configuration.mode ? !!snapshot.configuration.timeLimitSeconds : snapshot.route.duration === '0' ? false : undefined, timeLimitSeconds: snapshot.configuration && snapshot.configuration.timeLimitSeconds, durationMinutes: snapshot.configuration && snapshot.configuration.timeLimitSeconds ? snapshot.configuration.timeLimitSeconds / 60 : Number(snapshot.route.duration) || DEFAULT_TEST_DURATION_MINUTES, preferences: this.repository.getPreferences(this.storage) });
         this.session.reset();
         this.session.restore(restored);
-        if (restored.status === SESSION_STATUS.SUBMITTED)
-            this.session.finish();
+        if (restored.status === SESSION_STATUS.SUBMITTED) {
+            this.session.state.isCompleted = true; this.session.finish();
+            if (snapshot.localResult) this.applyOfficialResult(snapshot.localResult);
+        }
         this.session.updateSyncStatus(SYNC_STATUS.LOCAL_ONLY);
         this.session.state.trialNotice = `游客试答 · 记录保存在本机 · 剩余 ${trials.remaining(this.storage)} 次`;
         return { data: Object.assign(this.session.getViewData(), { loadError: '' }), startTimer: this.session.state.isTimed && !this.session.state.isCompleted };
+    }
+    withAnswers(action, all = false) {
+        if (!this.session || !this.answerSnapshot) return action();
+        const questions = this.session.state.questions;
+        const indexes = all ? questions.map((_, i) => i) : [this.session.state.currentIndex];
+        if (!indexes.some(i => questions[i] && !questions[i].gradingLoaded && this.answerSnapshot.items[i] && this.answerSnapshot.items[i].gradingRef)) return action();
+        const expected = this.session, epoch = this.answerEpoch || 0;
+        const active = () => this.session === expected && epoch === (this.answerEpoch || 0) && (!this.online || this.repository.getAuth(this.storage).userId === this.ownerId);
+        return vault.hydrate(this.storage, this.answerSnapshot, questions, indexes, active).then(() => {
+            if (!active()) return null;
+            return action();
+        });
     }
     reset() {
         if (!this.session) {
@@ -221,18 +268,18 @@ class PracticeViewModel {
         if (!this.session) {
             return null;
         }
-        return this.submitSavedAnswers(() => this.session.autoSubmit());
+        return this.withAnswers(() => this.submitSavedAnswers(() => this.session.autoSubmit()), true);
     }
     selectOption(selectedIndex) {
-        if (this.editingLocked)
+        if (this.editingLocked || this.navigationPending)
             return null;
         if (!this.session) {
             return null;
         }
-        return this.withPersistence(this.session.selectOption(selectedIndex));
+        return this.withAnswers(() => this.withPersistence(this.session.selectOption(selectedIndex)));
     }
     setAnswerText(text) {
-        if (!this.session || this.editingLocked)
+        if (!this.session || this.editingLocked || this.navigationPending)
             return null;
         const result = this.session.setAnswerText(text);
         try {
@@ -244,7 +291,7 @@ class PracticeViewModel {
         return result;
     }
     setBlank(index, value) {
-        if (!this.session || this.editingLocked)
+        if (!this.session || this.editingLocked || this.navigationPending)
             return null;
         const result = this.session.setBlank(index, value);
         try {
@@ -256,7 +303,7 @@ class PracticeViewModel {
         return result;
     }
     assessShortAnswer(value) {
-        if (!this.session || this.editingLocked)
+        if (!this.session || this.editingLocked || this.navigationPending)
             return null;
         const result = this.session.assessShortAnswer(value);
         try {
@@ -340,6 +387,13 @@ class PracticeViewModel {
         return this.withPersistence(this.session.toggleMarkQuestion());
     }
     navigateQuestion(action) {
+        if (this.navigationPending) return this.navigationPending;
+        const result = this.withAnswers(() => this.navigateLoadedQuestion(action));
+        if (!result || typeof result.then !== 'function') return result;
+        const pending = Promise.resolve(result).finally(() => { if (this.navigationPending === pending) this.navigationPending = null; });
+        this.navigationPending = pending; return pending;
+    }
+    navigateLoadedQuestion(action) {
         const previous = this.session.state.currentIndex;
         try {
             this.persistSession(true);
@@ -347,7 +401,8 @@ class PracticeViewModel {
             if (result && result.data && result.data.isCompleted)
                 return this.withPersistence(result);
             this.persistSession(true);
-            return result;
+            if (this.session.state.currentIndex === previous) return result;
+            return this.withAnswers(() => { const shown = this.session.showQuestionAtIndex(this.session.state.currentIndex); shown.data = Object.assign({}, shown.data, this.contentUpdateData()); return shown; });
         }
         catch (error) {
             const result = this.session.showQuestionAtIndex(previous);
@@ -381,7 +436,7 @@ class PracticeViewModel {
         if (!this.session) {
             return null;
         }
-        return this.withPersistence(this.session.submit());
+        return this.withAnswers(() => this.withPersistence(this.session.submit()), true);
     }
     forceSubmit() {
         if (this.editingLocked)
@@ -389,7 +444,7 @@ class PracticeViewModel {
         if (!this.session) {
             return null;
         }
-        return this.submitSavedAnswers(() => this.session.forceSubmit());
+        return this.withAnswers(() => this.submitSavedAnswers(() => this.session.forceSubmit()), true);
     }
     closeSubmitModal() {
         if (!this.session) {
@@ -437,7 +492,7 @@ class PracticeViewModel {
             this.online.put(id, snapshot);
             return;
         }
-        if (snapshot && snapshot.status !== 'SUBMITTED' && !snapshot.finishIntent)
+        if (snapshot && !snapshot.localResult && snapshot.status !== 'SUBMITTED' && !snapshot.finishIntent)
             this.online.save(this.session);
     }
     /** 页面退出（onHide / onUnload）时强制落盘，防止最后一步操作丢 */
@@ -451,7 +506,7 @@ class PracticeViewModel {
             return this.online.flush(this.session.meta.sessionId);
         }
     }
-    /** 正式结果覆盖本机预览，保留当前筛选与阅读位置。 */
+    /** 展示已保存的练习结果，保留当前筛选与阅读位置。 */
     applyOfficialResult(official) {
         const state = this.session.state;
         const resultFilter = state.resultFilter;
@@ -460,10 +515,6 @@ class PracticeViewModel {
         state.sessionStatus = SESSION_STATUS.SUBMITTED;
         if (typeof official.durationSeconds === 'number')
             this.session.frozenElapsedText = require('../models/practice-session.js').formatTimer(official.durationSeconds);
-        state.questions = state.questions.map(question => {
-            const item = items.get(question.id);
-            return item ? Object.assign({}, question, require('../models/practice-snapshot.js').mapQuestion(item)) : question;
-        });
         state.answers = state.questions.map((question, index) => {
             const item = items.get(question.id);
             if (!item)
@@ -496,10 +547,10 @@ class PracticeViewModel {
         if (this.online) {
             return this.online.finish(this.session).then((official) => {
                 require('../repositories/remote-data-repository.js').invalidateLearning();
-                if (!official) { this.editingLocked = true; return { data: { editingLocked: true }, stopTimer: true, command: { type: 'navigate', url: '/page/practice-records/index' } }; }
+                if (!official) throw new Error('本次作答未能保存，请释放空间后重试');
                 this.applyOfficialResult(official);
-                return this.applySubmitOutcome(result, { ok: true, syncStatus: SYNC_STATUS.SYNCED });
-            }).catch(error => this.applySubmitOutcome(result, { ok: false, syncStatus: SYNC_STATUS.SYNC_PENDING, reason: error.message }));
+                return this.applySubmitOutcome(result, { ok: true, syncStatus: SYNC_STATUS.LOCAL_ONLY });
+            }).catch(error => { this.session.state.isCompleted = false; this.session.state.sessionStatus = SESSION_STATUS.IN_PROGRESS; return { data: Object.assign(this.session.getViewData(), { isCompleted: false }), submitOk: false, submitError: error.message, command: { type: 'toast', title: error.message } }; });
         }
     }
     /** 提交结果落库：状态、落盘、副作用都在这一处，同步与异步两条路径共用 */
@@ -514,7 +565,7 @@ class PracticeViewModel {
         this.persistSession(true);
         return merged;
     }
-    /** 用户主动重试时重新查询原进度命令，再确认正式交卷。 */
+    /** 用户主动重试时查询原命令回执。 */
     retrySubmit() {
         if (!this.session)
             return null;
@@ -552,13 +603,22 @@ class PracticeViewModel {
     }
     /** 页面切到后台：暂停学习时长计时 */
     pauseStudy() {
+        this.answerEpoch = (this.answerEpoch || 0) + 1;
         if (!this.session) {
             return null;
         }
-        return this.session.pauseStudy();
+        const result = this.session.pauseStudy();
+        if (this.answerSnapshot) {
+            vault.release(this.session.state.questions);
+            this.session.state.resultItems = []; this.session.state.filteredResultItems = [];
+            this.session.state.currentQuestion = null; this.session.state.currentExplanation = ''; this.session.state.currentCorrectAnswerText = '';
+            return { ...result, data: { currentQuestion: null, currentExplanation: '', currentCorrectAnswerText: '', resultItems: [], filteredResultItems: [] } };
+        }
+        return result;
     }
     /** 页面回到前台：恢复学习时长计时 */
-    resumeStudy() {
+    resumeStudy() { return this.withAnswers(() => this.resumeLoadedStudy(), !!(this.session && this.session.state.isCompleted)); }
+    resumeLoadedStudy() {
         if (!this.session) {
             return null;
         }
@@ -570,6 +630,9 @@ class PracticeViewModel {
         if (this.online && this.session)
             this.online.activeId = this.session.meta.sessionId;
         this.session.resumeStudy();
+        if (this.session.state.isCompleted) {
+            const filter = this.session.state.resultFilter; this.session.finish(); this.session.setResultFilter(filter);
+        } else this.session.showQuestionAtIndex(this.session.state.currentIndex);
         return { data: this.session.getViewData() };
     }
 }
