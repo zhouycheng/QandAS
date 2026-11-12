@@ -5,7 +5,8 @@ import org.apache.ibatis.annotations.Param
 import qanda.backend.content.api.QuestionReference
 import java.util.UUID
 
-class PracticeChoiceRow { var itemId: UUID?=null;var optionKey: String="" }
+class PracticeChoiceRow { var itemId: UUID?=null;var optionKey: String="";var revisionId: UUID?=null }
+class PracticeShape { var itemId: UUID?=null;var type: String="";var blankCount: Int=0;var optionKeys: String="[]" }
 class EligibilityGroupRow { var id: UUID?=null;var size: Long=0;var availableCount: Long=0 }
 @Mapper interface PracticeQueries {
     fun batchChoices(@Param("ids") ids: List<UUID>): List<PracticeChoiceRow>
@@ -14,11 +15,12 @@ class EligibilityGroupRow { var id: UUID?=null;var size: Long=0;var availableCou
     fun eligibleCount(@Param("userId") userId: UUID?,@Param("scope") scope: ScopeInput): Long
     fun insertItems(@Param("items") items: List<PracticeItem>)
     fun lockSession(@Param("id") id: UUID): PracticeSession?
-    fun items(@Param("sessionId") sessionId: UUID): List<PracticeItem>
-    fun clearChoices(@Param("itemId") itemId: UUID)
-    fun addChoice(@Param("itemId") itemId: UUID,@Param("revisionId") revisionId: UUID,@Param("key") key: String)
+    fun items(@Param("sessionId") sessionId: UUID,@Param("ids") ids: List<UUID>?=null): List<PracticeItem>
     fun updateAnswer(@Param("item") item: PracticeItem)
-    fun gradeItems(@Param("items") items: List<PracticeItem>)
+    fun shapes(@Param("id") id: UUID,@Param("ids") ids: List<UUID>): List<PracticeShape>
+    fun updateAnswers(@Param("items") items: List<PracticeItem>)
+    fun clearBatchChoices(@Param("ids") ids: List<UUID>)
+    fun insertChoices(@Param("choices") choices: List<PracticeChoiceRow>)
     fun result(@Param("sessionId") sessionId: UUID): PracticeResult?
     fun history(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<PracticeSession>
     fun historyCount(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?): Long

@@ -18271,6 +18271,1730 @@
         "security": []
       }
     },
+    "/api/v1/me/statistics": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_summary_GET",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "WEEK"
+            }
+          },
+          {
+            "name": "periodDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_localSummary_POST",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalStatisticsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/statistics/days": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_days_GET",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "endDateExclusive",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DayView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_localDays_POST",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalDaysInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DayView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/me/question-feedback": {
       "get": {
         "tags": [
@@ -18776,6 +20500,868 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MutationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/learning-overview": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_overview_GET",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pendingSessionIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningOverviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "operationId": "Learning_pendingOverview_POST",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PendingLearningInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningOverviewView"
                 }
               }
             }
@@ -22231,6 +24817,435 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HeartbeatView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "结构化错误，参见code和fieldErrors",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/content/revision-status": {
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "operationId": "RevisionStatus_read_POST",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Request-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionStatusView"
+                  }
                 }
               }
             }
@@ -43797,879 +46812,6 @@
         ]
       }
     },
-    "/api/v1/me/statistics": {
-      "get": {
-        "tags": [
-          "learning"
-        ],
-        "operationId": "Learning_summary_GET",
-        "parameters": [
-          {
-            "name": "period",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "WEEK"
-            }
-          },
-          {
-            "name": "periodDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatisticsView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "406": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              },
-              "Retry-After": {
-                "required": true,
-                "schema": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 1
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/me/statistics/days": {
-      "get": {
-        "tags": [
-          "learning"
-        ],
-        "operationId": "Learning_days_GET",
-        "parameters": [
-          {
-            "name": "startDate",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "endDateExclusive",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DayView"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "406": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              },
-              "Retry-After": {
-                "required": true,
-                "schema": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 1
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/me/recommendations": {
       "get": {
         "tags": [
@@ -45594,432 +47736,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectionSummaryView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "406": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              },
-              "Retry-After": {
-                "required": true,
-                "schema": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 1
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "结构化错误，参见code和fieldErrors",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/me/learning-overview": {
-      "get": {
-        "tags": [
-          "learning"
-        ],
-        "operationId": "Learning_overview_GET",
-        "parameters": [
-          {
-            "name": "deviceId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "headers": {
-              "X-Request-Id": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "enum": [
-                    "no-store"
-                  ]
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LearningOverviewView"
                 }
               }
             }
@@ -60815,6 +62531,9 @@
           "submittedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "resultSource": {
+            "type": "string"
           }
         },
         "required": [
@@ -62464,6 +64183,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "questionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "materialRevisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
           }
         },
         "required": [
@@ -62767,11 +64507,41 @@
           "version"
         ]
       },
+      "ClientResultInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "answeredCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/ObjectiveMetrics"
+          },
+          "shortAnswer": {
+            "$ref": "#/components/schemas/SelfMetrics"
+          }
+        },
+        "required": [
+          "answeredCount",
+          "objective",
+          "shortAnswer",
+          "totalCount"
+        ]
+      },
       "ItemProgress": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
             "type": "string",
             "format": "uuid"
           },
@@ -62790,10 +64560,37 @@
           },
           "marked": {
             "type": "boolean"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CORRECT",
+              "WRONG",
+              "UNANSWERED",
+              "SELF_RATED",
+              null
+            ]
+          },
+          "materialRevisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "selfAssessment": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
-          "itemId"
+          "itemId",
+          "revisionId"
         ]
       },
       "ProgressInput": {
@@ -62836,6 +64633,23 @@
           },
           "autoAddWrongBook": {
             "type": "boolean"
+          },
+          "clientResult": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClientResultInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submittedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [
@@ -62944,15 +64758,16 @@
               }
             ]
           },
-          "result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResultView"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "pollAfterMs": {
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
@@ -63020,6 +64835,244 @@
           "selectedQuestionIds"
         ]
       },
+      "LocalStatisticsInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "periodDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "pendingSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "pendingAssessmentItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "PendingAssessmentFact": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "itemId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "selfAssessment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "StatisticsView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDateExclusive": {
+            "type": "string",
+            "format": "date"
+          },
+          "practiceCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "answeredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "correctCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "wrongCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unansweredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAccuracy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "shortAnswerCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "selfRatedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "selfRatedCorrectCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "selfRatedWrongCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "answerAttemptCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "distinctQuestionCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAnsweredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveCorrectCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "includedSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "knownQuestionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "assessmentFacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingAssessmentFact"
+            }
+          }
+        },
+        "required": [
+          "answerAttemptCount",
+          "answeredCount",
+          "correctCount",
+          "distinctQuestionCount",
+          "durationSeconds",
+          "endDateExclusive",
+          "objectiveAnsweredCount",
+          "objectiveCorrectCount",
+          "practiceCount",
+          "selfRatedCorrectCount",
+          "selfRatedCount",
+          "selfRatedWrongCount",
+          "shortAnswerCount",
+          "startDate",
+          "totalCount",
+          "unansweredCount",
+          "wrongCount"
+        ]
+      },
+      "LocalDaysInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDateExclusive": {
+            "type": "string",
+            "format": "date"
+          },
+          "pendingSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "endDateExclusive",
+          "startDate"
+        ]
+      },
+      "DayView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "practiceCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "answeredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "correctCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAnsweredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "includedSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "answeredCount",
+          "correctCount",
+          "date",
+          "durationSeconds",
+          "practiceCount"
+        ]
+      },
       "FeedbackInput": {
         "type": "object",
         "additionalProperties": false,
@@ -63050,6 +65103,281 @@
           "category",
           "questionId",
           "revisionId"
+        ]
+      },
+      "PendingLearningInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pendingSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "pendingQuestionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "deviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "pendingAssessmentItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "LearningOverviewView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "answeredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "correctCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "wrongCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "masteredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "favoriteCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subjectCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bankCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "practiceCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recentSession": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PracticeSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wrongBookCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "answerAttemptCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "distinctQuestionCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAnsweredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveCorrectCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectiveAccuracy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "selfRatedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "selfRatedCorrectCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "selfRatedWrongCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "includedSessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "questionFacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingQuestionFact"
+            }
+          },
+          "assessmentFacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingAssessmentFact"
+            }
+          }
+        },
+        "required": [
+          "answerAttemptCount",
+          "answeredCount",
+          "bankCount",
+          "correctCount",
+          "distinctQuestionCount",
+          "durationSeconds",
+          "favoriteCount",
+          "masteredCount",
+          "objectiveAnsweredCount",
+          "objectiveCorrectCount",
+          "practiceCount",
+          "selfRatedCorrectCount",
+          "selfRatedCount",
+          "selfRatedWrongCount",
+          "subjectCount",
+          "totalCount",
+          "wrongBookCount",
+          "wrongCount"
+        ]
+      },
+      "PendingQuestionFact": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "questionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "judgment": {
+            "type": "string"
+          },
+          "selfAssessment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastPracticedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "wrongCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rightCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PracticeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionBankId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "submittedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "finishIntent": {
+            "type": "boolean"
+          },
+          "questionCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "durationSeconds",
+          "id",
+          "questionBankId",
+          "status",
+          "version"
         ]
       },
       "ChallengeInput": {
@@ -63307,6 +65635,100 @@
         "required": [
           "onlineUntil",
           "receivedAt"
+        ]
+      },
+      "RevisionReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "materialRevisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "questionId"
+        ]
+      },
+      "RevisionStatusInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevisionReference"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RevisionStatusView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "materialRevisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "questionBankId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "contentVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "changed",
+          "questionId"
         ]
       },
       "WechatLoginInput": {
@@ -64256,143 +66678,6 @@
           "wrongCount"
         ]
       },
-      "StatisticsView": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "startDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "endDateExclusive": {
-            "type": "string",
-            "format": "date"
-          },
-          "practiceCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "totalCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "answeredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "correctCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "wrongCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "unansweredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveAccuracy": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "shortAnswerCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "selfRatedCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "selfRatedCorrectCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "selfRatedWrongCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "durationSeconds": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "answerAttemptCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "distinctQuestionCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveAnsweredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveCorrectCount": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "required": [
-          "answerAttemptCount",
-          "answeredCount",
-          "correctCount",
-          "distinctQuestionCount",
-          "durationSeconds",
-          "endDateExclusive",
-          "objectiveAnsweredCount",
-          "objectiveCorrectCount",
-          "practiceCount",
-          "selfRatedCorrectCount",
-          "selfRatedCount",
-          "selfRatedWrongCount",
-          "shortAnswerCount",
-          "startDate",
-          "totalCount",
-          "unansweredCount",
-          "wrongCount"
-        ]
-      },
-      "DayView": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "date": {
-            "type": "string",
-            "format": "date"
-          },
-          "practiceCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "answeredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "correctCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "durationSeconds": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveAnsweredCount": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "required": [
-          "answeredCount",
-          "correctCount",
-          "date",
-          "durationSeconds",
-          "practiceCount"
-        ]
-      },
       "PageRecommendation": {
         "type": "object",
         "properties": {
@@ -64487,76 +66772,6 @@
           "page",
           "pageSize",
           "total"
-        ]
-      },
-      "PracticeSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "questionBankId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "durationSeconds": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "submittedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "deviceId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "finishIntent": {
-            "type": "boolean"
-          },
-          "questionCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "mode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "createdAt",
-          "durationSeconds",
-          "id",
-          "questionBankId",
-          "status",
-          "version"
         ]
       },
       "FeedbackView": {
@@ -64733,121 +66948,6 @@
           "repeatCount",
           "rightCount",
           "total",
-          "wrongCount"
-        ]
-      },
-      "LearningOverviewView": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "answeredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "correctCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "wrongCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "masteredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "favoriteCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "totalCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "subjectCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "bankCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "durationSeconds": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "practiceCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "recentSession": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PracticeSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "wrongBookCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "answerAttemptCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "distinctQuestionCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveAnsweredCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveCorrectCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "objectiveAccuracy": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "selfRatedCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "selfRatedCorrectCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "selfRatedWrongCount": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "required": [
-          "answerAttemptCount",
-          "answeredCount",
-          "bankCount",
-          "correctCount",
-          "distinctQuestionCount",
-          "durationSeconds",
-          "favoriteCount",
-          "masteredCount",
-          "objectiveAnsweredCount",
-          "objectiveCorrectCount",
-          "practiceCount",
-          "selfRatedCorrectCount",
-          "selfRatedCount",
-          "selfRatedWrongCount",
-          "subjectCount",
-          "totalCount",
-          "wrongBookCount",
           "wrongCount"
         ]
       },

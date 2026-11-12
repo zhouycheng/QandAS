@@ -44,8 +44,6 @@ abstract class PostgresFixture {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V2__active_question_queries.sql",0b110_100_100),"/docker-entrypoint-initdb.d/003-active-questions.sql")
-            withCopyFileToContainer(MountableFile.forClasspathResource("db/migration/V3__visible_bank_queries.sql",0b110_100_100),"/docker-entrypoint-initdb.d/004-visible-banks.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
         @JvmField val rabbit=GenericContainer<Nothing>("rabbitmq:4.2.5-management").apply {
@@ -98,6 +96,7 @@ abstract class PostgresFixture {
     @Autowired lateinit var transactionManager: org.springframework.transaction.PlatformTransactionManager
     @Autowired lateinit var adminService: AdminService
     @Autowired lateinit var mailCrypto: MailCrypto
+    @Autowired lateinit var contentService: qanda.backend.content.ContentService
     @Autowired lateinit var outbox: OutboxService
     @Autowired lateinit var sessionService: Sessions
     @Autowired lateinit var activityProjection: qanda.backend.monitoring.ActivityProjection
@@ -138,16 +137,55 @@ abstract class PostgresFixture {
         learningMapper.days(qanda.backend.platform.queries.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
         activityMapper.activityDays(qanda.backend.platform.queries.StatsFilter(Instant.now().minusSeconds(86400),Instant.now()))
     }
+    private fun clientInput(method: String,path: String,body: Any?): Any? {
+        if(method!="POST" || !path.endsWith("/sync-commands") || body==null || body is ByteArray || body !is Map<*,*> && body !is com.fasterxml.jackson.databind.node.ObjectNode) return body
+        val value=json.valueToTree<com.fasterxml.jackson.databind.node.ObjectNode>(body)
+        val sessionId=runCatching { UUID.fromString(path.substringAfter("/practice/sessions/").substringBefore('/')) }.getOrNull() ?: return body
+        val saved=jdbc.query("SELECT id,question_id,revision_id,material_revision_id,answer_text,answer_boolean,answer_blanks,confirmed,marked FROM practice_item WHERE session_id=? ORDER BY position",{r,_ ->
+            val answer=when { r.getString("answer_text")!=null -> mapOf("text" to r.getString("answer_text"));r.getObject("answer_boolean")!=null -> mapOf("value" to r.getBoolean("answer_boolean"));r.getString("answer_blanks")!=null -> mapOf("blanks" to json.readTree(r.getString("answer_blanks")));else -> {
+                val keys=jdbc.query("SELECT option_key FROM practice_item_choice WHERE item_id=? ORDER BY option_key",{c,_ -> c.getString(1)},r.getObject("id"))
+                if(keys.isEmpty()) null else mapOf("optionKeys" to keys)
+            } }
+            mapOf("itemId" to r.getObject("id"),"answer" to answer,"confirmed" to r.getBoolean("confirmed"),"marked" to r.getBoolean("marked"),"questionId" to r.getObject("question_id"),"revisionId" to r.getObject("revision_id"),"materialRevisionId" to r.getObject("material_revision_id"))
+        },sessionId)
+        if(saved.isEmpty()) return body
+        val finish=value["kind"]?.asText()=="FINISH"
+        if(finish && !value.has("submittedAt")) value.put("submittedAt",jdbc.queryForObject("SELECT created_at FROM practice_session WHERE id=?",java.sql.Timestamp::class.java,sessionId)!!.toInstant().toString())
+        val changes=value["items"]?.map { it.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>() }.orEmpty()
+        val complete=if(finish && !value.has("clientResult")) saved.map { old -> changes.firstOrNull { it["itemId"].asText()==old["itemId"].toString() } ?: json.valueToTree<com.fasterxml.jackson.databind.node.ObjectNode>(old.filterKeys { it!="questionId" }) } else changes
+        val views=mutableMapOf<String,qanda.backend.content.QuestionView>()
+        complete.forEach { change ->
+            val old=saved.firstOrNull { it["itemId"].toString()==change["itemId"]?.asText() } ?: return@forEach
+            val q=contentService.questionView(jdbc.queryForObject("SELECT * FROM question WHERE id=?",org.springframework.jdbc.core.BeanPropertyRowMapper(qanda.backend.content.Question::class.java),old["questionId"])!!,old["revisionId"] as UUID,true,old["materialRevisionId"] as UUID?)
+            views[change["itemId"].asText()]=q
+            if(!change.has("revisionId")) change.set<JsonNode>("revisionId",json.valueToTree(old["revisionId"]))
+            if(!change.has("materialRevisionId")) change.set<JsonNode>("materialRevisionId",json.valueToTree(old["materialRevisionId"]))
+            val answer=change["answer"]?.takeUnless { it.isNull }?.let { json.treeToValue(it,qanda.backend.practice.AnswerInput::class.java) }
+            if(finish) change.put("confirmed",qanda.backend.practice.Grading.hasInput(answer))
+            if(!change.has("outcome")) {
+                val outcome=if(change["confirmed"]?.asBoolean()==true) qanda.backend.practice.Grading.outcome(q,answer) else if(finish) "UNANSWERED" else null
+                change.set<JsonNode>("outcome",json.valueToTree(outcome))
+            }
+        }
+        value.set<JsonNode>("items",json.valueToTree(complete))
+        if(finish && !value.has("clientResult")) {
+            val objective=complete.filter { views[it["itemId"].asText()]?.type!="SHORT_ANSWER" };val short=complete-objective.toSet()
+            val correct=objective.count { it["outcome"].asText()=="CORRECT" };val wrong=objective.count { it["outcome"].asText()=="WRONG" }
+            value.set<JsonNode>("clientResult",json.valueToTree(mapOf("totalCount" to complete.size,"answeredCount" to complete.count { it["outcome"].asText()!="UNANSWERED" },"objective" to qanda.backend.practice.objectiveMetrics(objective.size,correct,wrong),"shortAnswer" to qanda.backend.practice.SelfMetrics(short.size,short.count { it["outcome"].asText()=="SELF_RATED" },0,0,0,short.size))))
+        }
+        return value
+    }
     protected fun raw(method: String,path: String,body: Any?=null,token: String?=adminToken,key: UUID?=UUID.randomUUID(),contentType: String="application/json",accept: String?=null,extraHeaders: Map<String,String> = emptyMap()): HttpResponse<String> {
+        val prepared=clientInput(method,path,body)
         val builder=HttpRequest.newBuilder(URI("http://127.0.0.1:$port/api/v1$path")).timeout(Duration.ofSeconds(30))
         token?.let { builder.header("Authorization","Bearer $it") };key?.let { builder.header("Idempotency-Key",it.toString()) }
         if(body!=null) builder.header("Content-Type",contentType)
         accept?.let { builder.header("Accept",it) };extraHeaders.forEach { (name,value) -> builder.header(name,value) }
-        val bytes=when(body) { null -> ByteArray(0);is ByteArray -> body;else -> json.writeValueAsBytes(body) }
+        val bytes=when(prepared) { null -> ByteArray(0);is ByteArray -> prepared;else -> json.writeValueAsBytes(prepared) }
         val response=http.send(builder.method(method,HttpRequest.BodyPublishers.ofByteArray(bytes)).build(),HttpResponse.BodyHandlers.ofString())
         exchanges.add(mapOf("method" to method,"path" to "/api/v1$path","status" to response.statusCode(),"validateRequest" to (response.statusCode()<400),
             "requestHeaders" to buildMap<String,String> { putAll(extraHeaders);if(body!=null) put("Content-Type",contentType);key?.let { put("Idempotency-Key",it.toString()) } },
-            "requestBody" to if(body is ByteArray) null else json.valueToTree<JsonNode>(body),"responseHeaders" to response.headers().map().mapValues { it.value.joinToString(",") },
+            "requestBody" to if(body is ByteArray) null else json.valueToTree<JsonNode>(prepared),"responseHeaders" to response.headers().map().mapValues { it.value.joinToString(",") },
             "responseBody" to runCatching { json.readTree(response.body()) }.getOrNull()))
         return response
     }
@@ -174,7 +212,7 @@ abstract class PostgresFixture {
         var value=json.readTree(response.body())
         eventually { value=call("GET","$route/$key",token=token);value["state"].asText() in setOf("COMMITTED","REJECTED","DEAD_LETTER") }
         if(value["state"].asText()!="COMMITTED") { assertEquals(status,value["failure"]["status"].asInt(),value.toString());return value["failure"] }
-        assertEquals(200,status);return value["result"]
+        assertEquals(200,status);return call("GET",path.removeSuffix("/finish")+"/result",token=token)
     }
     protected fun call(method: String,path: String,body: Any?=null,token: String?=adminToken,status: Int=200,key: UUID?=UUID.randomUUID()): JsonNode {
         val operation=qanda.backend.contentsafety.ContentMutations.operation(method,path)

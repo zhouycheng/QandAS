@@ -15,7 +15,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE+3)
+@Order(Ordered.HIGHEST_PRECEDENCE+4)
 @ConditionalOnWebApplication(type=ConditionalOnWebApplication.Type.SERVLET)
 class RequestAdmissionFilter(private val errors: ErrorWriter, environment: Environment, registry: MeterRegistry): OncePerRequestFilter() {
     private val capacity=environment.getProperty("qanda.backend.max-concurrent-requests",Int::class.java,32).also { require(it>0) }

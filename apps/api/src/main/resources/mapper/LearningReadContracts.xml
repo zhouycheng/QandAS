@@ -11,6 +11,7 @@
         row_number() OVER(PARTITION BY i.question_id ORDER BY s.submitted_at DESC,s.id DESC) rn
       FROM practice_item i JOIN practice_session s ON s.id=i.session_id
       WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED')
+      <if test="_parameter.containsKey('pendingFactIds')">AND i.question_id IN <foreach collection="pendingFactIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     ), totals AS (
       SELECT question_id,count(*) FILTER(WHERE judgment='CORRECT') right_count,
         count(*) FILTER(WHERE judgment='WRONG' AND wrong_book_member) wrong_count
@@ -20,6 +21,7 @@
         row_number() OVER(PARTITION BY i.question_id ORDER BY s.submitted_at DESC,s.id DESC) rn
       FROM practice_item i JOIN practice_session s ON s.id=i.session_id
       WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.outcome='SELF_RATED' AND i.self_assessment IS NOT NULL
+      <if test="_parameter.containsKey('pendingFactIds')">AND i.question_id IN <foreach collection="pendingFactIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     )
   </sql>
 </mapper>

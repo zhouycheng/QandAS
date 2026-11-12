@@ -30,7 +30,7 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 私有配置保存在 `apps/api/.env.backend`，权限为 `600`。首管命令通过终端读取账号和密码。API、worker、monitor、PostgreSQL、RabbitMQ、Redis、Prometheus 和本地邮件捕获由 Compose 管理；gateway 提供统一入口。`init` 生成 Redis 随机密码，已有私有配置在运行脚本时补齐缺失的缓存字段。`deps` 启动 PostgreSQL 和 Redis，本机缓存端口仅绑定回环地址。
 
-普通重建保留数据卷。空库初始化依次加载 V1 的 `schema.sql`、监控权限脚本，以及 V2、V3 的可用题目和可见题库查询迁移。生产部署使用 `schema-init` 按 Flyway 版本顺序升级，启动时核对结构。`build`、`test`、`verify` 先清理 Maven 构建产物，防止旧脚本残留在包中。已有库与迁移记录不一致时先核实原因及备份，保持校验和完整。需要重建专用开发／测试数据时，先核实目标环境、停止业务进程，重置该环境的数据库、关联队列及客户端账号缓存和草稿，再启动相同代码版本。学习偏好、布局和游客试答额度独立保留。数据库命令的运行模式、名称和本机地址保护继续有效。
+普通构建和重启保留数据卷。空库通过 `schema-init` 或开发命令直接加载当前 `schema.sql` 与监控权限脚本；结构不一致时停止启动，重建明确指定的项目数据库、关联队列及客户端账号练习缓存后运行相同代码。`build`、`test`、`verify` 清理 Maven 构建产物，避免包内残留旧文件。数据库命令的环境、名称和本机地址保护继续有效。
 
 官方微信和真实邮件采用仓库外的私有提供端配置。自动检查使用测试身份和本地邮件捕获。腾讯云 SES 私有配置位于 `~/.config/qanda/tencent-ses.env`，权限为 `600`，仅由明确的实发操作使用。
 

@@ -5,25 +5,35 @@
   <select id="overview" resultType="qanda.backend.learning.OverviewRow">
     <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>, visible AS (
       SELECT q.id,b.id bank_id,s.id subject_id FROM question q JOIN question_bank b ON b.id=q.bank_id JOIN subject s ON s.id=b.subject_id WHERE <include refid="visible"/>
-    ) SELECT
-      (SELECT coalesce(sum(r.answered_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') answer_attempt_count,
-      (SELECT coalesce(sum(r.correct_count+r.wrong_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') objective_answered_count,
-      (SELECT coalesce(sum(r.correct_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') objective_correct_count,
-      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment IS NOT NULL) self_rated_count,
-      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment='CORRECT') self_rated_correct_count,
-      (SELECT count(*) FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.self_assessment='WRONG') self_rated_wrong_count,
-      (SELECT count(*) FROM facts WHERE rn=1) answered_count,
-      (SELECT count(*) FROM facts WHERE rn=1 AND judgment='CORRECT') correct_count,
-      (SELECT count(*) FROM facts WHERE rn=1 AND judgment='WRONG') wrong_count,
-      (SELECT count(*) FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1 AND f.judgment='WRONG' AND t.wrong_count>0) wrong_book_count,
-      (SELECT count(*) FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1 AND f.judgment='CORRECT' AND t.wrong_count>0) mastered_count,
-      (SELECT count(*) FROM user_favorite WHERE user_id=#{userId}) favorite_count,
-      (SELECT count(*) FROM visible) total_count,
-      (SELECT count(DISTINCT subject_id) FROM visible) subject_count,
-      (SELECT count(DISTINCT bank_id) FROM visible) bank_count,
-      (SELECT coalesce(sum(r.duration_seconds),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED') duration_seconds,
-      (SELECT count(*) FROM practice_session WHERE user_id=#{userId} AND status='SUBMITTED') practice_count
+    ), sessions AS MATERIALIZED (
+      SELECT id FROM practice_session WHERE user_id=#{userId} AND status='SUBMITTED'
+    ), results AS (
+      SELECT coalesce(sum(r.answered_count),0) answer_attempt_count,coalesce(sum(r.correct_count+r.wrong_count),0) objective_answered_count,
+        coalesce(sum(r.correct_count),0) objective_correct_count,coalesce(sum(r.duration_seconds),0) duration_seconds,(SELECT count(*) FROM sessions) practice_count
+      FROM practice_result r JOIN sessions s ON s.id=r.session_id
+    ), assessments AS (
+      SELECT count(*) FILTER(WHERE i.self_assessment IS NOT NULL) self_rated_count,
+        count(*) FILTER(WHERE i.self_assessment='CORRECT') self_rated_correct_count,
+        count(*) FILTER(WHERE i.self_assessment='WRONG') self_rated_wrong_count
+      FROM practice_item i JOIN sessions s ON s.id=i.session_id
+    ), latest AS (
+      SELECT count(*) answered_count,count(*) FILTER(WHERE f.judgment='CORRECT') correct_count,
+        count(*) FILTER(WHERE f.judgment='WRONG') wrong_count,
+        count(*) FILTER(WHERE f.judgment='WRONG' AND t.wrong_count>0) wrong_book_count,
+        count(*) FILTER(WHERE f.judgment='CORRECT' AND t.wrong_count>0) mastered_count
+      FROM facts f JOIN totals t USING(question_id) WHERE f.rn=1
+    ), available AS (
+      SELECT count(*) total_count,count(DISTINCT subject_id) subject_count,count(DISTINCT bank_id) bank_count FROM visible
+    ) SELECT results.*,assessments.*,latest.*,available.*,
+      (SELECT count(*) FROM user_favorite WHERE user_id=#{userId}) favorite_count
+      FROM results CROSS JOIN assessments CROSS JOIN latest CROSS JOIN available
   </select>
+  <select id="pendingFacts" resultType="qanda.backend.learning.PendingQuestionFact">
+    <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>
+    SELECT f.question_id,f.judgment,sf.self_assessment,f.submitted_at last_practiced_at,t.wrong_count,t.right_count FROM facts f JOIN totals t USING(question_id) LEFT JOIN self_facts sf ON sf.question_id=f.question_id AND sf.rn=1 WHERE f.rn=1
+  </select>
+  <select id="includedSessions" resultType="java.util.UUID">SELECT id FROM practice_session WHERE user_id=#{userId} AND status='SUBMITTED' AND id IN <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach></select>
+  <select id="assessmentFacts" resultType="qanda.backend.learning.PendingAssessmentFact">SELECT i.id item_id,i.self_assessment FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.id IN <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach></select>
   <select id="latestSession" resultType="qanda.backend.practice.PracticeSummary">SELECT id,bank_id question_bank_id,status,version,duration_seconds,created_at,submitted_at,(SELECT writer_device_id FROM practice_sync_state WHERE session_id=practice_session.id) device_id,false finish_intent,CAST(configuration_snapshot::jsonb->>'count' AS integer) question_count,configuration_snapshot::jsonb->>'mode' mode,(SELECT name FROM question_bank WHERE id=practice_session.bank_id) title FROM practice_session WHERE user_id=#{userId} AND status='IN_PROGRESS' AND NOT EXISTS(SELECT 1 FROM practice_sync_state pending WHERE pending.session_id=practice_session.id AND pending.finish_sequence IS NOT NULL)<if test="deviceId != null"> AND EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId})</if> ORDER BY updated_at DESC,id DESC LIMIT 1</select>
   <sql id="collection">
     <include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>, collection AS (
@@ -51,13 +61,20 @@
     LIMIT #{limit} OFFSET #{offset}
   </select>
   <select id="collectionCount" resultType="long"><include refid="collection"/> SELECT count(*) FROM collection <include refid="filters"/></select>
-  <select id="collectionTotals" resultType="qanda.backend.learning.CollectionTotals">
-    <include refid="collection"/> SELECT count(*) total,count(*) FILTER(WHERE wrong_count &gt;= 2) repeat_count,
+  <select id="collectionSummary" resultType="qanda.backend.learning.CollectionSummaryRow">
+    <include refid="collection"/>, summary_rows AS (
+      SELECT false subjective,subject_id,subject_name,question_bank_id,question_bank_name,wrong_count,right_count,last_practiced_at,practiced FROM collection
+      <if test="f.kind == 'WRONG'">
+        UNION ALL
+        SELECT true,s.id,s.name,b.id,b.name,0,0,latest.submitted_at,true
+        FROM self_facts latest JOIN question q ON q.id=latest.question_id JOIN question_bank b ON b.id=q.bank_id JOIN subject s ON s.id=b.subject_id
+        WHERE latest.rn=1 AND latest.self_assessment='WRONG'
+      </if>
+    ) SELECT subjective,grouping(subject_id)=1 aggregate,subject_id,subject_name,question_bank_id,question_bank_name,
+      count(*) total,count(*) FILTER(WHERE wrong_count &gt;= 2) repeat_count,
       count(*) FILTER(WHERE last_practiced_at &gt;= #{f.since}) recent_count,count(*) FILTER(WHERE practiced) practiced_count,
-      coalesce(sum(right_count),0) right_count,coalesce(sum(wrong_count),0) wrong_count FROM collection
-  </select>
-  <select id="collectionFacets" resultType="qanda.backend.learning.CollectionFacet">
-    <include refid="collection"/> SELECT subject_id,subject_name,question_bank_id,question_bank_name,count(*) count FROM collection
-    GROUP BY subject_id,subject_name,question_bank_id,question_bank_name ORDER BY subject_name,question_bank_name,question_bank_id
+      coalesce(sum(right_count),0) right_count,coalesce(sum(wrong_count),0) wrong_count FROM summary_rows
+      GROUP BY GROUPING SETS ((subjective),(subjective,subject_id,subject_name,question_bank_id,question_bank_name))
+      ORDER BY subjective,aggregate DESC,subject_name,question_bank_name,question_bank_id
   </select>
 </mapper>

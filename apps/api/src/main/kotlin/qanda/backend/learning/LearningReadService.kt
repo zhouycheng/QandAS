@@ -22,14 +22,19 @@ data class LearningOverviewView(val answeredCount: Long,val correctCount: Long,v
     val favoriteCount: Long,val totalCount: Long,val subjectCount: Long,val bankCount: Long,val durationSeconds: Long,
     val practiceCount: Long,val recentSession: PracticeSummary?,val wrongBookCount: Long,
     val answerAttemptCount: Long,val distinctQuestionCount: Long,val objectiveAnsweredCount: Long,val objectiveCorrectCount: Long,
-    val objectiveAccuracy: Double?,val selfRatedCount: Long,val selfRatedCorrectCount: Long,val selfRatedWrongCount: Long)
+    val objectiveAccuracy: Double?,val selfRatedCount: Long,val selfRatedCorrectCount: Long,val selfRatedWrongCount: Long,val includedSessionIds: List<UUID> = emptyList(),val questionFacts: List<PendingQuestionFact> = emptyList(),val assessmentFacts: List<PendingAssessmentFact> = emptyList())
+data class PendingLearningInput(val pendingSessionIds: List<UUID> = emptyList(),val pendingQuestionIds: List<UUID> = emptyList(),val deviceId: UUID?=null,val pendingAssessmentItemIds: List<UUID> = emptyList())
+data class PendingAssessmentFact(var itemId: UUID?=null,var selfAssessment: String?=null)
+data class PendingQuestionFact(var questionId: UUID?=null,var judgment: String="",var selfAssessment: String?=null,var lastPracticedAt: Instant?=null,var wrongCount: Long=0,var rightCount: Long=0)
 class CollectionRow {
     var questionId: UUID?=null;var questionBankId: UUID?=null;var subjectId: UUID?=null
     var questionBankName: String="";var subjectName: String="";var stem: String="";var type: String="";var contentFormat: String="PLAIN_TEXT";var presentation: String="STANDARD"
     var available: Boolean=false;var practiced: Boolean=false;var createdAt: Instant=Instant.EPOCH
     var lastPracticedAt: Instant?=null;var lastOutcome: String="";var rightCount: Long=0;var wrongCount: Long=0
 }
-class CollectionTotals {
+class CollectionSummaryRow {
+    var subjective: Boolean=false;var aggregate: Boolean=false
+    var subjectId: UUID?=null;var subjectName: String="";var questionBankId: UUID?=null;var questionBankName: String=""
     var total: Long=0;var repeatCount: Long=0;var recentCount: Long=0;var practicedCount: Long=0
     var rightCount: Long=0;var wrongCount: Long=0
 }
@@ -42,21 +47,25 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
     val chip: String="all",val sort: String="recent",val since: Instant)
 @Mapper interface LearningReadMapper {
     fun overview(@Param("userId") userId: UUID): OverviewRow
+    fun pendingFacts(@Param("userId") userId: UUID,@Param("pendingFactIds") ids: List<UUID>): List<PendingQuestionFact>
+    fun assessmentFacts(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<PendingAssessmentFact>
+    fun includedSessions(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
     fun latestSession(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?): PracticeSummary?
     fun collection(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter,@Param("offset") offset: Int,@Param("limit") limit: Int): List<CollectionRow>
     fun collectionCount(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): Long
-    fun collectionTotals(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): CollectionTotals
-    fun collectionFacets(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): List<CollectionFacet>
+    fun collectionSummary(@Param("userId") userId: UUID,@Param("f") f: CollectionFilter): List<CollectionSummaryRow>
 }
 @Service
 @Transactional(readOnly=true)
 class LearningReadService(private val sql: LearningReadMapper,private val clock: Clock) {
-    fun overview(userId: UUID,deviceId: UUID?=null): LearningOverviewView {
+    @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    fun overview(userId: UUID,deviceId: UUID?=null,pendingSessionIds: List<UUID> = emptyList(),pendingQuestionIds: List<UUID> = emptyList(),pendingAssessmentItemIds: List<UUID> = emptyList()): LearningOverviewView {
+        if(pendingSessionIds.size>1000 || pendingQuestionIds.size>10000 || pendingAssessmentItemIds.size>1000 || pendingSessionIds.distinct().size!=pendingSessionIds.size) invalid("/pendingSessionIds")
         val r=sql.overview(userId);val s=sql.latestSession(userId,deviceId)
         return LearningOverviewView(r.answeredCount,r.correctCount,r.wrongCount,r.masteredCount,r.favoriteCount,r.totalCount,
             r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s,r.wrongBookCount,r.answerAttemptCount,r.answeredCount,
             r.objectiveAnsweredCount,r.objectiveCorrectCount,if(r.objectiveAnsweredCount==0L) null else r.objectiveCorrectCount.toDouble()/r.objectiveAnsweredCount,
-            r.selfRatedCount,r.selfRatedCorrectCount,r.selfRatedWrongCount)
+            r.selfRatedCount,r.selfRatedCorrectCount,r.selfRatedWrongCount,if(pendingSessionIds.isEmpty()) emptyList() else sql.includedSessions(userId,pendingSessionIds),if(pendingQuestionIds.isEmpty()) emptyList() else sql.pendingFacts(userId,pendingQuestionIds.distinct()),if(pendingAssessmentItemIds.isEmpty()) emptyList() else sql.assessmentFacts(userId,pendingAssessmentItemIds.distinct()))
     }
     private fun filter(kind: String,status: String="UNMASTERED",subjectId: UUID?=null,bankId: UUID?=null,chip: String="all",sort: String="recent"): CollectionFilter {
         if(kind !in setOf("WRONG","FAVORITE")) invalid("/kind")
@@ -67,9 +76,13 @@ class LearningReadService(private val sql: LearningReadMapper,private val clock:
         return CollectionFilter(kind,status,subjectId,bankId,chip,sort,clock.instant().minusSeconds(7*86400))
     }
     fun summary(userId: UUID,kind: String): CollectionSummaryView {
-        val f=filter(kind);val r=sql.collectionTotals(userId,f)
-        return CollectionSummaryView(r.total,r.repeatCount,r.recentCount,r.practicedCount,r.total-r.practicedCount,r.rightCount,r.wrongCount,sql.collectionFacets(userId,f),
-            if(kind=="WRONG") sql.collectionCount(userId,f.copy(chip="subjective")) else 0,if(kind=="WRONG") sql.collectionFacets(userId,f.copy(chip="subjective")) else emptyList())
+        val rows=sql.collectionSummary(userId,filter(kind))
+        val r=rows.firstOrNull { it.aggregate && !it.subjective } ?: CollectionSummaryRow()
+        fun facets(subjective: Boolean)=rows.filter { !it.aggregate && it.subjective==subjective }.map { row ->
+            CollectionFacet().apply { subjectId=row.subjectId;subjectName=row.subjectName;questionBankId=row.questionBankId;questionBankName=row.questionBankName;count=row.total }
+        }
+        return CollectionSummaryView(r.total,r.repeatCount,r.recentCount,r.practicedCount,r.total-r.practicedCount,r.rightCount,r.wrongCount,facets(false),
+            rows.firstOrNull { it.aggregate && it.subjective }?.total ?: 0,facets(true))
     }
     fun wrong(userId: UUID,status: String,bankId: UUID?,p: PageSpec,subjectId: UUID?=null,chip: String="all",sort: String="recent"): Page<WrongView> {
         val f=filter("WRONG",status,subjectId,bankId,chip,sort)

@@ -10,8 +10,6 @@ server:
     include-message: never
     include-stacktrace: never
 spring:
-  flyway:
-    enabled: false
   lifecycle:
     timeout-per-shutdown-phase: 90s
   application:
@@ -69,6 +67,8 @@ qanda:
     monitoring-enabled: ${BACKEND_MONITORING_ENABLED:false}
     prometheus-url: ${BACKEND_PROMETHEUS_URL:http://127.0.0.1:9090}
     mode: ${BACKEND_MODE:production}
+    sync-backlog-count: ${BACKEND_SYNC_BACKLOG_COUNT:4096}
+    sync-backlog-bytes: ${BACKEND_SYNC_BACKLOG_BYTES:67108864}
     max-concurrent-requests: ${BACKEND_MAX_CONCURRENT_REQUESTS:32}
     request-queue-capacity: ${BACKEND_REQUEST_QUEUE_CAPACITY:64}
     request-queue-wait-ms: ${BACKEND_REQUEST_QUEUE_WAIT_MS:100}

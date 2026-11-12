@@ -97,6 +97,8 @@ def main():
                 concrete = sample(schema, owner)
                 if route == "/api/v1/practice/sessions":
                     concrete["deviceId"] = str(uuid.UUID(int=1))
+                if route == "/api/v1/content/revision-status":
+                    concrete["items"] = [{"questionId": str(uuid.UUID(int=1)), "revisionId": str(uuid.UUID(int=2)), "materialRevisionId": None}]
                 if route.startswith("/api/v1/practice/sessions/{id}/") and entry["method"] in ("PUT", "POST") and not route.endswith("self-assessment"):
                     concrete["writerToken"] = str(uuid.UUID(int=1))
                     if route.endswith("sync-commands"):
@@ -124,6 +126,9 @@ def main():
         post.append("const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}")
         post.append("if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}")
         post.append("for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}")
+        if "/sync-commands" in route:
+            variables.setdefault("resultId", "")
+            post.append("if(b.resultId)pm.environment.set('resultId',b.resultId);")
         post.append("}")
         folders.setdefault(entry["owner"], []).append({"name": operation_id, "request": request, "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": pre}}, {"listen": "test", "script": {"type": "text/javascript", "exec": post}}]})
         examples.append({"operationId": operation_id, "method": entry["method"], "path": route, "body": body_sample})

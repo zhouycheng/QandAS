@@ -46,6 +46,6 @@
 
 全新本地配置由 `backend.mjs init` 自动生成独立密钥。已有本地及生产配置需补充这两个字段，密钥保存在仓库外或被忽略的私有配置中。缺少可用密钥时，创建及查看凭据返回 503；到期校验和停用处理仍可运行。轮换时保留仍在使用的旧密钥版本，丢失旧密钥会导致相应密码无法再次查看。
 
-`test_account` 和 `test_account_number` 序列包含在统一 V1 初始化结构中，应用与 API 版本保持 `1.0.0`。空库执行 V1 初始化，既有库校验结构。结构不一致时，按[开发与运行](development.md)核实专用开发／测试用途及恢复条件，再处理数据库和关联状态。
+`test_account` 和 `test_account_number` 序列包含在 `schema.sql` 中。空库直接初始化，既有库校验结构。结构不一致时，按[开发与运行](development.md)核实专用开发／测试用途及恢复条件，再处理数据库和关联状态。
 
 验收入口见[验收规范](verification.md)，后端专项为 `TestAccountPostgresTest` 和 `TestAccountCryptoTest`。

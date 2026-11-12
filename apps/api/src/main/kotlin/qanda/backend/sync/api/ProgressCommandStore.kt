@@ -10,7 +10,7 @@ import java.util.UUID
 
 data class StoredFailure(val code: String,val message: String,val status: Int)
 data class StoredCommand(val id: UUID,val sessionId: UUID,val actor: Actor,val digest: ByteArray,val digestVersion: Int,
-    val requestId: UUID,val state: String,val attempts: Int,val createdAt: Instant,val updatedAt: Instant,val receipt: String?,val error: StoredFailure?,val payload: String,val sequence: Long)
+    val requestId: UUID,val state: String,val attempts: Int,val createdAt: Instant,val updatedAt: Instant,val receipt: String?,val error: StoredFailure?,val sequence: Long)
 
 @Repository
 class ProgressCommandStore(private val jdbc: JdbcTemplate) {
@@ -19,18 +19,20 @@ class ProgressCommandStore(private val jdbc: JdbcTemplate) {
             Actor(r.getObject("user_id",UUID::class.java),r.getObject("actor_session_id",UUID::class.java),"USER","MINI_PROGRAM"),
             r.getBytes("payload_digest"),r.getInt("digest_key_version"),r.getObject("request_id",UUID::class.java),r.getString("state"),r.getInt("attempts"),
             r.getTimestamp("created_at").toInstant(),r.getTimestamp("updated_at").toInstant(),r.getString("response_json"),
-            r.getString("error_code")?.let { StoredFailure(it,r.getString("error_message"),r.getInt("error_status")) },r.getString("payload_json"),r.getLong("client_sequence"))
+            r.getString("error_code")?.let { StoredFailure(it,r.getString("error_message"),r.getInt("error_status")) },r.getLong("client_sequence"))
     }
-    fun find(key: UUID): StoredCommand? = jdbc.query("SELECT c.*,r.response_json FROM sync_command c LEFT JOIN command_receipt r ON r.id=c.receipt_id WHERE c.id=?",rowMapper,key).firstOrNull()
+    private val columns="id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,state,attempts,created_at,updated_at,error_code,error_message,error_status"
+    fun payload(key: UUID): String = jdbc.queryForObject("SELECT payload_json FROM sync_command WHERE id=?",String::class.java,key) ?: error("Pending sync command has no payload")
+    fun find(key: UUID): StoredCommand? = jdbc.query("SELECT ${columns.split(',').joinToString(",") { "c.$it" }},r.response_json FROM sync_command c LEFT JOIN command_receipt r ON r.id=c.receipt_id WHERE c.id=?",rowMapper,key).firstOrNull()
     fun lockIntent(key: UUID) { jdbc.queryForObject("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(?,0))",Int::class.java,"sync:$key") }
     fun lock(key: UUID) = jdbc.queryForObject("SELECT id FROM sync_command WHERE id=? FOR UPDATE",UUID::class.java,key)
     fun checkpoint(id: UUID): Triple<Long,Long,Boolean> = jdbc.queryForObject("SELECT accepted_sequence,acknowledged_sequence,finish_sequence IS NOT NULL finishing FROM practice_sync_state WHERE session_id=?",{ r,_ -> Triple(r.getLong(1),r.getLong(2),r.getBoolean(3)) },id)!!
     fun requireRoom(userId: UUID,id: UUID,payload: String,restoredKey: UUID?=null) {
         // Admission already holds the user row lock, so concurrent practices share the same budget.
         val bytes=payload.toByteArray(Charsets.UTF_8).size
-        val full=jdbc.queryForObject("""SELECT count(*)>=256 OR coalesce(sum(octet_length(payload_json)),0)+?>67108864
+        val full=jdbc.queryForObject("""SELECT count(*)>=256 OR coalesce(sum(payload_bytes),0)+?>67108864
             OR count(*) FILTER(WHERE session_id=?)>=64
-            OR coalesce(sum(octet_length(payload_json)) FILTER(WHERE session_id=?),0)+?>16777216
+            OR coalesce(sum(payload_bytes) FILTER(WHERE session_id=?),0)+?>16777216
             FROM sync_command WHERE user_id=? AND id IS DISTINCT FROM ? AND state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED')""",
             Boolean::class.java,bytes,id,id,bytes,userId,restoredKey)==true
         if(full) throw ApiException(HttpStatus.SERVICE_UNAVAILABLE,"SYNC_BACKLOG_FULL","同步任务暂时积压，请保留本机答案并稍后重试",details=ErrorDetails(retryAfterSeconds=5))
@@ -44,7 +46,7 @@ class ProgressCommandStore(private val jdbc: JdbcTemplate) {
             actor.sessionId,key)
     }
     fun insert(key: UUID,id: UUID,actor: Actor,writer: UUID,sequence: Long,digest: ByteArray,digestVersion: Int,requestId: UUID,kind: String,payload: String): StoredCommand {
-        val inserted=jdbc.queryForObject("INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED') RETURNING *,NULL::text AS response_json",rowMapper,
+        val inserted=jdbc.queryForObject("INSERT INTO sync_command(id,session_id,user_id,actor_session_id,writer_token,client_sequence,payload_digest,digest_key_version,request_id,kind,payload_json,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED') RETURNING $columns,NULL::text AS response_json",rowMapper,
             key,id,actor.id,actor.sessionId,writer,sequence,digest,digestVersion,requestId,kind,payload)
         jdbc.update("UPDATE practice_sync_state SET accepted_sequence=?,finish_sequence=CASE WHEN ?='FINISH' THEN ? ELSE finish_sequence END WHERE session_id=?",sequence,kind,sequence,id)
         return inserted!!
@@ -53,7 +55,7 @@ class ProgressCommandStore(private val jdbc: JdbcTemplate) {
         SELECT c.id FROM sync_command c WHERE c.state IN ('QUEUED','RETRYING') AND c.next_attempt_at<=now()
         AND (c.dispatch_until IS NULL OR c.dispatch_until<now())
         AND NOT EXISTS(SELECT 1 FROM sync_command p WHERE p.session_id=c.session_id AND p.client_sequence<c.client_sequence AND p.state<>'COMMITTED')
-        ORDER BY c.next_attempt_at,c.created_at LIMIT 128 FOR UPDATE OF c SKIP LOCKED)
+        ORDER BY CASE WHEN c.created_at<now()-interval '60 seconds' THEN 0 WHEN c.kind='FINISH' THEN 1 ELSE 2 END,c.next_attempt_at,c.created_at LIMIT 128 FOR UPDATE OF c SKIP LOCKED)
         UPDATE sync_command SET dispatch_until=now()+interval '30 seconds',next_attempt_at=now()+interval '30 seconds' WHERE id IN(SELECT id FROM due) RETURNING id""",{ r,_ -> r.getObject(1,UUID::class.java) })
     fun committed(row: StoredCommand) {
         jdbc.update("UPDATE sync_command SET state='COMMITTED',completed_at=now(),updated_at=now(),error_code=NULL,error_message=NULL,error_status=NULL,dispatch_until=NULL,receipt_id=(SELECT id FROM command_receipt WHERE scope=? AND operation=? AND command_id=?) WHERE id=?",

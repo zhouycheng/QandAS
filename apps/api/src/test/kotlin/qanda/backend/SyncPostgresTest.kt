@@ -32,6 +32,7 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class SyncPostgresTest : PostgresFixture() {
+    @Autowired lateinit var registry: io.micrometer.core.instrument.MeterRegistry
     @Test fun `admission rejects stale version before accepting first command`() {
         val owner=student();val session=createPractice(owner,fixture());val sessionId=id(session)
         val path="/practice/sessions/$sessionId/sync-commands"
@@ -104,9 +105,10 @@ class SyncPostgresTest : PostgresFixture() {
             assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id))
             progressCommands.consume(ProgressEnvelope(saveKey));progressCommands.consume(ProgressEnvelope(saveKey))
             progressCommands.consume(ProgressEnvelope(finishKey));progressCommands.consume(ProgressEnvelope(finishKey))
+            assertTrue(registry.counter("qanda.sync.commands","stage","duplicate").count()>=2)
             val done=call("GET","/practice/sessions/$id/sync-commands/$finishKey",token=owner.token)
-            assertEquals("COMMITTED",done["state"].asText());assertEquals(4,done["result"]["answeredCount"].asInt())
-            assertEquals(0,done["result"]["objective"]["wrong"].asInt())
+            assertEquals("COMMITTED",done["state"].asText());assertEquals(4,call("GET","/practice/sessions/$id/result",token=owner.token)["answeredCount"].asInt())
+            assertEquals(0,call("GET","/practice/sessions/$id/result",token=owner.token)["objective"]["wrong"].asInt())
             assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id))
             assertEquals(2,call("GET","/practice/sessions/$id/sync-commands",token=owner.token)["processedSequence"].asInt())
             call("GET","/practice/sessions/$id/sync-commands/$finishKey",token=student().token,status=404)
@@ -188,6 +190,10 @@ class SyncPostgresTest : PostgresFixture() {
 
     @Test fun `real broker metrics show paused backlog and SSE revokes expired administrators`() {
         val s=student();val f=fixture();val sessions=(1..12).map { createPractice(s,f) }
+        eventually(40) {
+            progressCommands.dispatch()
+            jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE state IN ('QUEUED','RETRYING')",Int::class.java)==0
+        }
         consumers.stop()
         val started=System.nanoTime()
         val cpu=java.lang.management.ManagementFactory.getOperatingSystemMXBean() as com.sun.management.OperatingSystemMXBean
@@ -199,17 +205,21 @@ class SyncPostgresTest : PostgresFixture() {
                 call("POST","/practice/sessions/${id(session)}/sync-commands",progressBody(session),s.token,202)
                 Thread.sleep(500)
             }
-            assertEquals(12.0,queueCounter("rabbitmq_detailed_queue_exchange_messages_published_total")-producedBefore)
-            eventually(75) { syncHealth.sample();syncHealth.snapshot().status=="HEALTHY" && syncHealth.snapshot().metrics.queued==12.0 && syncHealth.snapshot().metrics.processing==0.0 && syncHealth.snapshot().metrics.consumers==0.0 }
+            // Dispatch leases may publish duplicate notifications; business commits remain unique.
+            val published=queueCounter("rabbitmq_detailed_queue_exchange_messages_published_total")-producedBefore
+            assertTrue(published>=12.0)
+            eventually(75) { syncHealth.sample();syncHealth.snapshot().status=="HEALTHY" && syncHealth.snapshot().metrics.queued!!>=12.0 && syncHealth.snapshot().metrics.processing==0.0 && syncHealth.snapshot().metrics.consumers==0.0 }
             val queued=syncHealth.snapshot()
             assertEquals(0.0,queued.metrics.processing);assertEquals(0.0,queued.metrics.consumers)
             assertTrue(queued.metrics.productionPerSecond!!>=0);assertTrue(queued.metrics.consumptionPerSecond!=null)
             consumers.start()
-            eventually(30) { syncHealth.sample();syncHealth.snapshot().metrics.queued==0.0 && sessions.all { jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(it))==2 } }
+            eventually(30) { syncHealth.sample();syncHealth.snapshot().metrics.queued==0.0 && (syncHealth.snapshot().metrics.consumptionPerSecond ?: 0.0)>0 && (syncHealth.snapshot().metrics.p95LatencyMs ?: 0.0)>0 && sessions.all { jdbc.queryForObject("SELECT version FROM practice_session WHERE id=?",Int::class.java,id(it))==2 } }
             val drained=syncHealth.snapshot();assertTrue(drained.metrics.committedPerSecond!!>=12/60.0)
             assertTrue(drained.metrics.consumptionPerSecond!!>0);assertTrue(drained.metrics.p95LatencyMs!!>0)
-            assertEquals(12.0,queueCounter("rabbitmq_detailed_queue_messages_acked_total")-consumedBefore)
-            println("SYNC_METRICS_EVIDENCE commands=12 publishedDelta=12 ackDelta=12 uniqueCommits=12 producerIntervalMs=500 consumers=4 prefetch=1 elapsedMs=${(System.nanoTime()-started)/1_000_000} processCpuMs=${(cpu.processCpuTime-cpuBefore)/1_000_000} snapshot=${json.writeValueAsString(drained)}")
+            val acknowledged=queueCounter("rabbitmq_detailed_queue_messages_acked_total")-consumedBefore
+            assertTrue(acknowledged>=12.0)
+            assertEquals(12,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id IN (${sessions.joinToString(",") { "?" }}) AND state='COMMITTED'",Int::class.java,*sessions.map { id(it) }.toTypedArray()))
+            println("SYNC_METRICS_EVIDENCE commands=12 publishedDelta=$published ackDelta=$acknowledged uniqueCommits=12 producerIntervalMs=500 consumers=4 prefetch=1 elapsedMs=${(System.nanoTime()-started)/1_000_000} processCpuMs=${(cpu.processCpuTime-cpuBefore)/1_000_000} snapshot=${json.writeValueAsString(drained)}")
         } finally { consumers.start() }
         val systemHealth=call("GET","/admin/monitoring/health")
         assertEquals(60,systemHealth["sync"]["windowSeconds"].asInt())

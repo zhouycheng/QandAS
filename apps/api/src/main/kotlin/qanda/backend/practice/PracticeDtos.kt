@@ -11,22 +11,21 @@ data class CreatePracticeInput(val scope: ScopeInput,val expectedContentVersion:
 data class TrialSnapshotInput(val scope: ScopeInput,val expectedContentVersion: Long,@field:Schema(allowableValues=["AFTER_FINISH","IMMEDIATE"]) val feedback: String="IMMEDIATE",@field:Schema(allowableValues=["order","practice","test","view"]) val mode: String?=null,@field:Schema(minimum="1",maximum="86400") val timeLimitSeconds: Int?=null,val expectedContentVersions: Map<UUID,Long> = emptyMap())
 data class TrialSnapshotView(val id: UUID,val questionBankId: UUID,val feedback: String,val configuration: PracticeConfiguration,val items: List<PracticeItemView>,val offlineGrading: List<OfflineGrading>,val createdAt: Instant)
 data class AnswerInput(val optionKeys: List<String>?=null,val value: Boolean?=null,val text: String?=null,val blanks: List<String>?=null)
-data class ItemProgress(val itemId: UUID,val answer: AnswerInput?=null,val confirmed: Boolean=false,val marked: Boolean=false)
-data class ProgressInput(val expectedVersion: Long,val currentIndex: Int,val durationSeconds: Int,val writerToken: UUID,val clientSequence: Long,val items: List<ItemProgress> = emptyList(),@field:Schema(allowableValues=["SAVE","FINISH"]) val kind: String="SAVE",val autoAddWrongBook: Boolean=true)
-data class FinishInput(val expectedVersion: Long,val durationSeconds: Int,val writerToken: UUID,val items: List<ItemProgress> = emptyList(),val autoAddWrongBook: Boolean=true)
+data class ItemProgress(val itemId: UUID,val revisionId: UUID,val answer: AnswerInput?=null,val confirmed: Boolean=false,val marked: Boolean=false,@field:Schema(allowableValues=["CORRECT","WRONG","UNANSWERED","SELF_RATED"]) val outcome: String?=null,val materialRevisionId: UUID?=null,val selfAssessment: String?=null)
+data class ProgressInput(val expectedVersion: Long,val currentIndex: Int,val durationSeconds: Int,val writerToken: UUID,val clientSequence: Long,val items: List<ItemProgress> = emptyList(),@field:Schema(allowableValues=["SAVE","FINISH"]) val kind: String="SAVE",val autoAddWrongBook: Boolean=true,val clientResult: ClientResultInput?=null,val submittedAt: Instant?=null)
 data class ExpectedVersionInput(val expectedVersion: Long,val writerToken: UUID)
 data class SelfAssessmentInput(val expectedVersion: Long,@field:Schema(allowableValues=["CORRECT","WRONG"]) val assessment: String)
 data class PracticeItemView(val itemId: UUID,val position: Int,val question: QuestionView,val answer: AnswerInput?,val confirmed: Boolean,val marked: Boolean,val outcome: String?,val selfAssessment: String?)
 data class PracticeView(val id: UUID,val questionBankId: UUID,val status: String,val version: Long,val currentIndex: Int,val durationSeconds: Int,val feedback: String,val items: List<PracticeItemView>,val createdAt: Instant,val configuration: PracticeConfiguration,val offlineGrading: List<OfflineGrading>?,val writer: WriterView,val favoriteQuestionIds: List<UUID> = emptyList())
 data class ObjectiveMetrics(val count: Int,val answered: Int,val correct: Int,val wrong: Int,val unanswered: Int,val accuracy: Double?,val score: Int?=null)
 data class SelfMetrics(val count: Int,val answered: Int,val rated: Int,val correct: Int,val wrong: Int,val unrated: Int)
-data class ResultView(val id: UUID,val sessionId: UUID,val version: Long,val totalCount: Int,val answeredCount: Int,val durationSeconds: Int,val objective: ObjectiveMetrics,val shortAnswer: SelfMetrics,val items: List<PracticeItemView>,val submittedAt: Instant)
+data class ResultView(val id: UUID,val sessionId: UUID,val version: Long,val totalCount: Int,val answeredCount: Int,val durationSeconds: Int,val objective: ObjectiveMetrics,val shortAnswer: SelfMetrics,val items: List<PracticeItemView>,val submittedAt: Instant,val resultSource: String="CLIENT")
 data class PracticeSummary(val id: UUID,val questionBankId: UUID,val status: String,val version: Long,val durationSeconds: Int,val createdAt: Instant,val submittedAt: Instant?,val deviceId: UUID?=null,val finishIntent: Boolean=false,val questionCount: Int=0,val mode: String?=null,val title: String?=null)
 
 // Offline grading data stays separate from the question presentation DTO.
 data class PracticeConfiguration(val chapterIds: List<UUID>,val count: Int,val order: String,val selectionKind: String,val feedback: String,val contentVersion: Long,val questionIds: List<UUID> = emptyList(),val collectionChip: String="all",@field:Schema(allowableValues=["order","practice","test","view"]) val mode: String?=null,@field:Schema(minimum="1",maximum="86400") val timeLimitSeconds: Int?=null,val questionBankIds: List<UUID> = emptyList(),val contentVersions: Map<UUID,Long> = emptyMap())
 data class OfflineGrading(val itemId: UUID,val correctAnswer: List<String>?,val correctValue: Boolean?,val referenceAnswer: String?,val explanation: String?,
-    val blanks: List<qanda.backend.content.BlankInput>?=null,val blankMatch: qanda.backend.content.BlankMatch?=null,val scoringPoints: List<String>?=null)
+    val blanks: List<qanda.backend.content.BlankInput>?=null,val blankMatch: qanda.backend.content.BlankMatch?=null,val scoringPoints: List<String>?=null,val questionId: UUID?=null,val revisionId: UUID?=null,val materialRevisionId: UUID?=null)
 data class WriterView(val deviceId: UUID?,val writerToken: UUID?,val version: Long,val acknowledgedSequence: Long)
 data class ProgressAck(val id: UUID,val version: Long,val acknowledgedSequence: Long,val writer: WriterView)
 
@@ -35,3 +34,5 @@ internal fun objectiveMetrics(count: Int,correct: Int,wrong: Int): ObjectiveMetr
     return ObjectiveMetrics(count,answered,correct,wrong,count-answered,if(answered==0) null else correct.toDouble()/answered,
         if(count==0) null else kotlin.math.floor(correct*100.0/count+0.5).toInt())
 }
+
+data class ClientResultInput(val totalCount: Int,val answeredCount: Int,val objective: ObjectiveMetrics,val shortAnswer: SelfMetrics)
