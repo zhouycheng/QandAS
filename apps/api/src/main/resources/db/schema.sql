@@ -204,6 +204,7 @@ CREATE TABLE practice_item_choice (
  PRIMARY KEY(item_id,option_key), FOREIGN KEY(item_id,revision_id) REFERENCES practice_item(id,revision_id), FOREIGN KEY(revision_id,option_key) REFERENCES question_option(revision_id,option_key)
 );
 CREATE TABLE practice_result (
+  result_source text NOT NULL DEFAULT 'CLIENT' CHECK (result_source='CLIENT'),
  id uuid PRIMARY KEY, session_id uuid NOT NULL UNIQUE REFERENCES practice_session(id), total_count integer NOT NULL CHECK(total_count>0),
  objective_count integer NOT NULL, answered_count integer NOT NULL, correct_count integer NOT NULL, wrong_count integer NOT NULL, unanswered_count integer NOT NULL,
  short_answer_count integer NOT NULL, duration_seconds integer NOT NULL CHECK(duration_seconds>=0), created_at timestamptz NOT NULL DEFAULT now(),
@@ -257,7 +258,8 @@ CREATE TABLE sync_command (
  id uuid PRIMARY KEY, session_id uuid NOT NULL, user_id uuid NOT NULL, actor_session_id uuid NOT NULL,
  writer_token uuid NOT NULL,
  client_sequence bigint NOT NULL CHECK(client_sequence>0), payload_digest bytea NOT NULL, digest_key_version integer NOT NULL,
- request_id uuid NOT NULL, kind varchar(8) NOT NULL CHECK(kind IN ('SAVE','FINISH')), payload_json text NOT NULL,
+ request_id uuid NOT NULL, kind varchar(8) NOT NULL CHECK(kind IN ('SAVE','FINISH')), payload_json text CHECK(payload_json IS NOT NULL OR state='COMMITTED'),
+ payload_bytes integer GENERATED ALWAYS AS (coalesce(octet_length(payload_json),0)) STORED,
  next_attempt_at timestamptz NOT NULL DEFAULT now(), dispatch_until timestamptz,
  state varchar(20) NOT NULL CHECK(state IN ('QUEUED','RETRYING','COMMITTED','REJECTED','DEAD_LETTER')),
  attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0), error_code varchar(64), error_message varchar(200), error_status integer,
@@ -267,10 +269,12 @@ CREATE TABLE sync_command (
  CHECK((state='COMMITTED')=(receipt_id IS NOT NULL)), CHECK((state IN ('COMMITTED','REJECTED'))=(completed_at IS NOT NULL))
 );
 CREATE INDEX sync_command_pending_idx ON sync_command(next_attempt_at,created_at) WHERE state IN ('QUEUED','RETRYING');
-CREATE INDEX sync_command_user_pending_idx ON sync_command(user_id) WHERE state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED');
+CREATE INDEX sync_command_user_pending_idx ON sync_command(user_id,session_id) INCLUDE (payload_bytes) WHERE state IN ('QUEUED','RETRYING','DEAD_LETTER','REJECTED');
+CREATE INDEX sync_command_blocked_idx ON sync_command(session_id,client_sequence) WHERE state IN ('REJECTED','DEAD_LETTER');
 CREATE INDEX sync_command_order_idx ON sync_command(session_id,client_sequence);
 CREATE UNIQUE INDEX sync_command_sequence_idx ON sync_command(session_id,writer_token,client_sequence) WHERE state<>'REJECTED';
 CREATE INDEX sync_command_committed_idx ON sync_command(completed_at) WHERE state='COMMITTED';
+CREATE INDEX sync_command_payload_retention_idx ON sync_command(completed_at,id) WHERE state='COMMITTED' AND payload_json IS NOT NULL;
 CREATE TABLE domain_event_outbox (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id),
  occurred_at timestamptz NOT NULL, processed_at timestamptz
@@ -405,3 +409,28 @@ CREATE VIEW monitoring_sync_completion AS SELECT created_at,completed_at FROM sy
 CREATE VIEW monitoring_jobs AS SELECT
  (SELECT count(*) FROM domain_event_outbox WHERE processed_at IS NULL) AS activity,
  (SELECT count(*) FROM mail_delivery WHERE state IN ('PENDING','SENDING','RETRYABLE_FAILED')) AS mail;
+
+CREATE VIEW active_question AS
+SELECT q.* FROM question q LEFT JOIN question parent ON parent.id=q.reading_parent_id
+WHERE q.status='ACTIVE' AND (q.reading_parent_id IS NULL OR parent.status='ACTIVE');
+
+CREATE OR REPLACE FUNCTION question_active(question_id uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT EXISTS(SELECT 1 FROM active_question q WHERE q.id=question_id)
+$$;
+
+CREATE OR REPLACE FUNCTION bank_visible(bank uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT EXISTS(SELECT 1 FROM question_bank b JOIN subject s ON s.id=b.subject_id
+ WHERE b.id=bank AND b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'
+ AND EXISTS(SELECT 1 FROM active_question q WHERE q.bank_id=b.id AND NOT q.is_group))
+$$;
+
+CREATE VIEW visible_question_bank AS
+SELECT b.* FROM question_bank b JOIN subject s ON s.id=b.subject_id
+WHERE b.status='ACTIVE' AND b.publication_status='PUBLISHED' AND s.status='ACTIVE'
+AND EXISTS(SELECT 1 FROM active_question q WHERE q.bank_id=b.id AND NOT q.is_group);
+
+CREATE OR REPLACE FUNCTION bank_visible(bank uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+ SELECT EXISTS(SELECT 1 FROM visible_question_bank b WHERE b.id=bank)
+$$;
+
+CREATE INDEX sync_command_backlog ON sync_command(state,created_at) INCLUDE (payload_bytes) WHERE state IN ('QUEUED','RETRYING','REJECTED','DEAD_LETTER');

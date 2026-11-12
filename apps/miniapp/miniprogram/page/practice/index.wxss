@@ -39,3 +39,8 @@
 .analysis-handle { position: absolute; top: 100%; left: 50%; width: 112px; height: 44px; margin-left: -56px; pointer-events: auto; }
 .analysis-handle-shape { position: absolute; top: -1px; width: 112px; height: 20px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 20'%3E%3Cpath fill='%23fff' d='M0 0H112V1C96 1 92 19 78 19H34C20 19 16 1 0 1Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
 .analysis-grip { position: absolute; top: 8px; left: 50%; width: 32px; height: 3px; margin-left: -16px; border-radius: 2px; background: #cbd2dd; }
+
+.practice-content-update { display: flex; align-items: center; padding: 12rpx 24rpx; font-size: 24rpx; color: var(--text-secondary, #737373); }
+.practice-content-update text { padding: 12rpx; color: var(--primary-color, #2463eb); }
+
+.practice-latest-link { display: inline-flex; align-items: center; flex-shrink: 0; min-height: 88rpx; margin: 0; padding: 0 16rpx; border: 0; background: transparent; font-size: 24rpx; line-height: 1.4; color: var(--primary-color, #2463eb); }

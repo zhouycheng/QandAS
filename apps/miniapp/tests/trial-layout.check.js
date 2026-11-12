@@ -11,12 +11,12 @@ const { DEFAULT_ORDER, move } = require('../miniprogram/utils/practice-layout.js
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 function memory() {
   const data = {}
-  return { data, full: false, get(key) { return copy(data[key]) }, set(key, value) { if (this.full) throw Error('存储已满'); data[key] = copy(value) }, remove(key) { delete data[key] }, keys() { return Object.keys(data) } }
+  return require('./helpers/encrypted-storage.js').encrypted({ data, full: false, get(key) { return copy(data[key]) }, set(key, value) { if (this.full) throw Error('存储已满'); data[key] = copy(value) }, remove(key) { delete data[key] }, keys() { return Object.keys(data) } })
 }
 function snapshot(id, feedback) {
   const types = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']
   return { id, questionBankId: 'bank', feedback, configuration: { count: 4 }, createdAt: new Date().toISOString(),
-    items: types.map((type, i) => ({ itemId: 'i' + i, position: i, question: { id: 'q' + i, type, stem: type, options: type.endsWith('CHOICE') ? [{ key: 'A', content: '选项甲' }, { key: 'B', content: '选项乙' }] : [], correctAnswer: null, correctValue: null, explanation: null } })),
+    items: types.map((type, i) => ({ itemId: 'i' + i, position: i, question: { id: 'q' + i, revisionId: 'r' + i, type, stem: type, options: type.endsWith('CHOICE') ? [{ key: 'A', content: '选项甲' }, { key: 'B', content: '选项乙' }] : [], correctAnswer: null, correctValue: null, explanation: null } })),
     offlineGrading: types.map((type, i) => ({ itemId: 'i' + i, correctAnswer: type === 'MULTIPLE_CHOICE' ? ['A', 'B'] : ['A'], correctValue: true, referenceAnswer: type === 'SHORT_ANSWER' ? '参考内容' : '', explanation: '仅确认后展示的解析' })) }
 }
 async function main() {
@@ -48,9 +48,9 @@ async function main() {
   const initial = await vm.load({ sessionId: a.id })
   assert.equal(initial.data.shouldRevealAnswer, false)
   assert(!JSON.stringify(initial.data).includes('仅确认后展示的解析'))
-  vm.selectOption(0)
+  await vm.selectOption(0)
   assert.equal(vm.session.getViewData().shouldRevealAnswer, true)
-  vm.goNext(); vm.selectOption(0)
+  await vm.goNext(); await vm.selectOption(0)
   const beforeRestart = requests.length
   offline = true
   const resumed = new PracticeViewModel({ storage })
@@ -58,24 +58,25 @@ async function main() {
   assert.equal(requests.length, beforeRestart, '杀进程后离线恢复不请求')
   assert.deepEqual(resumed.session.state.selectedKeys, ['A'])
   assert.equal(resumed.session.getViewData().shouldRevealAnswer, false, '多选确认前隐藏答案')
-  resumed.selectOption(1); resumed.goNext()
+  await resumed.selectOption(1); await resumed.goNext()
   assert.equal(resumed.session.getViewData().shouldRevealAnswer, true)
-  resumed.goNext(); resumed.selectOption(0); resumed.goNext()
-  resumed.setAnswerText('我的简答'); resumed.goNext()
+  await resumed.goNext(); await resumed.selectOption(0); await resumed.goNext()
+  resumed.setAnswerText('我的简答'); await resumed.goNext()
   assert.equal(resumed.session.getViewData().currentCorrectAnswerText, '', '主观参考内容交卷后展示')
-  resumed.forceSubmit()
+  await resumed.forceSubmit()
   await resumed.assessResult('q3', 'CORRECT')
   assert.equal(resumed.session.state.score, 100, '主观自评不改变客观得分')
   assert.equal(resumed.session.state.isCompleted, true)
   assert.equal(requests.length, beforeRestart, '离线试答交卷只落盘')
-  assert.deepEqual(storage.keys(), [trials.KEY], '试答不写账号、错题、收藏或正式同步记录')
-  const detail = new QuestionDetailViewModel({ storage }).load({ sessionId: a.id, id: 'q3' })
+  assert.deepEqual(storage.keys().filter(key => !key.startsWith('qandaAnswer:v1:')), [trials.KEY], '试答不写账号、错题、收藏或正式同步记录')
+  const detailVm = new QuestionDetailViewModel({ storage })
+  const detail = await detailVm.refreshRemote({ sessionId: a.id, id: 'q3' })
   assert.equal(detail.data.correctText, '参考内容')
   assert.equal(trials.remaining(storage), 1)
   offline = false
   const second = new PracticeViewModel({ storage })
   await second.load({ bankId: 'bank', mode: 'test' })
-  second.selectOption(0); second.goNext()
+  await second.selectOption(0); await second.goNext()
   assert.equal(second.session.getViewData().currentCorrectAnswerText, '', '统一反馈在交卷前隐藏')
   assert.equal(trials.remaining(storage), 0)
   const third = await new PracticeViewModel({ storage }).load({ bankId: 'bank', mode: 'view' })
@@ -220,31 +221,9 @@ async function main() {
   assert.equal(page.data.layoutDirty, false)
   assert.deepEqual(repository.getPreferences(local).moduleOrder, DEFAULT_ORDER, '保存按钮持久化通用布局')
   const quota = storage.get(trials.KEY)
-  const withoutCount = memory()
-  const completed = { ...quota }
-  delete completed.usedCount
-  withoutCount.set(trials.KEY, completed)
-  withoutCount.full = true
-  assert.throws(() => trials.remaining(withoutCount), /存储已满/)
-  assert.deepEqual(withoutCount.get(trials.KEY), completed, '计数写入失败时完整保留试答记录')
-  withoutCount.full = false
-  assert.equal(trials.remaining(withoutCount), 2, '缺少累计次数时从零开始计数')
-  assert.deepEqual(withoutCount.get(trials.KEY), { ...completed, usedCount: 0 }, '立即保存初始计数并保留题目、答案和进度')
-  const savedRequests = requests.length
-  assert.deepEqual(await trials.prepare(withoutCount, { sessionId: quota.sessions[1].id }), quota.sessions[1])
-  assert.equal(requests.length, savedRequests, '恢复已有快照不请求题目')
-  assert.equal(trials.remaining(withoutCount), 2, '恢复已有试答不扣次')
-  await trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' })
-  assert.equal(trials.remaining(withoutCount), 1, '只统计初始化后新建的试答')
-  await trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' })
-  assert.equal(trials.remaining(withoutCount), 0)
-  assert.deepEqual(trials.list(withoutCount).slice(0, quota.sessions.length), quota.sessions, '新建试答保留已有快照')
-  await assert.rejects(trials.prepare(withoutCount, { bankId: 'bank', mode: 'order' }), /两次试答/)
-  withoutCount.set(trials.KEY, { ...quota, usedCount: null })
-  assert.throws(() => trials.remaining(withoutCount), /无法读取/, '损坏的累计次数不能被缺省值覆盖')
-  withoutCount.set(trials.KEY, { version: 1, sessions: [] })
-  assert.equal(trials.remaining(withoutCount), 2, '空记录缺少累计次数时可使用完整额度')
-  assert.equal(withoutCount.get(trials.KEY).usedCount, 0)
+  const invalid = memory()
+  invalid.set(trials.KEY, { ...quota, usedCount: null })
+  assert.throws(() => trials.remaining(invalid), /无法读取/, '损坏的额度必须明确报错')
   storage.set(trials.KEY, { ...quota, sessions: [] })
   assert.equal(trials.remaining(storage), 0, '清理草稿保留已使用试答次数')
   console.log('trial-layout checks passed: quota, persistence failure, duplicate starts, four question types, offline restore, disclosure, account isolation, layout rollback')

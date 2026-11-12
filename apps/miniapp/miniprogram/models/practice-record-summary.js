@@ -1,6 +1,6 @@
 function summarize(snapshot, task) {
   const config = snapshot.configuration || snapshot.route || {}
-  const done = snapshot.status === 'SUBMITTED' || !!snapshot.result
+  const done = snapshot.status === 'SUBMITTED' || !!snapshot.localResult || !!snapshot.result
   const waiting = !done && (!!snapshot.finishIntent || !!snapshot.finishCommand || !!(task && task.finish) || snapshot.localState && snapshot.localState.status === 'SUBMITTED')
   return { id: snapshot.id, questionBankId: snapshot.questionBankId, title: snapshot.title || '', createdAt: snapshot.createdAt,
     status: snapshot.status === 'CANCELLED' ? 'CANCELLED' : done ? 'SUBMITTED' : waiting || snapshot.status === 'WAITING' ? 'WAITING' : 'IN_PROGRESS',
@@ -22,7 +22,7 @@ function merge(remoteItems, localItems) {
   return Array.from(byId.values()).filter(item => item.status !== 'CANCELLED').sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
 }
 function openRecord(item) {
-  if (item.status === 'WAITING' && item.feedback !== 'IMMEDIATE') return { type: 'toast', title: '批改中，不可进入' }
+  if (item.status === 'WAITING') return { type: 'toast', title: '练习记录已保存在本机，正在恢复' }
   return { type: 'navigate', url: `/page/practice/index?sessionId=${encodeURIComponent(item.id)}${item.status === 'IN_PROGRESS' ? '' : '&review=1'}` }
 }
 module.exports = { summarize, merge, openRecord }

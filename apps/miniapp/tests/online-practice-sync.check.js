@@ -3,7 +3,7 @@ const http = require('../miniprogram/repositories/http-gateway.js')
 const { OnlinePractice } = require('../miniprogram/repositories/online-practice.js')
 async function main() {
   const records = {}
-  const storage = { get: (key) => records[key] && JSON.parse(JSON.stringify(records[key])), set: (key, value) => { records[key] = JSON.parse(JSON.stringify(value)) }, remove: (key) => delete records[key] }
+  const storage = require('./helpers/encrypted-storage.js').encrypted({ get: (key) => records[key] && JSON.parse(JSON.stringify(records[key])), set: (key, value) => { records[key] = JSON.parse(JSON.stringify(value)) }, remove: (key) => delete records[key] })
   storage.set('qandaAuth', { provider: 'email', userId: 'u1', token: 'token1' })
   const runtime = new OnlinePractice(storage)
   runtime.identity()

@@ -216,14 +216,14 @@ function checkCrossPage() {
     homeAfter.data.exam.statusText === '去设置', homeAfter.data.exam.statusText)
 }
 
-function checkMigrationAndSelection() {
-  const storage = createMemoryStorage({ qandaPreferences: { examName: '原有考试', examDate: '2026-12-20', fontSize: 'large' } })
+function checkSavedSelection() {
+  const storage = createMemoryStorage({ qandaPreferences: { examCountdowns: [{ id: 'saved', examName: '已存考试', examDate: '2026-12-20' }], fontSize: 'large' } })
   const vm = createViewModel(storage)
   let exams = vm.load().data.exams
-  assert('迁移 - 旧倒计时自动出现在列表且读取不落盘', exams.length === 1 && exams[0].examName === '原有考试' && !storage.raw.qandaPreferences.examCountdowns)
-  vm.openEditor(exams[0].id); vm.setDraftName('原有考试更新'); vm.saveExam()
-  assert('迁移 - 编辑后保留其它偏好', storage.raw.qandaPreferences.fontSize === 'large')
-  assert('迁移 - 删除最后一项不恢复旧记录', vm.deleteExam(exams[0].id).data.exams.length === 0 && new ExamCountdownViewModel({ storage }).load().data.exams.length === 0)
+  assert('列表 - 读取已存考试', exams.length === 1 && exams[0].examName === '已存考试')
+  vm.openEditor(exams[0].id); vm.setDraftName('考试更新'); vm.saveExam()
+  assert('列表 - 编辑后保留其它偏好', storage.raw.qandaPreferences.fontSize === 'large')
+  assert('列表 - 删除后保持空列表', vm.deleteExam(exams[0].id).data.exams.length === 0 && new ExamCountdownViewModel({ storage }).load().data.exams.length === 0)
 
   const list = [{ id: 'past', examName: '已考', examDate: '2026-11-30' }, { id: 'later', examName: '晚一些', examDate: '2026-12-20' }, { id: 'today', examName: '今天', examDate: '2026-12-01' }]
   assert('首页 - 今天的考试优先且跳过过去日期', examCountdown.selectHomeExam(list, NOW).id === 'today')
@@ -266,7 +266,7 @@ function checkDirtyData() {
 
   // 过去日期：显示「已结束」而不是负数天
   const pastStorage = createMemoryStorage({
-    qandaPreferences: { examName: 'A', examDate: '2020-01-01' }
+    qandaPreferences: { examCountdowns: [{ id: 'past', examName: 'A', examDate: '2020-01-01' }] }
   })
   const pastExam = createHomeViewModel(pastStorage).load().data.exam
 
@@ -280,7 +280,7 @@ checkPreferences()
 checkDateBoundaries()
 checkSettingsFlow()
 checkCrossPage()
-checkMigrationAndSelection()
+checkSavedSelection()
 checkDirtyData()
 
 const failed = results.filter((item) => !item.passed)

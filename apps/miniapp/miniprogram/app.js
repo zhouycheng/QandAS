@@ -36,7 +36,7 @@ App({
     if (typeof wx.onNetworkStatusChange === 'function') wx.onNetworkStatusChange(event => {
       if (!event.isConnected) return
       const runtime = onlinePractice.current()
-      try { runtime.identity(); runtime.queue.flushAll().catch(() => {}) } catch (_) { /* 原账号登录后继续同步。 */ }
+      try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.resumeAssessments().catch(() => {}) } catch (_) { /* 原账号登录后继续同步。 */ }
     })
     try { require('./repositories/account-deletion-repository.js').resumeCleanup(storage) }
     catch (_) { wx.showToast({ title: '账号已注销，本机数据清理未完成，请重试', icon: 'none' }) }
@@ -52,14 +52,14 @@ App({
     this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     const runtime = onlinePractice.current()
     if (!runtime) return
-    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.flushViewClosures().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
+    try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.resumeAssessments().catch(() => {}); runtime.flushViewClosures().catch(() => {}) } catch (error) { /* 登录后恢复同步 */ }
   },
 
   onHide() {
     this.appVisible = false
     if (this.activityHeartbeat) this.activityHeartbeat.stop()
     const runtime = onlinePractice.current()
-    if (runtime && runtime.queue) runtime.queue.flushAll().catch(() => {})
+    if (runtime && runtime.queue) { runtime.queue.flushAll().catch(() => {}); runtime.resumeAssessments().catch(() => {}) }
   },
 
   /** 旧二维码、分享卡片或历史入口可能指向已删除页面，统一回到首页。 */

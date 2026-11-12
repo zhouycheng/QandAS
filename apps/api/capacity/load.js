@@ -69,10 +69,12 @@ function answer(item) {
   if (q.type === 'FILL_BLANK') return { blanks: Array(q.blankCount).fill('容量测试') };
   return { text: '容量测试参考答案' };
 }
-function items(session) { return session.items.map(x => ({ itemId: x.itemId, answer: answer(x), confirmed: true })); }
+function item(x) { return { itemId: x.itemId, revisionId: x.question.revisionId, materialRevisionId: x.question.material && x.question.material.revisionId || null, answer: answer(x), confirmed: true, outcome: x.question.type === 'SHORT_ANSWER' ? 'SELF_RATED' : 'CORRECT' }; }
+function items(session) { return session.items.map(item); }
+function localResult(session) { const short = session.items.filter(i => i.question.type === 'SHORT_ANSWER').length, count = session.items.length - short; return { totalCount: session.items.length, answeredCount: session.items.length, objective: { count, answered: count, correct: count, wrong: 0, unanswered: 0, accuracy: count ? 1 : null, score: count ? 100 : null }, shortAnswer: { count: short, answered: short, rated: 0, correct: 0, wrong: 0, unrated: short } }; }
 async function create(user, bank) {
   const key = uuid();
-  return requireOk(await reliable(user, 'POST', '/practice/sessions', { scope: bank.scope, expectedContentVersion: bank.preview.contentVersion, expectedContentVersions: bank.preview.contentVersions, deviceId: user.deviceId }, key));
+  return requireOk(await reliable(user, 'POST', '/practice/sessions', { scope: bank.scope, expectedContentVersion: bank.preview.contentVersion, expectedContentVersions: bank.preview.contentVersions, deviceId: user.deviceId, }, key));
 }
 async function persist(user, state, changes, duration) {
   if (!state.pending) {
@@ -97,12 +99,12 @@ async function persist(user, state, changes, duration) {
       committed.add(1); commitLatency.add(Date.now() - p.start); return true;
     }
     if (value.state === 'REJECTED' || value.state === 'DEAD_LETTER') throw new Error('COMMAND_' + value.state);
-    await wait(Math.min(10000, 1000 * 2 ** Math.min(polls++, 4)) * (1 + Math.random() * 0.25));
+    await wait([1000, 2000, 4000, 8000, 15000, 30000][Math.min(polls++, 5)] * (1 + Math.random() * 0.25));
   }
 }
 async function finish(user, session, progress, duration, sequence = 1) {
   const key = uuid(), path = '/practice/sessions/' + session.id + '/sync-commands';
-  const body = { kind: 'FINISH', expectedVersion: session.version, writerToken: session.writer.writerToken, clientSequence: sequence, currentIndex: session.items.length - 1, durationSeconds: duration, items: progress };
+  const body = { submittedAt: new Date().toISOString(), clientResult: localResult(session), kind: 'FINISH', expectedVersion: session.version, writerToken: session.writer.writerToken, clientSequence: sequence, currentIndex: session.items.length - 1, durationSeconds: duration, items: progress };
   event('intent', { id: key, session: session.id, userIndex: exec.vu.idInTest - 1, body });
   let known = false, attempts = 0;
   while (true) {
@@ -111,12 +113,13 @@ async function finish(user, session, progress, duration, sequence = 1) {
     const state = requireOk(response);
     if (!known) { known = true; accepted.add(1); event('accepted', { id: key, session: session.id, sequence, items: progress }); }
     if (state.state === 'COMMITTED') {
-      const result = state.result;
+      const result = requireOk(await reliable(user, 'GET', '/practice/sessions/' + session.id + '/result'));
+      if (result.id !== state.resultId) throw new Error('RESULT_REFERENCE_MISMATCH');
       if (result.answeredCount !== progress.length || result.objective.wrong !== 0) throw new Error('RESULT_MISMATCH');
       committed.add(1); event('finished', { session: session.id, result: result.id }); return result;
     }
     if (['REJECTED', 'DEAD_LETTER'].includes(state.state)) throw new Error('COMMAND_' + state.state);
-    await wait(Math.min(10000, 1000 * 2 ** Math.min(attempts++, 4)) * (1 + Math.random() * 0.25));
+    await wait([1000, 2000, 4000, 8000, 15000, 30000][Math.min(attempts++, 5)] * (1 + Math.random() * 0.25));
   }
 }
 
@@ -132,8 +135,9 @@ async function journey(user, bank) {
   const background = (async () => {
     while (!done) {
       await wait(1000);
-      if (dirty.length && Date.now() - (state.lastSend || begun) >= 5000) {
-        const batch = dirty; dirty = []; state.lastSend = Date.now();
+      if (done) break;
+      if (dirty.length && Date.now() >= state.readyAt) {
+        const batch = dirty; dirty = [];
         try { if (!await persist(user, state, batch, Math.floor((Date.now() - begun) / 1000))) throw new Error('COMMIT_TIMEOUT'); }
         catch (error) { backgroundError = error; break; }
       }
@@ -144,12 +148,13 @@ async function journey(user, bank) {
     for (const item of session.items) {
       await wait(5000 + Math.random() * 10000);
       if (backgroundError) throw backgroundError;
-      const changed = { itemId: item.itemId, answer: answer(item), confirmed: true };
-      progress.push(changed); dirty.push(changed);
+      const changed = { itemId: item.itemId, revisionId: item.question.revisionId, materialRevisionId: item.question.material && item.question.material.revisionId || null, answer: answer(item), confirmed: true, outcome: item.question.type === 'SHORT_ANSWER' ? 'SELF_RATED' : 'CORRECT' };
+      progress.push(changed);
+      if (!dirty.length) state.readyAt = Date.now() + Number(__ENV.SAVE_INTERVAL_MS || 60000) + Math.random() * 10000;
+      dirty.push(changed);
     }
     done = true; await background;
     if (backgroundError) throw backgroundError;
-    if (dirty.length && !await persist(user, state, dirty, Math.floor((Date.now() - begun) / 1000))) throw new Error('COMMIT_TIMEOUT');
     await finish(user, session, progress, Math.floor((Date.now() - begun) / 1000), state.sequence + 1);
     requireOk(await call(user, 'GET', '/practice/sessions/' + session.id + '/result'));
   } finally { done = true; clearInterval(heart); await background; }

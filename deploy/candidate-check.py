@@ -58,7 +58,7 @@ def check(backend, web=None):
             else:
                 raise RuntimeError('Isolated dependencies did not become ready')
             docker('run', '--rm', '--network', prefix, '--env-file', str(path), backend, 'schema-init')
-            # V1 initialization must be repeatable without resetting the database.
+            # Initialization must be repeatable without resetting the database.
             docker('run', '--rm', '--network', prefix, '--env-file', str(path), backend, 'schema-init')
             start('api', backend, '--env-file', str(path))
             for _ in range(90):
@@ -81,7 +81,7 @@ def check(backend, web=None):
                         time.sleep(1)
                 else:
                     raise RuntimeError('Candidate web did not become ready')
-            print('Isolated candidate and repeatable V1 initialization passed')
+            print('Isolated candidate and repeatable schema initialization passed')
     finally:
         for name in reversed(names):
             subprocess.run(['docker', 'rm', '-f', '-v', name], capture_output=True)

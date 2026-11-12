@@ -9,7 +9,7 @@ const source = process.env
 if (!source.QANDA_TEST_URL || !source.QANDA_TEST_TOKEN || !source.QANDA_TEST_BANK_ID || !source.QANDA_TEST_USER_ID) throw new Error('需要隔离的后端验收环境')
 const values = new Map()
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
-const storage = { get: key => copy(values.get(key)), set: (key, value) => values.set(key, copy(value)), remove: key => values.delete(key) }
+const storage = require('./helpers/encrypted-storage.js').encrypted({ get: key => copy(values.get(key)), set: (key, value) => values.set(key, copy(value)), remove: key => values.delete(key) })
 const requests = []
 global.wx = { request(options) {
   const url = new URL(options.url)
@@ -35,31 +35,31 @@ async function main() {
   assert.equal(view.data.currentQuestion.answerKeys, undefined)
   assert.equal(view.data.questions[0].answerKeys, undefined)
   for (let index = 0; index < vm.session.state.questions.length; index += 1) {
-    vm.jumpToQuestion(index)
+    await vm.jumpToQuestion(index)
     const question = vm.session.state.questions[index]
     if (question.isShortAnswer) {
       vm.setAnswerText('自主练习验收作答')
-      vm.goNext()
+      await vm.goNext()
     } else {
       question.answerKeys.forEach(key => vm.selectOption(question.options.findIndex(option => option.key === key)))
-      if (question.isMultiple) vm.goNext()
+      if (question.isMultiple) await vm.goNext()
     }
   }
   await vm.forceSubmit()
   const deadline = Date.now() + 45000
-  while (!runtime.get(vm.session.meta.sessionId).result) {
+  while (!runtime.get(vm.session.meta.sessionId).cloudConfirmed) {
     assert(Date.now() < deadline, '异步交卷未完成')
     await runtime.flush(vm.session.meta.sessionId)
     await new Promise(resolve => setTimeout(resolve, 200))
   }
-  vm.applyOfficialResult(runtime.get(vm.session.meta.sessionId).result)
+  vm.applyOfficialResult(runtime.get(vm.session.meta.sessionId).localResult)
   vm.editingLocked = false
   const subjective = vm.session.state.questions.find(question => question.isShortAnswer)
   await vm.assessResult(subjective.id, 'CORRECT')
   const completed = runtime.get(vm.session.meta.sessionId)
   assert.equal(completed.status, 'SUBMITTED')
-  assert.equal(completed.result.objective.wrong, 0)
-  assert.equal(completed.result.shortAnswer.rated, 1)
+  assert.equal(completed.localResult.objective.wrong, 0)
+  assert.equal(completed.localResult.shortAnswer.rated, 1)
   assert.equal(runtime.queue.get(completed.id).sequence, runtime.queue.get(completed.id).acknowledgedSequence)
   remote.invalidateLearning()
   await Promise.all([remote.refresh(storage, 'home'), remote.refresh(storage, 'recent')])
@@ -68,6 +68,6 @@ async function main() {
   assert.ok(requests.some(item => item.path.endsWith('/sync-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
   runtime.queue.stop()
-  console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.result.objective.correct, selfRated: completed.result.shortAnswer.rated }))
+  console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.localResult.objective.correct, selfRated: completed.localResult.shortAnswer.rated }))
 }
 main().catch(error => { const runtime = online.current(); if (runtime && runtime.queue) runtime.queue.stop(); console.error(error.message); process.exitCode = 1 })

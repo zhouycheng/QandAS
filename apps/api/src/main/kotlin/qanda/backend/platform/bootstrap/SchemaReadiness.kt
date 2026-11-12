@@ -14,8 +14,9 @@ import qanda.backend.platform.persistence.SystemMapper
 class SchemaReadiness {
     @Bean @DependsOn("backendSafety","validateProductionProviders")
     fun databaseReady(sql: SystemMapper,env: org.springframework.core.env.Environment,jdbc: org.springframework.jdbc.core.JdbcTemplate)=InitializingBean {
-        val ready=if(env.getProperty("qanda.backend.role")=="monitor") jdbc.queryForObject("SELECT count(include_in_statistics) FROM monitoring_student WHERE false",Long::class.java)==0L else sql.ready()
-        check(ready) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
+        val ready=if(env.getProperty("qanda.backend.role")=="monitor") jdbc.queryForObject("SELECT count(include_in_statistics) FROM monitoring_student WHERE false",Long::class.java)==0L else sql.ready() && jdbc.queryForObject("SELECT count(result_source) FROM practice_result WHERE false",Long::class.java)==0L && jdbc.queryForObject("SELECT count(payload_bytes) FROM sync_command WHERE false",Long::class.java)==0L
+        val payloadReady=ready && (env.getProperty("qanda.backend.role") == "monitor" || jdbc.queryForObject("SELECT NOT attnotnull FROM pg_attribute WHERE attrelid='sync_command'::regclass AND attname='payload_json'",Boolean::class.java)==true)
+        check(ready && payloadReady) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
     }
 }
 data class HealthView(val status: String="UP",val version: String="1.0.0")

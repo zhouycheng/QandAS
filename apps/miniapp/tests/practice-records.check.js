@@ -6,11 +6,11 @@ const { createSyncQueue } = require('../miniprogram/repositories/practice-sync-q
 async function main() {
   const list = records([{ id: 'one', status: 'IN_PROGRESS', createdAt: '2026-11-01' }, { id: 'two', status: 'SUBMITTED', createdAt: '2026-11-02' }], [{ id: 'one', finishIntent: true, createdAt: '2026-11-03', items: [{}, {}] }])
   assert.strictEqual(list.length, 2)
-  assert.strictEqual(list[0].statusText, '已交卷，等待批改中')
+  assert.strictEqual(list[0].statusText, '练习记录恢复中')
   assert.strictEqual(list[0].countText, '2 题')
-  assert.strictEqual(list[1].statusText, '已结束')
-  assert.deepStrictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'AFTER_FINISH' }), { type: 'toast', title: '批改中，不可进入' })
-  assert.strictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'IMMEDIATE' }).url, '/page/practice/index?sessionId=pending&review=1')
+  assert.strictEqual(list[1].statusText, '已完成')
+  assert.deepStrictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'AFTER_FINISH' }), { type: 'toast', title: '练习记录已保存在本机，正在恢复' })
+  assert.strictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'IMMEDIATE' }).type, 'toast')
   assert.strictEqual(openRecord({ id: 'active', status: 'IN_PROGRESS' }).url, '/page/practice/index?sessionId=active')
   assert.strictEqual(summarize({ id: 'local', status: 'IN_PROGRESS', localState: { status: 'SUBMITTED' } }).status, 'WAITING')
   assert.strictEqual(records([{ id: 'done', status: 'SUBMITTED' }], [{ id: 'done', status: 'IN_PROGRESS' }])[0].status, 'SUBMITTED')
@@ -29,7 +29,7 @@ async function main() {
   let queue = createSyncQueue(settings)
   assert(queue.finish('session', { progress: { items: [{ answer: 'final' }] } }).ok)
   for (let i = 0; i < 13; i++) {
-    now += 60001
+    now += 300001
     await queue.flush('session')
     queue.stop(); queue = createSyncQueue(settings)
   }

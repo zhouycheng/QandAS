@@ -387,6 +387,20 @@
     "body": null
   },
   {
+    "operationId": "RevisionStatus_read_POST",
+    "method": "POST",
+    "path": "/api/v1/content/revision-status",
+    "body": {
+      "items": [
+        {
+          "questionId": "{{questionId}}",
+          "revisionId": "{{revisionId}}",
+          "materialRevisionId": "{{materialRevisionId}}"
+        }
+      ]
+    }
+  },
+  {
     "operationId": "Content_createQuestion_POST",
     "method": "POST",
     "path": "/api/v1/admin/questions",
@@ -774,21 +788,48 @@
     "body": null
   },
   {
-    "operationId": "Learning_wrong_GET",
-    "method": "GET",
-    "path": "/api/v1/me/wrong-questions",
-    "body": null
-  },
-  {
     "operationId": "Learning_summary_GET",
     "method": "GET",
     "path": "/api/v1/me/statistics",
     "body": null
   },
   {
+    "operationId": "Learning_localSummary_POST",
+    "method": "POST",
+    "path": "/api/v1/me/statistics",
+    "body": {}
+  },
+  {
     "operationId": "Learning_days_GET",
     "method": "GET",
     "path": "/api/v1/me/statistics/days",
+    "body": null
+  },
+  {
+    "operationId": "Learning_localDays_POST",
+    "method": "POST",
+    "path": "/api/v1/me/statistics/days",
+    "body": {
+      "startDate": "2026-10-28",
+      "endDateExclusive": "2026-10-29"
+    }
+  },
+  {
+    "operationId": "Learning_overview_GET",
+    "method": "GET",
+    "path": "/api/v1/me/learning-overview",
+    "body": null
+  },
+  {
+    "operationId": "Learning_pendingOverview_POST",
+    "method": "POST",
+    "path": "/api/v1/me/learning-overview",
+    "body": {}
+  },
+  {
+    "operationId": "Learning_wrong_GET",
+    "method": "GET",
+    "path": "/api/v1/me/wrong-questions",
     "body": null
   },
   {
@@ -801,12 +842,6 @@
     "operationId": "Learning_collectionSummary_GET",
     "method": "GET",
     "path": "/api/v1/me/question-collections/summary",
-    "body": null
-  },
-  {
-    "operationId": "Learning_overview_GET",
-    "method": "GET",
-    "path": "/api/v1/me/learning-overview",
     "body": null
   },
   {

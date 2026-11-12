@@ -8,10 +8,10 @@ function records(remoteItems, localItems) {
     const bank = remote.getBankMeta(item.questionBankId)
     const state = item.status === 'SUBMITTED' ? 'ended' : item.status === 'WAITING' ? 'waiting' : 'active'
     return { id: item.id, status: item.status, feedback: item.feedback, title: item.title || bank && bank.name || '题库练习', state,
-      statusText: { ended: '已结束', waiting: '已交卷，等待批改中', active: '进行中' }[state], review: state !== 'active',
+      statusText: { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
       countText: `${item.questionCount} 题`, timeText: item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) : '',
       feedbackText: { IMMEDIATE: '即时反馈', AFTER_FINISH: '交卷后反馈' }[item.feedback] || '',
-      actionText: state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '等待批改',
+      actionText: state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
       modeText: { order: '顺序练习', practice: '随机练习', test: '模拟考试', view: '背题' }[item.mode] || '练习' }
   })
 }
@@ -29,7 +29,6 @@ class PracticeRecordsViewModel {
       const ids = new Set(runtime.queue.sessionIds().concat(keys.filter(key => key.startsWith(`qandaOnline:${this.owner}:`) && key.split(':').length === 3).map(key => key.split(':')[2])))
       entries = entries || {}
       for (const id of ids) {
-        if (entries[id]) continue
         const snapshot = runtime.get(id)
         if (snapshot) entries[id] = summarize(snapshot, runtime.queue.get(id))
       }

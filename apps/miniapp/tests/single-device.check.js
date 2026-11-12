@@ -8,7 +8,7 @@ const copy = value => JSON.parse(JSON.stringify(value))
 
 async function main() {
   const records = { qandaAuth: { provider: 'email', userId: 'u1', token: 'token1' }, qandaDeviceId: 'device1' }
-  const storage = { get: key => records[key] && copy(records[key]), set: (key, value) => { records[key] = copy(value) }, remove: key => delete records[key] }
+  const storage = require('./helpers/encrypted-storage.js').encrypted({ get: key => records[key] && copy(records[key]), set: (key, value) => { records[key] = copy(value) }, remove: key => delete records[key] })
   const runtime = new OnlinePractice(storage)
   runtime.identity()
   const snapshot = { id: 's1', questionBankId: 'b1', status: 'IN_PROGRESS', version: 1, currentIndex: 0, durationSeconds: 0,
@@ -42,10 +42,12 @@ async function main() {
   assets.completeSnapshot = () => new Promise(resolve => { complete = resolve })
   const restoring = restarted.prepare({ sessionId: 's1' })
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })
+  restarted.identity()
   try {
     complete(copy(snapshot))
     await assert.rejects(restoring, /账号已切换/)
-    assert.equal(storage.get('qandaOnlineLast:u2'), undefined, '迟到的恢复结果不写入新账号')
+    assert.equal(storage.get('qandaOnline:u2:s1'), undefined, '迟到的恢复结果不写入新账号快照')
+    assert.equal(storage.get('qandaPracticeRecords:u2'), undefined, '迟到的恢复结果不写入新账号摘要')
   } finally { assets.completeSnapshot = completeSnapshot }
   assert.equal((await restarted.send('s1', {}, 'u1')).statusCode, 401)
   http.request = request

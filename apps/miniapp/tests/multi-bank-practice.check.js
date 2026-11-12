@@ -9,7 +9,7 @@ const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmo
 const copy = value => JSON.parse(JSON.stringify(value))
 function storage() {
   const values = {}
-  return { get: key => values[key] && copy(values[key]), set: (key, value) => { values[key] = copy(value) }, remove: key => delete values[key] }
+  return require('./helpers/encrypted-storage.js').encrypted({ get: key => values[key] && copy(values[key]), set: (key, value) => { values[key] = copy(value) }, remove: key => delete values[key] })
 }
 async function main() {
   const store = storage()
@@ -28,7 +28,7 @@ async function main() {
     if (path === '/practice/sessions' || path === '/practice/trial-snapshots') return { ok: true, data: {
       id: 'practice-' + ++next, questionBankId: 'a', status: 'IN_PROGRESS', feedback: 'IMMEDIATE', currentIndex: 0, durationSeconds: 0,
       configuration: { questionBankIds: ['a', 'b'], chapterIds: [], count: 2, order: 'SEQUENTIAL', selectionKind: 'NORMAL', contentVersions: copy(preview.contentVersions), mode: 'order' },
-      items: ['a', 'b'].map(id => ({ itemId: 'i' + id, question: { id: 'q' + id, questionBankId: id, type: 'SINGLE_CHOICE', stem: '题目' + id, options: [{ key: 'A', content: '选项' }], assetIds: [] } })),
+      items: ['a', 'b'].map(id => ({ itemId: 'i' + id, question: { id: 'q' + id, revisionId: 'r' + id, questionBankId: id, type: 'SINGLE_CHOICE', stem: '题目' + id, options: [{ key: 'A', content: '选项' }], assetIds: [] } })),
       offlineGrading: ['a', 'b'].map(id => ({ itemId: 'i' + id, correctAnswer: ['A'] }))
     } }
     throw new Error('未预期请求 ' + path)
@@ -59,6 +59,22 @@ async function main() {
   assert.deepEqual(trialBody.expectedContentVersions, { a: 1, b: 3 })
   assert.deepEqual(trialBody.scope.questionBankIds, ['a', 'b'])
   assert.equal(trial.remaining(guest), 1, '联合题库仍是一场试答')
+  const oldTrial = (id, itemId) => ({ id, questionBankId: 'a', status: 'IN_PROGRESS', feedback: 'IMMEDIATE', route: { bankId: 'a', mode: 'order' },
+    items: [{ itemId, position: 0, question: { id: `q-${id}`, revisionId: `r-${id}`, type: 'SINGLE_CHOICE', stem: '旧题', options: [{ key: 'A', content: '选项' }] } }],
+    offlineGrading: [{ itemId, correctAnswer: ['A'], explanation: '旧版解析' }] })
+  const legacyGuest = storage()
+  legacyGuest.set(trial.KEY, { version: 1, usedCount: 2, sessions: [oldTrial('old1', 'old-i1'), oldTrial('old2', 'old-i2')] })
+  const firstLegacy = await trial.prepare(legacyGuest, { sessionId: 'old1' })
+  assert(firstLegacy.items[0].gradingRef, '恢复的旧游客练习先迁移到加密答案资料')
+  assert(legacyGuest.get(trial.KEY).sessions[1].offlineGrading, '迁移一个练习时保留另一份尚未迁移的答案')
+  const vault = require('../miniprogram/repositories/answer-vault.js')
+  const firstQuiz = trial.quiz(firstLegacy)
+  await vault.hydrate(legacyGuest, firstLegacy, firstQuiz.questions, [0])
+  assert.deepEqual(firstQuiz.questions[0].answerKeys, ['A'])
+  const secondLegacy = await trial.prepare(legacyGuest, { sessionId: 'old2' })
+  const secondQuiz = trial.quiz(secondLegacy)
+  await vault.hydrate(legacyGuest, secondLegacy, secondQuiz.questions, [0])
+  assert.deepEqual(secondQuiz.questions[0].answerKeys, ['A'], '连续恢复两份旧游客练习都保留固定答案')
   console.log('多题库练习自检通过：范围预览、创建、版本、恢复、重练与游客试答')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

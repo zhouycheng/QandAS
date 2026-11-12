@@ -7,7 +7,11 @@ function createSyncQueue(options) {
   const now = options.now || Date.now, random = options.random || Math.random
   const setTimer = options.setTimer || setTimeout, clearTimer = options.clearTimer || clearTimeout
   const indexKey = `${PREFIX}${userId}:index`, timers = {}, sending = {}
+  const cooldownKey = `qandaSyncCooldown:v1:${userId}`
+  let active = false
   let stopped = false
+  const ordinaryDelay = () => 60000 + random() * 10000
+  const cooldown = () => storage.get(cooldownKey) || { until: 0, failures: 0 }
   const key = id => `${PREFIX}${userId}:${id}`
   function ids() {
     const index = storage.get(indexKey) || []
@@ -30,7 +34,7 @@ function createSyncQueue(options) {
   function cancel(id) { if (timers[id] !== undefined) { clearTimer(timers[id]); delete timers[id] } }
   function schedule(id, delay) {
     if (stopped || timers[id] !== undefined) return
-    timers[id] = setTimer(() => { delete timers[id]; flush(id) }, delay)
+    timers[id] = setTimer(() => { delete timers[id]; flush(id, false) }, delay)
   }
   function idle(draft) { return !draft || (!draft.pending && draft.revision <= draft.acknowledgedRevision && (!draft.finish || draft.finished)) }
   function save(id, payload, finish = false) {
@@ -40,13 +44,14 @@ function createSyncQueue(options) {
       if (previous && previous.finish) return { ok: true, unchanged: true, draft: previous }
       if (!finish && previous && JSON.stringify(previous.payload.progress || previous.payload) === JSON.stringify(payload.progress || payload)) return { ok: true, unchanged: true, draft: previous }
       const draft = Object.assign({ userId, sessionId: id, revision: 0, acknowledgedRevision: 0, sequence: 0, acknowledgedSequence: 0, acceptedSequence: 0, pending: null, failures: 0 }, previous || {}, { payload: copy(payload), revision: (previous && previous.revision || 0) + 1, updatedAt: now() })
-      if (finish) draft.finish = true
+      if (!previous || idle(previous)) { draft.dirtySince = now(); draft.readyAt = now() + ordinaryDelay() }
+      if (finish) { draft.finish = true; draft.readyAt = now(); cancel(id) }
       persist(id, draft)
-      schedule(id, finish ? 0 : 5000)
+      schedule(id, Math.max(0, (draft.readyAt || now()) - now()))
       return { ok: true, draft: copy(draft) }
     } catch (_) { return { ok: false, storageError: true, reason: '答题数据保存失败，请检查设备存储空间' } }
   }
-  function flush(id) {
+  function flush(id, force = true) {
     if (sending[id]) return sending[id]
     cancel(id)
     let draft
@@ -54,7 +59,11 @@ function createSyncQueue(options) {
       draft = get(id)
       if (idle(draft)) return Promise.resolve({ ok: true, idle: true })
       if (draft.paused || stopped) return Promise.resolve({ ok: false, paused: true, reason: draft.reason })
-      if (draft.nextAttemptAt > now()) { schedule(id, draft.nextAttemptAt - now()); return Promise.resolve({ ok: false, deferred: true, retryAfter: draft.nextAttemptAt - now() }) }
+      const waitUntil = Math.max(draft.nextAttemptAt || 0, cooldown().until, force ? 0 : draft.readyAt || 0)
+      if (waitUntil > now()) { schedule(id, waitUntil - now()); return Promise.resolve({ ok: false, deferred: true, retryAfter: waitUntil - now() }) }
+      const due = ids().map(other => ({ id: other, draft: get(other) })).filter(row => row.draft && !idle(row.draft) && !row.draft.paused && Math.max(row.draft.nextAttemptAt || 0, row.draft.readyAt || 0) <= now())
+      due.sort((a, b) => (now() - (b.draft.dirtySince || now()) >= 60000 ? 2 : b.draft.finish ? 1 : 0) - (now() - (a.draft.dirtySince || now()) >= 60000 ? 2 : a.draft.finish ? 1 : 0) || (a.draft.dirtySince || 0) - (b.draft.dirtySince || 0))
+      if (active || !force && due.length && due[0].id !== id) { schedule(id, 1000 + random() * 1000); return Promise.resolve({ ok: false, deferred: true, retryAfter: 1000 }) }
       if (!draft.pending) {
         draft.sequence += 1
         draft.pending = { sequence: draft.sequence, revision: draft.revision, kind: draft.finish ? 'FINISH' : 'SAVE', payload: copy(draft.payload), idempotencyKey: uuid() }
@@ -63,6 +72,7 @@ function createSyncQueue(options) {
       draft.pending.attempted = true
       persist(id, draft)
     } catch (_) { return Promise.resolve({ ok: false, storageError: true, reason: '本机保存失败，请重试' }) }
+    active = true
     const command = copy(draft.pending)
     sending[id] = Promise.resolve().then(() => send(id, command)).catch(() => ({ ok: false, statusCode: 0 })).then(result => {
       if (stopped) return result
@@ -75,8 +85,8 @@ function createSyncQueue(options) {
           current.acceptedSequence = Math.max(current.acceptedSequence, command.sequence)
           current.polls = (current.polls || 0) + 1
           current.failures = 0
-          delay = Math.min(10000, 1000 * Math.pow(2, Math.min(current.polls - 1, 4))) * (1 + random() * 0.25)
-          current.reason = '本机已保存，服务器处理中'
+          delay = Math.max(result.retryAfter || 0, [1000, 2000, 4000, 8000, 15000, 30000][Math.min(current.polls - 1, 5)] * (1 + random() * 0.25))
+          current.reason = '已保存在本机，可继续练习'
         } else if (result.ok) {
           current.acknowledgedSequence = command.sequence
           current.acceptedSequence = Math.max(current.acceptedSequence, command.sequence)
@@ -84,22 +94,27 @@ function createSyncQueue(options) {
           current.lastAcknowledgedKey = command.idempotencyKey
           current.pending = null; current.failures = 0; current.polls = 0; current.reason = ''
           current.finished = command.kind === 'FINISH'
-          current.lastResponse = result
-          delay = current.finish ? 0 : 5000
+          current.lastResponse = Object.assign({}, result, { result: undefined, data: undefined })
+          storage.remove(cooldownKey)
+          current.dirtySince = now(); current.readyAt = now() + (current.finish ? 0 : ordinaryDelay())
+          delay = current.finish ? 0 : Math.max(0, current.readyAt - now())
         } else {
           current.failures += 1
           const status = result.statusCode || 0
           current.lastStatusCode = status; current.rejected = !!result.rejected
           current.paused = [401, 403, 409].includes(status) || status >= 400 && status < 500 && ![408, 429].includes(status)
-          current.reason = result.reason || '本机已保存，等待同步'
-          delay = Math.max(result.retryAfter || 0, Math.min(60000, 1000 * Math.pow(2, Math.min(current.failures - 1, 6))) * (0.5 + random() * 0.5))
+          current.reason = result.reason || '已保存在本机，可继续练习'
+          const shared = cooldown()
+          const failures = shared.failures + 1
+          delay = Math.max(result.retryAfter || 0, Math.min(300000, 10000 * Math.pow(2, Math.min(failures - 1, 6))) * (0.5 + random() * 0.5))
+          if (!current.paused) storage.set(cooldownKey, { until: now() + delay, failures })
         }
-        current.nextAttemptAt = idle(current) || current.paused ? 0 : now() + delay
+        current.nextAttemptAt = result.ok || idle(current) || current.paused ? 0 : now() + delay
         persist(id, current)
         if (!idle(current) && !current.paused) schedule(id, delay)
         return result
-      } catch (_) { schedule(id, 5000); return { ok: false, storageError: true, reason: '本机确认保存失败，正在自动恢复' } }
-    }).then(result => { delete sending[id]; return result })
+      } catch (_) { schedule(id, 5000); return { ok: false, storageError: true, reason: '本次作答未能保存，请释放空间后重试' } }
+    }).then(result => { delete sending[id]; active = false; return result })
     return sending[id]
   }
   function resume(id) {
@@ -111,7 +126,7 @@ function createSyncQueue(options) {
     if (sending[id] || !idle(get(id))) return false
     cancel(id); storage.remove(key(id)); storage.set(indexKey, ids().filter(value => value !== id)); return true
   }
-  const flushAll = () => Promise.all(ids().map(flush))
+  const flushAll = () => Promise.all(ids().map(id => flush(id, false)))
   return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
 }
 module.exports = { createSyncQueue }

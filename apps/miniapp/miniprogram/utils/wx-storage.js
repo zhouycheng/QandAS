@@ -22,10 +22,34 @@ function createWxStorageAdapter(options) {
     }
   }
 
+  function encryptionAvailable() {
+    try {
+      const info = storage.getAppBaseInfo ? storage.getAppBaseInfo() : storage.getSystemInfoSync ? storage.getSystemInfoSync() : null
+      const parts = String(info && info.SDKVersion || '').split('.').map(Number), minimum = [2, 21, 3]
+      for (let i = 0; i < minimum.length; i++) {
+        if (!Number.isInteger(parts[i])) return false
+        if (parts[i] !== minimum[i]) return parts[i] > minimum[i]
+      }
+      return true
+    } catch (_) { return false }
+  }
+
   return {
     get(key) {
       return storage.getStorageSync(key)
     },
+
+    getEncrypted(key) {
+      if (!storage.getStorage || !encryptionAvailable()) return Promise.reject(new Error('请更新微信后继续练习'))
+      return new Promise((resolve, reject) => storage.getStorage({ key, encrypt: true, success: result => resolve(result.data), fail: reject }))
+    },
+
+    setEncrypted(key, data) {
+      if (!storage.setStorage || !encryptionAvailable()) return Promise.reject(new Error('请更新微信后继续练习'))
+      return new Promise((resolve, reject) => storage.setStorage({ key, data, encrypt: true, success: resolve, fail: reject }))
+    },
+
+    info() { return storage.getStorageInfoSync() },
 
     set(key, value) {
       storage.setStorageSync(key, value)

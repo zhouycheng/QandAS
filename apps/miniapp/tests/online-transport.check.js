@@ -68,7 +68,7 @@ async function main() {
   const queue = createSyncQueue(settings)
   assert(queue.save('s1', { answer: 1 }).ok)
   assert(queue.save('s1', { answer: 1 }).unchanged)
-  assert.strictEqual(scheduled[0].delay, 5000)
+  assert.strictEqual(scheduled[0].delay, 60000)
   const first = queue.flush('s1')
   assert.strictEqual(queue.flush('s1'), first)
   await Promise.resolve()
@@ -86,7 +86,7 @@ async function main() {
   const failedKey = calls[1].command.idempotencyKey
   queue.stop()
   const restarted = createSyncQueue(Object.assign({}, settings, { send: async (id, command) => { calls.push({ id, command }); return { ok: true } } }))
-  clock += 1000
+  clock += 5000
   await restarted.flush('s1')
   assert.strictEqual(calls[2].command.idempotencyKey, failedKey)
   assert.deepStrictEqual(calls[2].command.payload, { answer: 2 })
@@ -123,6 +123,7 @@ async function main() {
   assert.strictEqual((await throttleRestart.flush('rate')).deferred, true)
   assert.strictEqual(rateSends, 1)
   throttled.stop(); throttleRestart.stop()
+  clock += 12000
   const broken = createSyncQueue(Object.assign({}, settings, { storage: { get: () => null, set: () => { throw new Error('full') } } }))
   const accepted = createSyncQueue(Object.assign({}, settings, { send: async () => ({ ok: false, pending: true, serverState: 'QUEUED' }) }))
   accepted.save('async', { answer: 1 })

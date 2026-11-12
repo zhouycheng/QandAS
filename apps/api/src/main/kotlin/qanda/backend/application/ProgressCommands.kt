@@ -16,11 +16,11 @@ import java.util.concurrent.ThreadLocalRandom
 data class ProgressEnvelope(val commandId: UUID)
 @Service
 class ProgressCommands(private val store: ProgressCommandStore,private val json: ObjectMapper,private val digests: CommandDigests,
-    private val sessions: Sessions,private val practice: PracticeService,private val commands: Commands,private val queue: ProgressQueue,manager: PlatformTransactionManager,private val meters: io.micrometer.core.instrument.MeterRegistry) {
+    private val sessions: Sessions,private val practice: PracticeService,private val commands: Commands,private val queue: ProgressQueue,private val capacity: SyncCapacity,manager: PlatformTransactionManager,private val meters: io.micrometer.core.instrument.MeterRegistry) {
     private val tx=TransactionTemplate(manager)
     private fun view(row: StoredCommand): ProgressCommandView {
         val receipt=row.receipt?.let { json.readValue(it,SyncReceipt::class.java) }
-        return ProgressCommandView(row.id,row.sessionId,row.state,row.createdAt,row.updatedAt,receipt?.acknowledgement,row.error?.let { CommandFailure(it.code,it.message,it.status) },receipt?.result)
+        return ProgressCommandView(row.id,row.sessionId,row.state,row.createdAt,row.updatedAt,receipt?.acknowledgement,row.error?.let { CommandFailure(it.code,it.message,it.status) },receipt?.result?.id)
     }
     private fun digest(id: UUID,input: ProgressInput,version: Int=digests.activeVersion)=digests.digest("POST","/api/v1/practice/sessions/$id/sync-commands","application/json",json.writeValueAsBytes(input),version)
     fun checkpoint(actor: Actor,id: UUID): SyncCheckpoint {
@@ -41,14 +41,16 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
             if(old.actor.id!=actor.id || old.sessionId!=id || !digests.matches(digest(id,input,old.digestVersion),old.digest)) conflict("IDEMPOTENCY_CONFLICT","同一请求标识的内容不同")
             if(old.state=="REJECTED" && old.error?.status in setOf(401,403) && old.actor.sessionId!=actor.sessionId) {
                 practice.admitProgress(actor,id,input)
-                store.requireRoom(actor.id,id,old.payload,key)
+                capacity.requireRoom()
+                store.requireRoom(actor.id,id,store.payload(key),key)
                 store.reauthorize(key,actor)
                 view(store.find(key)!!)
             } else view(old)
         } else {
+            capacity.requireRoom()
             val version=practice.admitProgress(actor,id,input)
             val (accepted,processed,finishing)=store.checkpoint(id)
-            if(finishing) conflict("SESSION_CLOSED","已交卷，正在批改")
+            if(finishing) conflict("SESSION_CLOSED","练习已完成")
             if(input.clientSequence!=accepted+1) conflict("SYNC_SEQUENCE","请先同步前面的答题记录")
             if(accepted==processed) {
                 requireVersion(input.expectedVersion,version)
@@ -70,7 +72,10 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
     fun consume(envelope: ProgressEnvelope) {
         tx.executeWithoutResult {
             val first=store.find(envelope.commandId) ?: return@executeWithoutResult
-            if(first.state in setOf("COMMITTED","REJECTED","DEAD_LETTER")) return@executeWithoutResult
+            if(first.state in setOf("COMMITTED","REJECTED","DEAD_LETTER")) {
+                meters.counter("qanda.sync.commands","stage","duplicate").increment()
+                return@executeWithoutResult
+            }
             sessions.checkAccepted(first.actor)
             // Keep the user/session -> practice -> command lock order shared with admission and deletion.
             practice.lockSync(first.actor.id,first.sessionId)
@@ -78,7 +83,7 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
             val row=store.find(first.id) ?: return@executeWithoutResult
             if(row.state !in setOf("QUEUED","RETRYING")) return@executeWithoutResult
             if(store.checkpoint(row.sessionId).second+1!=row.sequence) return@executeWithoutResult
-            val input=json.readValue(row.payload,ProgressInput::class.java)
+            val input=json.readValue(store.payload(row.id),ProgressInput::class.java)
             if(!digests.matches(digest(row.sessionId,input,row.digestVersion),row.digest)) conflict("IDEMPOTENCY_CONFLICT","任务内容校验失败")
             commands.runAccepted(row.actor,row.id,"SYNC:${row.sessionId}",input,SyncReceipt::class.java,row.requestId) {
                 val (ack,result)=practice.processSync(row.actor,row.sessionId,input)
@@ -106,7 +111,15 @@ class ProgressCommands(private val store: ProgressCommandStore,private val json:
         DeadLetterView(envelope?.commandId,row?.sessionId,row?.error?.let { CommandFailure(it.code,it.message,it.status) },if(row?.state in setOf("COMMITTED","REJECTED")) "命令已有最终回执" else null)
     }
     fun replay(key: UUID): MutationResult = tx.execute {
+        val first=store.find(key) ?: missing()
+        sessions.checkAccepted(first.actor)
+        practice.lockSync(first.actor.id,first.sessionId)
         store.lock(key) ?: missing()
+        val row=store.find(key) ?: missing()
+        if(row.state=="DEAD_LETTER") {
+            capacity.requireRoom()
+            store.requireRoom(row.actor.id,row.sessionId,store.payload(key),key)
+        }
         store.replayed(key)
         queue.replayHead(key,false) { bytes -> if(json.readValue(bytes,ProgressEnvelope::class.java).commandId!=key) conflict("DEAD_LETTER_CHANGED","死信队首已变更") }
         MutationResult(key,1)

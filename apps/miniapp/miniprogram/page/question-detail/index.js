@@ -5,6 +5,7 @@ Page(withPageLifecycle({
   data: QuestionDetailViewModel.getInitialData(),
 
   onLoad(options) {
+    this.routeOptions = options || {}
     this.publicQuestionId = options && options.id || ''
     if (wx.showShareMenu) wx.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] })
     this.viewModel = new QuestionDetailViewModel({
@@ -14,6 +15,13 @@ Page(withPageLifecycle({
     this.applyViewModelResult(this.viewModel.refreshRemote(options))
   },
 
+  onHide() {
+    if (this.viewModel) this.viewModel.release()
+    require('../../repositories/remote-data-repository.js').releaseQuestion(this.publicQuestionId)
+    this.setData(QuestionDetailViewModel.getInitialData()); this.reloadOnShow = true
+  },
+  onShow() { if (this.reloadOnShow && this.viewModel) { this.reloadOnShow = false; this.applyViewModelResult(this.viewModel.refreshRemote(this.routeOptions)) } },
+  onUnload() { if (this.viewModel) this.viewModel.release(); require('../../repositories/remote-data-repository.js').releaseQuestion(this.publicQuestionId) },
   handleToggleFavorite() {
     this.applyViewModelResult(this.viewModel.toggleFavorite(this.data.questionId))
   },

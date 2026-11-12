@@ -27,3 +27,10 @@ groups:
         expr: sum by(method,uri) (rate(http_server_requests_seconds_count{job="api",status=~"5.."}[60s]))
       - record: qanda_http_p95
         expr: histogram_quantile(0.95,sum by(le,method,uri) (rate(http_server_requests_seconds_bucket{job="api"}[60s])))
+      - alert: SyncBlockedCommands
+        expr: max(qanda_sync_blocked_count{job="api"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "同步任务持续阻塞，请检查失败回执及恢复入口"

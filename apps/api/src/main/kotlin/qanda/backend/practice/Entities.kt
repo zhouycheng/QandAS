@@ -54,6 +54,7 @@ class PracticeItem {
 
 @TableName("practice_result")
 class PracticeResult {
+    var resultSource: String = "CLIENT"
     @TableId(type = IdType.INPUT)
     var id: UUID? = null
     var sessionId: UUID? = null

@@ -1,10 +1,10 @@
 # 数据库设计
 
-应用与 API 版本为 `1.0.0`。V1 初始化结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控只读权限由同目录 `monitoring-permissions.sql` 定义。V2、V3 迁移分别提供可用题目与可见题库视图，生产部署由 Flyway 顺序执行。下表根据隔离 PostgreSQL 实际初始化后的结构整理，共 45 张业务表。启动时校验当前结构；结构不一致时停止启动，按[开发与运行](development.md)核实迁移记录、备份和目标环境后处理。
+当前结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控权限由同目录 `monitoring-permissions.sql` 定义。空库直接初始化，启动时检查结构。结构不一致时重建明确指定的项目数据库及关联队列，再启动相同代码。下表按隔离 PostgreSQL 初始化后的结构整理。
 
 普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。批量查询通过 `visible_question_bank` 与 `active_question` 视图计算可见性和可用题目；`bank_visible`、`question_active` 提供同一规则的单项判断，分类列表使用 `bank_matches_category`。
 
-题目稳定身份与不可变修订分离，练习固定题目和材料修订。历史结果、同步序号与交卷屏障沿用数据库约束。内容检测上下文、请求、媒体和回调持久化；注销证明完成后与账号及会话外键解耦，保留限时幂等回执。个人头像和待检测媒体随对应账号／任务清理。具体事务与访问规则见[产品规则](product-rules.md)、[内容安全](content-safety.md)及[同步监控](sync-monitoring.md)。
+题目稳定身份与不可变修订分离，练习固定题目和材料修订。历史结果、同步序号与交卷屏障沿用数据库约束。成功同步任务正文保留三十天后可为空，`payload_bytes` 随之为零；其他状态必须保留完整正文。摘要、序号与回执继续用于幂等对账。内容检测上下文、请求、媒体和回调持久化；注销证明完成后与账号及会话外键解耦，保留限时幂等回执。个人头像和待检测媒体随对应账号／任务清理。具体事务与访问规则见[产品规则](product-rules.md)、[内容安全](content-safety.md)及[同步监控](sync-monitoring.md)。
 
 ## 表与字段
 
@@ -619,6 +619,7 @@
 | --- | --- | --- | --- |
 | `id` | `uuid` | 否 | — |
 | `session_id` | `uuid` | 否 | — |
+| `result_source` | `text` | 否 | `'CLIENT'` |
 | `total_count` | `integer` | 否 | — |
 | `objective_count` | `integer` | 否 | — |
 | `answered_count` | `integer` | 否 | — |
@@ -637,6 +638,7 @@
 | `practice_result_check3` | `CHECK (((answered_count >= (correct_count + wrong_count)) AND (answered_count <= (total_count - unanswered_count))))` |
 | `practice_result_duration_seconds_check` | `CHECK ((duration_seconds >= 0))` |
 | `practice_result_pkey` | `PRIMARY KEY (id)` |
+| `practice_result_result_source_check` | `CHECK (result_source = 'CLIENT')` |
 | `practice_result_session_id_fkey` | `FOREIGN KEY (session_id) REFERENCES practice_session(id)` |
 | `practice_result_session_id_key` | `UNIQUE (session_id)` |
 | `practice_result_total_count_check` | `CHECK ((total_count > 0))` |
@@ -945,7 +947,8 @@
 | `digest_key_version` | `integer` | 否 | — |
 | `request_id` | `uuid` | 否 | — |
 | `kind` | `character varying(8)` | 否 | — |
-| `payload_json` | `text` | 否 | — |
+| `payload_json` | `text` | 是 | — |
+| `payload_bytes` | `integer` | 是 | 生成列：`coalesce(octet_length(payload_json),0)` |
 | `next_attempt_at` | `timestamp with time zone` | 否 | `now()` |
 | `dispatch_until` | `timestamp with time zone` | 是 | — |
 | `state` | `character varying(20)` | 否 | — |
@@ -962,8 +965,9 @@
 | --- | --- |
 | `sync_command_actor_session_id_user_id_fkey` | `FOREIGN KEY (actor_session_id, user_id) REFERENCES user_session(id, user_id)` |
 | `sync_command_attempts_check` | `CHECK ((attempts >= 0))` |
-| `sync_command_check` | `CHECK ((((state)::text = 'COMMITTED'::text) = (receipt_id IS NOT NULL)))` |
-| `sync_command_check1` | `CHECK ((((state)::text = ANY ((ARRAY['COMMITTED'::character varying, 'REJECTED'::character varying])::text[])) = (completed_at IS NOT NULL)))` |
+| `sync_command_check` | `CHECK (((payload_json IS NOT NULL) OR ((state)::text = 'COMMITTED'::text)))` |
+| `sync_command_check1` | `CHECK ((((state)::text = 'COMMITTED'::text) = (receipt_id IS NOT NULL)))` |
+| `sync_command_check2` | `CHECK ((((state)::text = ANY ((ARRAY['COMMITTED'::character varying, 'REJECTED'::character varying])::text[])) = (completed_at IS NOT NULL)))` |
 | `sync_command_client_sequence_check` | `CHECK ((client_sequence > 0))` |
 | `sync_command_kind_check` | `CHECK (((kind)::text = ANY ((ARRAY['SAVE'::character varying, 'FINISH'::character varying])::text[])))` |
 | `sync_command_pkey` | `PRIMARY KEY (id)` |
@@ -974,10 +978,14 @@
 
 其他索引：
 
+- `CREATE INDEX sync_command_backlog ON public.sync_command USING btree (state, created_at) INCLUDE (payload_bytes) WHERE ((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'RETRYING'::character varying, 'REJECTED'::character varying, 'DEAD_LETTER'::character varying])::text[]))`
+- `CREATE INDEX sync_command_blocked_idx ON public.sync_command USING btree (session_id, client_sequence) WHERE ((state)::text = ANY ((ARRAY['REJECTED'::character varying, 'DEAD_LETTER'::character varying])::text[]))`
 - `CREATE INDEX sync_command_committed_idx ON public.sync_command USING btree (completed_at) WHERE ((state)::text = 'COMMITTED'::text)`
 - `CREATE INDEX sync_command_order_idx ON public.sync_command USING btree (session_id, client_sequence)`
+- `CREATE INDEX sync_command_payload_retention_idx ON public.sync_command USING btree (completed_at, id) WHERE (((state)::text = 'COMMITTED'::text) AND (payload_json IS NOT NULL))`
 - `CREATE INDEX sync_command_pending_idx ON public.sync_command USING btree (next_attempt_at, created_at) WHERE ((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'RETRYING'::character varying])::text[]))`
 - `CREATE UNIQUE INDEX sync_command_sequence_idx ON public.sync_command USING btree (session_id, writer_token, client_sequence) WHERE ((state)::text <> 'REJECTED'::text)`
+- `CREATE INDEX sync_command_user_pending_idx ON public.sync_command USING btree (user_id, session_id) INCLUDE (payload_bytes) WHERE ((state)::text = ANY ((ARRAY['QUEUED'::character varying, 'RETRYING'::character varying, 'DEAD_LETTER'::character varying, 'REJECTED'::character varying])::text[]))`
 
 ### `test_account`
 
@@ -1124,4 +1132,4 @@
 
 序列负责测试账号编号，停用及注销后继续递增。账号、会话和命令锁用于串行化普通写入、消费与注销。正式练习修订及结果保持不可变；注销事务通过受限的账号删除上下文清理该账号的历史数据。
 
-监控视图按最小只读权限暴露会话、队列及统计所需字段；测试账号是否计入运营统计由现有统计函数统一判断。函数、触发器、视图及权限的完整定义以 V1 初始化 SQL 和实际初始化检查为准。
+监控视图按最小只读权限暴露会话、队列及统计所需字段；测试账号是否计入运营统计由现有统计函数统一判断。函数、触发器、视图及权限的完整定义以 `schema.sql` 和实际初始化检查为准。

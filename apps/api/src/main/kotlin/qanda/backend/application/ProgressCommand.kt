@@ -8,6 +8,6 @@ import java.util.UUID
 data class CommandFailure(val code: String,val message: String,val status: Int)
 data class ProgressCommandView(val commandId: UUID,val sessionId: UUID,
     @field:Schema(allowableValues=["QUEUED","RETRYING","COMMITTED","REJECTED","DEAD_LETTER"]) val state: String,
-    val createdAt: Instant,val updatedAt: Instant,val acknowledgement: ProgressAck?,val failure: CommandFailure?,val result: qanda.backend.practice.ResultView?=null)
+    val createdAt: Instant,val updatedAt: Instant,val acknowledgement: ProgressAck?,val failure: CommandFailure?,val resultId: UUID?=null,val pollAfterMs: Long=1000)
 data class SyncCheckpoint(val acceptedSequence: Long,val processedSequence: Long,val finishing: Boolean)
 data class SyncReceipt(val acknowledgement: ProgressAck,val result: qanda.backend.practice.ResultView?)
