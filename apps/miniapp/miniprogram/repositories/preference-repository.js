@@ -2,8 +2,7 @@ const {
   PREFERENCE_STORAGE_KEY,
   normalizePreferences,
   setPreferenceChoice,
-  setPreferenceSwitch,
-  setPreferenceText
+  setPreferenceSwitch
 } = require('../utils/preferences.js')
 
 /**
@@ -54,11 +53,6 @@ function updatePreferenceChoice(storage, key, value) {
   return savePreferences(storage, setPreferenceChoice(getPreferences(storage), key, value))
 }
 
-/** 文本型偏好：考试名称 / 考试日期（首页倒计时卡用） */
-function updatePreferenceText(storage, key, value) {
-  return savePreferences(storage, setPreferenceText(getPreferences(storage), key, value))
-}
-
 /** 恢复长期习惯，保留预设、布局和倒计时。 */
 function resetPreferences(storage) {
   const current = getPreferences(storage)
@@ -71,4 +65,4 @@ function getDefaultPracticeRoute(storage) {
   const { defaultPreset, routeForPreset } = require('../utils/practice-presets.js')
   return routeForPreset(defaultPreset(preferences))
 }
-module.exports = { getPreferences, resetPreferences, savePreferences, getDefaultPracticeRoute, updatePreferenceChoice, updatePreferenceSwitch, updatePreferenceText }
+module.exports = { getPreferences, resetPreferences, savePreferences, getDefaultPracticeRoute, updatePreferenceChoice, updatePreferenceSwitch }

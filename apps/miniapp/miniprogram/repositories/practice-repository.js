@@ -9,7 +9,6 @@ module.exports = {
   savePreferences: preferenceRepository.savePreferences,
   updatePreferenceSwitch: preferenceRepository.updatePreferenceSwitch,
   updatePreferenceChoice: preferenceRepository.updatePreferenceChoice,
-  updatePreferenceText: preferenceRepository.updatePreferenceText,
   resetPreferences: preferenceRepository.resetPreferences,
   getAuth: authRepository.getAuth,
   login: authRepository.login,

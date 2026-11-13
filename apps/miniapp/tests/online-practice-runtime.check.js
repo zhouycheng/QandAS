@@ -139,19 +139,6 @@ async function main() {
   assert(storage.get('qandaSyncCooldown:v1:u1').until > Date.now(), '冲突回读遇到暂时错误时安排退避重试')
   assert(recovered.assessmentTimer, '冲突回读遇到暂时错误时创建重试定时器')
   clearTimeout(recovered.assessmentTimer); recovered.assessmentTimer = null; http.request = regularRequest
-  const legacy = copy(snapshot)
-  legacy.id = 'legacy'; legacy.route = { bankId: 'b1', mode: 'practice' }
-  legacy.items.forEach((item, i) => { item.itemId = `legacy-i${i}` })
-  legacy.offlineGrading = [{ itemId: 'legacy-i0', correctAnswer: ['A'], explanation: '旧版解析' }, { itemId: 'legacy-i1', referenceAnswer: '旧版参考答案' }]
-  data['qandaOnline:u1:legacy'] = legacy
-  const migrated = await recovered.prepare({ sessionId: 'legacy' })
-  assert.equal(migrated.offlineGrading, undefined)
-  assert(migrated.items.every(item => item.gradingRef), '旧答案先迁移到加密资料，再写回快照')
-  const restoredLegacy = await recovered.prepare({ sessionId: 'legacy' })
-  const legacyQuiz = recovered.quiz(restoredLegacy)
-  await vault.hydrate(storage, restoredLegacy, legacyQuiz.questions, [0, 1])
-  assert.deepEqual(legacyQuiz.questions[0].answerKeys, ['A'], '连续恢复仍能读取旧练习的固定答案')
-  assert.equal(legacyQuiz.questions[1].referenceAnswer, '旧版参考答案')
   const completed = ['recent-1', 'recent-2', 'recent-3', 'recent-4', 'recent-5', 'old', 'pending']
   data['qandaOnlineCompleted:u1'] = completed
   completed.forEach((id, i) => { data[`qandaOnline:u1:${id}`] = { id, status: 'SUBMITTED', cloudConfirmed: id !== 'pending', resultId: id, items: [], localResult: { items: [] }, assessmentCommands: {} } })

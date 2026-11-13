@@ -64,31 +64,10 @@ function daysTo(dateKey) {
 function checkPreferences() {
   const defaults = preferences.normalizePreferences(null)
 
-  assert('偏好 - 默认不含考试名称', defaults.examName === '')
-  assert('偏好 - 默认不含考试日期', defaults.examDate === '')
-
-  // 补齐：老用户存的是没有这两个键的旧对象
+  assert('偏好 - 默认倒计时列表为空', defaults.examCountdowns.length === 0)
   const filled = preferences.normalizePreferences({ fontSize: 'large' })
-  assert('偏好 - 旧数据自动补齐 examName', filled.examName === '')
-  assert('偏好 - 补齐时不影响已有字段', filled.fontSize === 'large')
+  assert('偏好 - 缺省列表不影响其它字段', filled.examCountdowns.length === 0 && filled.fontSize === 'large')
 
-  // 脏数据：类型不对时必须退回空串，不能把 [object Object] 渲染到卡片上
-  assert('偏好 - 非字符串 examName 归一化为空',
-    preferences.normalizePreferences({ examName: { a: 1 } }).examName === '')
-  assert('偏好 - 非字符串 examDate 归一化为空',
-    preferences.normalizePreferences({ examDate: 20261210 }).examDate === '')
-
-  const set = preferences.setPreferenceText(preferences.normalizePreferences(null), 'examName', '研究生入学考试')
-  assert('偏好 - setPreferenceText 写入名称', set.examName === '研究生入学考试')
-  assert('偏好 - setPreferenceText 不破坏其它字段', typeof set.fontSize === 'string')
-
-  // 只允许白名单键被写入，防止页面把任意字符串塞进偏好
-  const blocked = preferences.setPreferenceText(preferences.normalizePreferences(null), 'unknownKey', 'x')
-  assert('偏好 - 非白名单键不被写入', blocked.unknownKey === undefined)
-
-  assert('偏好 - 文本键白名单含两个考试字段',
-    preferences.TEXT_PREFERENCE_KEYS.indexOf('examName') >= 0 &&
-    preferences.TEXT_PREFERENCE_KEYS.indexOf('examDate') >= 0)
 }
 
 // ---------- 二、日期边界 ----------

@@ -19,8 +19,7 @@ function read(storage) {
   return record
 }
 function put(storage, record) {
-  // Preserve other legacy sessions until each one is migrated on restore.
-  storage.set(KEY, { ...record, sessions: record.sessions.map(item => item.offlineGrading && item.offlineGrading.length ? item : vault.strip(item)) })
+  storage.set(KEY, { ...record, sessions: record.sessions.map(item => vault.strip(item)) })
 }
 function list(storage) { return read(storage).sessions }
 function get(storage, id) { return list(storage).find(item => item.id === id) || null }
@@ -34,20 +33,15 @@ async function required(method, path, body) {
 }
 async function prepare(storage, options) {
   const saved = options.sessionId ? get(storage, options.sessionId) : options.resume === '1' ? resumable(storage) : null
-  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(async original => {
+  if (saved) return require('./question-assets.js').completeSnapshot(storage, saved).then(original => {
     const normalized = normalizePracticeOptions(original.route, getPreferences(storage))
     if (Object.keys(normalized).some(key => !original.route || original.route[key] !== normalized[key])) {
       original.route = Object.assign({}, original.route, normalized)
     }
-    const legacy = original.offlineGrading && original.offlineGrading.length
-    let snapshot = original, migrated = false
-    try {
-      if (legacy) { snapshot = await vault.seal(storage, original, 'guest'); migrated = true }
-      const record = read(storage); record.sessions = record.sessions.map(item => item.id === snapshot.id ? snapshot : item)
-      put(storage, record)
-      if (migrated) vault.publish(snapshot)
-    } catch (error) { if (migrated) vault.discard(snapshot, storage); throw error }
-    return snapshot
+    const record = read(storage)
+    record.sessions = record.sessions.map(item => item.id === original.id ? original : item)
+    put(storage, record)
+    return original
   })
   if (options.sessionId) return Promise.reject(new Error('请登录原账号后恢复这次练习'))
   if (creating) return creating
@@ -71,7 +65,8 @@ async function create(storage, options, retried = false) {
     if (error.code === 'VERSION_CONFLICT' && !retried) return create(storage, { ...options, selectionKey: '' }, true)
     throw error
   }
-  if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !snapshot.offlineGrading.some(grading => grading.itemId === item.itemId))) throw new Error('试答内容下载不完整，请重试')
+  const gradingIds = new Set((snapshot && Array.isArray(snapshot.offlineGrading) ? snapshot.offlineGrading : []).map(grading => grading.itemId))
+  if (!snapshot || !snapshot.id || !snapshot.items || !snapshot.items.length || !Array.isArray(snapshot.offlineGrading) || snapshot.items.some(item => !item.question || !gradingIds.has(item.itemId))) throw new Error('试答内容下载不完整，请重试')
   await require('./question-assets.js').completeSnapshot(storage, snapshot)
   snapshot.route = Object.assign({}, options, normalizePracticeOptions(null, getPreferences(storage)), { bankId: snapshot.questionBankId })
   snapshot.title = options.title || (bankIds.length > 1 ? `${bankIds.length} 个题库联合练习` : bank.name)
