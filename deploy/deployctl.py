@@ -469,7 +469,7 @@ def reconcile(locked=False):
         mark('rolling-back' if current else 'failed')
         REQUEST.unlink(missing_ok=True)
         subprocess.run(['docker', 'rm', '-f', source_build.BUILD_NAME], capture_output=True, timeout=30)
-        for directory in [*STATE.glob('qanda-source-*'), *Path('/run').glob('qanda-git-*')]:
+        for directory in STATE.glob('qanda-source-*'):
             if directory.is_dir() and not directory.is_symlink():
                 shutil.rmtree(directory)
         if current:
