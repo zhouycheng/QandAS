@@ -15,6 +15,11 @@ import dispatch
 
 
 class SourceBuildTests(unittest.TestCase):
+    def test_deploy_error_output_shows_validation_reason_but_hides_subprocess_details(self):
+        self.assertEqual(deploy.error_message(ValueError('Invalid operation identity')), 'Invalid operation identity')
+        self.assertEqual(deploy.error_message(subprocess.CalledProcessError(1, ['sudo'], stderr='private output')),
+                         'CalledProcessError')
+
     def request(self, role='backend'):
         return dict(operation_id='123-2-' + role, role=role, revision='a' * 40, token='ghs_testsecret')
 
