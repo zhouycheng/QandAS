@@ -88,7 +88,7 @@ for name,content in [('node.json',json.dumps({'role':data['role']})),('node.env'
     if output:
         print('Private node configuration rendered; install it through each owner’s management channel')
         return
-    subprocess.run(['gh', 'secret', 'set', 'DEPLOY_TARGETS', '--repo', 'zhouycheng/QandA'],
+    subprocess.run(['gh', 'secret', 'set', 'DEPLOY_TARGETS', '--repo', 'zhouycheng/QandAS'],
                    input=json.dumps(targets).encode(), check=True, capture_output=True)
     print('Private deployment targets synchronized; provision new nodes before running the deployment')
 

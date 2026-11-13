@@ -28,7 +28,7 @@ node apps/api/scripts/backend.mjs docker-up
 node apps/api/scripts/backend.mjs docker-bootstrap
 ```
 
-私有配置保存在 `apps/api/.env.backend`，权限为 `600`。首管命令通过终端读取账号和密码。API、worker、monitor、PostgreSQL、RabbitMQ、Redis、Prometheus 和本地邮件捕获由 Compose 管理；gateway 提供统一入口。`init` 生成 Redis 随机密码，已有私有配置在运行脚本时补齐缺失的缓存字段。`deps` 启动 PostgreSQL 和 Redis，本机缓存端口仅绑定回环地址。
+私有配置保存在 `apps/api/.env.backend`，权限为 `600`。首管命令通过终端读取账号和密码。API、worker、monitor、PostgreSQL、RabbitMQ、Redis、Prometheus 和本地邮件捕获由 Compose 管理；gateway 提供统一入口。`init` 生成完整配置及独立随机密钥，运行脚本校验必需字段。`deps` 启动 PostgreSQL 和 Redis，本机缓存端口仅绑定回环地址。
 
 普通构建和重启保留数据卷。空库通过 `schema-init` 或开发命令直接加载当前 `schema.sql` 与监控权限脚本；结构不一致时停止启动，重建明确指定的项目数据库、关联队列及客户端账号练习缓存后运行相同代码。`build`、`test`、`verify` 清理 Maven 构建产物，避免包内残留旧文件。数据库命令的环境、名称和本机地址保护继续有效。
 
@@ -36,7 +36,7 @@ node apps/api/scripts/backend.mjs docker-bootstrap
 
 后端测试需要可访问的 Docker daemon。运行脚本会识别默认 Colima socket；使用其他已运行的本机 Colima 实例时，为本次命令设置 `DOCKER_HOST` 指向该实例的 socket，并设置 `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`。Testcontainers 创建独立测试容器，运行结束后清理。
 
-持久联调入口 `apps/api/scripts/integration.py` 在调用 Compose 前自动补齐已有私有环境中缺失的 Redis 字段，保留已配置密码、端口、账号及数据；新文件保持权限 `600`，已有配置无需重新初始化。
+持久联调入口 `apps/api/scripts/integration.py` 使用权限 `600` 的完整私有环境；缺少必需字段时停止运行，已配置内容不会被启动脚本改写。
 
 ## 日常维护
 

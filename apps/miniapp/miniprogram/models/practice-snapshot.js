@@ -15,7 +15,9 @@ function mapQuestion(item, grading) {
   }
 }
 function quiz(snapshot) {
-    return { subjectId: snapshot.route.subjectId || '', bankId: snapshot.questionBankId, title: snapshot.title || '题库练习', storageKey: '', questions: ((snapshot.localResult && snapshot.localResult.items) || (snapshot.result && snapshot.result.items) || snapshot.items).map(item => mapQuestion(item, (snapshot.offlineGrading || []).find(g => g.itemId === item.itemId))) }
+    const grading = new Map()
+    for (const item of snapshot.offlineGrading || []) if (!grading.has(item.itemId)) grading.set(item.itemId, item)
+    return { subjectId: snapshot.route.subjectId || '', bankId: snapshot.questionBankId, title: snapshot.title || '题库练习', storageKey: '', questions: ((snapshot.localResult && snapshot.localResult.items) || (snapshot.result && snapshot.result.items) || snapshot.items).map(item => mapQuestion(item, grading.get(item.itemId))) }
   }
 function restored(snapshot) {
     if (snapshot.localState && (!snapshot.result || snapshot.localResult)) return JSON.parse(JSON.stringify(snapshot.localState))

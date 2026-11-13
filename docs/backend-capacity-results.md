@@ -53,4 +53,10 @@
 
 [AWS 过载保护说明](https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/)讨论并发保护参数过低造成提前拒绝、过高造成资源拥挤的问题；本项目通过同档对照确定处理和短等待参数。[Google SRE](https://sre.google/sre-book/addressing-cascading-failures/)说明限制过载排队及并发工作对避免级联故障的作用。
 
-日常容量建议在最终通过的持续档位上预留约 30% 余量。完整测试方法见[后端容量测试](backend-capacity.md)。
+日常容量建议在最终通过的持续档位上预留约 30% 余量。完整测试方法见[后端容量测试](../tests/capacity/README.md)。
+
+## 当前本地判题协议
+
+最新 [2000 VU、600 秒结果](../tests/capacity/results/20261113-r11/report.html)对应 `fab007a7`：4,254 次业务操作全部完成，15,619 条同步意图最终提交，67 条经过补传，缺失、待处理、拒绝、答案及成绩差异均为零。同步上传与回执查询共观察到 16,137 次 503，确认 P95/P99 为 65,208／209,713 毫秒，严格 SLA 判定 `stable=false`。数据完整性与延迟标准分别判定；压测器账本的恢复结果不代表微信真机存储验收。
+
+完整运行索引、版本与源结果摘要见根目录 [tests/capacity/results](../tests/capacity/results/index.json)，执行流程见[压测入口](../tests/capacity/README.md)。

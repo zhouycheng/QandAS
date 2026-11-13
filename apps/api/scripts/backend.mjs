@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, statSync, lstatSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -22,27 +22,9 @@ function environment() {
     seen.add(entry[1]);
     env[entry[1]] ??= entry[2];
   }
-  let updated = original;
-  const cacheDefaults = { BACKEND_REDIS_HOST: '127.0.0.1', BACKEND_REDIS_PORT: '56379', BACKEND_CONTENT_CACHE_ENABLED: 'true' };
-  if (!seen.has('BACKEND_REDIS_PASSWORD') || /^BACKEND_REDIS_PASSWORD=$/m.test(original)) {
-    const password = randomBytes(32).toString('base64url');
-    if (seen.has('BACKEND_REDIS_PASSWORD')) updated = updated.replace(/^BACKEND_REDIS_PASSWORD=$/m, `BACKEND_REDIS_PASSWORD=${password}`);
-    else cacheDefaults.BACKEND_REDIS_PASSWORD = password;
-    if (!env.BACKEND_REDIS_PASSWORD) env.BACKEND_REDIS_PASSWORD = password;
-  }
-  for (const [key, value] of Object.entries(cacheDefaults)) {
-    if (!seen.has(key)) { updated += `${updated.endsWith('\n') ? '' : '\n'}${key}=${value}\n`;env[key] ??= value; }
-  }
-  if (updated !== original) {
-    if (!lstatSync(config).isFile()) throw new Error('私有配置升级需要普通文件');
-    const runtime = join(apiRoot, '.backend-runtime');mkdirSync(runtime, { recursive: true });
-    const temporary = join(runtime, `cache-env-${randomBytes(8).toString('hex')}`);
-    try {
-      writeFileSync(temporary, updated, { mode: 0o600, flag: 'wx' });
-      if (readFileSync(config, 'utf8') !== original) throw new Error('私有配置已变化，保留现有内容');
-      renameSync(temporary, config);
-    } finally { if (existsSync(temporary)) unlinkSync(temporary); }
-  }
+  const required = [...readFileSync(join(apiRoot, '.env.backend.example'), 'utf8').matchAll(/^(BACKEND_[A-Z0-9_]+)=/gm)].map(match => match[1]);
+  const missing = required.filter(key => !seen.has(key));
+  if (missing.length || !env.BACKEND_REDIS_PASSWORD) throw new Error('后端配置缺少必需字段：' + [...missing, ...(!env.BACKEND_REDIS_PASSWORD ? ['BACKEND_REDIS_PASSWORD'] : [])].join(', '));
   const sesConfig = join(homedir(), '.config/qanda/tencent-ses.env');
   if (existsSync(sesConfig)) {
     if ((statSync(sesConfig).mode & 0o077) !== 0) throw new Error('SES私有配置权限须为600');

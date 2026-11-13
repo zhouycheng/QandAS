@@ -55,5 +55,3 @@ Node 数据量测量不能代替真机流畅度，浏览器构建结果不能代
 ## 同步与查询优化验收
 
 `SyncAdmissionTest` 检查提交和恢复查询的独立预算及异常回收。`BackendOptimizationPostgresTest` 使用真实 PostgreSQL 验证失败任务隔离、稀疏保存读取量、轻量回执和三十天正文保留，并用冻结的原查询对照当前统计结果。累计一千、一万、十万条作答分别记录 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`，证据位于忽略目录 `.backend-runtime/sync-query-optimization/`。SQL 观察覆盖 JDBC 实际执行次数，同时单列 MyBatis 次数和条目返回行数；远端容量单独验收。
-
-2026-11-12 当前工作区执行 `node apps/api/scripts/backend.mjs verify`：51 项单元检查、99 项隔离集成检查全部通过，无失败或跳过，包含打包启动和交互式初始化。15 份合同、141 个操作结构校验通过；1973 次 HTTP 交互覆盖 123 个操作，Schema 全部通过。隔离生成的合同及三份 Postman 文件与仓库一致。小程序逻辑检查、构建、41 份 WXSS 与 39 份 WXML 官方编译通过；压测工具 46 项、部署工具 48 项检查通过，Prometheus 14 条规则校验通过。详细来源摘要见忽略目录 `.backend-runtime/sync-query-optimization/verification-summary.json`，性能观察见[性能检查](performance.md)。本轮验证未覆盖远端容量和微信真机。

@@ -132,7 +132,7 @@ def build(request, mark):
         context = source / 'apps/api' if role == 'backend' else source
         dockerfile = context / 'Dockerfile' if role == 'backend' else source / 'deploy/web.Dockerfile'
         build_args = ['--load', '--progress=plain',
-                      '--label', 'org.opencontainers.image.source=https://github.com/zhouycheng/QandA',
+                      '--label', 'org.opencontainers.image.source=https://github.com/zhouycheng/QandAS',
                       '--label', f'org.opencontainers.image.revision={revision}', '--label', f'qanda.role={role}',
                       '-t', tag, '-f', dockerfile, context]
         if role == 'backend':

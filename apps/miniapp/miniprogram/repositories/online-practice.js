@@ -96,15 +96,8 @@ class OnlinePractice {
     const cached = this.get(id)
     if (cached) {
       if (cached.writer && cached.writer.deviceId !== this.deviceId() && cached.status !== 'SUBMITTED') throw new Error('请在创建练习的设备上继续答题')
-      let snapshot = await assets.completeSnapshot(this.storage, cached)
+      const snapshot = await assets.completeSnapshot(this.storage, cached)
       if (this.userId !== userId || auth.getAuth(this.storage).userId !== userId) throw new Error('账号已切换，请重新打开练习')
-      if (snapshot.offlineGrading && snapshot.offlineGrading.length) {
-        snapshot = await vault.seal(this.storage, snapshot, userId)
-        if (this.userId !== userId || auth.getAuth(this.storage).userId !== userId) {
-          vault.discard(snapshot, this.storage)
-          throw new Error('账号已切换，请重新打开练习')
-        }
-      }
       this.put(id, snapshot)
       const options = normalizePracticeOptions(snapshot.route, getPreferences(this.storage))
       if (Object.keys(options).some(key => !snapshot.route || snapshot.route[key] !== options[key])) {

@@ -1,0 +1,189 @@
+[
+  {
+    "run": "20261108-r3",
+    "trials": 4,
+    "revisions": [],
+    "integrity_passed": true,
+    "report": "20261108-r3/report.html"
+  },
+  {
+    "run": "20261108-r4",
+    "trials": 5,
+    "revisions": [
+      "255968d79bcf05f56896333b84ebeaef100342d2"
+    ],
+    "integrity_passed": true,
+    "report": "20261108-r4/report.html"
+  },
+  {
+    "run": "20261108-r5",
+    "trials": 8,
+    "revisions": [
+      "255968d79bcf05f56896333b84ebeaef100342d2"
+    ],
+    "integrity_passed": true,
+    "report": "20261108-r5/report.html"
+  },
+  {
+    "run": "20261108-r6",
+    "trials": 15,
+    "revisions": [
+      "255968d79bcf05f56896333b84ebeaef100342d2"
+    ],
+    "integrity_passed": true,
+    "report": "20261108-r6/report.html"
+  },
+  {
+    "run": "20261108-r7",
+    "trials": 18,
+    "revisions": [
+      "255968d79bcf05f56896333b84ebeaef100342d2"
+    ],
+    "integrity_passed": true,
+    "report": "20261108-r7/report.html"
+  },
+  {
+    "run": "20261108-r8",
+    "trials": 3,
+    "revisions": [
+      "2bfa85c3f7e984199d18837428090fedd8928f68"
+    ],
+    "integrity_passed": true,
+    "report": "20261108-r8/report.html"
+  },
+  {
+    "run": "20261109-r1",
+    "trials": 8,
+    "revisions": [
+      "690d1b385ce0de69a1d666b69fb67b80909d7972"
+    ],
+    "integrity_passed": true,
+    "report": "20261109-r1/report.html"
+  },
+  {
+    "run": "20261109-r4",
+    "trials": 4,
+    "revisions": [
+      "690d1b385ce0de69a1d666b69fb67b80909d7972"
+    ],
+    "integrity_passed": false,
+    "report": "20261109-r4/report.html"
+  },
+  {
+    "run": "20261109-r5",
+    "trials": 3,
+    "revisions": [
+      "8c6be8b11f1a3cf1dbb673b0d314fcbe2bb5fc68"
+    ],
+    "integrity_passed": true,
+    "report": "20261109-r5/report.html"
+  },
+  {
+    "run": "20261109-r6",
+    "trials": 3,
+    "revisions": [
+      "62ff3fabf4cbbba0106f16cf2c02cd4f71f20252"
+    ],
+    "integrity_passed": true,
+    "report": "20261109-r6/report.html"
+  },
+  {
+    "run": "20261109-r7",
+    "trials": 12,
+    "revisions": [
+      "823a21aeda5d2567b13d74649272a0ab1e1bed4c"
+    ],
+    "integrity_passed": true,
+    "report": "20261109-r7/report.html"
+  },
+  {
+    "run": "20261111-r1",
+    "trials": 17,
+    "revisions": [
+      "823a21aeda5d2567b13d74649272a0ab1e1bed4c"
+    ],
+    "integrity_passed": true,
+    "report": "20261111-r1/report.html"
+  },
+  {
+    "run": "20261111-r2",
+    "trials": 6,
+    "revisions": [
+      "1e8f89426a6d388203881d742669af56582eb712"
+    ],
+    "integrity_passed": true,
+    "report": "20261111-r2/report.html"
+  },
+  {
+    "run": "20261111-r3b",
+    "trials": 3,
+    "revisions": [
+      "05da1964ca33385ccd2fec6034da84ac0a18ae70"
+    ],
+    "integrity_passed": true,
+    "report": "20261111-r3b/report.html"
+  },
+  {
+    "run": "20261111-r3c",
+    "trials": 1,
+    "revisions": [
+      "05da1964ca33385ccd2fec6034da84ac0a18ae70"
+    ],
+    "integrity_passed": true,
+    "report": "20261111-r3c/report.html"
+  },
+  {
+    "run": "20261112-r3d",
+    "trials": 2,
+    "revisions": [
+      "05da1964ca33385ccd2fec6034da84ac0a18ae70"
+    ],
+    "integrity_passed": true,
+    "report": "20261112-r3d/report.html"
+  },
+  {
+    "run": "20261112-r3e",
+    "trials": 4,
+    "revisions": [
+      "0f338849b93c1c57071fc60c2ff2fa8049a27443"
+    ],
+    "integrity_passed": true,
+    "report": "20261112-r3e/report.html"
+  },
+  {
+    "run": "20261112-r3f",
+    "trials": 4,
+    "revisions": [
+      "98fee293b9c9b052b84eb3953401d5128b2eade9"
+    ],
+    "integrity_passed": true,
+    "report": "20261112-r3f/report.html"
+  },
+  {
+    "run": "20261112-r3g",
+    "trials": 4,
+    "revisions": [
+      "bd570c9223e0c77ebc3eb30a47a345c2db396978"
+    ],
+    "integrity_passed": true,
+    "report": "20261112-r3g/report.html"
+  },
+  {
+    "run": "20261113-r11",
+    "trials": 4,
+    "revisions": [
+      "fab007a743ec075faff486fc9881bbaa177a5442"
+    ],
+    "integrity_passed": true,
+    "report": "20261113-r11/report.html"
+  },
+  {
+    "run": "20261113-r7",
+    "trials": 6,
+    "revisions": [
+      "fab007a743ec075faff486fc9881bbaa177a5442"
+    ],
+    "integrity_passed": true,
+    "report": "20261113-r7/report.html"
+  }
+]

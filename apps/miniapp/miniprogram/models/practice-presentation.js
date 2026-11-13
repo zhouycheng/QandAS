@@ -67,18 +67,23 @@ function getQuestionView(question, selectedKeys, revealAnswer) {
   }
 
 function getOverviewItems(session, answers, currentIndex) {
-    return session.state.questions.map((question, index) => ({
-      number: index + 1,
-      index,
-      answered: session.hasInput(question, answers[index]) && (answers[index].confirmed !== false),
-      isDraft: session.hasInput(question, answers[index]) && answers[index].confirmed === false,
-      isShortAnswer: !!question.isShortAnswer,
-      isCorrect: answers[index] ? !!answers[index].isCorrect : false,
-      selectedKeys: answers[index] ? answers[index].selectedKeys : [],
-      isCurrent: index === currentIndex,
-      isFavorite: session.state.favoriteQuestionIds.indexOf(question.id) >= 0,
-      isMarked: session.state.markedQuestionIds.indexOf(question.id) >= 0
-    }))
+    const favorites = new Set(session.state.favoriteQuestionIds)
+    const marks = new Set(session.state.markedQuestionIds)
+    return session.state.questions.map((question, index) => {
+      const hasInput = session.hasInput(question, answers[index])
+      return {
+        number: index + 1,
+        index,
+        answered: hasInput && answers[index].confirmed !== false,
+        isDraft: hasInput && answers[index].confirmed === false,
+        isShortAnswer: !!question.isShortAnswer,
+        isCorrect: answers[index] ? !!answers[index].isCorrect : false,
+        selectedKeys: answers[index] ? answers[index].selectedKeys : [],
+        isCurrent: index === currentIndex,
+        isFavorite: favorites.has(question.id),
+        isMarked: marks.has(question.id)
+      }
+    })
   }
 
 function getAnswerText(question, keys) {
