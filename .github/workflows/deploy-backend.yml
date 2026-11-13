@@ -27,40 +27,14 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       scope: backend
-  publish:
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
-        id: verified
-        with:
-          path: release/
-          key: ${{ needs.verify.outputs.release-cache-key }}
-          fail-on-cache-miss: true
-      - name: Publish the verified backend image
-        id: image
-        env:
-          RELEASE_KIND: backend
-          CACHE_EXACT_HIT: ${{ steps.verified.outputs.cache-hit }}
-          REGISTRY_TOKEN: ${{ github.token }}
-        run: bash deploy/publish-image.sh
   deploy:
-    needs: [guard, verify, publish]
-    if: ${{ !cancelled() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.publish.result == 'success') }}
+    needs: [guard, verify]
+    if: ${{ !cancelled() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.verify.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     permissions:
       contents: read
       id-token: write
-      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -80,8 +54,9 @@ jobs:
       - name: Deploy and verify backend
         env:
           OPERATION: ${{ inputs.operation }}
-          BACKEND: ${{ needs.publish.outputs.image }}
-          REGISTRY_TOKEN: ${{ github.token }}
+          SOURCE_TOKEN: ${{ github.token }}
+          SOURCE_BUILD: "true"
+          OPERATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}-backend
           DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
           DEPLOY_NODE: backend
           DEPLOY_SSH_KEY: ${{ secrets.BACKEND_DEPLOY_SSH_KEY }}

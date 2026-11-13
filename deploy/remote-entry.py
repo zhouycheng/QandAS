@@ -8,7 +8,7 @@ import sys
 
 def command(user, original):
     args = shlex.split(original)
-    if user == 'qanda-deploy' and len(args) == 1 and args[0] in ('deploy', 'rollback', 'status'):
+    if user == 'qanda-deploy' and len(args) == 1 and args[0] in ('deploy', 'rollback', 'status', 'release-logs'):
         return ['/usr/bin/sudo', '-n', '/usr/local/sbin/qanda-deployctl', *args]
     if user == 'qanda-debug' and args and args[0] in ('containers', 'logs', 'shell', 'restart'):
         return ['/usr/bin/sudo', '-n', '/usr/local/sbin/qanda-deployctl', *args]
@@ -20,5 +20,5 @@ if __name__ == '__main__':
         args = command(pwd.getpwuid(os.getuid()).pw_name, os.environ.get('SSH_ORIGINAL_COMMAND', ''))
         os.execv(args[0], args)
     except (ValueError, KeyError):
-        print('Only project operations are available. CI: deploy/rollback/status. Debug: containers, logs SERVICE [--follow], shell SERVICE, restart SERVICE.', file=sys.stderr)
+        print('Only project operations are available. CI: deploy/rollback/status/release-logs. Debug: containers, logs SERVICE [--follow], shell SERVICE, restart SERVICE.', file=sys.stderr)
         sys.exit(1)

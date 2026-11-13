@@ -14,9 +14,13 @@ import tarfile
 import tempfile
 import time
 import urllib.request
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib/qanda"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import source_build
 
 ROOT = Path('/srv/qanda')
 STATE = Path('/var/lib/qanda-deploy')
+REQUEST = Path('/run/qanda-release-request.json')
 # shortcut: allow 15 minutes for input; revisit after measuring larger release archives.
 INPUT_TIMEOUT_SECONDS = 15 * 60
 SERVICES = ('api', 'worker', 'monitor', 'web')
@@ -112,13 +116,23 @@ def debug(action, args):
 
 
 def run(*args, **kwargs):
-    return subprocess.run([str(x) for x in args], check=True, text=True, capture_output=True, **kwargs).stdout.strip()
+    kwargs.setdefault('timeout', 600)
+    try:
+        result = subprocess.run([str(x) for x in args], check=True, text=True, capture_output=True, **kwargs)
+    except subprocess.CalledProcessError as error:
+        if read(STATE / 'operation.json', {}).get('operation_id'):
+            with (STATE / 'release.log').open('a') as log:
+                log.write(source_build.redact((error.stdout or '') + (error.stderr or '')))
+        raise
+    return result.stdout.strip()
 
 
 def atomic(path, value):
     temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(value))
-    temporary.chmod(0o600)
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'w') as output:
+        os.fchmod(output.fileno(), 0o600)
+        json.dump(value, output)
     os.replace(temporary, path)
 
 
@@ -129,17 +143,22 @@ def read(path, default=None):
 def validate_release(release):
     images = ('web',) if node_role() == 'frontend' else ('backend',) if node_role() == 'backend' else ('backend', 'web')
     required = {'revision', *images}
-    if not isinstance(release, dict) or set(release) not in (required, {'revision', 'backend', 'web'}):
+    metadata = {'operation_id'} if isinstance(release, dict) and 'operation_id' in release else set()
+    if metadata and (not isinstance(release['operation_id'], str) or not re.fullmatch(r'[0-9]+-[0-9]+-(backend|frontend)', release['operation_id'])):
+        raise ValueError('Invalid release operation identity')
+    if not isinstance(release, dict) or set(release) - metadata not in (required, {'revision', 'backend', 'web'}):
         raise ValueError('Expected the revision and images owned by this node')
     if not isinstance(release['revision'], str) or not re.fullmatch(r'[0-9a-f]{40}', release['revision']):
         raise ValueError('Expected a full commit SHA')
-    for kind in set(release) - {'revision'}:
-        if not isinstance(release[kind], str) or not re.fullmatch(r'ghcr\.io/zhouycheng/qanda-' + kind + r'@sha256:[0-9a-f]{64}', release[kind]):
+    for kind in set(release) - {'revision', 'operation_id'}:
+        if not isinstance(release[kind], str) or not re.fullmatch(r'(?:sha256:[0-9a-f]{64}|ghcr\.io/zhouycheng/qanda-' + kind + r'@sha256:[0-9a-f]{64})', release[kind]):
             raise ValueError('Image repository or digest is not allowed')
-    return {key: value for key, value in release.items() if key in required}
+    return {key: value for key, value in release.items() if key in required | metadata}
 
 
 def local_image_ref(image):
+    if image.startswith('sha256:'):
+        return image
     repository, digest = image.split('@sha256:', 1)
     return repository + ':sha256-' + digest
 
@@ -157,6 +176,8 @@ def require_image_labels(image, revision):
     if (labels.get('org.opencontainers.image.source') != 'https://github.com/zhouycheng/QandA'
             or labels.get('org.opencontainers.image.revision') != revision):
         raise RuntimeError('Image labels do not match this repository release')
+    if image.startswith('sha256:') and labels.get('qanda.role') != node_role():
+        raise RuntimeError('Local image role does not match this node')
 
 
 def pull_image(image):
@@ -237,6 +258,8 @@ def ensure_local_images(release):
         try:
             require_image_labels(image_ref, release['revision'])
         except subprocess.CalledProcessError:
+            if image.startswith('sha256:'):
+                raise RuntimeError('Local rollback image is missing')
             pull_image(image)
             run('docker', 'tag', image, image_ref)
         require_image_labels(image_ref, release['revision'])
@@ -370,6 +393,9 @@ def health(release):
 
 def mark(phase):
     state = read(STATE / 'operation.json', {})
+    if state.get('operation_id'):
+        with (STATE / 'release.log').open('a') as log:
+            log.write('Phase: ' + phase + '\n')
     if phase == 'failed':
         state['failed_phase'] = state.get('phase')
     atomic(STATE / 'operation.json', {**state, 'phase': phase, 'updated': int(time.time())})
@@ -400,8 +426,11 @@ def apply(request):
     mark('pulling')
     ensure_local_images(release)
     if node_role() != 'combined':
-        run('docker', 'pull', tailnet_image())
-        run('docker', 'pull', GATEWAY_IMAGE)
+        for image in (tailnet_image(), GATEWAY_IMAGE):
+            try:
+                run('docker', 'image', 'inspect', image)
+            except subprocess.CalledProcessError:
+                pull_image(image)
     if request['action'] == 'deploy' and node_role() != 'frontend':
         mark('backing-up')
         run('/usr/local/sbin/qanda-backup')
@@ -445,6 +474,54 @@ def apply(request):
     mark('complete')
 
 
+
+def boot_id():
+    return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+
+
+def validate_source_request(request, action):
+    expected = {'operation_id', 'role', 'revision', 'token'} if action == 'deploy' else {'operation_id', 'role'}
+    if set(request) != expected or request.get('role') != node_role() or node_role() == 'combined':
+        raise ValueError('Unexpected source deployment request')
+    if (not isinstance(request['operation_id'], str) or not re.fullmatch(r'[0-9]+-[0-9]+-(backend|frontend)', request['operation_id'])
+            or not request['operation_id'].endswith('-' + node_role())):
+        raise ValueError('Invalid operation identity')
+    if action == 'deploy' and (not isinstance(request['revision'], str) or not re.fullmatch(r'[0-9a-f]{40}', request['revision'])
+                               or not isinstance(request['token'], str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,4096}', request['token'])):
+        raise ValueError('Invalid source revision or credential')
+
+
+def reconcile(locked=False):
+    operation = read(STATE / 'operation.json', {})
+    if operation.get('phase') in (None, 'complete', 'failed', 'rolled-back'):
+        return
+    if not locked:
+        with open(STATE / 'lock', 'w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            return reconcile(locked=True)
+    active = subprocess.run(['systemctl', 'is-active', 'qanda-release.service'], capture_output=True, text=True, timeout=15).stdout.strip()
+    if (operation.get('boot_id') and operation['boot_id'] != boot_id()) or active not in ('active', 'activating'):
+        phase = operation.get('phase')
+        recover = phase in ('stopping', 'checking-candidate', 'initializing', 'starting', 'observing', 'rolling-back')
+        current = read(STATE / 'current.json') if recover else None
+        mark('rolling-back' if current else 'failed')
+        REQUEST.unlink(missing_ok=True)
+        (STATE / 'request.json').unlink(missing_ok=True)
+        subprocess.run(['docker', 'rm', '-f', source_build.BUILD_NAME], capture_output=True, timeout=30)
+        subprocess.run(['docker', 'buildx', 'rm', '-f', 'qanda-release-image-build'], capture_output=True, timeout=30)
+        for directory in [*STATE.glob('qanda-source-*'), *Path('/run').glob('qanda-git-*')]:
+            if directory.is_dir() and not directory.is_symlink():
+                shutil.rmtree(directory)
+        if current:
+            activate(current)
+            health(current)
+            mark('rolled-back')
+
+
+
 def main():
     if os.geteuid() != 0:
         raise RuntimeError('Use the restricted sudo command')
@@ -452,13 +529,30 @@ def main():
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     protected(STATE)
     action = sys.argv[1] if len(sys.argv) >= 2 else ''
+    if action == 'reconcile':
+        reconcile()
+        return
     if action in ('containers', 'logs', 'shell', 'restart'):
         debug(action, sys.argv[2:])
         return
     if len(sys.argv) != 2:
         raise ValueError('Expected one deployment action')
-    if action == 'status':
-        print(json.dumps({'role': node_role(), 'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
+    if action in ('status', 'release-logs'):
+        reconcile()
+        if action == 'release-logs':
+            query = json.loads(sys.stdin.buffer.readline(4096))
+            operation = read(STATE / 'operation.json', {})
+            if set(query) != {'operation_id', 'offset'} or query['operation_id'] != operation.get('operation_id') or type(query['offset']) is not int or query['offset'] < 0:
+                raise ValueError('Invalid release log cursor')
+            path = STATE / 'release.log'
+            with path.open('rb') as log:
+                data = log.read().decode(errors='replace')
+                # Emit complete lines so a credential cannot straddle polling chunks.
+                data = source_build.redact(data[:data.rfind('\n') + 1])
+                end = min(len(data), query['offset'] + 65536)
+                print(json.dumps({'offset': end, 'text': data[query['offset']:end]}))
+            return
+        print(json.dumps({'source_build_protocol': 1, 'role': node_role(), 'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
         return
     if action == 'tailnet-run':
         if node_role() == 'combined':
@@ -472,18 +566,31 @@ def main():
     with open(STATE / 'lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if action == 'apply':
-            path = STATE / 'request.json'
+            path = REQUEST if REQUEST.exists() else STATE / 'request.json'
             request = read(path)
             path.unlink()
-            with tempfile.TemporaryDirectory(prefix='qanda-registry-', dir='/run') as temporary:
-                os.environ['DOCKER_CONFIG'] = temporary
-                try:
-                    run('docker', 'login', 'ghcr.io', '--username', request.pop('username'), '--password-stdin', input=request.pop('token') + '\n')
+            try:
+                if request.get('source_build'):
+                    if request['action'] == 'deploy':
+                        request['release'] = source_build.build(request, mark)
+                        request['release']['operation_id'] = request['operation_id']
                     apply(request)
-                finally:
-                    if read(STATE / 'operation.json', {}).get('phase') not in ('complete', 'failed', 'rolled-back'):
-                        mark('failed')
+                else:
+                    with tempfile.TemporaryDirectory(prefix='qanda-registry-', dir='/run') as temporary:
+                        os.environ['DOCKER_CONFIG'] = temporary
+                        run('docker', 'login', 'ghcr.io', '--username', request.pop('username'), '--password-stdin', input=request.pop('token') + '\n')
+                        apply(request)
+            except Exception as error:
+                if request.get('source_build'):
+                    with (STATE / 'release.log').open('a') as log:
+                        log.write(source_build.redact(str(error)) + '\n')
+                raise
+            finally:
+                (REQUEST).unlink(missing_ok=True)
+                if read(STATE / 'operation.json', {}).get('phase') not in ('complete', 'failed', 'rolled-back'):
+                    mark('failed')
             return
+        reconcile(locked=True)
         if action not in ('deploy', 'rollback'):
             raise ValueError('Expected deploy, rollback or status')
         if read(STATE / 'operation.json', {}).get('phase') not in (None, 'complete', 'rolled-back', 'failed'):
@@ -494,31 +601,55 @@ def main():
         signal.alarm(INPUT_TIMEOUT_SECONDS)
         try:
             request = json.loads(sys.stdin.buffer.readline(16385))
-            expected = ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'})
-            if action == 'deploy' and 'image_sha256' in request:
-                expected.add('image_sha256')
-            if set(request) != expected:
-                raise ValueError('Unexpected request fields')
-            if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', request['username']) or not 1 <= len(request['token']) <= 4096:
-                raise ValueError('Invalid registry credentials')
-            release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
-            preflight(first=not (STATE / 'current.json').exists())
-            image_sha256 = request.pop('image_sha256', None)
-            if node_role() == 'frontend' and action == 'deploy' and not image_sha256:
-                raise ValueError('The frontend node requires the verified image archive')
-            if image_sha256:
-                load_image_archive(sys.stdin.buffer, release, image_sha256)
-            elif sys.stdin.buffer.read(1):
-                raise ValueError('Unexpected data after deployment request')
+            source = 'operation_id' in request
+            if source:
+                validate_source_request(request, action)
+                for name in ('current.json', 'previous.json'):
+                    prior = read(STATE / name)
+                    if prior:
+                        for kind in ('backend', 'web'):
+                            if kind in prior:
+                                require_image_labels(local_image_ref(prior[kind]), prior['revision'])
+                release = {'revision': request['revision']} if action == 'deploy' else validate_release(read(STATE / 'previous.json'))
+                preflight(first=not (STATE / 'current.json').exists())
+                if sys.stdin.buffer.read(1):
+                    raise ValueError('Unexpected request body')
+            else:
+                expected = ({'release', 'username', 'token'} if action == 'deploy' else {'username', 'token'})
+                if action == 'deploy' and 'image_sha256' in request:
+                    expected.add('image_sha256')
+                if set(request) != expected:
+                    raise ValueError('Unexpected request fields')
+                if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', request['username']) or not 1 <= len(request['token']) <= 4096:
+                    raise ValueError('Invalid registry credentials')
+                release = validate_release(request['release'] if action == 'deploy' else read(STATE / 'previous.json'))
+                preflight(first=not (STATE / 'current.json').exists())
+                image_sha256 = request.pop('image_sha256', None)
+                if node_role() == 'frontend' and action == 'deploy' and not image_sha256:
+                    raise ValueError('The frontend node requires the verified image archive')
+                if image_sha256:
+                    load_image_archive(sys.stdin.buffer, release, image_sha256)
+                elif sys.stdin.buffer.read(1):
+                    raise ValueError('Unexpected data after deployment request')
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, previous_handler)
-        atomic(STATE / 'request.json', {**request, 'action': action, 'release': release})
-        atomic(STATE / 'operation.json', {'phase': 'queued', 'revision': release['revision'], 'action': action})
+        request_path = REQUEST if source else STATE / 'request.json'
+        atomic(request_path, {**request, 'source_build': source, 'action': action, 'release': release})
+        operation = {'phase': 'queued', 'revision': release['revision'], 'action': action}
+        if source:
+            operation.update(operation_id=request['operation_id'], boot_id=boot_id())
+            log = STATE / 'release.log'
+            log.write_text('Release queued\n')
+            log.chmod(0o600)
+        atomic(STATE / 'operation.json', operation)
         try:
-            run('systemd-run', '--unit=qanda-release', '--collect', '/usr/local/sbin/qanda-deployctl', 'apply')
+            run('systemd-run', '--unit=qanda-release', '--collect', '--property=RuntimeMaxSec=3600',
+                '--property=TimeoutStopSec=30', '--property=KillMode=control-group',
+                '--property=ExecStopPost=/usr/local/sbin/qanda-deployctl reconcile',
+                '/usr/local/sbin/qanda-deployctl', 'apply')
         except Exception:
-            (STATE / 'request.json').unlink()
+            request_path.unlink(missing_ok=True)
             mark('failed')
             raise
         print('Release queued; poll status')

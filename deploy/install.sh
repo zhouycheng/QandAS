@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 test "$(id -u)" = 0
+git --version >/dev/null
+docker buildx version >/dev/null
 qanda_source_dir=$(cd "$(dirname "$0")" && pwd)
 case "${1:-}" in ''|--control-only) ;; *) echo 'Usage: install.sh [--control-only]' >&2; exit 1 ;; esac
 test "$#" -le 1
@@ -38,6 +40,7 @@ install -d -o root -g root -m 0700 /var/lib/qanda-deploy /etc/qanda
 install -m 0644 "$qanda_source_dir"/compose.*.yml "$qanda_source_dir"/prometheus.yml /srv/qanda/
 install -m 0644 "$qanda_source_dir"/../apps/api/monitoring/{rabbitmq-plugins,sync-rules.yml} /srv/qanda/
 install -m 0755 "$qanda_source_dir/redis-start.sh" /srv/qanda/redis-start.sh
+install -m 0644 "$qanda_source_dir/source_build.py" /usr/local/lib/qanda/source_build.py
 install -m 0755 "$qanda_source_dir/deployctl.py" /usr/local/sbin/qanda-deployctl
 install -m 0755 "$qanda_source_dir/network-guard.py" /usr/local/lib/qanda/network-guard.py
 install -m 0755 "$qanda_source_dir/remote-entry.py" /usr/local/lib/qanda/remote-entry.py
@@ -65,6 +68,7 @@ install -d -o root -g root -m 0755 /etc/ssh/qanda-authorized-keys
 if ! test -s /etc/qanda/ssh_host_ed25519_key; then ssh-keygen -q -t ed25519 -N '' -f /etc/qanda/ssh_host_ed25519_key; fi
 install -m 0440 "$qanda_source_dir/qanda-deploy.sudoers" /etc/sudoers.d/qanda-deploy
 visudo -cf /etc/sudoers.d/qanda-deploy
+python3 /usr/local/sbin/qanda-deployctl reconcile
 systemctl daemon-reload
 if test "$qanda_node_role" != combined; then
   python3 - <<'PY'
