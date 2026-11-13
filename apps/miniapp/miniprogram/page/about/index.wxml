@@ -40,7 +40,7 @@
       <text class="about-heading">开发团队</text>
       <text class="about-team-note">一起打磨你的学习搭子</text>
       <view class="team-grid">
-        <view class="team-member" wx:for="{{developers}}" wx:key="username" data-username="{{item.username}}" bindtap="handleDeveloperTap" aria-role="button" aria-label="{{item.name}}，复制 GitHub 主页地址" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+        <view class="team-member" wx:for="{{developers}}" wx:key="username">
           <image class="team-avatar" src="{{item.avatar}}" mode="aspectFill" />
           <text class="team-name">{{item.name}}</text>
         </view>

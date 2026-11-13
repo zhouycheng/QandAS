@@ -15,9 +15,5 @@ class AboutViewModel {
                 version: this.version
             }) };
     }
-    copyDeveloper(username) {
-        const member = content.developers.find(item => item.username === username);
-        return member ? { command: { type: 'copy', text: member.url } } : null;
-    }
 }
 module.exports = { AboutViewModel };
