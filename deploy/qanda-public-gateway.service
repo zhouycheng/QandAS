@@ -1,0 +1,16 @@
+[Unit]
+Description=QandA public business gateway
+Requires=docker.service
+After=docker.service network-online.target ufw.service firewalld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/lib/qanda/network-guard.py
+ExecStart=/usr/local/sbin/qanda-deployctl public-gateway-run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -19,8 +19,8 @@ cp /srv/qanda/compose.*.yml "$qanda_backup_dir/"
 for qanda_node_file in /srv/qanda/node.json /srv/qanda/node.env; do
   if test -f "$qanda_node_file"; then cp "$qanda_node_file" "$qanda_backup_dir/"; fi
 done
-for qanda_gateway_file in /srv/qanda/tailnet-*.conf; do
-  if test -f "$qanda_gateway_file"; then cp "$qanda_gateway_file" "$qanda_backup_dir/"; fi
+for qanda_gateway_dir in /srv/qanda/public-gateway /srv/qanda/private/public-tls; do
+  if test -d "$qanda_gateway_dir"; then cp -a "$qanda_gateway_dir" "$qanda_backup_dir/"; fi
 done
 for qanda_ops_file in /srv/qanda/tailnet-config/serve.json /etc/ssh/qanda-ops.conf /etc/qanda/ssh_host_ed25519_key; do
   if test -f "$qanda_ops_file"; then cp "$qanda_ops_file" "$qanda_backup_dir/"; fi

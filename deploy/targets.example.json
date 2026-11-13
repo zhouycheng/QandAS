@@ -1,4 +1,4 @@
 {
-  "frontend": {"server": "frontend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.10"},
-  "backend": {"server": "backend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.11"}
+  "frontend": {"server": "frontend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.10", "public_ip": "192.0.2.10"},
+  "backend": {"server": "backend-owner-management-host", "admin_user": "ubuntu", "service_ip": "100.64.0.11", "public_api_url": "http://backend.example.com"}
 }
