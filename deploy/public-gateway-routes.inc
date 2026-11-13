@@ -12,10 +12,18 @@ proxy_set_header X-Forwarded-For $http_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto https;
 proxy_set_header X-Qanda-Gateway-Key '';
 location = /api/v1/health {
-    proxy_pass $api$request_uri;
+    proxy_pass $api/api/v1/health;
+    proxy_pass_request_headers off;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length '';
+    proxy_set_header Connection '';
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $http_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
     proxy_read_timeout 15s;
 }
 location ~ ^/api/v1/admin/(monitoring/|statistics/(activity|rankings|online-users)$) {
+    if ($scheme = http) { return 503; }
     if ($qanda_gateway_authenticated = 0) { return 403; }
     proxy_pass $monitor$request_uri;
     proxy_buffering off;
@@ -23,6 +31,7 @@ location ~ ^/api/v1/admin/(monitoring/|statistics/(activity|rankings|online-user
     proxy_read_timeout 1h;
 }
 location /api/v1/ {
+    if ($scheme = http) { return 503; }
     if ($qanda_gateway_authenticated = 0) { return 403; }
     proxy_pass $api$request_uri;
     proxy_read_timeout 90s;

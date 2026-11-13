@@ -101,12 +101,28 @@ def main():
                         '-keyout', str(key), '-out', str(certificate)], check=True, capture_output=True)
         certificate.chmod(0o644)
         key.chmod(0o644)  # Disposable fixture; the hardened gateway runs as UID 101.
-        api_conf = 'server { listen 8083; location / { return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key"; } }'
+        api_conf = '''server { listen 8083;
+            location = /api/v1/health {
+                if ($http_authorization != '') { return 409; }
+                if ($http_cookie != '') { return 409; }
+                if ($args != '') { return 409; }
+                return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key";
+            }
+            location / { return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key"; }
+        }'''
+        event_requests = []
         class Events(http.server.BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
 
             def do_GET(self):
+                event_requests.append({'path': self.path, 'authorization': self.headers.get('Authorization'),
+                                       'cookie': self.headers.get('Cookie'), 'gateway_key': self.headers.get('X-Qanda-Gateway-Key')})
                 self.send_response(200)
+                if self.path == '/api/v1/health':
+                    self.send_header('Content-Length', '15')
+                    self.end_headers()
+                    self.wfile.write(b'{"status":"UP"}')
+                    return
                 self.send_header('Content-Type', 'text/event-stream')
                 self.send_header('Transfer-Encoding', 'chunked')
                 self.end_headers()
@@ -116,6 +132,10 @@ def main():
                     self.wfile.write(f'{len(event):x}\r\n'.encode() + event + b'\r\n')
                     self.wfile.flush()
                 self.wfile.write(b'0\r\n\r\n')
+
+            def do_POST(self):
+                event_requests.append({'path': self.path, 'unexpected_post': True})
+                self.send_error(405)
 
             def log_message(self, *args):
                 pass
@@ -161,9 +181,12 @@ def main():
         else:
             raise AssertionError('Gateway chain did not become ready')
         assert get(web, f'http://{ip(21)}:8080/api/v1/health') == 'API::'
+        assert get(member, f'http://{ip(20)}:8080/api/v1/health?token=fixture',
+                   ['Authorization: Bearer fixture', 'Cookie: session=fixture', 'X-Qanda-Gateway-Key: fixture']) == 'API:' + ip(11) + ':'
         assert get(member, f'http://{ip(20)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: forged']) == 'API:' + ip(11) + ':'
         assert get(member, f'http://{ip(20)}:8080/api/v1/admin/statistics/activity') == 'MONITOR:'
         blocked(web, f'http://{ip(21)}:8080/api/v1/catalog')
+        blocked(web, f'http://{ip(21)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: ' + gateway_key])
         blocked(web, f'http://{ip(21)}:8080/api/v1/admin/statistics/activity', ['X-Qanda-Gateway-Key: wrong'])
         blocked(member, f'http://{ip(21)}:8080/api/v1/health')
         blocked(member, f'http://{ip(21)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: ' + gateway_key])
@@ -181,6 +204,38 @@ def main():
         blocked(untrusted, 'http://127.0.0.1:8086/api/v1/health')
         diagnostic = subprocess.run(['docker', 'logs', untrusted], check=True, capture_output=True)
         assert b'upstream SSL certificate verify error' in diagnostic.stdout + diagnostic.stderr
+        staging = start('staging-web', 'container:' + web, web_conf.replace('listen 8080;', 'listen 8087;'), env={
+            'QANDA_API_UPSTREAM': f'http://{host_ip}:{event_server.server_port}',
+            'QANDA_MONITOR_UPSTREAM': f'http://{host_ip}:{event_server.server_port}', 'QANDA_GATEWAY_KEY': gateway_key,
+        })
+        for _ in range(30):
+            try:
+                get(staging, 'http://127.0.0.1:8087/healthz')
+                break
+            except subprocess.CalledProcessError:
+                time.sleep(1)
+        assert get(staging, 'http://127.0.0.1:8087/api/v1/health?token=fixture',
+                   ['Authorization: Bearer fixture', 'Cookie: session=fixture', 'X-Qanda-Gateway-Key: fixture']) == '{"status":"UP"}'
+        assert event_requests[-1] == {'path': '/api/v1/health', 'authorization': None, 'cookie': None, 'gateway_key': None}
+        count = len(event_requests)
+        login = subprocess.run(['docker', 'exec', staging, 'wget', '-T', '2', '-q', '-O', '-',
+                                '--post-data', '{"password":"fixture"}', '--header', 'Authorization: Bearer fixture',
+                                'http://127.0.0.1:8087/api/v1/admin/login'], capture_output=True)
+        assert login.returncode != 0 and len(event_requests) == count, 'Staging forwarded credentials over HTTP'
+        blocked(staging, 'http://127.0.0.1:8087/api/v1/admin/monitoring/sync/stream')
+        assert len(event_requests) == count
+        combined = start('combined-web', app, web_conf.replace('listen 8080;', 'listen 8088;'), env={
+            'QANDA_API_UPSTREAM': f'http://{ip(40)}:8083', 'QANDA_MONITOR_UPSTREAM': f'http://{ip(41)}:8083',
+            'QANDA_GATEWAY_KEY': '',
+        })
+        for _ in range(30):
+            try:
+                assert get(combined, 'http://127.0.0.1:8088/api/v1/catalog') == 'API::'
+                break
+            except subprocess.CalledProcessError:
+                time.sleep(1)
+        else:
+            raise AssertionError('Combined deployment internal HTTP route changed')
         started = time.monotonic()
         with urllib.request.urlopen('http://127.0.0.1:38193/api/v1/admin/monitoring/sync/stream', timeout=12) as stream:
             assert stream.headers['Content-Type'] == 'text/event-stream'
@@ -196,7 +251,7 @@ def main():
         assert get(control, f'http://{other_host}:38191') == 'HOST'
         assert get(control, f'http://{other_host}:38192') == 'OTHER'
         assert get(member, f'http://{ip(20)}:8080/api/v1/health') == 'API:' + ip(11) + ':'
-        print('PASS: public HTTP and verified HTTPS; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; forwarded-header overwrite; source restrictions; host and other-project isolation')
+        print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; combined internal HTTP; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; source and host isolation')
     except Exception:
         for name in names:
             result = subprocess.run(['docker', 'logs', '--tail', '5', name], capture_output=True)
