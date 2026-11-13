@@ -505,7 +505,9 @@ def reconcile(locked=False):
     active = subprocess.run(['systemctl', 'is-active', 'qanda-release.service'], capture_output=True, text=True, timeout=15).stdout.strip()
     if (operation.get('boot_id') and operation['boot_id'] != boot_id()) or active not in ('active', 'activating'):
         phase = operation.get('phase')
-        mark('failed')
+        recover = phase in ('stopping', 'checking-candidate', 'initializing', 'starting', 'observing', 'rolling-back')
+        current = read(STATE / 'current.json') if recover else None
+        mark('rolling-back' if current else 'failed')
         REQUEST.unlink(missing_ok=True)
         (STATE / 'request.json').unlink(missing_ok=True)
         subprocess.run(['docker', 'rm', '-f', source_build.BUILD_NAME], capture_output=True, timeout=30)
@@ -513,12 +515,10 @@ def reconcile(locked=False):
         for directory in [*STATE.glob('qanda-source-*'), *Path('/run').glob('qanda-git-*')]:
             if directory.is_dir() and not directory.is_symlink():
                 shutil.rmtree(directory)
-        if phase in ('stopping', 'checking-candidate', 'initializing', 'starting', 'observing', 'rolling-back'):
-            current = read(STATE / 'current.json')
-            if current:
-                activate(current)
-                health(current)
-                mark('rolled-back')
+        if current:
+            activate(current)
+            health(current)
+            mark('rolled-back')
 
 
 

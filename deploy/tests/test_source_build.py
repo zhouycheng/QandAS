@@ -123,6 +123,30 @@ class SourceBuildTests(unittest.TestCase):
                 activate.assert_not_called()
                 self.assertGreaterEqual(run.call_count, 3)
 
+    def test_reconcile_retries_old_release_after_interrupted_rollback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current = {'revision': 'b' * 40, 'backend': 'sha256:' + 'c' * 64}
+            deploy.atomic(root / 'operation.json', {'operation_id': '123-2-backend', 'phase': 'starting', 'boot_id': 'old'})
+            deploy.atomic(root / 'current.json', current)
+            def systemctl(args, **kwargs):
+                return subprocess.CompletedProcess(args, 0, stdout='inactive' if args[:3] == ['systemctl', 'is-active', 'qanda-release.service'] else '')
+            glob = Path.glob
+            def scoped_glob(path, pattern):
+                return iter(()) if path == Path('/run') else glob(path, pattern)
+            with patch.object(deploy, 'STATE', root), patch.object(deploy, 'REQUEST', root / 'release-request.json'), \
+                    patch.object(deploy, 'boot_id', return_value='new'), patch.object(deploy.subprocess, 'run', side_effect=systemctl), \
+                    patch.object(deploy.Path, 'glob', scoped_glob), \
+                    patch.object(deploy, 'activate', side_effect=[RuntimeError('temporary recovery failure'), None]) as activate, \
+                    patch.object(deploy, 'health') as health:
+                with self.assertRaisesRegex(RuntimeError, 'temporary recovery'):
+                    deploy.reconcile(locked=True)
+                self.assertEqual(deploy.read(root / 'operation.json')['phase'], 'rolling-back')
+                deploy.reconcile(locked=True)
+                self.assertEqual(deploy.read(root / 'operation.json')['phase'], 'rolled-back')
+                self.assertEqual(activate.call_args_list, [((current,),), ((current,),)])
+                health.assert_called_once_with(current)
+
     def test_log_redaction(self):
         self.assertEqual(build.redact('ghs_private ghp_private github_pat_private'), '[REDACTED] [REDACTED] [REDACTED]')
 
