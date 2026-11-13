@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -92,21 +93,73 @@ class SourceBuildTests(unittest.TestCase):
                         cleanup.assert_called()
                     self.assertFalse(list(root.glob('qanda-source-*')))
 
-    def test_fetch_rejects_revision_mismatch_and_removes_credentials(self):
-        temporary = tempfile.TemporaryDirectory
-        with temporary() as directory:
+    def archive(self, entries, revision='a' * 40):
+        output = io.BytesIO()
+        with tarfile.open(fileobj=output, mode='w:gz', format=tarfile.PAX_FORMAT,
+                          pax_headers={'comment': revision}) as archive:
+            root = tarfile.TarInfo('QandAS-' + revision)
+            root.type = tarfile.DIRTYPE
+            archive.addfile(root)
+            for member, content in entries:
+                member.size = len(content)
+                archive.addfile(member, io.BytesIO(content))
+        response = io.BytesIO(output.getvalue())
+        response.status = 200
+        return response
+
+    def test_fetch_checks_commit_and_preserves_content_and_executable_mode(self):
+        script = tarfile.TarInfo('QandAS-' + 'a' * 40 + '/apps/api/mvnw')
+        script.mode = 0o755
+        content = tarfile.TarInfo('QandAS-' + 'a' * 40 + '/deploy/web.conf')
+        content.mode = 0o666
+        with tempfile.TemporaryDirectory() as directory, patch.object(build.http.client, 'HTTPSConnection') as connect:
+            connect.return_value.getresponse.return_value = self.archive([(script, b'#!/bin/sh\n'), (content, b'web configuration')])
             source = Path(directory) / 'source'
-            seen = []
-            def command(*args, env=None):
-                seen.append(args)
-                self.assertTrue(Path(env['QANDA_GIT_TOKEN_FILE']).exists())
-                return 'b' * 40 if 'rev-parse' in args else ''
-            with patch.object(build.tempfile, 'TemporaryDirectory', side_effect=lambda **kw: temporary(dir=directory)), \
-                    patch.object(build, 'command', side_effect=command):
-                with self.assertRaisesRegex(RuntimeError, 'revision'):
-                    build.fetch(source, 'a' * 40, 'ghs_testsecret')
+            build.fetch(source, 'a' * 40, 'ghs_testsecret')
+            connect.assert_called_once_with('codeload.github.com', timeout=120)
+            connect.return_value.request.assert_called_once_with('GET', '/zhouycheng/QandAS/tar.gz/' + 'a' * 40,
+                                                               headers={'Authorization': 'Bearer ghs_testsecret'})
+            connect.return_value.close.assert_called_once()
+            self.assertEqual((source / 'apps/api/mvnw').stat().st_mode & 0o777, 0o755)
+            self.assertEqual((source / 'deploy/web.conf').read_bytes(), b'web configuration')
+            self.assertEqual((source / 'deploy/web.conf').stat().st_mode & 0o777, 0o644)
+            self.assertFalse((source / '.git').exists())
+            for path in source.rglob('*'):
+                if path.is_file():
+                    self.assertNotIn(b'ghs_testsecret', path.read_bytes())
+
+    def test_fetch_rejects_other_commits_and_unsafe_archive_entries(self):
+        root = 'QandAS-' + 'a' * 40
+        link = tarfile.TarInfo(root + '/link')
+        link.type, link.linkname = tarfile.SYMTYPE, '../outside'
+        hardlink = tarfile.TarInfo(root + '/hardlink')
+        hardlink.type, hardlink.linkname = tarfile.LNKTYPE, '../outside'
+        entries = [tarfile.TarInfo(root + '/../outside'), tarfile.TarInfo('/outside'),
+                   tarfile.TarInfo('other-root/file'), tarfile.TarInfo(root + '/.git/config'), link, hardlink]
+        for member in entries:
+            with self.subTest(name=member.name), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(build.http.client, 'HTTPSConnection') as connect:
+                outside = Path(directory) / 'outside'
+                outside.write_text('unchanged')
+                connect.return_value.getresponse.return_value = self.archive([(member, b'')])
+                with self.assertRaises(ValueError):
+                    build.fetch(Path(directory) / 'source', 'a' * 40, 'ghs_testsecret')
+                self.assertEqual(outside.read_text(), 'unchanged')
+                connect.return_value.close.assert_called_once()
+        with tempfile.TemporaryDirectory() as directory, patch.object(build.http.client, 'HTTPSConnection') as connect:
+            connect.return_value.getresponse.return_value = self.archive([], revision='b' * 40)
+            with self.assertRaisesRegex(RuntimeError, 'revision'):
+                build.fetch(Path(directory) / 'source', 'a' * 40, 'ghs_testsecret')
             self.assertEqual(list(Path(directory).iterdir()), [])
-            self.assertNotIn('ghs_testsecret', str(seen))
+
+    def test_fetch_rejects_redirects_without_forwarding_credentials(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(build.http.client, 'HTTPSConnection') as connect:
+            connect.return_value.getresponse.return_value.status = 302
+            with self.assertRaisesRegex(RuntimeError, 'HTTP 302'):
+                build.fetch(Path(directory) / 'source', 'a' * 40, 'ghs_testsecret')
+            self.assertEqual(connect.return_value.request.call_count, 1)
+            connect.return_value.close.assert_called_once()
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_actions_rejects_old_success_and_recovers_disconnect(self):
         env = {'DEPLOY_NODE': 'backend', 'OPERATION_ID': '123-2-backend',
@@ -147,12 +200,8 @@ class SourceBuildTests(unittest.TestCase):
             deploy.atomic(root / 'current.json', current)
             def systemctl(args, **kwargs):
                 return subprocess.CompletedProcess(args, 0, stdout='inactive' if args[:3] == ['systemctl', 'is-active', 'qanda-release.service'] else '')
-            glob = Path.glob
-            def scoped_glob(path, pattern):
-                return iter(()) if path == Path('/run') else glob(path, pattern)
             with patch.object(deploy, 'STATE', root), patch.object(deploy, 'REQUEST', root / 'release-request.json'), \
                     patch.object(deploy, 'boot_id', return_value='new'), patch.object(deploy.subprocess, 'run', side_effect=systemctl), \
-                    patch.object(deploy.Path, 'glob', scoped_glob), \
                     patch.object(deploy, 'activate', side_effect=[RuntimeError('temporary recovery failure'), None]) as activate, \
                     patch.object(deploy, 'health') as health:
                 with self.assertRaisesRegex(RuntimeError, 'temporary recovery'):

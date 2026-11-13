@@ -1,13 +1,14 @@
 """Build a fixed repository revision in disposable, resource-limited containers."""
+import http.client
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import tempfile
+import tarfile
 import time
 
-REPOSITORY = 'https://github.com/zhouycheng/QandAS.git'
 NODE_IMAGE = 'node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57'
 JAVA_IMAGE = 'eclipse-temurin:21-jdk-jammy@sha256:432e54724c3e57d1846aeb886f4d339f3b0522931c4e64119c2797013b7cfc3c'
 RUNTIME_IMAGE = 'eclipse-temurin:21-jre-jammy'
@@ -66,30 +67,37 @@ def ensure_image(image):
 
 
 def fetch(source, revision, token):
-    # The token and askpass helper live outside the source/build context.
-    with tempfile.TemporaryDirectory(prefix='qanda-git-', dir='/run') as temporary:
-        private = Path(temporary)
-        credential = private / 'token'
-        credential.write_text(token)
-        credential.chmod(0o600)
-        helper = private / 'askpass'
-        helper.write_text('#!/bin/sh\ncase "$1" in *Username*) echo x-access-token;; *) cat "$QANDA_GIT_TOKEN_FILE";; esac\n')
-        helper.chmod(0o700)
-        env = {**os.environ, 'GIT_ASKPASS': str(helper), 'GIT_TERMINAL_PROMPT': '0',
-               'QANDA_GIT_TOKEN_FILE': str(credential), 'GIT_CONFIG_NOSYSTEM': '1',
-               'GIT_CONFIG_GLOBAL': '/dev/null'}
-        try:
-            command('git', 'init', source, env=env)
-            command('git', '-C', source, '-c', 'credential.helper=', 'fetch', '--depth=1', REPOSITORY, revision, env=env)
-            command('git', '-C', source, 'checkout', '--detach', 'FETCH_HEAD', env=env)
-            actual = command('git', '-C', source, 'rev-parse', 'HEAD', env=env)
-            if actual != revision:
+    connection = http.client.HTTPSConnection('codeload.github.com', timeout=120)
+    try:
+        # Do not follow redirects with the source credential.
+        connection.request('GET', '/zhouycheng/QandAS/tar.gz/' + revision,
+                           headers={'Authorization': 'Bearer ' + token})
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError('Source download failed: HTTP ' + str(response.status))
+        with tarfile.open(fileobj=response, mode='r|gz') as archive:
+            if archive.pax_headers.get('comment') != revision:
                 raise RuntimeError('Fetched source revision does not match the request')
-        finally:
-            if LOG.exists():
-                text = LOG.read_text(errors='replace')
-                LOG.write_text(redact(text.replace(token, '[REDACTED]')))
-    shutil.rmtree(source / '.git')
+            source.mkdir()
+            for member in archive:
+                path = PurePosixPath(member.name)
+                if not path.parts or path.is_absolute() or '..' in path.parts or path.parts[0] != 'QandAS-' + revision:
+                    raise ValueError('Invalid source archive path')
+                relative = path.parts[1:]
+                if not relative and member.isdir():
+                    continue
+                if not relative or relative[0] == '.git' or not (member.isdir() or member.isfile()):
+                    raise ValueError('Unsupported source archive entry')
+                target = source.joinpath(*relative)
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.extractfile(member) as content, target.open('xb') as output:
+                        shutil.copyfileobj(content, output)
+                    target.chmod(0o755 if member.mode & 0o111 else 0o644)
+    finally:
+        connection.close()
 
 
 def build(request, mark):
