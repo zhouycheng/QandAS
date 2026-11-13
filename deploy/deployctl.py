@@ -232,8 +232,8 @@ def public_gateway(*args):
     return run(*command, *args, env=env)
 
 
-def start_public_gateway(restart=False):
-    run('systemctl', 'restart' if restart else 'start', 'qanda-public-gateway.service')
+def start_public_gateway():
+    run('systemctl', 'start', 'qanda-public-gateway.service')
     for _ in range(120):
         container = public_gateway('ps', '-q', 'gateway')
         if container and run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) == 'healthy':
@@ -364,7 +364,7 @@ def activate(release):
     if node_role() == 'backend':
         start_public_gateway()
     if node_role() != 'combined':
-        # Application releases keep the fixed control gateway and the polling connection alive.
+        # Application releases keep the operations node and release status connection alive.
         run('systemctl', 'start', 'qanda-ops.service', 'qanda-tailnet.service')
         for _ in range(120):
             containers = tailnet_compose(release, 'ps', '-q', 'tailnet').splitlines()

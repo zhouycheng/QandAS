@@ -83,7 +83,8 @@ class ProductionEnvironmentTests(unittest.TestCase):
             self.assertIn(key, configure.template_keys(template))
         self.assertTrue(configure.https_origin('https://qanda.example.com'))
         for value in ('http://qanda.example.com', 'https://user@qanda.example.com', 'https://qanda.example.com/api',
-                      'https://qanda.example.com?q=1', 'https://qanda.example.com:invalid'):
+                      'https://qanda.example.com?q=1', 'https://qanda.example.com:invalid',
+                      'https://bad host.example.com', 'https://qanda.example.com\n', 'https://qanda.example.com\\other', None):
             with self.subTest(value=value):
                 self.assertFalse(configure.https_origin(value))
 

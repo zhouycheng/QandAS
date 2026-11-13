@@ -43,6 +43,8 @@ def token():
 
 
 def https_origin(value):
+    if not isinstance(value, str) or re.search(r'[\s\\]', value):
+        return False
     try:
         parts = urlsplit(value)
         return (parts.scheme == 'https' and bool(parts.hostname) and parts.username is None and parts.password is None
