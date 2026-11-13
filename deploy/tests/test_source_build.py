@@ -81,16 +81,14 @@ class SourceBuildTests(unittest.TestCase):
                         self.assertNotIn('production.env', str(calls))
                         self.assertIn('building-application', phases)
                         self.assertEqual('building-image' in phases, not failure)
-                        if role == 'backend':
-                            self.assertIn(('docker', 'image', 'inspect', build.RUNTIME_IMAGE), calls)
-                            if not failure:
-                                image_build = next(call for call in calls if call[:3] == ('docker', 'buildx', 'build'))
-                                self.assertIn('--builder', image_build)
-                                self.assertIn('default', image_build)
-                                self.assertEqual(image_build.count('--resource'), 4)
-                                self.assertFalse(any(call[:3] == ('docker', 'buildx', 'create') for call in calls))
-                        elif not failure:
-                            self.assertTrue(any(call[:3] == ('docker', 'buildx', 'create') for call in calls))
+                        runtime = build.RUNTIME_IMAGE if role == 'backend' else build.WEB_RUNTIME_IMAGE
+                        self.assertIn(('docker', 'image', 'inspect', runtime), calls)
+                        if not failure:
+                            image_build = next(call for call in calls if call[:3] == ('docker', 'buildx', 'build'))
+                            self.assertIn('--builder', image_build)
+                            self.assertIn('default', image_build)
+                            self.assertEqual(image_build.count('--resource'), 4)
+                            self.assertFalse(any(call[:3] == ('docker', 'buildx', 'create') for call in calls))
                         cleanup.assert_called()
                     self.assertFalse(list(root.glob('qanda-source-*')))
 
@@ -139,7 +137,7 @@ class SourceBuildTests(unittest.TestCase):
                 deploy.reconcile(locked=True)
                 self.assertEqual(deploy.read(root / 'operation.json')['phase'], 'failed')
                 activate.assert_not_called()
-                self.assertGreaterEqual(run.call_count, 3)
+                run.assert_any_call(['docker', 'rm', '-f', build.BUILD_NAME], capture_output=True, timeout=30)
 
     def test_reconcile_retries_old_release_after_interrupted_rollback(self):
         with tempfile.TemporaryDirectory() as directory:

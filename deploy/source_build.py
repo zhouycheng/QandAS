@@ -9,9 +9,9 @@ import time
 
 REPOSITORY = 'https://github.com/zhouycheng/QandAS.git'
 NODE_IMAGE = 'node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57'
-BUILDKIT_IMAGE = 'moby/buildkit:v0.24.0@sha256:6eceb8971ce4fceb3daca562832642706238b7eea72941fcf9896c93c3c4a53e'
 JAVA_IMAGE = 'eclipse-temurin:21-jdk-jammy@sha256:432e54724c3e57d1846aeb886f4d339f3b0522931c4e64119c2797013b7cfc3c'
 RUNTIME_IMAGE = 'eclipse-temurin:21-jre-jammy'
+WEB_RUNTIME_IMAGE = 'nginx:1.28-alpine'
 LOG = Path('/var/lib/qanda-deploy/release.log')
 BUILD_NAME = 'qanda-release-build'
 BUILD_ROOT = Path('/var/lib/qanda-deploy')
@@ -109,8 +109,7 @@ def build(request, mark):
         os.chown(cache, 65534, 65534)
         image = JAVA_IMAGE if role == 'backend' else NODE_IMAGE
         ensure_image(image)
-        if role == 'backend':
-            ensure_image(RUNTIME_IMAGE)
+        ensure_image(RUNTIME_IMAGE if role == 'backend' else WEB_RUNTIME_IMAGE)
         script = ('cd /source/apps/api && ./mvnw -B -Dmaven.repo.local=/cache/maven -Dmaven.test.skip=true package'
                   if role == 'backend' else
                   'npm --prefix packages/content-format ci && '
@@ -135,19 +134,10 @@ def build(request, mark):
                       '--label', 'org.opencontainers.image.source=https://github.com/zhouycheng/QandAS',
                       '--label', f'org.opencontainers.image.revision={revision}', '--label', f'qanda.role={role}',
                       '-t', tag, '-f', dockerfile, context]
-        if role == 'backend':
-            # The Docker Engine builder reuses the runtime base pulled above instead of resolving it remotely.
-            command('docker', 'buildx', 'build', '--builder', 'default',
-                    '--resource', 'memory=1g', '--resource', 'memory-swap=1g',
-                    '--resource', 'cpu-period=100000', '--resource', 'cpu-quota=100000', *build_args)
-        else:
-            builder = 'qanda-release-image-build'
-            try:
-                command('docker', 'buildx', 'create', '--name', builder, '--driver', 'docker-container',
-                        '--driver-opt', 'memory=1g,memory-swap=1g,cpu-period=100000,cpu-quota=100000,image=' + BUILDKIT_IMAGE)
-                command('docker', 'buildx', 'build', '--builder', builder, *build_args)
-            finally:
-                subprocess.run(['docker', 'buildx', 'rm', '-f', builder], capture_output=True, timeout=30)
+        # The Docker Engine builder reuses the runtime base pulled above instead of resolving it remotely.
+        command('docker', 'buildx', 'build', '--builder', 'default',
+                '--resource', 'memory=1g', '--resource', 'memory-swap=1g',
+                '--resource', 'cpu-period=100000', '--resource', 'cpu-quota=100000', *build_args)
         identifier = command('docker', 'image', 'inspect', '--format', '{{.Id}}', tag)
         if not re.fullmatch(r'sha256:[0-9a-f]{64}', identifier):
             raise RuntimeError('Invalid local image identity')
