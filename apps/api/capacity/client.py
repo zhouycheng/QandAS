@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
 
 
 def private_json(path, value):
@@ -120,7 +121,11 @@ def smoke(port, dataset):
     user = dataset['users'][0]; api = Api(port, user['token']); scope = dataset['banks'][0]['scope']
     preview = api.call('POST', '/practice/scope-preview', scope)
     session = api.call('POST', '/practice/sessions', {'scope': scope, 'expectedContentVersion': preview['contentVersion'], 'expectedContentVersions': preview['contentVersions'], 'deviceId': user['deviceId']})
-    items = [{'itemId': x['itemId'], 'answer': answer(x), 'confirmed': True} for x in session['items']]
+    items = [{'itemId': x['itemId'], 'revisionId': x['question']['revisionId'],
+              'materialRevisionId': (x['question'].get('material') or {}).get('revisionId'),
+              'answer': answer(x), 'confirmed': True,
+              'outcome': 'SELF_RATED' if x['question']['type'] == 'SHORT_ANSWER' else 'CORRECT'}
+             for x in session['items']]
     body = {'expectedVersion': session['version'], 'currentIndex': len(items) - 1, 'durationSeconds': 0, 'writerToken': session['writer']['writerToken'], 'clientSequence': 1, 'items': items}
     key = str(uuid.uuid4()); path = '/practice/sessions/' + session['id']
     first = api.call('POST', path + '/sync-commands', body, key)
@@ -133,7 +138,14 @@ def smoke(port, dataset):
         assert value['state'] not in ('REJECTED', 'DEAD_LETTER'), value['state']
         assert time.monotonic() < deadline, 'Smoke commit timeout'; time.sleep(0.1)
     ack = value['acknowledgement']; assert ack['acknowledgedSequence'] == 1
-    finish = dict(body, expectedVersion=ack['version'], clientSequence=2, kind='FINISH')
+    short = sum(x['question']['type'] == 'SHORT_ANSWER' for x in session['items'])
+    objective = len(items) - short
+    result = {'totalCount': len(items), 'answeredCount': len(items),
+              'objective': {'count': objective, 'answered': objective, 'correct': objective, 'wrong': 0,
+                            'unanswered': 0, 'accuracy': 1 if objective else None, 'score': 100 if objective else None},
+              'shortAnswer': {'count': short, 'answered': short, 'rated': 0, 'correct': 0, 'wrong': 0, 'unrated': short}}
+    finish = dict(body, expectedVersion=ack['version'], clientSequence=2, kind='FINISH',
+                  submittedAt=datetime.now(timezone.utc).isoformat(), clientResult=result)
     key = str(uuid.uuid4()); api.call('POST', path + '/sync-commands', finish, key)
     api.call('POST', path + '/sync-commands', finish, key)
     deadline = time.monotonic() + 30
@@ -142,7 +154,8 @@ def smoke(port, dataset):
         if value['state'] == 'COMMITTED': break
         assert value['state'] not in ('REJECTED', 'DEAD_LETTER'), value['state']
         assert time.monotonic() < deadline, 'Smoke finalization timeout'; time.sleep(0.1)
-    result = value['result']; duplicate = api.call('GET', path + '/sync-commands/' + key)['result']
-    assert duplicate['id'] == result['id'] and result['answeredCount'] == len(items)
+    result = api.call('GET', path + '/result'); duplicate = api.call('GET', path + '/sync-commands/' + key)
+    assert duplicate['state'] == 'COMMITTED' and duplicate['resultId'] == result['id']
+    assert value['resultId'] == result['id'] and result['answeredCount'] == len(items)
     assert result['objective']['wrong'] == 0
     return {'passed': True, 'accepted_state': first['state'], 'committed': True, 'duplicate_finish_same_result': True, 'answered': result['answeredCount']}
