@@ -1,5 +1,5 @@
 FROM nginx:1.28-alpine
-ENV QANDA_API_UPSTREAM=http://api:8083 QANDA_MONITOR_UPSTREAM=http://monitor:8083
+ENV QANDA_API_UPSTREAM=http://api:8083 QANDA_MONITOR_UPSTREAM=http://monitor:8083 QANDA_GATEWAY_KEY=
 COPY deploy/web.conf /etc/nginx/templates/default.conf.template
 COPY apps/admin/dist/ /usr/share/nginx/html/
 EXPOSE 8080

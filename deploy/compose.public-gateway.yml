@@ -1,0 +1,34 @@
+name: qanda-public-gateway
+services:
+  gateway:
+    image: ${GATEWAY_IMAGE:?immutable gateway image required}
+    container_name: qanda-public-gateway
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+    environment:
+      QANDA_GATEWAY_KEY: ${PUBLIC_GATEWAY_KEY:?required}
+      QANDA_GATEWAY_ALLOWED_CLIENT: ${PUBLIC_GATEWAY_ALLOWED_CLIENT:?required}
+    volumes:
+      - /srv/qanda/public-gateway:/etc/nginx/templates:ro
+      - /srv/qanda/private/public-tls:/etc/qanda/tls:ro
+    ports: ["0.0.0.0:80:8080", "0.0.0.0:443:8443"]
+    networks:
+      application:
+        ipv4_address: 172.29.71.30
+    restart: "no"
+    mem_limit: 32m
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8081/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+networks:
+  application:
+    external: true
+    name: qanda-application

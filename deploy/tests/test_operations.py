@@ -108,10 +108,10 @@ class OperationsTests(unittest.TestCase):
             return 'healthy' if args[:2] == ('docker', 'inspect') else ''
         def tailnet(*args):
             events.append(('tailnet-ready',))
-            return 'tailnet\ngateway'
+            return 'tailnet'
         with tempfile.TemporaryDirectory() as directory, patch.object(deployctl, 'STATE', Path(directory)), \
                 patch.object(deployctl, 'node_role', return_value='backend'), \
-                patch.object(deployctl, 'compose'), patch.object(deployctl, 'run', side_effect=command), \
+                patch.object(deployctl, 'compose'), patch.object(deployctl, 'start_public_gateway'), patch.object(deployctl, 'run', side_effect=command), \
                 patch.object(deployctl, 'tailnet_compose', side_effect=tailnet), patch.object(deployctl.time, 'sleep'):
             deployctl.activate({'revision': 'a' * 40, 'backend': 'backend-image'})
         self.assertLess(events.index(('tailnet-ready',)), events.index(('/usr/local/lib/qanda/network-guard.py',)))

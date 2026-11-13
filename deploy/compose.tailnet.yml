@@ -39,34 +39,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-  gateway:
-    image: ${GATEWAY_IMAGE:?immutable gateway image required}
-    network_mode: service:tailnet
-    depends_on:
-      tailnet:
-        condition: service_healthy
-        restart: true
-    user: "101:101"
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    read_only: true
-    tmpfs:
-      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
-      - /var/cache/nginx:uid=101,gid=101,mode=0755
-      - /var/run:uid=101,gid=101,mode=0755
-    environment:
-      TAILNET_API_UPSTREAM: ${TAILNET_API_UPSTREAM:?required}
-      TAILNET_MONITOR_UPSTREAM: ${TAILNET_MONITOR_UPSTREAM:?required}
-      TAILNET_ALLOWED_CLIENT: ${TAILNET_ALLOWED_CLIENT:?required}
-    volumes:
-      - /srv/qanda/tailnet-${TAILNET_NODE_ROLE}.conf:/etc/nginx/templates/default.conf.template:ro
-    restart: "no"
-    mem_limit: 32m
-    healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
-      interval: 5s
-      timeout: 3s
-      retries: 12
 networks:
   application:
     external: true

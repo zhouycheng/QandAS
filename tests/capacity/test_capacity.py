@@ -381,6 +381,70 @@ assert.equal(retryDelay(1, 'invalid', 1), 10000);
             with self.assertRaisesRegex(RuntimeError, 'already exists'): remote.prepare()
             command.assert_not_called()
 
+    def test_prepare_stops_public_ingress_before_switching_application_or_storage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = {'/var/lib/qanda-deploy/current.json': '{"revision":"revision"}',
+                     '/srv/qanda/node.json': '{"role":"backend"}',
+                     '/srv/qanda/production.env': 'configuration', '/srv/qanda/node.env': 'public gateway'}
+            paths = {}
+            for index, (name, contents) in enumerate(files.items()):
+                paths[name] = root / str(index); paths[name].write_text(contents)
+            rows = [{'Name': '/' + name, 'Id': name, 'Image': 'image', 'Config': {'Image': 'image'},
+                     'State': {'Running': True}} for name in remote.APP + remote.ORIGINAL + [remote.PUBLIC_GATEWAY]]
+            def command(args, **kwargs):
+                if args[:2] == ['docker', 'stop'] and remote.ORIGINAL[0] in args:
+                    raise RuntimeError('storage switch reached')
+            with patch.object(remote, 'ROOT', root, create=True), patch.object(remote, 'RUN', 'fixture', create=True), \
+                    patch.object(remote, 'Path', side_effect=lambda name: paths[name]), \
+                    patch.object(remote, 'inspect', return_value=rows), patch.object(remote.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), \
+                    patch.object(remote, 'command', side_effect=command) as run:
+                with self.assertRaisesRegex(RuntimeError, 'storage switch reached'):
+                    remote.prepare()
+            calls = run.call_args_list
+            public = call(['systemctl', 'stop', 'qanda-public-gateway.service'])
+            apps = call(['docker', 'stop', '-t', '120', *remote.APP])
+            self.assertLess(calls.index(public), calls.index(apps))
+            self.assertEqual(json.loads((root / 'manifest.json').read_text())['node_env_sha256'], hashlib.sha256(b'public gateway').hexdigest())
+
+    def test_active_public_ingress_or_changed_identity_rejects_capacity_actions(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(remote, 'ROOT', Path(directory), create=True), \
+                patch.object(remote, 'RUN', 'fixture', create=True), patch.object(remote, 'manifest', return_value={
+                    'postgres': 'pg', 'rabbit': 'rabbit', 'redis': 'redis', 'original_ids': {remote.PUBLIC_GATEWAY: 'original'}}):
+            for gateway in ({'Id': 'original', 'State': {'Running': True}}, {'Id': 'changed', 'State': {'Running': False}}):
+                with self.subTest(gateway=gateway), patch.object(remote, 'inspect', side_effect=[
+                    [{'State': {'Running': False}}],
+                    [{'State': {'Running': True}, 'Config': {'Labels': {'qanda.capacity.run': 'fixture'}}}], [gateway]]):
+                    with self.assertRaisesRegex(AssertionError, 'Public ingress'):
+                        remote.assert_capacity()
+
+    def test_restore_opens_ingress_only_after_original_application_is_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current, production, node = root / 'current', root / 'production', root / 'node'
+            current.write_text('{"revision":"revision"}'); production.write_text('configuration'); node.write_text('gateway')
+            paths = {'/var/lib/qanda-deploy/current.json': current, '/srv/qanda/production.env': production, '/srv/qanda/node.env': node}
+            manifest = {'revision': 'revision', 'env_sha256': hashlib.sha256(production.read_bytes()).hexdigest(),
+                        'node_env_sha256': hashlib.sha256(node.read_bytes()).hexdigest(), 'backup_timer': False,
+                        'postgres': 'pg', 'rabbit': 'rabbit', 'redis': 'redis',
+                        'original_ids': {name: name for name in remote.ORIGINAL + [remote.PUBLIC_GATEWAY]}}
+            events = []
+            with patch.object(remote, 'ROOT', root, create=True), patch.object(remote, 'RUN', 'fixture', create=True), \
+                    patch.object(remote, 'Path', side_effect=lambda name: paths[name]), patch.object(remote, 'manifest', return_value=manifest), \
+                    patch.object(remote.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), patch.object(remote, 'wait_infra'), \
+                    patch.object(remote, 'compose', side_effect=lambda *args, **kwargs: events.append('application-ready')), \
+                    patch.object(remote, 'command', side_effect=lambda args: events.append(args)), \
+                    patch.object(remote, 'inspect', side_effect=[
+                        [{'Name': '/' + name, 'Id': name} for name in remote.ORIGINAL],
+                        [{'Id': remote.PUBLIC_GATEWAY}], [{'State': {'Health': {'Status': 'healthy'}}}]]):
+                self.assertTrue(remote.restore()['restored'])
+                self.assertLess(events.index('application-ready'), events.index(['systemctl', 'start', 'qanda-public-gateway.service']))
+                node.write_text('changed gateway')
+                events.clear()
+                with self.assertRaisesRegex(AssertionError, 'Node configuration changed'):
+                    remote.restore()
+                self.assertEqual(events, [])
+
     def test_original_infrastructure_cannot_be_used_as_capacity_storage(self):
         with tempfile.TemporaryDirectory() as root, patch.object(remote, 'ROOT', Path(root), create=True), patch.object(remote, 'manifest', return_value={}), patch.object(remote, 'inspect', return_value=[{'State': {'Running': True}}]):
             with self.assertRaisesRegex(AssertionError, 'Original infrastructure'): remote.assert_capacity()

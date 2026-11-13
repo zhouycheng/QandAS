@@ -7,6 +7,14 @@ qanda_source_dir=$(cd "$(dirname "$0")" && pwd)
 case "${1:-}" in ''|--control-only) ;; *) echo 'Usage: install.sh [--control-only]' >&2; exit 1 ;; esac
 test "$#" -le 1
 qanda_node_role=$(python3 -c 'import json,pathlib;p=pathlib.Path("/srv/qanda/node.json");print(json.loads(p.read_text())["role"] if p.exists() else "combined")')
+if test "${1:-}" != --control-only && test "$qanda_node_role" != combined; then
+  python3 - "$qanda_source_dir" "$qanda_node_role" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import business_gateway
+business_gateway.configuration('/srv/qanda/node.env', sys.argv[2])
+PY
+fi
 if test "${1:-}" != --control-only; then
   if test -L /srv/qanda; then
     echo '/srv/qanda must not be a symbolic link.' >&2
@@ -41,13 +49,14 @@ install -m 0644 "$qanda_source_dir"/compose.*.yml "$qanda_source_dir"/prometheus
 install -m 0644 "$qanda_source_dir"/../apps/api/monitoring/{rabbitmq-plugins,sync-rules.yml} /srv/qanda/
 install -m 0755 "$qanda_source_dir/redis-start.sh" /srv/qanda/redis-start.sh
 install -m 0644 "$qanda_source_dir/source_build.py" /usr/local/lib/qanda/source_build.py
+install -m 0644 "$qanda_source_dir/business_gateway.py" /usr/local/lib/qanda/business_gateway.py
 install -m 0755 "$qanda_source_dir/deployctl.py" /usr/local/sbin/qanda-deployctl
 install -m 0755 "$qanda_source_dir/network-guard.py" /usr/local/lib/qanda/network-guard.py
 install -m 0755 "$qanda_source_dir/remote-entry.py" /usr/local/lib/qanda/remote-entry.py
-install -m 0644 "$qanda_source_dir"/tailnet-*.conf /srv/qanda/
 install -d -o root -g root -m 0755 /srv/qanda/tailnet-config
 install -m 0644 "$qanda_source_dir/tailnet-serve.json" /srv/qanda/tailnet-config/serve.json
 install -m 0644 "$qanda_source_dir"/qanda-{tailnet,ops}.service /etc/systemd/system/
+install -m 0644 "$qanda_source_dir/qanda-public-gateway.service" /etc/systemd/system/
 install -m 0644 "$qanda_source_dir/qanda-ops.sshd.conf" /etc/ssh/qanda-ops.conf
 install -m 0755 "$qanda_source_dir/candidate-check.py" /usr/local/lib/qanda/candidate-check.py
 install -m 0755 "$qanda_source_dir/redis-start.sh" /usr/local/lib/qanda/redis-start.sh
@@ -75,7 +84,8 @@ if test "$qanda_node_role" != combined; then
 import runpy, subprocess
 controller = runpy.run_path('/usr/local/sbin/qanda-deployctl', run_name='qanda_bootstrap')
 controller['protected'](controller['ROOT'] / 'node.env')
-for image in (controller['tailnet_image'](), controller['GATEWAY_IMAGE']):
+image = controller['tailnet_image']()
+if subprocess.run(['docker', 'image', 'inspect', image], capture_output=True).returncode:
     subprocess.run(['docker', 'pull', image], check=True)
 PY
   if ! docker network inspect qanda-application >/dev/null 2>&1; then
@@ -92,6 +102,22 @@ fi
 if test "${1:-}" = --control-only; then
   test "$qanda_node_role" != combined
   exit 0
+fi
+if test "$qanda_node_role" = backend; then
+  install -d -o root -g root -m 0755 /srv/qanda/public-gateway
+  install -d -o root -g root -m 0700 /srv/qanda/private
+  install -d -o root -g root -m 0755 /srv/qanda/private/public-tls
+  install -m 0644 "$qanda_source_dir/public-gateway.conf" /srv/qanda/public-gateway/default.conf.template
+  install -m 0644 "$qanda_source_dir/public-gateway-routes.inc" /srv/qanda/public-gateway/gateway-routes.inc.template
+  install -m 0644 "$qanda_source_dir/public-gateway-https.conf" /srv/qanda/public-gateway/https.conf.disabled
+  python3 - <<'PY'
+import runpy, subprocess
+controller = runpy.run_path('/usr/local/sbin/qanda-deployctl', run_name='qanda_bootstrap')
+image = controller['GATEWAY_IMAGE']
+if subprocess.run(['docker', 'image', 'inspect', image], capture_output=True).returncode:
+    subprocess.run(['docker', 'pull', image], check=True)
+PY
+  systemctl enable qanda-public-gateway.service
 fi
 if ! test -s /etc/qanda/backup.key; then (umask 077; openssl rand -base64 48 > /etc/qanda/backup.key); fi
 install -m 0644 "$qanda_source_dir"/qanda-backup.{service,timer} /etc/systemd/system/

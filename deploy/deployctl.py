@@ -16,6 +16,7 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib/qanda"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import source_build
+import business_gateway
 
 ROOT = Path('/srv/qanda')
 STATE = Path('/var/lib/qanda-deploy')
@@ -213,12 +214,32 @@ def compose(release, *args):
 
 def tailnet_command(release):
     return ['docker', 'compose', '-p', 'qanda-tailnet', '--env-file', str(ROOT / 'node.env'),
-            '-f', str(ROOT / 'compose.tailnet.yml')], {**os.environ, 'GATEWAY_IMAGE': GATEWAY_IMAGE}
+            '-f', str(ROOT / 'compose.tailnet.yml')], dict(os.environ)
 
 
 def tailnet_compose(release, *args):
     command, env = tailnet_command(release)
     return run(*command, *args, env=env)
+
+
+def public_gateway_command():
+    return ['docker', 'compose', '-p', 'qanda-public-gateway', '--env-file', str(ROOT / 'node.env'),
+            '-f', str(ROOT / 'compose.public-gateway.yml')], {**os.environ, 'GATEWAY_IMAGE': GATEWAY_IMAGE}
+
+
+def public_gateway(*args):
+    command, env = public_gateway_command()
+    return run(*command, *args, env=env)
+
+
+def start_public_gateway():
+    run('systemctl', 'start', 'qanda-public-gateway.service')
+    for _ in range(120):
+        container = public_gateway('ps', '-q', 'gateway')
+        if container and run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) == 'healthy':
+            return
+        time.sleep(2)
+    raise RuntimeError('Public business gateway did not become ready')
 
 
 def tailnet_image():
@@ -257,8 +278,14 @@ def preflight(first=False):
     if (ROOT / 'production.env').stat().st_mode & 0o077:
         raise RuntimeError('production.env must have mode 0600')
     if node_role() != 'combined':
-        for name in ('node.json', 'node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json', f'tailnet-{node_role()}.conf'):
+        for name in ('node.json', 'node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json'):
             protected(ROOT / name)
+        business_gateway.configuration(ROOT / 'node.env', node_role())
+        if node_role() == 'backend':
+            for name in ('compose.public-gateway.yml', 'public-gateway/default.conf.template', 'public-gateway/gateway-routes.inc.template'):
+                protected(ROOT / name)
+            for path in (ROOT / 'public-gateway').glob('*.template'):
+                protected(path)
         for name in ('/etc/ssh/qanda-ops.conf', '/usr/local/lib/qanda/remote-entry.py',
                      '/etc/ssh/qanda-authorized-keys/qanda-deploy', '/etc/ssh/qanda-authorized-keys/qanda-debug'):
             protected(Path(name))
@@ -304,11 +331,13 @@ def health(release):
         run('/usr/local/lib/qanda/network-guard.py', '--check')
         run('systemctl', 'is-active', 'qanda-ops.service')
         check_tailnet_identity(release)
-        for service in ('tailnet', 'gateway'):
-            container = tailnet_compose(release, 'ps', '-q', service)
-            if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
-                raise RuntimeError('Project tailnet is not healthy')
+        container = tailnet_compose(release, 'ps', '-q', 'tailnet')
+        if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
+            raise RuntimeError('Project operations node is not healthy')
     if node_role() == 'backend':
+        container = public_gateway('ps', '-q', 'gateway')
+        if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
+            raise RuntimeError('Public business gateway is not healthy')
         return
     with urllib.request.urlopen('https://qanda.zhoust.cn/api/v1/health', timeout=15) as response:
         if json.load(response).get('status') != 'UP':
@@ -332,12 +361,14 @@ def activate(release):
     # Persist the image variables so host restarts/manual compose commands use the same release.
     atomic(STATE / 'desired.json', release)
     compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *services())
+    if node_role() == 'backend':
+        start_public_gateway()
     if node_role() != 'combined':
-        # Application releases keep the fixed control gateway and the polling connection alive.
+        # Application releases keep the operations node and release status connection alive.
         run('systemctl', 'start', 'qanda-ops.service', 'qanda-tailnet.service')
         for _ in range(120):
-            containers = tailnet_compose(release, 'ps', '-q', 'tailnet', 'gateway').splitlines()
-            if len(containers) == 2 and all(run('docker', 'inspect', '-f', '{{.State.Health.Status}}', c) == 'healthy' for c in containers):
+            containers = tailnet_compose(release, 'ps', '-q', 'tailnet').splitlines()
+            if len(containers) == 1 and all(run('docker', 'inspect', '-f', '{{.State.Health.Status}}', c) == 'healthy' for c in containers):
                 break
             time.sleep(2)
         else:
@@ -353,7 +384,7 @@ def apply(request):
     mark('pulling')
     ensure_local_images(release)
     if node_role() != 'combined':
-        for image in (tailnet_image(), GATEWAY_IMAGE):
+        for image in (tailnet_image(),) + ((GATEWAY_IMAGE,) if node_role() == 'backend' else ()):
             try:
                 run('docker', 'image', 'inspect', image)
             except subprocess.CalledProcessError:
@@ -483,12 +514,21 @@ def main():
     if action == 'tailnet-run':
         if node_role() == 'combined':
             raise ValueError('Project tailnet requires a split node')
-        for name in ('node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json', f'tailnet-{node_role()}.conf'):
+        for name in ('node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json'):
             protected(ROOT / name)
         tailnet_image()
         command, env = tailnet_command({})
-        os.execvpe(command[0], [*command, 'up', '--no-build', '--pull', 'never',
+        os.execvpe(command[0], [*command, 'up', '--no-build', '--pull', 'never', '--remove-orphans',
                               '--abort-on-container-exit', '--exit-code-from', 'tailnet'], env)
+    if action == 'public-gateway-run':
+        if node_role() != 'backend':
+            raise ValueError('Only the backend node owns the public business gateway')
+        business_gateway.configuration(ROOT / 'node.env', 'backend')
+        for name in ('node.env', 'compose.public-gateway.yml', 'public-gateway/default.conf.template', 'public-gateway/gateway-routes.inc.template'):
+            protected(ROOT / name)
+        command, env = public_gateway_command()
+        os.execvpe(command[0], [*command, 'up', '--no-build', '--pull', 'never', '--remove-orphans',
+                              '--abort-on-container-exit', '--exit-code-from', 'gateway'], env)
     with open(STATE / 'lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if action == 'apply':

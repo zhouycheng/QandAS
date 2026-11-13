@@ -68,6 +68,7 @@ services:
     environment:
       QANDA_API_UPSTREAM: ${PRODUCTION_API_UPSTREAM:-http://api:8083}
       QANDA_MONITOR_UPSTREAM: ${PRODUCTION_MONITOR_UPSTREAM:-http://monitor:8083}
+      QANDA_GATEWAY_KEY: ${PUBLIC_GATEWAY_KEY:-}
     volumes: [/srv/qanda/web-assets:/srv/qanda-assets:ro]
     ports: [127.0.0.1:18083:8080]
     networks:

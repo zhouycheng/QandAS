@@ -25,7 +25,7 @@ Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 S
 ## 首次安装
 
 1. 核对主服务器的 Tailscale 身份、已有服务、端口和 Docker 网络；`172.29.71.0/24` 需未被占用。
-2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信和腾讯云 SES 参数，并为数据库、队列、缓存、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置必须具备当前模板中的全部字段；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
+2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信、内容审核公网 HTTPS 地址、与微信控制台一致的回调 Token／EncodingAESKey，以及腾讯云 SES 参数，并为数据库、队列、缓存、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置必须具备当前模板中的全部字段；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
 3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
 5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限，已有结构须与发布代码匹配。
@@ -127,7 +127,7 @@ sudo qanda-db restore /受保护目录/数据.dump
 
 管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。新后端使用空库初始化，原服务器上的测试数据不迁移。切换验收后停用原后端应用和题小搭基础服务；首次正式部署清除本项目旧数据库、队列、缓存、附件、备份及监控历史，按当前结构重新初始化并创建新首管；部署凭据、证书和网络配置继续使用。
 
-两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，Tailscale 拥有容器身份；HTTP 网关与其共享网络命名空间，连接题小搭 Docker 网络。后端节点使用 `tag:qanda-backend`；管理端节点以管理端所有者的用户身份登录，保留无标签状态以接收节点共享。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。
+两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，只转发受限运维端口；后端节点使用 `tag:qanda-backend`，管理端保留现有用户身份。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。管理端到后端的业务连接使用独立公网网关。
 
 ### 部署、调试与业务访问
 
@@ -136,15 +136,13 @@ sudo qanda-db restore /受保护目录/数据.dump
 | 后端 Actions → 后端题小搭节点 `2222` | 发布、回滚、发布状态 | 后端镜像与 API、worker、monitor |
 | 管理端 Actions → 管理端题小搭节点 `2222` | 发布、回滚、发布状态 | 管理端镜像与 web |
 | 获授权的操作者 → 题小搭节点 `2222` | 容器状态、日志、Shell、重启 | 当前节点所属应用容器 |
-| 管理端 → 共享的后端节点 `18084/18085` | 正常业务请求 | 只允许指定管理端容器作为请求来源 |
+| 管理端 → 后端公网网关 `80/443` | API、附件、监控与 SSE | 指定管理端公网 IPv4 与独立网关凭据 |
 
-跨 Tailnet 业务连接使用单节点共享：后端所有者将题小搭后端容器节点共享给管理端所有者，由后者接受共享。管理端的用户所属网络容器即可访问该共享节点，后端网关再按管理端容器来源地址限制 `18084/18085`。公网域名、小程序 API 地址和微信回调入口保持稳定。
+后端 `qanda-public-gateway.service` 在独立容器中发布 IPv4 `80/443`，仅转发 `/api/v1/`，将监控及统计请求路由至 monitor，SSE 关闭缓冲并保持一小时读取超时。网关只允许配置的管理端公网 IPv4；健康接口以外还须携带两端独立保存的 32 字节随机凭据。管理端覆盖外来网关凭据，后端网关在进入业务应用前移除该头。应用只信任固定网关地址 `172.29.71.30` 的转发信息。数据库、队列、Redis、Actuator 和运维 SSH 不经此入口暴露。
 
-[Tailscale 节点共享](https://tailscale.com/docs/features/sharing)只对接收共享的用户生效，接收端的标签设备不能访问共享节点。因此管理端网络容器保持用户身份，CI 继续分别在两位所有者的 Tailnet 中使用 `tag:qanda-ci`。管理端所有者为这个长期运行的容器节点单独关闭密钥过期，并保存其状态卷。
+公网域名、小程序 API 地址和微信回调入口保持稳定。管理端的 HTTPS 上游启用证书链、主机名和 SNI 校验。首次可先使用 HTTP 部署：仅开放健康接口，并移除请求头、正文和查询参数后转发。只要双机业务上游仍有 HTTP，管理端便在发送至公网前拒绝其他 API 请求；后端 HTTP 入口也拒绝健康接口以外的业务转发。证书配置完成前通过受信运维通道验证登录及业务数据。
 
-你本人使用同一份节点共享调试后端：两端策略允许你的用户访问 `2222`，服务器登记个人调试公钥。共享节点和受限 SSH 权限共同限定操作范围。共享授权只涉及题小搭容器节点。
-
-共享后核对两端实际看到的地址。私有目标文件的 `service_ip` 保存节点在本方 Tailnet 中的地址，供本方 CI 使用；若发生地址重映射，`peer_ip` 保存该节点在对方看到的地址，渲染器用它生成业务上游或来源限制。策略模板中的地址同步替换为本方实际看到的地址。
+私有目标文件的 `service_ip` 保存节点在本方 Tailnet 中的地址，供本方 CI 使用；管理端的 `public_ip` 保存实际公网出口 IPv4，后端的 `public_api_url` 保存公网 HTTP 或 HTTPS origin。宿主机管理地址保留在 `server`。操作者继续使用各自现有的管理连接与个人调试公钥。
 
 ### 服务器端权限
 
@@ -169,23 +167,43 @@ ssh qanda-backend-ops restart api
 
 1. 各所有者记录已有服务、网络、资源和原部署文件，在私有文件中保存节点参数。后端首次完整安装时由安装器交互生成权限 `600` 的 `production.env`；管理端只保留自身所需参数。
 2. 各自建立 CI 身份和受限访问规则。分别参考 `deploy/tailnet-backend-policy.example.json` 与 `deploy/tailnet-frontend-policy.example.json`，替换模板地址并填入实际操作者。合并到各自现有策略并核对原有管理权限，限制可能覆盖隔离规则的全网授权。
-3. 所有者通过现有管理通道安装部署工具和项目网络，登记 Tailscale 容器身份；首次认证只针对容器节点。后端所有者把后端容器节点共享给管理端所有者，后者接受后核对地址。节点地址记入私有目标文件的 `service_ip`，必要时填写 `peer_ip`，宿主机管理地址保留在 `server`。通过下面的渲染命令生成 `node.json`、`node.env`，以 root 所有、权限 `600` 安装到对应服务器。
+3. 所有者通过现有管理通道安装部署工具和项目网络，登记 Tailscale 容器身份；首次认证只针对容器节点。在仓库外生成权限 `600` 的独立网关密钥，核对两端的运维地址、管理端公网出口和后端公网 origin。通过下面的渲染命令生成 `node.json`、`node.env`，以 root 所有、权限 `600` 安装到对应服务器。
 4. 将两种 SSH 公钥分别安装为 `/etc/ssh/qanda-authorized-keys/qanda-deploy` 和 `qanda-debug`，目录权限 `755`、文件权限 `644`，均由 root 管理。部署私钥进入对应 GitHub Secret，调试私钥留在操作者本地。完成服务器公钥核验后启用受限入口。
-5. 启动受限入口并验证节点共享和端口授权，通过后端 Actions 初始化空库和发布后端。管理端网关实测后端健康接口后，再通过管理端 Actions 更新管理端；分别验证业务、附件、监控流和微信回调。
+5. 启动受限入口并验证运维端口授权，防火墙放行管理端至后端的业务端口，通过后端 Actions 初始化空库和发布后端。管理端实测后端公网健康接口后，再通过管理端 Actions 更新管理端；证书配置完成后分别验证业务、附件、监控流和微信回调。
 6. 确认新路径正常后，停用旧 API、worker、monitor 和题小搭基础服务，核对其他项目。管理端角色安装会停用旧题小搭备份计时器。首次拓扑切换保留原节点配置和镜像作为恢复入口；之后两个工作流各自回滚自己的应用版本。
 
 ```sh
+umask 077
+openssl rand -hex 32 > "$HOME/.config/qanda/production/gateway.key"
 python3 deploy/targets.py "$HOME/.config/qanda/production/targets.json" \
-  --render "$HOME/.config/qanda/production/rendered"
+  --render "$HOME/.config/qanda/production/rendered" \
+  --gateway-key-file "$HOME/.config/qanda/production/gateway.key"
 ```
 
 渲染只写本地私有文件。分别通过各所有者的管理通道安装，再更新仓库 Secret `DEPLOY_TARGETS`。真实地址、账号和凭据保存在仓库外；两个工作流各自的部署身份在自己的 Tailnet 生效。
+
+### 后端 HTTPS 配置
+
+证书由管理员准备，私钥及完整证书链分别安装为 `/srv/qanda/private/public-tls/privkey.pem` 和 `fullchain.pem`。私有父目录由 root 持有、权限 `700`；挂载目录权限 `755`，证书链权限 `644`，私钥由 UID/GID `101:101` 持有、权限 `600`。网关以该非特权身份读取证书。
+
+将 `/srv/qanda/public-gateway/https.conf.disabled` 复制为同目录的 `https.conf.template`，保持 root 所有、权限 `644`。在现有容器中渲染并校验，通过后重载，HTTP 健康入口保持可用：
+
+```sh
+sudo docker exec qanda-public-gateway sh -ec '
+  envsubst "\$QANDA_GATEWAY_ALLOWED_CLIENT \$QANDA_GATEWAY_KEY" \
+    < /etc/nginx/templates/https.conf.template > /etc/nginx/conf.d/https.conf
+  nginx -t
+  nginx -s reload
+'
+```
+
+随后将私有目标文件的 `public_api_url` 改为证书覆盖的 `https://` origin，重新渲染并安装两端配置，通过管理端 Actions 重新部署以更新上游。核对来源限制、公网健康接口、首管登录、附件与 SSE 重连，再开放业务使用。证书续期后须校验并重载网关；配置及证书随加密备份保存。
 
 ### 验收
 
 本地先运行 `python3 -m unittest discover -s deploy/tests -v`。在隔离 Linux Docker 主机运行 `sudo python3 deploy/tests/tailnet_integration.py` 与 `sudo python3 deploy/tests/operations_integration.py`，验证代理、防火墙和实际 OpenSSH 调试入口；网络测试遇到已有项目防火墙链会停止。
 
-线上分别验证两个 Actions 的部署与回滚、个人容器日志和 Shell、禁止访问的主机与其他项目、原有管理连接，以及管理端到后端的实际业务链路。跨账号连接、直连／中继状态与延迟需要真实节点验收。
+线上分别验证两个 Actions 的部署与回滚、个人容器日志和 Shell、禁止访问的主机与其他项目、原有管理连接，以及管理端到后端的实际公网业务链路。HTTPS 与实际 SSE 重连需要在证书启用后验收。
 
 ## 配套版本与内容检测
 

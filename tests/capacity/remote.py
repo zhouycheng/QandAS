@@ -18,6 +18,7 @@ import uuid
 
 APP = ['qanda-application-' + role + '-1' for role in ('api', 'worker', 'monitor')]
 ORIGINAL = ['qanda-infrastructure-postgres-1', 'qanda-infrastructure-rabbitmq-1', 'qanda-infrastructure-redis-1']
+PUBLIC_GATEWAY = 'qanda-public-gateway'
 
 
 def command(args, data=None, timeout=300):
@@ -47,6 +48,8 @@ def assert_capacity():
     assert not (ROOT / 'restored').exists(), 'The run was restored; use a new run identifier'
     assert all(not x['State']['Running'] for x in inspect(ORIGINAL)), 'Original infrastructure must remain stopped during the experiment'
     assert all(x['State']['Running'] and x['Config']['Labels'].get('qanda.capacity.run') == RUN for x in inspect([m['postgres'], m['rabbit'], m['redis']])), 'Temporary infrastructure ownership or state mismatch'
+    gateway = inspect([PUBLIC_GATEWAY])[0]
+    assert gateway['Id'] == m['original_ids'][PUBLIC_GATEWAY] and not gateway['State']['Running'], 'Public ingress must remain stopped during the experiment'
 
 
 def tunnel():
@@ -136,7 +139,7 @@ def prepare():
         raise RuntimeError('A run already exists; inspect or restore it before preparing again')
     state = json.loads(Path('/var/lib/qanda-deploy/current.json').read_text())
     assert json.loads(Path('/srv/qanda/node.json').read_text())['role'] == 'backend'
-    old = inspect(APP + ORIGINAL)
+    old = inspect(APP + ORIGINAL + [PUBLIC_GATEWAY])
     assert all(x['State']['Running'] for x in old), 'Original services must be running'
     m = {'run': RUN, 'image': old[0]['Config']['Image'], 'revision': state['revision'],
          'original_ids': {x['Name'].lstrip('/'): x['Id'] for x in old},
@@ -145,6 +148,7 @@ def prepare():
          'vhost': 'qanda-capacity-' + RUN,
          'volumes': ['qanda-capacity-' + RUN + '-' + role for role in ('pg', 'rabbit')],
          'env_sha256': hashlib.sha256(Path('/srv/qanda/production.env').read_bytes()).hexdigest(),
+         'node_env_sha256': hashlib.sha256(Path('/srv/qanda/node.env').read_bytes()).hexdigest(),
          'backup_timer': subprocess.run(['systemctl', 'is-active', '--quiet', 'qanda-backup.timer']).returncode == 0}
     assert len({x['Image'] for x in old[:3]}) == 1, 'Application image mismatch'
     save(ROOT / 'manifest.json', m)
@@ -152,6 +156,7 @@ def prepare():
     command(['tar', '-cpf', ROOT / 'original-config.tar', '-C', '/srv/qanda', 'production.env', 'node.env', 'node.json', 'compose.application.yml'])
     if m['backup_timer']:
         command(['systemctl', 'stop', 'qanda-backup.timer'])
+    command(['systemctl', 'stop', 'qanda-public-gateway.service'])
     command(['docker', 'stop', '-t', '120', *APP])
     command(['docker', 'stop', '-t', '90', *ORIGINAL])
     for row, name, volume, role in zip(old[3:], [m['postgres'], m['rabbit']], m['volumes'], ['pg', 'rabbit']):
@@ -222,7 +227,7 @@ def fetch(row, port, path):
 
 def collect():
     assert_capacity()
-    m = manifest(); rows = inspect(APP + [m['postgres'], m['rabbit'], 'qanda-infrastructure-prometheus-1', 'qanda-tailnet', 'qanda-tailnet-gateway-1', m['redis']])
+    m = manifest(); rows = inspect(APP + [m['postgres'], m['rabbit'], 'qanda-infrastructure-prometheus-1', 'qanda-tailnet', m['redis']])
     mem = {line.split(':')[0]: int(line.split()[1]) * 1024 for line in Path('/proc/meminfo').read_text().splitlines()}
     disk = os.statvfs('/var/lib/docker')
     result = {'time': time.time(), 'host': {'available': mem['MemAvailable'], 'total': mem['MemTotal'], 'swap_used': mem['SwapTotal'] - mem['SwapFree'], 'disk_free': disk.f_bavail * disk.f_frsize, 'load': os.getloadavg()}, 'containers': {}}
@@ -318,6 +323,7 @@ def restore(clean=False):
     m = manifest()
     assert json.loads(Path('/var/lib/qanda-deploy/current.json').read_text())['revision'] == m['revision'], 'Deployment revision changed; preserve the newer release for review'
     assert hashlib.sha256(Path('/srv/qanda/production.env').read_bytes()).hexdigest() == m['env_sha256'], 'Original configuration changed; preserve it for review'
+    assert hashlib.sha256(Path('/srv/qanda/node.env').read_bytes()).hexdigest() == m['node_env_sha256'], 'Node configuration changed; preserve it for review'
     command(['docker', 'stop', '-t', '120', *APP])
     for name in [m['postgres'], m['rabbit'], m['redis']]:
         row = subprocess.run(['docker', 'inspect', name], capture_output=True)
@@ -328,6 +334,15 @@ def restore(clean=False):
     command(['docker', 'start', *ORIGINAL]); wait_infra(*ORIGINAL)
     assert all(m['original_ids'][row['Name'].lstrip('/')] == row['Id'] for row in inspect(ORIGINAL)), 'Original infrastructure identity changed'
     compose('up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240', 'api', 'worker', 'monitor', overlay=False)
+    assert inspect([PUBLIC_GATEWAY])[0]['Id'] == m['original_ids'][PUBLIC_GATEWAY], 'Public gateway identity changed'
+    command(['systemctl', 'start', 'qanda-public-gateway.service'])
+    for _ in range(60):
+        gateway = inspect([PUBLIC_GATEWAY])[0]
+        if gateway['State'].get('Health', {}).get('Status') == 'healthy':
+            break
+        time.sleep(2)
+    else:
+        raise RuntimeError('Restored public gateway did not become ready')
     if m['backup_timer']:
         command(['systemctl', 'start', 'qanda-backup.timer'])
     subprocess.run(['systemctl', 'stop', 'qanda-capacity-guard-' + RUN + '.timer'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

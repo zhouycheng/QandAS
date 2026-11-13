@@ -19,27 +19,30 @@ spec.loader.exec_module(guard)
 
 
 def topology():
-    return {kind: {'server': kind + '-management', 'admin_user': 'ubuntu',
-                   'service_ip': f'100.64.0.{i + 10}'} for i, kind in enumerate(('frontend', 'backend'))}
+    return {
+        'frontend': {'server': 'frontend-management', 'admin_user': 'ubuntu', 'service_ip': '100.64.0.10', 'public_ip': '8.8.8.8'},
+        'backend': {'server': 'backend-management', 'admin_user': 'ubuntu', 'service_ip': '100.64.0.11', 'public_api_url': 'http://backend.example.com'},
+    }
 
 
 class TailnetTests(unittest.TestCase):
-    def test_service_routes_use_container_addresses_and_trust_only_the_local_gateway(self):
+    def test_business_uses_public_endpoint_and_operations_keep_their_own_nodes(self):
         nodes = topology()
         targets.validate(nodes)
-        front = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'frontend')['env'].splitlines())
-        back = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'backend')['env'].splitlines())
-        self.assertEqual(front['PRODUCTION_API_UPSTREAM'], 'http://qanda-tailnet:18084')
-        self.assertEqual(front['TAILNET_API_UPSTREAM'], 'http://100.64.0.11:18084')
-        self.assertEqual(back['TAILNET_ALLOWED_CLIENT'], '100.64.0.10')
-        self.assertEqual(back['TAILNET_API_UPSTREAM'], 'http://api:8083')
-        self.assertEqual(back['PRODUCTION_TRUSTED_PROXIES'], r'172\.29\.71\.20')
+        front = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'frontend', 'a' * 64)['env'].splitlines())
+        back = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'backend', 'a' * 64)['env'].splitlines())
+        self.assertEqual(front['PRODUCTION_API_UPSTREAM'], 'http://backend.example.com')
+        self.assertEqual(front['PRODUCTION_MONITOR_UPSTREAM'], front['PRODUCTION_API_UPSTREAM'])
+        self.assertEqual(back['PUBLIC_GATEWAY_ALLOWED_CLIENT'], '8.8.8.8')
+        self.assertEqual(back['PRODUCTION_TRUSTED_PROXIES'], r'172\.29\.71\.30')
+        self.assertEqual(front['PUBLIC_GATEWAY_KEY'], back['PUBLIC_GATEWAY_KEY'])
+        self.assertFalse(any(key.startswith(('TAILNET_API', 'TAILNET_MONITOR', 'TAILNET_ALLOWED')) for key in front | back))
         self.assertEqual(front['TAILNET_TAG_ARGS'], '')
         self.assertEqual(back['TAILNET_TAG_ARGS'], '--advertise-tags=tag:qanda-backend')
         self.assertNotIn('TAILNET_BIND_ADDRESS', back)
 
-    def test_rejects_public_missing_and_duplicate_project_addresses(self):
-        for bad in ('203.0.113.5', '127.0.0.1', '100.64.0.10', 'fd00::1'):
+    def test_rejects_public_or_missing_operations_addresses(self):
+        for bad in ('203.0.113.5', '127.0.0.1', 'fd00::1'):
             nodes = topology()
             nodes['backend']['service_ip'] = bad
             with self.subTest(bad=bad), self.assertRaises(ValueError):
@@ -49,17 +52,12 @@ class TailnetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             targets.validate(nodes)
 
-    def test_shared_address_remapping_changes_service_routes_but_not_ci_targets(self):
+    def test_independent_operations_networks_may_use_the_same_address(self):
         nodes = topology()
         nodes['backend']['service_ip'] = nodes['frontend']['service_ip']
-        nodes['backend']['peer_ip'] = '100.64.0.20'
-        nodes['frontend']['peer_ip'] = '100.64.0.21'
         targets.validate(nodes)
-        front = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'frontend')['env'].splitlines())
-        back = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'backend')['env'].splitlines())
-        self.assertEqual(front['TAILNET_API_UPSTREAM'], 'http://100.64.0.20:18084')
-        self.assertEqual(back['TAILNET_ALLOWED_CLIENT'], '100.64.0.21')
-        self.assertEqual(back['TAILNET_NODE_IP'], nodes['backend']['service_ip'])
+        back = dict(line.split('=', 1) for line in targets.node_configuration(nodes, 'backend', 'a' * 64)['env'].splitlines())
+        self.assertEqual(back['TAILNET_NODE_IP'], '100.64.0.10')
         nodes['backend']['peer_ip'] = '203.0.113.9'
         with self.assertRaises(ValueError):
             targets.validate(nodes)
@@ -70,13 +68,16 @@ class TailnetTests(unittest.TestCase):
             source = root / 'targets.json'
             source.write_text(json.dumps(topology()))
             source.chmod(0o600)
+            key = root / 'gateway.key'
+            key.write_text('a' * 64 + '\n')
+            key.chmod(0o600)
             with patch.object(targets.subprocess, 'run') as remote, patch('builtins.print'):
-                targets.configure(source, root / 'rendered')
+                targets.configure(source, root / 'rendered', key)
             remote.assert_not_called()
             for kind in ('frontend', 'backend'):
                 path = root / 'rendered' / kind / 'node.env'
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-                self.assertEqual(len(path.read_text().splitlines()), 10)
+                self.assertIn('PUBLIC_GATEWAY_KEY=', path.read_text())
 
     def test_selected_deployment_never_contacts_the_other_owner(self):
         with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
@@ -146,7 +147,7 @@ class TailnetTests(unittest.TestCase):
                 with self.subTest(changed=changed), patch.object(deployctl, 'tailnet_compose', return_value=json.dumps({**status, **changed})), self.assertRaises(RuntimeError):
                     deployctl.check_tailnet_identity({})
 
-    def test_frontend_requires_a_user_owned_identity_to_reach_the_shared_backend(self):
+    def test_frontend_preserves_the_provisioned_user_owned_operations_identity(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(deployctl, 'ROOT', Path(directory)), \
                 patch.object(deployctl, 'node_role', return_value='frontend'):
             (Path(directory) / 'node.env').write_text('TAILNET_NODE_IP=100.64.0.10\n')
@@ -158,7 +159,7 @@ class TailnetTests(unittest.TestCase):
                 with patch.object(deployctl, 'tailnet_compose', return_value=json.dumps({**status, 'Self': identity})), self.assertRaises(RuntimeError):
                     deployctl.check_tailnet_identity({})
 
-    def test_each_owner_policy_restricts_ci_and_shared_service_access(self):
+    def test_each_owner_policy_exposes_only_the_restricted_operations_port(self):
         policies = {kind: json.loads((DEPLOY / f'tailnet-{kind}-policy.example.json').read_text())
                     for kind in ('frontend', 'backend')}
         for policy in policies.values():
@@ -167,9 +168,7 @@ class TailnetTests(unittest.TestCase):
             ci = [g for g in policy['grants'] if 'tag:qanda-ci' in g['src']]
             self.assertEqual(len(ci), 1)
             self.assertEqual(ci[0]['ip'], ['tcp:2222'])
-        shared = [g for g in policies['backend']['grants'] if 'autogroup:shared' in g['src']]
-        self.assertEqual(shared, [{'src': ['autogroup:shared'], 'dst': ['tag:qanda-backend'],
-                                  'ip': ['tcp:2222', 'tcp:18084', 'tcp:18085']}])
+        self.assertTrue(all(g['ip'] == ['tcp:2222'] for policy in policies.values() for g in policy['grants']))
 
     def test_firewall_blocks_host_new_connections_and_private_egress_but_preserves_replies(self):
         for version, allowed, denied in (
