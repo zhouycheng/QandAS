@@ -46,18 +46,6 @@ class SourceBuildTests(unittest.TestCase):
                 with self.subTest(update=update), self.assertRaises(ValueError):
                     deploy.validate_source_request({**self.request(), **update}, 'deploy')
 
-    def test_local_identity_and_legacy_identity_resolve_for_compose(self):
-        image = 'sha256:' + 'b' * 64
-        with patch.object(deploy, 'node_role', return_value='backend'):
-            self.assertEqual(deploy.validate_release({'revision': 'a' * 40, 'backend': image})['backend'], image)
-            self.assertEqual(deploy.local_image_ref(image), image)
-        self.assertEqual(deploy.local_image_ref('ghcr.io/zhouycheng/qanda-web@sha256:' + 'b' * 64),
-                         'ghcr.io/zhouycheng/qanda-web:sha256-' + 'b' * 64)
-        with patch.object(deploy, 'require_image_labels', side_effect=subprocess.CalledProcessError(1, 'inspect')), \
-                patch.object(deploy, 'pull_image') as pull:
-            with self.assertRaises(RuntimeError):
-                deploy.ensure_local_images({'revision': 'a' * 40, 'backend': image})
-            pull.assert_not_called()
 
     def test_builds_both_roles_with_limits_and_cleans_up_on_oom(self):
         for role in ('backend', 'frontend'):
@@ -123,7 +111,7 @@ class SourceBuildTests(unittest.TestCase):
             self.assertNotIn('ghs_testsecret', str(seen))
 
     def test_actions_rejects_old_success_and_recovers_disconnect(self):
-        env = {'SOURCE_BUILD': 'true', 'DEPLOY_NODE': 'backend', 'OPERATION_ID': '123-2-backend',
+        env = {'DEPLOY_NODE': 'backend', 'OPERATION_ID': '123-2-backend',
                'GITHUB_SHA': 'a' * 40, 'SOURCE_TOKEN': 'test'}
         state = {'operation': {'operation_id': '123-2-backend', 'revision': 'a' * 40, 'phase': 'complete'},
                  'current': {'revision': 'a' * 40}}
@@ -176,6 +164,31 @@ class SourceBuildTests(unittest.TestCase):
                 self.assertEqual(deploy.read(root / 'operation.json')['phase'], 'rolled-back')
                 self.assertEqual(activate.call_args_list, [((current,),), ((current,),)])
                 health.assert_called_once_with(current)
+
+    def test_stalled_source_request_releases_the_lock_without_queuing(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            code = f"""
+import sys
+from pathlib import Path
+sys.path.insert(0, {str(Path(deploy.__file__).resolve().parent)!r})
+import deployctl as d
+d.STATE=Path({str(root)!r});d.INPUT_TIMEOUT_SECONDS=1
+d.os.geteuid=lambda:0;d.protected=lambda path:None
+sys.argv=['deployctl','deploy']
+try: d.main()
+except TimeoutError: sys.exit(7)
+"""
+            process = subprocess.Popen([sys.executable, '-c', code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                process.stdin.write(b'{'); process.stdin.flush()
+                self.assertEqual(process.wait(timeout=8), 7)
+                self.assertFalse((root / 'operation.json').exists())
+                with (root / 'lock').open('w') as lock: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                if process.poll() is None: process.kill()
+                process.communicate()
 
     def test_log_redaction(self):
         self.assertEqual(build.redact('ghs_private ghp_private github_pat_private'), '[REDACTED] [REDACTED] [REDACTED]')

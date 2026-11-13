@@ -34,21 +34,10 @@ def compose_environment():
             entry=re.fullmatch(r'(BACKEND_[A-Z0-9_]+)=(.*)',line)
             if not entry or entry[1] in values: raise RuntimeError('联调环境字段格式或重复字段错误')
             values[entry[1]]=entry[2]
-        defaults={'BACKEND_REDIS_HOST':'127.0.0.1','BACKEND_REDIS_PORT':'56380','BACKEND_CONTENT_CACHE_ENABLED':'true'}
-        updated=original
-        if not values.get('BACKEND_REDIS_PASSWORD'):
-            password=secrets.token_urlsafe(32)
-            if 'BACKEND_REDIS_PASSWORD' in values: updated=re.sub(r'^BACKEND_REDIS_PASSWORD=$','BACKEND_REDIS_PASSWORD='+password,updated,flags=re.MULTILINE)
-            else: defaults['BACKEND_REDIS_PASSWORD']=password
-        for key,value in defaults.items():
-            if key not in values: updated+=('' if updated.endswith('\n') else '\n')+key+'='+value+'\n'
-        if updated!=original:
-            fd,temporary=tempfile.mkstemp(prefix='.backend-cache-',dir=PRIVATE)
-            try:
-                with os.fdopen(fd,'w') as stream: stream.write(updated)
-                if path.is_symlink() or path.read_text()!=original: raise RuntimeError('联调环境文件已变化，保留现有内容')
-                os.replace(temporary,path)
-            finally: Path(temporary).unlink(missing_ok=True)
+        required = {line.partition('=')[0] for line in (ROOT / 'apps/api/.env.backend.example').read_text().splitlines() if line.startswith('BACKEND_') and '=' in line}
+        missing = required - values.keys()
+        if missing or not values.get('BACKEND_REDIS_PASSWORD'):
+            raise RuntimeError('联调环境缺少必需配置字段：' + ', '.join(sorted(missing | ({'BACKEND_REDIS_PASSWORD'} if not values.get('BACKEND_REDIS_PASSWORD') else set()))))
     env = {**os.environ, "BACKEND_ENV_FILE": str(PRIVATE / "backend.env")}
     ses = Path.home() / ".config/qanda/tencent-ses.env"
     if ses.exists():

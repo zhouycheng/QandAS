@@ -1,9 +1,7 @@
 import importlib.util
-import hashlib
 import ipaddress
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -81,39 +79,32 @@ class TailnetTests(unittest.TestCase):
                 self.assertEqual(len(path.read_text().splitlines()), 10)
 
     def test_selected_deployment_never_contacts_the_other_owner(self):
-        with tempfile.NamedTemporaryFile() as summary, tempfile.NamedTemporaryFile() as archive, patch.dict('os.environ', {
+        with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
             'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'frontend',
             'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
-            'IMAGE_ARCHIVE': archive.name,
-            'IMAGE_ARCHIVE_SHA256': hashlib.sha256(b'verified image').hexdigest(),
             'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-        }), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'frontend'}) as remote, \
+        }), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'frontend', 'source_build_protocol': 1}) as remote, \
                 patch.object(dispatch, 'execute', return_value={'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
-            archive.write(b'verified image')
-            archive.flush()
             dispatch.main()
             remote.assert_called_once_with('100.64.0.10', 'status', ssh=ANY)
-            execute.assert_called_once_with('100.64.0.10', 'deploy', ssh=ANY,
-                                            image_archive=archive.name,
-                                            image_sha256=hashlib.sha256(b'verified image').hexdigest())
+            execute.assert_called_once_with('100.64.0.10', 'deploy', ssh=ANY)
             command = remote.call_args.kwargs['ssh']
             self.assertIn('-C', command)
             self.assertIn('StrictHostKeyChecking=yes', command)
             self.assertIn('HostKeyAlias=qanda-frontend', command)
             self.assertFalse(Path(command[command.index('-i') + 1]).exists())
 
-    def test_backend_deployment_can_pull_its_digest_on_the_backend_node(self):
+    def test_backend_deployment_builds_only_on_the_backend_node(self):
         with tempfile.NamedTemporaryFile() as summary, patch.dict('os.environ', {
             'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'backend',
             'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
             'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-        }, clear=True), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'backend'}) as remote, \
+        }, clear=True), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'backend', 'source_build_protocol': 1}) as remote, \
                 patch.object(dispatch, 'execute', return_value={
                     'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
             dispatch.main()
         remote.assert_called_once_with('100.64.0.11', 'status', ssh=ANY)
-        execute.assert_called_once_with('100.64.0.11', 'deploy', ssh=ANY,
-                                        image_archive=None, image_sha256=None)
+        execute.assert_called_once_with('100.64.0.11', 'deploy', ssh=ANY)
 
     def test_wrong_management_role_never_starts_a_release(self):
         with patch.dict('os.environ', {'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'backend',
@@ -129,7 +120,7 @@ class TailnetTests(unittest.TestCase):
                 'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': role, 'OPERATION': 'check',
                 'GITHUB_STEP_SUMMARY': summary.name, 'DEPLOY_SSH_KEY': 'isolated-test-key',
                 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-            }), patch.object(dispatch, 'remote', return_value={'role': role, 'current': None, 'operation': None}) as remote, \
+            }), patch.object(dispatch, 'remote', return_value={'role': role, 'current': None, 'operation': None, 'source_build_protocol': 1}) as remote, \
                     patch.object(dispatch, 'execute') as execute:
                 dispatch.main()
                 execute.assert_not_called()

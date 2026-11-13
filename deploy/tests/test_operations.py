@@ -1,12 +1,8 @@
 import copy
-import hashlib
 import importlib.util
-import io
 import json
-import os
 from pathlib import Path
 import sys
-import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -15,7 +11,6 @@ from unittest.mock import patch
 DEPLOY = Path(__file__).parents[1]
 sys.path.insert(0, str(DEPLOY))
 import deployctl
-import dispatch
 
 
 def module(name, filename):
@@ -40,37 +35,6 @@ def container():
 
 
 class OperationsTests(unittest.TestCase):
-    def test_publishing_requires_the_exact_verified_artifact_for_each_image(self):
-        for kind, artifact, destination in [
-                ('backend', 'backend/qanda-backend-1.0.0.jar', 'apps/api/target/qanda-backend-1.0.0.jar'),
-                ('web', 'web/index.html', 'apps/admin/dist/index.html')]:
-            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                file = root / 'release' / artifact
-                file.parent.mkdir(parents=True)
-                file.write_bytes(b'verified build output')
-                manifest = file.parents[1] / 'SHA256SUMS'
-                manifest.write_text(hashlib.sha256(file.read_bytes()).hexdigest() + '  ' + artifact + '\n')
-                binaries = root / 'bin'
-                binaries.mkdir()
-                docker = binaries / 'docker'
-                docker.write_text('#!/bin/sh\necho registry-contact > registry-contact\nexit 77\n')
-                docker.chmod(0o755)
-                env = {**os.environ, 'PATH': str(binaries) + os.pathsep + os.environ['PATH'],
-                       'RELEASE_KIND': kind, 'CACHE_EXACT_HIT': 'false', 'GITHUB_SHA': 'a' * 40,
-                       'REGISTRY_TOKEN': 'test-token', 'GITHUB_ACTOR': 'test'}
-                def publish():
-                    return subprocess.run(['bash', str(DEPLOY / 'publish-image.sh')], cwd=root,
-                                          env=env, capture_output=True).returncode
-                self.assertNotEqual(publish(), 0)
-                self.assertFalse((root / 'registry-contact').exists())
-                env['CACHE_EXACT_HIT'] = 'true'
-                file.write_bytes(b'changed after verification')
-                self.assertNotEqual(publish(), 0)
-                self.assertFalse((root / 'registry-contact').exists())
-                file.write_bytes(b'verified build output')
-                self.assertEqual(publish(), 77)
-                self.assertEqual((root / destination).read_bytes(), file.read_bytes())
 
     def test_ci_and_debug_commands_have_separate_permissions(self):
         self.assertEqual(entry.command('qanda-deploy', 'deploy')[-1], 'deploy')
@@ -152,24 +116,16 @@ class OperationsTests(unittest.TestCase):
             deployctl.activate({'revision': 'a' * 40, 'backend': 'backend-image'})
         self.assertLess(events.index(('tailnet-ready',)), events.index(('/usr/local/lib/qanda/network-guard.py',)))
 
-    def test_each_node_accepts_only_its_own_release_and_normalizes_legacy_state(self):
-        release = {'revision': 'a' * 40, 'backend': 'ghcr.io/zhouycheng/qanda-backend@sha256:' + 'a' * 64,
-                   'web': 'ghcr.io/zhouycheng/qanda-web@sha256:' + 'b' * 64}
-        for role, kind, other in [('backend', 'backend', 'web'), ('frontend', 'web', 'backend')]:
+    def test_each_node_accepts_only_its_own_release(self):
+        for role, kind in [('frontend', 'web'), ('backend', 'backend')]:
             with patch.object(deployctl, 'node_role', return_value=role):
-                expected = {key: release[key] for key in ('revision', kind)}
-                self.assertEqual(deployctl.validate_release(expected), expected)
-                self.assertEqual(deployctl.validate_release(release), expected)
-                with self.assertRaises(ValueError):
-                    deployctl.validate_release({key: release[key] for key in ('revision', other)})
+                value = {'revision': 'a'*40, kind: 'sha256:'+'b'*64}
+                self.assertEqual(deployctl.validate_release(value), value)
+                for invalid in [dict(value, other='sha256:'+'c'*64),
+                                dict(value, **{kind: 'ghcr.io/zhouycheng/qanda-'+kind+'@sha256:'+'b'*64})]:
+                    with self.assertRaises(ValueError): deployctl.validate_release(invalid)
 
     def test_backend_release_does_not_require_a_web_image_or_start_a_web_candidate(self):
-        with patch.dict('os.environ', {'DEPLOY_NODE': 'backend', 'GITHUB_ACTOR': 'test',
-                                      'REGISTRY_TOKEN': 'isolated-test-token', 'GITHUB_SHA': 'a' * 40,
-                                      'BACKEND': 'backend-image'}, clear=True), \
-                patch.object(dispatch, 'remote', side_effect=[None, {'operation': {'phase': 'complete'}}]) as remote:
-            dispatch.execute('backend-node', 'deploy')
-            self.assertEqual(set(remote.call_args_list[0].args[2]['release']), {'revision', 'backend'})
         def command(args, **kwargs):
             output='{"status":"UP"}' if 'curl' in args else ('PONG' if any('redis-cli ping' in arg for arg in args) else '')
             return SimpleNamespace(stdout=output)
@@ -182,91 +138,6 @@ class OperationsTests(unittest.TestCase):
         self.assertIn('--read-only',cache)
         self.assertIn('--memory',cache)
         self.assertNotIn('-p',cache)
-
-    def test_dispatch_streams_only_the_hash_checked_image_archive(self):
-        archive = b'docker image archive'
-        class Sink(io.BytesIO):
-            def close(self):
-                pass
-        class Process:
-            def __init__(self, **kwargs):
-                self.stdin = Sink()
-            def wait(self):
-                return 0
-        with tempfile.NamedTemporaryFile() as file:
-            file.write(archive)
-            file.flush()
-            process = Process()
-            with patch.object(dispatch.subprocess, 'Popen', return_value=process) as popen:
-                dispatch.remote('backend-node', 'deploy', {'release': {'revision': 'a' * 40}},
-                                ssh=['ssh'], image_archive=file.name,
-                                image_sha256=hashlib.sha256(archive).hexdigest())
-            header, body = process.stdin.getvalue().split(b'\n', 1)
-            self.assertEqual(json.loads(header)['image_sha256'], hashlib.sha256(archive).hexdigest())
-            self.assertEqual(body, archive)
-            self.assertEqual(popen.call_args.args[0][-2:], ['qanda-deploy@backend-node', 'deploy'])
-        with tempfile.NamedTemporaryFile() as file:
-            file.write(archive)
-            file.flush()
-            with patch.object(dispatch.subprocess, 'Popen') as popen, self.assertRaisesRegex(ValueError, 'SHA-256'):
-                dispatch.remote('backend-node', 'deploy', {}, ssh=['ssh'], image_archive=file.name,
-                                image_sha256='0' * 64)
-                popen.assert_not_called()
-
-    def test_image_transfer_package_pulls_only_the_selected_private_digest(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            binaries = root / 'bin'
-            binaries.mkdir()
-            docker = binaries / 'docker'
-            docker.write_text('''#!/bin/sh
-printf '%s\\n' "$*" >> "$DOCKER_LOG"
-if [ "$1" = save ]; then
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = --output ]; then shift; printf image-archive > "$1"; break; fi
-    shift
-  done
-fi
-''')
-            docker.chmod(0o755)
-            archive, output, log = root / 'qanda-image.tar', root / 'output', root / 'docker.log'
-            image = 'ghcr.io/zhouycheng/qanda-backend@sha256:' + 'a' * 64
-            env = {**os.environ, 'PATH': str(binaries) + os.pathsep + os.environ['PATH'],
-                   'IMAGE_KIND': 'backend', 'IMAGE': image, 'REGISTRY_TOKEN': 'isolated-token',
-                   'GITHUB_ACTOR': 'runner', 'RUNNER_TEMP': str(root), 'GITHUB_OUTPUT': str(output),
-                   'DOCKER_LOG': str(log)}
-            result = subprocess.run(['bash', str(DEPLOY / 'prepare-image-transfer.sh')], env=env, capture_output=True)
-            self.assertEqual(result.returncode, 0, result.stderr.decode())
-            local_tag = image.replace('@sha256:', ':sha256-')
-            self.assertEqual(archive.read_bytes(), b'image-archive')
-            self.assertIn(hashlib.sha256(b'image-archive').hexdigest(), output.read_text())
-            self.assertEqual(log.read_text().splitlines(), [
-                'login ghcr.io -u runner --password-stdin', f'pull {image}',
-                f'tag {image} {local_tag}', f'save --output {archive} {local_tag}', 'logout ghcr.io'])
-            env['IMAGE_KIND'] = 'web'
-            before = log.read_text()
-            rejected = subprocess.run(['bash', str(DEPLOY / 'prepare-image-transfer.sh')], env=env, capture_output=True)
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertEqual(log.read_text(), before)
-
-    def test_polling_recovers_from_a_temporary_ssh_disconnect_without_resubmitting(self):
-        with patch.dict('os.environ', {'GITHUB_ACTOR': 'test', 'REGISTRY_TOKEN': 'isolated-test-token'}), \
-                patch.object(dispatch, 'remote', side_effect=[None, subprocess.CalledProcessError(255, ['ssh']),
-                    {'operation': {'phase': 'complete'}}]) as remote, patch.object(dispatch.time, 'sleep') as sleep:
-            dispatch.execute('backend-node', 'rollback')
-        self.assertEqual([call.args[1] for call in remote.call_args_list], ['rollback', 'status', 'status'])
-        sleep.assert_called_once_with(10)
-
-    def test_polling_waits_beyond_the_previous_25_minute_window(self):
-        progress = {'operation': {'phase': 'pulling'}}
-        complete = {'operation': {'phase': 'complete'}}
-        with patch.dict('os.environ', {'GITHUB_ACTOR': 'test', 'REGISTRY_TOKEN': 'isolated-test-token'}), \
-                patch.object(dispatch, 'remote', side_effect=[None, *([progress] * 151), complete]) as remote, \
-                patch.object(dispatch.time, 'sleep') as sleep:
-            status = dispatch.execute('backend-node', 'rollback')
-        self.assertEqual(status, complete)
-        self.assertEqual(remote.call_count, 153)
-        self.assertEqual(sleep.call_count, 151)
 
 
 if __name__ == '__main__':

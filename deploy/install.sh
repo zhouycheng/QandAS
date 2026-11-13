@@ -32,7 +32,7 @@ if test "${1:-}" != --control-only; then
   test "$(stat -c '%a' /srv/qanda/production.env)" = 600
   test "$(stat -c '%U:%G' /srv/qanda/production.env)" = root:root
   if test "$qanda_node_role" != frontend; then
-    python3 "$qanda_source_dir/configure-production-env.py" --ensure-cache
+    python3 "$qanda_source_dir/configure-production-env.py" --validate
   fi
 fi
 install -d -o root -g root -m 0755 /srv/qanda/web-assets /usr/local/lib/qanda

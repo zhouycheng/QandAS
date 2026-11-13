@@ -55,7 +55,6 @@ jobs:
         env:
           OPERATION: ${{ inputs.operation }}
           SOURCE_TOKEN: ${{ github.token }}
-          SOURCE_BUILD: "true"
           OPERATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}-frontend
           DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
           DEPLOY_NODE: frontend
