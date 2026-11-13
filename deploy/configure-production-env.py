@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
 
 ROOT = Path('/srv/qanda')
@@ -39,6 +40,16 @@ def prompt(label, *, secret=False, valid=None, invalid='输入值格式不正确
 
 def token():
     return base64.b64encode(secrets.token_bytes(32)).decode('ascii')
+
+
+def https_origin(value):
+    try:
+        parts = urlsplit(value)
+        return (parts.scheme == 'https' and bool(parts.hostname) and parts.username is None and parts.password is None
+                and parts.path in ('', '/') and not parts.query and not parts.fragment
+                and (parts.port is None or 1 <= parts.port <= 65535))
+    except ValueError:
+        return False
 
 
 def existing_stateful_volumes():
@@ -107,8 +118,18 @@ def validate_config():
     text = TARGET.read_text()
     missing = template_keys(TEMPLATE.read_text()) - template_keys(text)
     values = dict(line.split('=', 1) for line in text.splitlines() if line and not line.lstrip().startswith('#'))
-    if missing or values.get('BACKEND_REDIS_PASSWORD', '').strip("'\"") == '':
-        fail('生产配置缺少必需字段：' + ', '.join(sorted(missing | ({'BACKEND_REDIS_PASSWORD'} if values.get('BACKEND_REDIS_PASSWORD', '').strip("'\"") == '' else set()))))
+    plain = {key: value.strip("'\"") for key, value in values.items()}
+    invalid = set()
+    if not plain.get('BACKEND_REDIS_PASSWORD'):
+        invalid.add('BACKEND_REDIS_PASSWORD')
+    if not https_origin(plain.get('BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL', '')):
+        invalid.add('BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL')
+    if not 3 <= len(plain.get('BACKEND_WECHAT_CALLBACK_TOKEN', '')) <= 32:
+        invalid.add('BACKEND_WECHAT_CALLBACK_TOKEN')
+    if not re.fullmatch(r'[A-Za-z0-9+/]{43}', plain.get('BACKEND_WECHAT_CALLBACK_AES_KEY', '')):
+        invalid.add('BACKEND_WECHAT_CALLBACK_AES_KEY')
+    if missing or invalid:
+        fail('生产配置缺少或包含无效必需字段：' + ', '.join(sorted(missing | invalid)))
     print('生产配置校验通过。')
 
 
@@ -150,6 +171,8 @@ def main():
         'BACKEND_IDENTITY_RATE_KEY', 'BACKEND_MAIL_ENCRYPTION_KEYS',
         'BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS', 'BACKEND_WECHAT_APP_ID',
         'BACKEND_WECHAT_APP_SECRET', 'BACKEND_WECHAT_PROVIDER',
+        'BACKEND_CONTENT_SAFETY_PROVIDER', 'BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL',
+        'BACKEND_WECHAT_CALLBACK_TOKEN', 'BACKEND_WECHAT_CALLBACK_AES_KEY',
         'BACKEND_MAIL_ENABLED', 'BACKEND_MAIL_TRANSPORT',
         'BACKEND_SES_SEND_ENABLED', 'BACKEND_COMMAND_DIGEST_ACTIVE_VERSION',
         'BACKEND_IDENTITY_MAC_ACTIVE_VERSION', 'BACKEND_MAIL_ENCRYPTION_ACTIVE_VERSION',
@@ -193,6 +216,19 @@ def main():
             '微信小程序 AppSecret（输入不回显）：', secret=True,
             valid=lambda value: len(value) <= 256,
             invalid='AppSecret 长度不能超过 256 个字符。',
+        ),
+        'BACKEND_CONTENT_SAFETY_PROVIDER': 'official',
+        'BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL': prompt(
+            '内容审核使用的公网 HTTPS origin（如 https://qanda.zhoust.cn）：', valid=https_origin,
+            invalid='请输入不含账号、路径、查询和片段的 HTTPS 地址。',
+        ),
+        'BACKEND_WECHAT_CALLBACK_TOKEN': prompt(
+            '微信消息推送 Token（输入不回显，须与控制台一致）：', secret=True,
+            valid=lambda value: 3 <= len(value) <= 32, invalid='Token 长度须为 3 至 32 个字符。',
+        ),
+        'BACKEND_WECHAT_CALLBACK_AES_KEY': prompt(
+            '微信消息推送 EncodingAESKey（输入不回显，须与控制台一致）：', secret=True,
+            valid=lambda value: bool(re.fullmatch(r'[A-Za-z0-9+/]{43}', value)), invalid='EncodingAESKey 须为 43 位 Base64 字符。',
         ),
         'TENCENT_SECRET_ID': prompt('腾讯云 SecretId（输入不回显）：', secret=True),
         'TENCENT_SECRET_KEY': prompt('腾讯云 SecretKey（输入不回显）：', secret=True),
