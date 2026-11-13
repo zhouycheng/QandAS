@@ -10,6 +10,7 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.annotation.DirtiesContext
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.junit.jupiter.Container
@@ -35,6 +36,8 @@ import javax.imageio.ImageIO
 @org.springframework.test.context.TestPropertySource(properties=["qanda.backend.content-cache.enabled=false"])
 @org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+// The shared queue must not retain consumers from another cached test context.
+@DirtiesContext(classMode=DirtiesContext.ClassMode.AFTER_CLASS)
 abstract class PostgresFixture {
     companion object {
         private var sharedAdminId: UUID? = null
