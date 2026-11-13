@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Import
 import org.springframework.mock.env.MockEnvironment
-import org.springframework.test.annotation.DirtiesContext
 import qanda.backend.application.ProgressEnvelope
 import qanda.backend.learning.*
 import qanda.backend.platform.http.ApiException
@@ -25,7 +24,6 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 @Import(SqlObservation.Configuration::class)
-@DirtiesContext(classMode=DirtiesContext.ClassMode.AFTER_CLASS)
 class BackendOptimizationPostgresTest : PostgresFixture() {
     @Autowired lateinit var factory: SqlSessionFactory
     @Autowired lateinit var reads: LearningReadMapper
@@ -105,6 +103,7 @@ class BackendOptimizationPostgresTest : PostgresFixture() {
                 val finishKey=UUID.randomUUID()
                 call("POST",path,progressBody(session)+mapOf("kind" to "FINISH","expectedVersion" to version,"clientSequence" to sequence+1),owner.token,202,finishKey)
                 val (_,finishSql)=SqlObservation.measure { progressCommands.consume(ProgressEnvelope(finishKey)) }
+                assertEquals("COMMITTED",jdbc.queryForObject("SELECT state FROM sync_command WHERE id=?",String::class.java,finishKey))
                 assertEquals(1,finishSql.queries.count { it.sql.startsWith("SELECT i.id item_id,r.type") })
                 val actor=sessionService.authenticate(owner.token)
                 val (_,receiptSql)=SqlObservation.measure { progressCommands.read(actor,sid,finishKey) }
