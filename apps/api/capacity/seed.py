@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 from pathlib import Path
 import threading
+import time
 import uuid
 from client import Api, Remote, private_json, smoke
 
@@ -19,6 +20,16 @@ def question(bank, chapter, number):
         q['stem'] += '请填写 {{1}}。'; q['blanks'] = [{'answers': ['容量测试']}]
     else: q['referenceAnswer'] = '容量测试参考答案'
     return q
+
+
+def credentials(api, account_id):
+    path = '/admin/test-accounts/' + account_id + '/credentials'
+    for attempt in range(3):
+        try:
+            return api.call('GET', path)
+        except OSError:
+            if attempt == 2: raise
+            time.sleep(0.25 * 2 ** attempt)
 
 
 def run(state, wanted):
@@ -54,11 +65,12 @@ def run(state, wanted):
     local = threading.local()
     def user(_):
         if not hasattr(local, 'api'): local.api = Api(port, token)
+        if not hasattr(local, 'auth_api'): local.auth_api = Api(port)
         a = local.api
         record = a.call('POST', '/admin/test-accounts', {'validDays': 7, 'includeInStatistics': True})
-        credentials = a.call('GET', '/admin/test-accounts/' + record['id'] + '/credentials')
+        login = credentials(a, record['id'])
         device = str(uuid.uuid4())
-        session = a.call('POST', '/auth/sessions', {**{k: credentials[k] for k in ('email', 'password')}, 'deviceId': device}, token='')
+        session = local.auth_api.call('POST', '/auth/sessions', {**{k: login[k] for k in ('email', 'password')}, 'deviceId': device}, token='')
         return {'id': record['id'], 'token': session['accessToken'], 'deviceId': device, 'expiresAt': session['expiresAt']}
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
         for record in pool.map(user, range(max(0, wanted - len(dataset['users'])))):

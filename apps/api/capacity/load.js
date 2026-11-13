@@ -44,7 +44,7 @@ async function call(user, method, path, body, key) {
   const response = await http.asyncRequest(method, base + path, body === undefined ? null : JSON.stringify(body), { headers, responseType: 'text', timeout: '10s', tags: { name: method + ' ' + name(path) } });
   if (response.status === 429) limited.add(1);
   if (response.status >= 500) serverErrors.add(1);
-  if (!response.status) transportErrors.add(1);
+  if (!response.status) { transportErrors.add(1); event('transport_error', { route: method + ' ' + name(path), code: response.error_code, error: response.error }); }
   if (String(response.headers['Content-Encoding'] || '').includes('gzip')) compressed.add(1);
   let data; try { data = response.json(); } catch (_) { data = null; }
   return { status: response.status, data, headers: response.headers };

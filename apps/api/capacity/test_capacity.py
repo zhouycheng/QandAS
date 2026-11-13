@@ -12,10 +12,10 @@ import time
 import unittest
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 from run import Guard, Metrics, audit_after_drain, backlog_violations, collection_failure, epoch, next_target, observation_gap, policy_stop_reason, summarize, suite, trial, violations, wait_drain
-from seed import question
+from seed import credentials, question
 from resources import http_busy, metrics, server_p95, series
 import remote
 import client as transport_client
@@ -25,6 +25,17 @@ import tunnel as transport_tunnel
 class CapacityTests(unittest.TestCase):
     def test_load_script_parses(self):
         subprocess.run(['node', '--check', 'load.js'], cwd=Path(__file__).parent, check=True, capture_output=True)
+
+    def test_seed_credential_read_retries_only_transport_errors(self):
+        api=Mock();api.call.side_effect=[OSError('EOF'),OSError('EOF'),{'email':'test','password':'secret'}]
+        with patch('seed.time.sleep') as wait:
+            value=credentials(api,'account')
+        self.assertEqual(value,{'email':'test','password':'secret'})
+        self.assertEqual(api.call.call_count,3)
+        self.assertEqual(wait.call_args_list,[call(.25),call(.5)])
+        api.call.reset_mock(side_effect=True);api.call.side_effect=RuntimeError('HTTP 503')
+        with self.assertRaisesRegex(RuntimeError,'HTTP 503'):credentials(api,'account')
+        self.assertEqual(api.call.call_count,1)
 
     def test_pending_local_intents_are_reconciled_and_delivered_before_audit(self):
         from run import deliver_pending_intents
