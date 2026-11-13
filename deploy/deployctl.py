@@ -490,9 +490,11 @@ def validate_source_request(request, action):
     if (not isinstance(request['operation_id'], str) or not re.fullmatch(r'[0-9]+-[0-9]+-(backend|frontend)', request['operation_id'])
             or not request['operation_id'].endswith('-' + node_role())):
         raise ValueError('Invalid operation identity')
-    if action == 'deploy' and (not isinstance(request['revision'], str) or not re.fullmatch(r'[0-9a-f]{40}', request['revision'])
-                               or not isinstance(request['token'], str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,4096}', request['token'])):
-        raise ValueError('Invalid source revision or credential')
+    if action == 'deploy':
+        if not isinstance(request['revision'], str) or not re.fullmatch(r'[0-9a-f]{40}', request['revision']):
+            raise ValueError('Invalid source revision')
+        if not isinstance(request['token'], str) or not re.fullmatch(r'[!-~]{1,4096}', request['token']):
+            raise ValueError('Invalid source credential')
 
 
 def reconcile(locked=False):

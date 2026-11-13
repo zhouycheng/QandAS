@@ -26,8 +26,10 @@ class SourceBuildTests(unittest.TestCase):
     def test_request_cannot_select_repository_paths_or_commands(self):
         with patch.object(deploy, 'node_role', return_value='backend'):
             deploy.validate_source_request(self.request(), 'deploy')
+            deploy.validate_source_request({**self.request(), 'token': 'ghs_test.secret+token/='}, 'deploy')
             for update in ({'revision': 'main'}, {'role': 'frontend'}, {'operation_id': '../x'}, {'operation_id': '123-2-frontend'},
-                           {'repository': 'https://other'}, {'command': 'whoami'}, {'token': ''}):
+                           {'repository': 'https://other'}, {'command': 'whoami'}, {'token': ''},
+                           {'token': 'bad token'}, {'token': 'bad\ncredential'}):
                 with self.subTest(update=update), self.assertRaises(ValueError):
                     deploy.validate_source_request({**self.request(), **update}, 'deploy')
 
