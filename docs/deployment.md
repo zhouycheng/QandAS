@@ -1,10 +1,10 @@
 # 生产部署与恢复
 
-题小搭尚未进入正式生产，当前数据均为测试数据。双服务器部署在新后端使用空库初始化，不迁移原测试数据。项目使用私有仓库、服务器构建和 Docker Compose；`main` 是唯一长期保留分支，任务通过 PR 合入 `main`。推送到 `main` 和 PR 会运行 CI；管理端与后端分别在 Actions 的 **Deploy admin**、**Deploy backend → Run workflow** 手动选择 `check`、`deploy` 或 `rollback`。`check` 验证 Tailscale、受限 SSH 和节点角色并查询发布状态；`deploy` 自动完成验证、构建、发布和健康检查。部署工作流仅接受 `main`。
+题小搭尚未进入正式生产，当前数据均为测试数据。双服务器部署在新后端使用空库初始化，不迁移原测试数据。项目使用公开仓库、服务器构建和 Docker Compose；`main` 是唯一长期保留分支，任务通过 PR 合入 `main`。推送到 `main` 和 PR 会运行 CI；管理端与后端分别在 Actions 的 **Deploy admin**、**Deploy backend → Run workflow** 手动选择 `check`、`deploy` 或 `rollback`。`check` 验证 Tailscale、受限 SSH 和节点角色并查询发布状态；`deploy` 自动完成验证、构建、发布和健康检查。部署工作流仅接受 `main`。
 
 后端工作流部署到后端所有者的服务器，管理端工作流部署到管理端所有者的服务器，各自连接所属 Tailnet。两个入口独立触发、独立构建镜像、独立记录版本和回滚，可以并行运行。
 
-Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 SHA 与操作标识。服务器从本项目私有仓库拉取该 SHA，在资源受限的构建容器中打包应用，再生成本地镜像并执行发布。Actions 每十秒查询状态和新增日志，核对本次操作标识及运行版本后返回结果。
+Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 SHA 与操作标识。服务器从本项目仓库拉取该 SHA，在资源受限的构建环境中打包应用，再生成本地镜像并执行发布。Actions 每十秒查询状态和新增日志，核对本次操作标识及运行版本后返回结果。
 
 后端镜像按 [Spring Boot 分层布局](https://docs.spring.io/spring-boot/3.5/reference/packaging/container-images/dockerfiles.html) 分开保存依赖和应用代码，依赖未变化时可复用对应镜像层。CI 使用已验证的 JAR 构建实际镜像，在独立 PostgreSQL、RabbitMQ 和 Redis 上验证重复初始化与应用就绪；运行入口仍为 `/app/app.jar`，API、worker、monitor 和运维命令共用该镜像。
 
@@ -74,9 +74,9 @@ SSH 私钥在 runner 的私有临时目录中使用，结束时删除。`*_DEPLO
 
 ## 发布与回滚
 
-手动部署固定使用触发时的 `main` SHA。CI 在 Actions 完成完整测试及镜像候选验证；服务器使用同一 SHA 重新构建发布产物。后端执行 Maven 打包并跳过重复测试；管理端按 lockfile 安装共享内容包及自身依赖，再执行 build。构建使用固定摘要的 JDK 21、Node 24 容器和 pnpm 11.25.0，应用运行镜像沿用现有 Dockerfile。构建容器使用非 root 身份，只挂载临时源码与依赖缓存；应用与镜像构建各限制 1 CPU、1 GiB 内存，每节点同时接受一个发布任务。
+手动部署固定使用触发时的 `main` SHA。CI 在 Actions 完成完整测试及镜像候选验证；服务器使用同一 SHA 重新构建发布产物。后端执行 Maven 打包并跳过重复测试；管理端按 lockfile 安装共享内容包及自身依赖，再执行 build。构建使用固定摘要的 JDK 21、Node 24 容器和 pnpm 11.25.0，应用运行镜像沿用现有 Dockerfile。构建容器使用非 root 身份，只挂载临时源码与依赖缓存。后端镜像使用 Docker Engine 默认 Buildx 构建器及已下载的运行时基础镜像，镜像构建步骤限制为 1 CPU、1 GiB 内存；每节点同时接受一个发布任务。
 
-服务器需安装 Git、Docker Engine 和 Buildx，并能访问 GitHub、Maven、npm 与构建镜像仓库。源码构建要求至少 1.5 GiB 可用内存和 5 GiB 空闲磁盘；不足时任务失败，旧服务继续运行。依赖缓存位于 `/var/cache/qanda-build`；临时源码在 `/var/lib/qanda-deploy` 下按任务创建并清理。离线基础设施包继续通过 `QANDA_PREPARE_INFRA` 单独准备。发布记录保存 SHA、操作标识和本地 image ID，镜像须匹配来源、版本和节点角色标签。历史 GHCR 摘要记录继续可读；升级前检查当前与上一版本镜像在本机可用，回滚直接使用保留镜像。
+服务器需安装 Git、Docker Engine 和 Buildx，并能访问 GitHub、Maven、npm 与相应基础镜像仓库。后端 JRE 基础镜像会在应用编译前下载并缓存，镜像构建使用该本地副本。源码构建要求至少 1.5 GiB 可用内存和 5 GiB 空闲磁盘；不足时任务失败，旧服务继续运行。依赖缓存位于 `/var/cache/qanda-build`；临时源码在 `/var/lib/qanda-deploy` 下按任务创建并清理。离线基础设施包继续通过 `QANDA_PREPARE_INFRA` 单独准备。发布记录保存 SHA、操作标识和本地 image ID，镜像须匹配来源、版本和节点角色标签。历史 GHCR 摘要记录继续可读；升级前检查当前与上一版本镜像在本机可用，回滚直接使用保留镜像。
 
 后端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 在线备份 → 停止后端应用组 → 使用临时数据库和队列验证镜像及重复初始化 → 初始化或校验当前结构 → 启动 API、worker、monitor → 检查 readiness。管理端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 保存静态资源 → 更新 web → 检查公网管理端和 API。构建期间旧服务继续运行，应用切换可能短暂停机；持久数据保留，客户端沿用原幂等键重试。
 

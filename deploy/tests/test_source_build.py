@@ -23,6 +23,19 @@ class SourceBuildTests(unittest.TestCase):
     def request(self, role='backend'):
         return dict(operation_id='123-2-' + role, role=role, revision='a' * 40, token='ghs_testsecret')
 
+    def test_missing_build_images_are_pulled_with_bounded_retries(self):
+        with patch.object(build, 'command', side_effect=[RuntimeError()] * 4) as command, \
+                patch.object(build.time, 'sleep') as sleep:
+            with self.assertRaises(RuntimeError):
+                build.ensure_image(build.RUNTIME_IMAGE)
+        self.assertEqual([call.args for call in command.call_args_list], [
+            ('docker', 'image', 'inspect', build.RUNTIME_IMAGE),
+            ('docker', 'pull', build.RUNTIME_IMAGE),
+            ('docker', 'pull', build.RUNTIME_IMAGE),
+            ('docker', 'pull', build.RUNTIME_IMAGE),
+        ])
+        self.assertEqual([x.args for x in sleep.call_args_list], [(5,), (10,)])
+
     def test_request_cannot_select_repository_paths_or_commands(self):
         with patch.object(deploy, 'node_role', return_value='backend'):
             deploy.validate_source_request(self.request(), 'deploy')
@@ -80,6 +93,16 @@ class SourceBuildTests(unittest.TestCase):
                         self.assertNotIn('production.env', str(calls))
                         self.assertIn('building-application', phases)
                         self.assertEqual('building-image' in phases, not failure)
+                        if role == 'backend':
+                            self.assertIn(('docker', 'image', 'inspect', build.RUNTIME_IMAGE), calls)
+                            if not failure:
+                                image_build = next(call for call in calls if call[:3] == ('docker', 'buildx', 'build'))
+                                self.assertIn('--builder', image_build)
+                                self.assertIn('default', image_build)
+                                self.assertEqual(image_build.count('--resource'), 4)
+                                self.assertFalse(any(call[:3] == ('docker', 'buildx', 'create') for call in calls))
+                        elif not failure:
+                            self.assertTrue(any(call[:3] == ('docker', 'buildx', 'create') for call in calls))
                         cleanup.assert_called()
                     self.assertFalse(list(root.glob('qanda-source-*')))
 
