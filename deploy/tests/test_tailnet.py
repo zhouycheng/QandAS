@@ -2,6 +2,7 @@ import importlib.util
 import ipaddress
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -196,6 +197,43 @@ class TailnetTests(unittest.TestCase):
             return ''
         with patch.object(guard, 'run', side_effect=command), self.assertRaisesRegex(RuntimeError, 'precede'):
             guard.enforce(['br-app', 'br-data'], [], check=True)
+
+    def test_only_flat_non_accepting_chains_may_precede_project_guards(self):
+        for target, accepted in (('DROP', True), ('REJECT', True), ('RETURN', False), ('ACCEPT', False)):
+            with self.subTest(target=target):
+                self.assertEqual(guard.non_accepting_jump('iptables', '-A INPUT -j ' + target), accepted)
+        for body, accepted in (
+            ('', True),
+            ('-A CLOUD-DENY -p tcp --dport 22 -j REJECT\n-A CLOUD-DENY -j RETURN', True),
+            ('-A CLOUD-DENY -j ACCEPT', False),
+            ('-A CLOUD-DENY -j OTHER', False),
+            ('-A CLOUD-DENY -g OTHER', False),
+            ('-A CLOUD-DENY -j LOG', False),
+        ):
+            with self.subTest(body=body), patch.object(guard, 'run', return_value='-N CLOUD-DENY\n' + body):
+                self.assertEqual(guard.non_accepting_jump('iptables', '-A INPUT -j CLOUD-DENY'), accepted)
+                self.assertFalse(guard.non_accepting_jump('iptables', '-A INPUT -g CLOUD-DENY'))
+        with patch.object(guard, 'run', return_value='-P INPUT ACCEPT\n-A INPUT -j DROP'):
+            self.assertFalse(guard.non_accepting_jump('iptables', '-A FORWARD -j INPUT'))
+        with patch.object(guard, 'run', side_effect=subprocess.CalledProcessError(1, 'iptables')):
+            self.assertFalse(guard.non_accepting_jump('iptables', '-A INPUT -j UNKNOWN'))
+
+    def test_firewall_check_preserves_a_preceding_deny_only_security_agent_chain(self):
+        def command(*args, **kwargs):
+            version = 6 if args[0] == 'ip6tables' else 4
+            if args[-2] == '-S' and args[-1] in guard.CHAINS:
+                chain = args[-1]
+                return '\n'.join(' '.join(['-A', chain, *entry]) for entry in guard.rules(version, [])[chain])
+            if args[-2:] == ('-S', 'INPUT'):
+                return '-A INPUT -j CLOUD-DENY\n-A INPUT -i br-app -j QANDA-HOST\n'
+            if args[-2:] == ('-S', 'CLOUD-DENY'):
+                return '-N CLOUD-DENY\n-A CLOUD-DENY -p tcp --dport 22 -j REJECT\n'
+            if args[-2] == '-S':
+                return '-A ' + args[-1] + ' -i br-app -j QANDA-EGRESS\n'
+            return ''
+        with patch.object(guard, 'run', side_effect=command) as run:
+            guard.enforce(['br-app'], [], check=True)
+        self.assertFalse(any(arg in ('-I', '-D', '-F', '--noflush') for call in run.call_args_list for arg in call.args))
 
 
 if __name__ == '__main__':

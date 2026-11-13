@@ -29,6 +29,7 @@ def main():
     prefix = 'qanda-isolation-check-' + uuid.uuid4().hex[:8]
     names, networks, bridges = [], [], []
     event_server = None
+    security_chain = None
     temporary = tempfile.TemporaryDirectory(prefix=prefix)
     image = 'nginx:1.28-alpine'
 
@@ -246,12 +247,31 @@ def main():
         assert get(member, f'http://{host_ip}:38192') == 'OTHER'
         guard.enforce(bridges, [str(subnet)])
         guard.enforce(bridges, [str(subnet)], check=True)
+        candidate_chain = 'QANDA-CHECK-DENY-' + uuid.uuid4().hex[:8]
+        guard.run('iptables', '-w', '5', '-N', candidate_chain)
+        security_chain = candidate_chain
+        guard.run('iptables', '-w', '5', '-A', security_chain, '-p', 'tcp', '--dport', '65534', '-j', 'REJECT')
+        guard.run('iptables', '-w', '5', '-I', 'INPUT', '1', '-j', security_chain)
+        deny_rules = guard.run('iptables', '-w', '5', '-S', security_chain)
+        guard.enforce(bridges, [str(subnet)], check=True)
+        assert guard.run('iptables', '-w', '5', '-S', security_chain) == deny_rules
+        unsafe = ['-s', str(subnet), '-p', 'tcp', '--dport', '38191', '-j', 'ACCEPT']
+        guard.run('iptables', '-w', '5', '-A', security_chain, *unsafe)
+        try:
+            guard.enforce(bridges, [str(subnet)], check=True)
+        except RuntimeError as error:
+            assert 'precede' in str(error)
+        else:
+            raise AssertionError('A permissive security-agent chain bypassed validation')
+        finally:
+            guard.run('iptables', '-w', '5', '-D', security_chain, *unsafe)
+        guard.enforce(bridges, [str(subnet)], check=True)
         blocked(member, f'http://{host_ip}:38191')
         blocked(member, f'http://{host_ip}:38192')
         assert get(control, f'http://{other_host}:38191') == 'HOST'
         assert get(control, f'http://{other_host}:38192') == 'OTHER'
         assert get(member, f'http://{ip(20)}:8080/api/v1/health') == 'API:' + ip(11) + ':'
-        print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; combined internal HTTP; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; source and host isolation')
+        print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; combined internal HTTP; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; deny-only security-agent coexistence; source and host isolation')
     except Exception:
         for name in names:
             result = subprocess.run(['docker', 'logs', '--tail', '5', name], capture_output=True)
@@ -261,6 +281,10 @@ def main():
         if event_server:
             event_server.shutdown()
             event_server.server_close()
+        if security_chain:
+            subprocess.run(['iptables', '-w', '5', '-D', 'INPUT', '-j', security_chain], capture_output=True)
+            subprocess.run(['iptables', '-w', '5', '-F', security_chain], capture_output=True)
+            subprocess.run(['iptables', '-w', '5', '-X', security_chain], capture_output=True)
         for binary, parent in (('iptables', 'DOCKER-USER'), ('ip6tables', 'FORWARD')):
             for bridge in bridges:
                 for chain, destination in (('INPUT', 'QANDA-HOST'), (parent, 'QANDA-EGRESS')):
