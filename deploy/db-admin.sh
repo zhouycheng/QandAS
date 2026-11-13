@@ -43,8 +43,6 @@ case "$qanda_operation" in
       export BACKEND_IMAGE WEB_IMAGE REVISION
       BACKEND_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["backend"])')
       WEB_IMAGE=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json")).get("web","scratch"))')
-      BACKEND_IMAGE=${BACKEND_IMAGE/@sha256:/:sha256-}
-      WEB_IMAGE=${WEB_IMAGE/@sha256:/:sha256-}
       REVISION=$(python3 -c 'import json;print(json.load(open("/var/lib/qanda-deploy/current.json"))["revision"])')
       "${qanda_app[@]}" stop "${qanda_services[@]}"
     fi
