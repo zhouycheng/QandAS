@@ -43,6 +43,7 @@ def main():
             source = source.replace('qanda-application', prefix)
             controller.write_text(source)
             controller.chmod(0o755)
+            (root / 'source_build.py').write_text((DEPLOY / 'source_build.py').read_text())
             entry = root / 'entry'
             source = (DEPLOY / 'remote-entry.py').read_text().replace('/usr/local/sbin/qanda-deployctl', str(controller))
             # A loopback-only root fixture avoids creating system users; its command rights remain qanda-debug.

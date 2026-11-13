@@ -1,2 +1,2 @@
-qanda-deploy ALL=(root) NOPASSWD: /usr/local/sbin/qanda-deployctl deploy, /usr/local/sbin/qanda-deployctl rollback, /usr/local/sbin/qanda-deployctl status
+qanda-deploy ALL=(root) NOPASSWD: /usr/local/sbin/qanda-deployctl deploy, /usr/local/sbin/qanda-deployctl rollback, /usr/local/sbin/qanda-deployctl status, /usr/local/sbin/qanda-deployctl release-logs
 qanda-debug ALL=(root) NOPASSWD: /usr/local/sbin/qanda-deployctl containers, /usr/local/sbin/qanda-deployctl logs *, /usr/local/sbin/qanda-deployctl shell *, /usr/local/sbin/qanda-deployctl restart *
