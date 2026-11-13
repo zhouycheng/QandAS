@@ -53,6 +53,27 @@ def rules(version, subnets):
     return dict(zip(CHAINS, (host, egress)))
 
 
+def non_accepting_jump(binary, line):
+    def jump_target(rule):
+        args = shlex.split(rule)
+        if '-g' in args or '--goto' in args or '-j' not in args:
+            return None
+        return args[args.index('-j') + 1]
+
+    name = jump_target(line)
+    if name in ('DROP', 'REJECT'):
+        return True
+    if name in (None, 'ACCEPT', 'RETURN'):
+        return False
+    try:
+        entries = run(binary, '-w', '5', '-S', name).splitlines()
+    except subprocess.CalledProcessError:
+        return False
+    return entries[:1] == ['-N ' + name] and all(
+        entry.startswith('-A ' + name + ' ') and jump_target(entry) in ('DROP', 'REJECT', 'RETURN')
+        for entry in entries[1:])
+
+
 def enforce(bridges, subnets, check=False):
     # Docker's iptables backend preserves DOCKER-USER; nftables requires a separate implementation.
     run('iptables', '-w', '5', '-S', 'DOCKER-USER')
@@ -93,8 +114,9 @@ def enforce(bridges, subnets, check=False):
                 entries = run(binary, '-w', '5', '-S', parent).splitlines()
                 target = ' '.join(['-A', parent, *jump])
                 project_jumps = {f'-A {parent} -i {item} -j {chain}' for item in bridges}
-                # Only the other scoped project jumps may precede this bridge's protection.
-                if any(line.startswith('-A ') and line not in project_jumps for line in entries[:entries.index(target)]):
+                # Host security agents may prepend chains that only reject or return.
+                if any(line.startswith('-A ') and line not in project_jumps and not non_accepting_jump(binary, line)
+                       for line in entries[:entries.index(target)]):
                     if check:
                         raise RuntimeError('Project firewall must precede permissive host rules')
                     run(binary, '-w', '5', '-D', parent, *jump)

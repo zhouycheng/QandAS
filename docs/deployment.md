@@ -159,7 +159,7 @@ ssh -t qanda-backend-ops shell api
 ssh qanda-backend-ops restart api
 ```
 
-`network-guard.py` 只管理带 `QANDA-` 前缀的规则和题小搭网桥：保留连接回复，仅允许网关容器访问宿主机的受限 `2203`，阻止其他新增宿主机连接、其他私网、云元数据和其他项目的映射端口。后端自己的应用和数据网络保留正常通信。当前要求 Docker 使用 iptables 后端，并具备 `iptables` 和 `ip6tables`。
+`network-guard.py` 只管理带 `QANDA-` 前缀的规则和题小搭网桥：保留连接回复，仅允许网关容器访问宿主机的受限 `2203`，阻止其他新增宿主机连接、其他私网、云元数据和其他项目的映射端口。后端自己的应用和数据网络保留正常通信。宿主机安全代理可在项目前方放置仅含 DROP、REJECT 或 RETURN 的独立链；校验逐条核对其内容，遇到放行、嵌套跳转或 goto 仍要求项目保护在前。当前要求 Docker 使用 iptables 后端，并具备 `iptables` 和 `ip6tables`。
 
 `qanda-tailnet.service` 在隔离规则和受限 SSH 就绪后启动容器；网络容器由 systemd 管理重启。日常应用发布保留控制连接，回读防火墙规则、节点身份、转发配置和健康状态。容器使用宿主机内核，宿主机管理员仍负责系统更新和容器边界维护。
 
