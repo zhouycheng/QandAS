@@ -167,6 +167,10 @@ def input_timed_out(_signum, _frame):
     raise TimeoutError('Deployment input exceeded its time budget')
 
 
+def error_message(error):
+    return str(error) if isinstance(error, (ValueError, RuntimeError, TimeoutError)) else type(error).__name__
+
+
 def image_labels(image):
     return json.loads(run('docker', 'image', 'inspect', '--format', '{{json .Config.Labels}}', image))
 
@@ -663,5 +667,5 @@ if __name__ == '__main__':
             path = STATE / 'diagnostic.txt'
             path.write_text(error.stderr or 'Command failed without diagnostic output')
             path.chmod(0o600)
-        print(f'qanda-deployctl: {type(error).__name__}; inspect deployment status', file=sys.stderr)
+        print(f'qanda-deployctl: {error_message(error)}', file=sys.stderr)
         sys.exit(1)
