@@ -175,6 +175,17 @@ if __name__ == '__main__':
     except (ValueError, RuntimeError) as error:
         print(str(error), file=sys.stderr)
         sys.exit(1)
+    except subprocess.CalledProcessError as error:
+        output = error.stderr or b''
+        if isinstance(output, bytes):
+            output = output.decode(errors='replace')
+        message = next((line.strip() for line in output.splitlines()
+                        if line.startswith('qanda-deployctl: ')), '')
+        if message:
+            print(f'Deployment failed (exit {error.returncode}): {message}', file=sys.stderr)
+        else:
+            print(f'Deployment command failed with exit code {error.returncode}; no safe server message was returned', file=sys.stderr)
+        sys.exit(1)
     except Exception as error:
         print(f'Deployment failed: {type(error).__name__}; inspect this node through its owner', file=sys.stderr)
         sys.exit(1)
