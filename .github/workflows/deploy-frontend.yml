@@ -27,40 +27,14 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       scope: frontend
-  publish:
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
-        id: verified
-        with:
-          path: release/
-          key: ${{ needs.verify.outputs.release-cache-key }}
-          fail-on-cache-miss: true
-      - name: Publish the verified web image
-        id: image
-        env:
-          RELEASE_KIND: web
-          CACHE_EXACT_HIT: ${{ steps.verified.outputs.cache-hit }}
-          REGISTRY_TOKEN: ${{ github.token }}
-        run: bash deploy/publish-image.sh
   deploy:
-    needs: [guard, verify, publish]
-    if: always() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.publish.result == 'success')
+    needs: [guard, verify]
+    if: ${{ !cancelled() && needs.guard.result == 'success' && (inputs.operation == 'check' || inputs.operation == 'rollback' || needs.verify.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     permissions:
       contents: read
       id-token: write
-      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -72,15 +46,6 @@ jobs:
           SSH_KEY: ${{ secrets.FRONTEND_DEPLOY_SSH_KEY }}
           SSH_HOSTS: ${{ secrets.FRONTEND_DEPLOY_SSH_KNOWN_HOSTS }}
         run: test -n "$TS_CLIENT" && test -n "$TS_AUDIENCE" && test -n "$SSH_KEY" && test -n "$SSH_HOSTS"
-      - name: Prepare the immutable image for transfer
-        id: archive
-        if: inputs.operation == 'deploy'
-        env:
-          IMAGE_KIND: web
-          IMAGE: ${{ needs.publish.outputs.image }}
-          REGISTRY_TOKEN: ${{ github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
-        run: bash deploy/prepare-image-transfer.sh
       - uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
           oauth-client-id: ${{ secrets.FRONTEND_TS_OAUTH_CLIENT_ID }}
@@ -89,10 +54,9 @@ jobs:
       - name: Deploy and verify frontend
         env:
           OPERATION: ${{ inputs.operation }}
-          WEB: ${{ needs.publish.outputs.image }}
-          IMAGE_ARCHIVE: ${{ runner.temp }}/qanda-image.tar
-          IMAGE_ARCHIVE_SHA256: ${{ steps.archive.outputs.sha256 }}
-          REGISTRY_TOKEN: ${{ github.token }}
+          SOURCE_TOKEN: ${{ github.token }}
+          SOURCE_BUILD: "true"
+          OPERATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}-frontend
           DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
           DEPLOY_NODE: frontend
           DEPLOY_SSH_KEY: ${{ secrets.FRONTEND_DEPLOY_SSH_KEY }}
