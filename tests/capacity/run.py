@@ -22,7 +22,7 @@ from resources import http_busy, metrics as metric_values
 
 
 def epoch(value):
-    # k6 emits variable nanosecond precision; Python 3.9 requires normalized microseconds.
+    # k6 timestamps have variable nanosecond precision; normalize to microseconds for parsing.
     normalized = re.sub(r'\.(\d+)', lambda m: '.' + m.group(1)[:6].ljust(6, '0'), value)
     return datetime.fromisoformat(normalized.replace('Z', '+00:00')).timestamp()
 

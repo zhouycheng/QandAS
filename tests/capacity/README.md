@@ -1,11 +1,17 @@
 # 后端容量测试
 
-容量工具位于 `apps/api/capacity/`。测试从独立 Mac 上的原生 k6 发起，经仅监听本机的 SSH 隧道进入新后端。结果记录真实请求吞吐、完整练习成功率、异步落库和恢复情况；实测数据见[后端容量实测记录](backend-capacity-results.md)。
+容量工具位于 `tests/capacity/`。测试从独立 Mac 上的原生 k6 发起，经仅监听本机的 SSH 隧道进入新后端。结果记录真实请求吞吐、完整练习成功率、异步落库和恢复情况；实测数据见[后端容量实测记录](../../docs/backend-capacity-results.md)。
+
+## 已有结果
+
+已完成运行的脱敏结果位于 [results/](results/index.json)，包括 [2026-11-13 的 2000 VU 结果](results/20261113-r11/report.html)。该轮持续 600 秒，15,619 条同步意图最终全部提交，完整性检查通过；严格 SLA 未通过，确认 P95/P99 为 65,208／209,713 毫秒。它验证压测器账本的最终补传，微信真机存储与重启恢复需单独验证。不同后端版本的记录按运行编号保留。
+
+`report.py` 可直接读取 `trials/*/result.json` 或套件 `results.json`；逐次完成记录优先，缺少套件完成文件时显示未确认整套完成。导出仅包含白名单字段和匿名数值采样，私有连接、凭据、意图账本和数据库转储保存在仓库外。
 
 ## 运行条件
 
 - 使用通过 CI 的后端版本。来源 IP 限流默认开启，由 `BACKEND_REQUEST_LIMITS_ENABLED` 控制，同一来源每 60 秒最多 60000 次；普通账号读写不设固定配额。本次工具固定使用校验过官方 SHA-256 的 k6 2.3.0。
-- 本机使用 Python 3.10 及以上版本的独立虚拟环境，安装 `apps/api/capacity/requirements.txt` 中固定的 AsyncSSH。转发监听本机回环地址，使用指定私钥和已有 `known_hosts` 校验服务器主机密钥。
+- 本机使用 Python 3.10 及以上版本的独立虚拟环境，安装 `tests/capacity/requirements.txt` 中固定的 AsyncSSH。转发监听本机回环地址，使用指定私钥和已有 `known_hosts` 校验服务器主机密钥。
 - 具备本项目后端主机的 SSH 管理权限和免交互 `sudo`。允许题小搭测试服务暂时不可用；原有数据库、队列和配置会保留。
 - 连接配置、SSH 私钥、管理员凭据、学生令牌和原始运行证据存放在仓库外的权限 `700` 目录中，文件权限为 `600`。
 
@@ -28,11 +34,11 @@
 ```sh
 python3.12 -m venv "$HOME/.local/share/qanda-capacity/venv"
 CAPACITY_PYTHON="$HOME/.local/share/qanda-capacity/venv/bin/python"
-"$CAPACITY_PYTHON" -m pip install -r apps/api/capacity/requirements.txt
+"$CAPACITY_PYTHON" -m pip install -r tests/capacity/requirements.txt
 CAPACITY_STATE="$HOME/.local/state/qanda-capacity/20261108"
-"$CAPACITY_PYTHON" apps/api/capacity/setup.py --state "$CAPACITY_STATE" --users 1000
-"$CAPACITY_PYTHON" apps/api/capacity/validate.py --state "$CAPACITY_STATE"
-caffeinate -i "$CAPACITY_PYTHON" apps/api/capacity/run.py --state "$CAPACITY_STATE" --restore
+"$CAPACITY_PYTHON" tests/capacity/setup.py --state "$CAPACITY_STATE" --users 1000
+"$CAPACITY_PYTHON" tests/capacity/validate.py --state "$CAPACITY_STATE"
+caffeinate -i "$CAPACITY_PYTHON" tests/capacity/run.py --state "$CAPACITY_STATE" --restore
 ```
 
 `setup.py` 核对已部署 SHA，安装私有运维脚本，完成单用户保存、回执、重复提交和交卷验收，再保存测试数据基线。合成题目先通过既有导入预览校验。准备失败时尝试恢复原服务，并保留私有诊断。`validate.py` 验证同一账号连续 610 次读取、130 次写入均可成功，检查认证和权限，并执行原生 k6 单用户练习。
@@ -74,7 +80,7 @@ HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练
 `--restore` 在退出时恢复原基础服务与应用配置，并校验原配置摘要。套件完成后清理带本次运行标签的临时容器、卷和凭据文件；异常中断时保留临时数据供诊断。独立的服务器计时器在五分钟未收到测试端心跳后尝试恢复原服务，降低发压机离线造成的影响。
 
 ```sh
-"$CAPACITY_PYTHON" apps/api/capacity/report.py --state "$CAPACITY_STATE" --output docs/capacity-results
+"$CAPACITY_PYTHON" tests/capacity/report.py --state "$CAPACITY_STATE" --output tests/capacity/results/<运行编号>
 ```
 
 导出报告包含中文说明、CSV、JSON 和可交互 HTML 图表。连接参数和令牌留在私有目录。报告区分已验证稳定容量、首次失稳、容器失败以及发压端／链路限制；公网全链路容量需要独立验收。
@@ -84,6 +90,6 @@ HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练
 工具自身检查：
 
 ```sh
-"$CAPACITY_PYTHON" -m unittest discover -s apps/api/capacity -p 'test_*.py' -v
-node --check apps/api/capacity/load.js
+"$CAPACITY_PYTHON" -m unittest discover -s tests/capacity -p 'test_*.py' -v
+node --check tests/capacity/load.js
 ```

@@ -3,6 +3,7 @@ import argparse
 import csv
 from datetime import datetime
 import json
+import hashlib
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -12,11 +13,17 @@ from run import full_metrics, summarize
 
 def generate(state, output):
     state, output = Path(state), Path(output); output.mkdir(parents=True, exist_ok=True)
-    trials = json.loads((state / 'results.json').read_text())
+    by_label = {row['label']: row for row in json.loads((state / 'results.json').read_text())} if (state / 'results.json').exists() else {}
+    for path in sorted((state / 'trials').glob('*/result.json')):
+        row = json.loads(path.read_text())
+        row['label'] = path.parent.name
+        row['source_result_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+        by_label[row['label']] = row
+    trials = list(by_label.values())
+    if not trials:
+        raise ValueError('No completed trial results were found')
     completion = json.loads((state / 'completion.json').read_text()) if (state / 'completion.json').exists() else {'suite_complete': False}
     restored = json.loads((state / 'restoration.json').read_text()) if (state / 'restoration.json').exists() else {'restored': False}
-    if (state / 'configuration.json').exists():
-        (output / 'configuration.json').write_text((state / 'configuration.json').read_text())
     trends = {}
     for trial in trials:
         path = state / 'trials' / trial['label'] / 'samples.jsonl'
@@ -28,7 +35,7 @@ def generate(state, output):
         trial['compressed_responses'] = k6.get('compressed_responses', {}).get('count', 0)
         trial['achieved_vus_peak'] = trial.get('achieved_vus_peak') or k6.get('vus', {}).get('max')
         raw = state / 'trials' / trial['label'] / 'raw.json.gz'
-        if raw.exists() and (trial['achieved_vus_peak'] is None or trial.get('completed_operations_per_second', 0) < 0):
+        if raw.exists() and (trial['achieved_vus_peak'] is None or (trial.get('completed_operations_per_second') or 0) < 0):
             recovered = summarize(full_metrics(raw))
             trial['achieved_vus_peak'] = recovered['achieved_vus_peak']
             trial['completed_operations_per_second'] = recovered['completed_operations_per_second']
@@ -39,25 +46,42 @@ def generate(state, output):
         trial['accepted_mismatches'] = trial.get('audit', {}).get('answer_mismatches')
         trial['result_mismatches'] = trial.get('audit', {}).get('result_mismatches')
     fields = sorted({key for rows in trends.values() for row in rows for key in row})
-    with (output / 'resources.csv').open('w') as f:
-        writer = csv.DictWriter(f, ['label'] + fields); writer.writeheader()
+    with (output / 'resources.csv').open('w', newline='') as f:
+        writer = csv.DictWriter(f, ['label'] + fields, lineterminator='\n'); writer.writeheader()
         for label, rows in trends.items(): writer.writerows({'label': label, **row} for row in rows)
-    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'unavailable', 'timeouts', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'tunnel_exit_code', 'recovery_seconds', 'ready_and_drained_seconds', 'audit_seconds', 'recovery_includes_readiness', 'source_run', 'integrity_passed', 'accepted_verified', 'accepted_commands', 'committed_commands', 'new_commands', 'unobserved_registrations', 'unverified_registrations', 'result_mismatches', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'fixture_users', 'fixture_banks', 'seed_sha256', 'max_concurrent_requests', 'request_queue_capacity', 'request_queue_wait_ms', 'content_cache_enabled', 'achieved_vus_peak', 'metrics_recovered_from_raw', 'generator_received_bytes', 'generator_sent_bytes', 'compressed_responses', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak']
-    with (output / 'trials.csv').open('w') as f:
-        writer = csv.DictWriter(f, columns, extrasaction='ignore'); writer.writeheader(); writer.writerows(trials)
+    columns = ['scenario', 'limits', 'label', 'target', 'duration', 'wall_seconds', 'stable', 'http', 'rps', 'successful_rps', 'completed_operations_per_second', 'limited', 'unavailable', 'timeouts', 'server_errors', 'transport_errors', 'other_errors', 'p95_ms', 'p99_ms', 'commit_p95_ms', 'commit_p99_ms', 'business_success', 'dropped_iterations', 'stop_reason', 'tunnel_exit_code', 'recovery_seconds', 'ready_and_drained_seconds', 'audit_seconds', 'recovery_includes_readiness', 'source_run', 'integrity_passed', 'accepted_verified', 'accepted_commands', 'committed_commands', 'new_commands', 'unobserved_registrations', 'unverified_registrations', 'result_mismatches', 'accepted_mismatches', 'server_p95_bucket_ms', 'suite_stop', 'backend_revision', 'harness_sha256', 'fixture_users', 'fixture_banks', 'seed_sha256', 'max_concurrent_requests', 'request_queue_capacity', 'request_queue_wait_ms', 'content_cache_enabled', 'achieved_vus_peak', 'metrics_recovered_from_raw', 'generator_received_bytes', 'generator_sent_bytes', 'compressed_responses', 'burst_started', 'burst_start_spread_ms', 'burst_inflight_peak', 'source_result_sha256', 'business_operations', 'business_failures', 'client_delivery', 'audit']
     public = [{key: row.get(key) for key in columns} for row in trials]
+    for row in public:
+        for field, keys in [('client_delivery', ('intents', 'delivered', 'recovered_uploads')),
+                            ('audit', ('registered', 'accepted', 'client_accepted', 'committed', 'missing', 'pending', 'rejected', 'answer_mismatches', 'result_mismatches'))]:
+            value = row[field] or {}
+            row[field] = {key: value[key] for key in keys if type(value.get(key)) is int}
+    for row in public:
+        for key, value in list(row.items()):
+            if key not in ('audit', 'client_delivery') and value is not None and not isinstance(value, (str, int, float, bool)): row[key] = None
+    with (output / 'trials.csv').open('w', newline='') as f:
+        writer = csv.DictWriter(f, columns, lineterminator='\n'); writer.writeheader(); writer.writerows(public)
+    trials = public
     (output / 'trials.json').write_text(json.dumps(public, ensure_ascii=False, indent=2))
     lines = ['# 题小搭后端容量实测', '', '生成时间：' + datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds'), '', '整套测试完成：' + str(completion['suite_complete']) + '。', '',
              '测试对象为新后端，经 Mac 原生 k6 与私有 SSH 隧道发压。数据使用独立数据库卷及 RabbitMQ vhost，压测期间保留现有应用和基础服务资源限制。', '',
              'A 组使用所测后端版本的默认业务请求保护，B 组在隔离环境关闭对应保护；具体配额以版本及运行配置记录为准。两组均启用认证和权限校验。', '',
-             '| 场景 | 限流 | 最高通过档 | 首个未通过档 | 通过档最高成功 RPS | 30 分钟稳定档 |', '|---|---|---:|---:|---:|---:|']
+             ]
+    lines += ['', '## 同步意图与最终保存', '', '| 运行 | 版本 | 人数／档位 | 时长／秒 | 业务完成率 | 本机意图／最终提交 | 补传 | 完整性 | 严格 SLA | 确认 P95／P99 毫秒 |', '|---|---|---:|---:|---:|---|---:|---|---|---|']
+    for row in trials:
+        delivery, audit = row['client_delivery'], row['audit']
+        lines.append('| ' + ' | '.join(str(value) for value in [row['label'], row['backend_revision'] or '未记录', row['target'], row['duration'], row['business_success'],
+            str(delivery.get('intents', '未记录')) + '／' + str(audit.get('committed', '未记录')), delivery.get('recovered_uploads', '未记录'),
+            '通过' if row['integrity_passed'] is True else '未通过' if row['integrity_passed'] is False else '未记录',
+            '通过' if row['stable'] is True else '未通过' if row['stable'] is False else '未记录', str(row['commit_p95_ms']) + '／' + str(row['commit_p99_ms'])]) + ' |')
+    lines += ['', '完整性与严格 SLA 分别判定。最终提交成功不能抹去压力期间的 503 或延迟违例；压测器的持久意图账本不等同于微信真机存储与重启恢复。', '', '## 各场景严格 SLA 档位', '', '| 场景 | 限流 | 最高通过档 | 首个未通过档 | 通过档最高成功 RPS | 30 分钟稳定档 |', '|---|---|---:|---:|---:|---:|']
     for scenario in dict.fromkeys(x['scenario'] for x in trials):
         for policy in ('on', 'off'):
             rows = [x for x in trials if x['scenario'] == scenario and x['limits'] == policy]
             if not rows: continue
             good = [x['target'] for x in rows if x['stable']]; bad = [x['target'] for x in rows if not x['stable']]
             soak = [x['target'] for x in rows if x['stable'] and x['duration'] >= 1800]
-            lines.append('| ' + ' | '.join([scenario, '开启' if policy == 'on' else '关闭', str(max(good)) if good else '未确认', str(min(bad)) if bad else '未触达', f"{max((x.get('successful_rps', 0) for x in rows if x['stable']), default=0):.2f}", str(max(soak)) if soak else '未确认']) + ' |')
+            lines.append('| ' + ' | '.join([scenario, '开启' if policy == 'on' else '关闭', str(max(good)) if good else '未确认', str(min(bad)) if bad else '未触达', f"{max(((x.get('successful_rps') or 0) for x in rows if x['stable']), default=0):.2f}", str(max(soak)) if soak else '未确认']) + ' |')
     lines += ['', '后端版本：`' + str(next((x.get('backend_revision') for x in trials if x.get('backend_revision')), '见私有运行清单')) + '`。', '',
               '成功 RPS 仅包含收到成功响应的请求；业务操作完成速率、异步最终落库和请求成功吞吐分别计量。表中通过档均满足当次延迟与错误率标准；30 分钟档提供持续运行证据。', '', '真实学生场景的档位单位为活跃用户；读取、创建、同步和交卷场景为目标业务操作／秒，实际 HTTP RPS 包含协议中的回执查询和准备请求；突发场景为一秒内计划发起操作的用户数。保护提前终止时，实际达到的峰值 VU 可能低于目标档位；两者分别保存在逐次结果中。具体实发量、启动时间分布和未启动迭代一并记录。', '',
               '## 数据一致性与恢复', '', f"- 完成运行：{len(trials)} 次。", f"- 全部运行持久化校验通过：{all(x.get('integrity_passed') for x in trials)}。", f"- 原运行配置及服务已恢复：{restored['restored']}。", f"- 临时数据库与消息数据已清理：{restored.get('temporary_data_cleaned', False)}。", '',
