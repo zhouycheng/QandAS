@@ -12,6 +12,8 @@
 
 ## 题库模板
 
+使用 [题库整理 SKILL](../.agents/skills/qanda-question-bank/SKILL.md) 时，处理前会询问 Excel 或 JSON，默认选项为 Excel。Skill 内置[题库 Excel 模板](../.agents/skills/qanda-question-bank/assets/question-bank-template.xlsx)，按题库填写后随图片附件和复核报告交付。
+
 每个工作簿对应一个题库。工作表包括题库信息、章节、题目、选项、填空答案、参考要点、来源说明、附件及长文本。普通题填写题号和章节编号；阅读材料为 `READING` 行，小题通过题组编号关联，保持原顺序。多选标准选项用逗号分隔，如 `A,C`；判断答案为 `true` 或 `false`。填空候选每行一条，以空位编号区分各空。
 
 六种题型为 `SINGLE_CHOICE`、`MULTIPLE_CHOICE`、`TRUE_FALSE`、`FILL_BLANK`、`SHORT_ANSWER`、`READING`。正文格式为 `MARKDOWN` 或 `PLAIN_TEXT`；展示方式为 `STANDARD`、`CONCEPT`、`CODE_ANALYSIS`。代码通过 Markdown 围栏指定语言，代码语言列保持空白。来源说明保存来源位置与 AI 参与元数据。

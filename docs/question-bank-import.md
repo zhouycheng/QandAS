@@ -11,7 +11,9 @@
 | [代码题示例](question-bank-import/examples/code-content.json) | 两道输出填空、一道程序理解 |
 | [六类内容示例](question-bank-import/examples/six-types.json) | 六条记录、七道实际作答题 |
 | [示例原材料](question-bank-import/examples/materials.md) | 核对题目来源、缺失选项补全和讲义编题 |
-| [AI 提取 SKILL](../.agents/skills/qanda-question-bank/SKILL.md) | 材料提取、编题、解析与复核流程 |
+| [AI 题库整理 SKILL](../.agents/skills/qanda-question-bank/SKILL.md) | 选择 Excel 或 JSON，完成材料提取、编题、解析与复核 |
+
+题库整理 SKILL 在处理材料前询问输出格式，默认选项为 Excel；已明确选择时沿用该选择。Excel 使用 Skill 内置模板，导入操作见 [Excel 数据管理](excel-import-export.md)。本页描述 JSON 输出协议。
 
 使用 UTF-8 JSON。图片放在文件相邻的 `assets/` 目录中，PNG、JPEG、WebP，每张最多 5 MiB。可以把文件、图片与复核报告打包交付；管理端当前选择 JSON 和对应图片，分别上传。
 
@@ -96,7 +98,7 @@ AI 为每道作答题编写五部分教学解析，放在现有 `explanation` �
 5. 确认导入，调用 `import-preview` 后调用 `imports`。整批失败保留文件和预览；同一次内容的网络重试复用幂等键。内容版本冲突时，查看变化并点击「刷新题库信息」，再确认导入。
 6. 检查题目与章节，完成发布检查后发布。小程序主动刷新目录，再创建练习读取本次快照。
 
-简式 JSON（题目数组或 `{questions:[...]}`）继续经同一内容校验器处理；新模板及 SKILL 输出标准 v1.0 文件。API 和后端版本保持 v1.0，来源元数据不会进入学生题目 DTO。
+简式 JSON（题目数组或 `{questions:[...]}`）继续经同一内容校验器处理；新 JSON 模板及 SKILL 的 JSON 输出使用标准 v1.0 文件。API 和后端版本保持 v1.0，来源元数据不会进入学生题目 DTO。
 
 ## Markdown 与代码题
 
