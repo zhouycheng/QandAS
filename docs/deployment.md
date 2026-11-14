@@ -10,7 +10,7 @@ Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 S
 
 ## 运行结构
 
-主机 Nginx 为 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。管理端位于根路径，API 前缀为 `/api/v1`。API、worker、monitor 分开运行，管理端镜像同时承担应用网关。PostgreSQL、RabbitMQ、Redis 和 Prometheus 独立运行，普通发布只更新应用服务。
+主机 Nginx 为管理端 `qanda.zhoust.cn` 提供 HTTPS，转发到 `127.0.0.1:18083`。小程序直接请求后端 `qanda.api.zhoust.cn`，API 前缀为 `/api/v1`。API、worker、monitor 分开运行；管理端镜像提供页面及同源 API 代理，再通过 HTTPS 访问后端。PostgreSQL、RabbitMQ、Redis 和 Prometheus 独立运行，普通发布只更新应用服务。
 
 运行目录为 `/srv/qanda`，生产配置为该目录内权限 `600` 的 `production.env`，字段见 `deploy/production.env.example`。数据库、队列、附件、指标分别保存在固定的 `qanda-production-*` Docker 卷中。部署不清理镜像或持久卷。
 
@@ -30,7 +30,7 @@ Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 S
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
 5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限，已有结构须与发布代码匹配。
 6. 在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
-7. 小程序 API 地址设为 `https://qanda.zhoust.cn/api/v1`，并在微信后台配置合法域名。微信上传、审核和发布独立执行。
+7. 小程序扩展配置 `apiBaseUrl` 设为 `https://qanda.api.zhoust.cn/api/v1`，通过官方 npm 构建同步运行配置，并在微信后台配置相应网络能力的合法域名 `https://qanda.api.zhoust.cn`。微信上传、审核和发布独立执行。
 
 主机无法访问 Docker Hub 时，可临时设置仓库变量 `QANDA_PREPARE_INFRA=true`，手动部署的验证产物会额外包含官方 Linux/amd64 基础镜像归档。管理员下载该次 artifact，核对 SHA-256 后，通过 Tailscale SSH 将归档传给主机的 `sudo docker load`，再继续安装。完成后删除此变量，避免后续发布重复生成大归档。此步骤使用管理员已有的 SSH 权限，不增加 CI 账号的 Docker 权限。
 
@@ -127,7 +127,7 @@ sudo qanda-db restore /受保护目录/数据.dump
 
 管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。新后端使用空库初始化，原服务器上的测试数据不迁移。切换验收后停用原后端应用和题小搭基础服务；首次正式部署清除本项目旧数据库、队列、缓存、附件、备份及监控历史，按当前结构重新初始化并创建新首管；部署凭据、证书和网络配置继续使用。
 
-两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，只转发受限运维端口；后端节点使用 `tag:qanda-backend`，管理端保留现有用户身份。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。管理端到后端的业务连接使用独立公网网关。
+两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，只转发受限运维端口；后端节点使用 `tag:qanda-backend`，管理端保留现有用户身份。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。管理端和小程序分别通过公网 HTTPS 访问后端网关。
 
 ### 部署、调试与业务访问
 
@@ -137,10 +137,11 @@ sudo qanda-db restore /受保护目录/数据.dump
 | 管理端 Actions → 管理端题小搭节点 `2222` | 发布、回滚、发布状态 | 管理端镜像与 web |
 | 获授权的操作者 → 题小搭节点 `2222` | 容器状态、日志、Shell、重启 | 当前节点所属应用容器 |
 | 管理端 → 后端公网网关 `80/443` | API、附件、监控与 SSE | 指定管理端公网 IPv4 与独立网关凭据 |
+| 小程序 → 后端公网网关 `443` | 用户 API、目录、练习与附件 | 业务会话、资源权限及来源 IP 限流 |
 
-后端 `qanda-public-gateway.service` 在独立容器中发布 IPv4 `80/443`，仅转发 `/api/v1/`，将监控及统计请求路由至 monitor，SSE 关闭缓冲并保持一小时读取超时。网关只允许配置的管理端公网 IPv4；健康接口以外还须携带两端独立保存的 32 字节随机凭据。管理端覆盖外来网关凭据，后端网关在进入业务应用前移除该头。应用只信任固定网关地址 `172.29.71.30` 的转发信息。数据库、队列、Redis、Actuator 和运维 SSH 不经此入口暴露。
+后端 `qanda-public-gateway.service` 在独立容器中发布 IPv4 `80/443`，仅转发 `/api/v1/`，将监控及统计请求路由至 monitor，SSE 关闭缓冲并保持一小时读取超时。小程序直接访问 HTTPS 用户接口，认证及权限由业务 API 校验。`/api/v1/admin` 及其子路径只允许配置的管理端公网 IPv4，并要求两端独立保存的 32 字节随机凭据；该凭据不进入小程序。管理端覆盖外来网关凭据，后端网关在进入业务应用前移除该头。直连请求使用真实连接来源，只有同时通过来源和凭据校验的管理端代理可传递用户地址。应用只信任固定网关地址 `172.29.71.30` 的转发信息。数据库、队列、Redis、Actuator 和运维 SSH 不经此入口暴露。
 
-公网域名、小程序 API 地址和微信回调入口保持稳定。管理端的 HTTPS 上游启用证书链、主机名和 SNI 校验。首次可先使用 HTTP 部署：仅开放健康接口，并移除请求头、正文和查询参数后转发。只要双机业务上游仍有 HTTP，管理端便在发送至公网前拒绝其他 API 请求；后端 HTTP 入口也拒绝健康接口以外的业务转发。证书配置完成前通过受信运维通道验证登录及业务数据。
+管理端入口为 `https://qanda.zhoust.cn`，小程序 API、内容审核取件及微信回调使用后端域名 `https://qanda.api.zhoust.cn`。后端域名直接解析到轻量应用服务器；云防火墙 TCP 443 允许公网客户端访问，管理接口的来源限制在网关执行。管理端的 HTTPS 上游启用证书链、主机名和 SNI 校验。首次可先使用 HTTP 部署：仅开放健康接口，并移除请求头、正文和查询参数后转发。只要双机业务上游仍有 HTTP，管理端便在发送至公网前拒绝其他 API 请求；后端 HTTP 入口也拒绝健康接口以外的业务转发。证书配置完成前通过受信运维通道验证登录及业务数据。
 
 私有目标文件的 `service_ip` 保存节点在本方 Tailnet 中的地址，供本方 CI 使用；管理端的 `public_ip` 保存实际公网出口 IPv4，后端的 `public_api_url` 保存公网 HTTP 或 HTTPS origin。宿主机管理地址保留在 `server`。操作者继续使用各自现有的管理连接与个人调试公钥。
 
@@ -197,7 +198,7 @@ sudo docker exec qanda-public-gateway sh -ec '
 '
 ```
 
-随后将私有目标文件的 `public_api_url` 改为证书覆盖的 `https://` origin，重新渲染并安装两端配置，通过管理端 Actions 重新部署以更新上游。核对来源限制、公网健康接口、首管登录、附件与 SSE 重连，再开放业务使用。证书续期后须校验并重载网关；配置及证书随加密备份保存。
+随后将私有目标文件的 `public_api_url` 改为 `https://qanda.api.zhoust.cn`，重新渲染并安装两端配置，通过管理端 Actions 重新部署以更新上游。将内容审核公网地址更新为相同 origin，并在微信平台登记对应回调及小程序合法域名。核对小程序直连、用户认证、管理接口来源限制、公网健康接口、首管登录、附件与 SSE 重连，再开放业务使用。证书续期后须校验并重载网关；配置及证书随加密备份保存。
 
 ### 验收
 

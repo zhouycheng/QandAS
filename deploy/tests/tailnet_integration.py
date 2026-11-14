@@ -109,6 +109,10 @@ def main():
                 if ($args != '') { return 409; }
                 return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key";
             }
+            location = /api/v1/me {
+                if ($http_authorization != 'Bearer fixture') { return 401; }
+                return 200 "USER:$http_x_forwarded_for:$http_x_qanda_gateway_key";
+            }
             location / { return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key"; }
         }'''
         event_requests = []
@@ -163,6 +167,13 @@ def main():
             'QANDA_API_UPSTREAM': 'https://backend.test:8443', 'QANDA_MONITOR_UPSTREAM': 'https://backend.test:8443',
             'QANDA_GATEWAY_KEY': gateway_key,
         }, files={certificate: '/fixture/ca.pem'})
+        client_conf = '''server { listen 8089;
+            proxy_ssl_verify on; proxy_ssl_server_name on;
+            proxy_ssl_trusted_certificate /fixture/ca.pem;
+            location / { proxy_pass https://backend.test:8443; }
+        }'''
+        start('direct-client', app, client_conf, ip(12), files={certificate: '/fixture/ca.pem'})
+        trusted_client = start('trusted-client', 'container:' + web, client_conf, files={certificate: '/fixture/ca.pem'})
         edge_conf = f'''server {{ listen 8080; location / {{
             proxy_pass http://{ip(10)}:8080; proxy_set_header X-Forwarded-For $remote_addr;
             proxy_http_version 1.1; proxy_set_header Connection ''; proxy_buffering off;
@@ -175,22 +186,39 @@ def main():
         other_host = other_info['IPAM']['Config'][0]['Gateway']
         for _ in range(30):
             try:
-                assert get(member, f'http://{ip(20)}:8080/api/v1/health', ['X-Forwarded-For: 203.0.113.99']) == 'API:' + ip(11) + ':'
+                assert get(member, f'http://{ip(20)}:8080/api/v1/health', ['X-Forwarded-For: 203.0.113.99']) == 'API:' + ip(10) + ':'
                 break
             except (subprocess.CalledProcessError, AssertionError):
                 time.sleep(1)
         else:
             raise AssertionError('Gateway chain did not become ready')
-        assert get(web, f'http://{ip(21)}:8080/api/v1/health') == 'API::'
+        assert get(web, f'http://{ip(21)}:8080/api/v1/health') == 'API:' + ip(10) + ':'
         assert get(member, f'http://{ip(20)}:8080/api/v1/health?token=fixture',
-                   ['Authorization: Bearer fixture', 'Cookie: session=fixture', 'X-Qanda-Gateway-Key: fixture']) == 'API:' + ip(11) + ':'
+                   ['Authorization: Bearer fixture', 'Cookie: session=fixture', 'X-Qanda-Gateway-Key: fixture']) == 'API:' + ip(10) + ':'
         assert get(member, f'http://{ip(20)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: forged']) == 'API:' + ip(11) + ':'
         assert get(member, f'http://{ip(20)}:8080/api/v1/admin/statistics/activity') == 'MONITOR:'
         blocked(web, f'http://{ip(21)}:8080/api/v1/catalog')
         blocked(web, f'http://{ip(21)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: ' + gateway_key])
         blocked(web, f'http://{ip(21)}:8080/api/v1/admin/statistics/activity', ['X-Qanda-Gateway-Key: wrong'])
-        blocked(member, f'http://{ip(21)}:8080/api/v1/health')
+        assert get(member, f'http://{ip(21)}:8080/api/v1/health') == 'API:' + ip(11) + ':'
         blocked(member, f'http://{ip(21)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: ' + gateway_key])
+        direct_url = f'http://{ip(12)}:8089'
+        assert get(member, direct_url + '/api/v1/catalog') == 'API:' + ip(12) + ':'
+        assert get(member, direct_url + '/api/v1/catalog', [
+            'X-Forwarded-For: 203.0.113.99', 'X-Qanda-Gateway-Key: ' + gateway_key,
+        ]) == 'API:' + ip(12) + ':', 'Direct clients supplied a trusted address or leaked the gateway key'
+        blocked(member, direct_url + '/api/v1/me')
+        assert get(member, direct_url + '/api/v1/me', ['Authorization: Bearer fixture']) == 'USER:' + ip(12) + ':'
+        for path in ('/api/v1/admin', '/api/v1/admin/auth/me', '/api/v1/%61dmin/auth/me',
+                     '/api/v1/admin/statistics/activity', '/api/v1/admin/monitoring/sync/stream'):
+            for headers in ([], ['X-Qanda-Gateway-Key: wrong'], ['X-Qanda-Gateway-Key: ' + gateway_key]):
+                blocked(member, direct_url + path, headers)
+                if not headers or headers[0].endswith('wrong'):
+                    blocked(trusted_client, 'http://127.0.0.1:8089' + path, headers)
+        assert get(trusted_client, 'http://127.0.0.1:8089/api/v1/admin/auth/me', [
+            'X-Qanda-Gateway-Key: ' + gateway_key, 'X-Forwarded-For: 203.0.113.99',
+        ]) == 'API:203.0.113.99:'
+        blocked(member, direct_url + '/actuator/health')
         docker('exec', web, 'test', '-s', '/etc/ssl/cert.pem')
         untrusted = start('untrusted-web', 'container:' + web, web_conf.replace('listen 8080;', 'listen 8086;'), env={
             'QANDA_API_UPSTREAM': 'https://backend.test:8443', 'QANDA_MONITOR_UPSTREAM': 'https://backend.test:8443',
@@ -270,7 +298,7 @@ def main():
         blocked(member, f'http://{host_ip}:38192')
         assert get(control, f'http://{other_host}:38191') == 'HOST'
         assert get(control, f'http://{other_host}:38192') == 'OTHER'
-        assert get(member, f'http://{ip(20)}:8080/api/v1/health') == 'API:' + ip(11) + ':'
+        assert get(member, f'http://{ip(20)}:8080/api/v1/health') == 'API:' + ip(10) + ':'
         print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; combined internal HTTP; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; deny-only security-agent coexistence; source and host isolation')
     except Exception:
         for name in names:
