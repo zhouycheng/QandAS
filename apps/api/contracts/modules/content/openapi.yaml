@@ -8516,6 +8516,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "includeAnswers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {

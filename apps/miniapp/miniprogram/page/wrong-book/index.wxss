@@ -540,39 +540,11 @@
   text-align: center;
 }
 
-/* ---------- 分页 ---------- */
-
-.pager {
-  display: flex;
-  align-items: center;
-  height: 68rpx;
-  margin-top: 6rpx;
-}
-
-.pager-btn {
-  flex: none;
-  width: 52rpx;
-
-}
-
-.pager-btn-hover {
-  background: var(--page-bg);
-}
-
-.pager-text {
-  margin-left: 10rpx;
+.wb-more {
+  min-height: 44px;
+  padding: 16rpx 0;
+  text-align: center;
   font-size: var(--font-caption);
-  line-height: var(--leading-caption);
-  font-weight: 500;
-  color: var(--text-sub);
-}
-
-.pager-index {
-  margin-left: auto;
-  margin-right: 10rpx;
-  font-size: var(--font-caption);
-  line-height: var(--leading-caption);
-  font-weight: 600;
   color: var(--text-sub);
 }
 

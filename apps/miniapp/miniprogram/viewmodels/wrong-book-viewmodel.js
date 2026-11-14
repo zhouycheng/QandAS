@@ -79,10 +79,12 @@ function getInitialWrongBookViewData() {
         items: [],
         collectionLoading: false,
         collectionError: '',
+        loadingMore: false,
+        loadMoreError: '',
+        hasMore: false,
         totalCount: 0,
         pageCount: 1,
         page: 1,
-        pageText: '',
         manage: false,
         // 底部
         footerText: '开始练习',
@@ -113,16 +115,32 @@ class WrongBookViewModel {
             questionBankId: filter.indexOf('bank:') === 0 ? filter.slice(5) : undefined };
     }
     refreshRemote(options) {
-        return this.repository.refreshRemote(this.storage, 'collection', Object.assign({}, this.remoteOptions(), options))
+        const scope = this.remoteOptions();
+        return Promise.all(Array.from({ length: this.state.page }, (_, index) => this.repository.refreshRemote(this.storage, 'collection', Object.assign({}, scope, options, { page: index + 1 }))))
             .then(() => this.refresh({})).catch(() => this.refresh({}));
+    }
+    loadMore() {
+        if (this.morePromise) return this.morePromise;
+        const view = this.buildViewData();
+        if (!view.hasMore && !view.loadMoreError || view.collectionLoading) return null;
+        if (!view.loadMoreError) this.state.page++;
+        this.loadingMore = true;
+        this.morePromise = this.refreshRemote().finally(() => { this.loadingMore = false; this.morePromise = null; }).then(() => this.refresh({}));
+        return this.morePromise;
+    }
+    reload() {
+        this.state.page = 1;
+        return this.refreshRemote({ force: true });
     }
     projectRemote() { return this.buildViewData(); }
     buildRemoteView() {
         const options = this.remoteOptions();
         const wrong = options.kind === 'WRONG';
         const resource = this.repository.getRemoteCollection(this.storage, options);
+        const resources = Array.from({ length: this.state.page }, (_, index) => this.repository.getRemoteCollection(this.storage, Object.assign({}, options, { page: index + 1 })));
         const summaryState = this.repository.getRemoteResourceState('collectionSummary', { kind: options.kind });
-        const page = resource.data || { items: [], total: 0 };
+        const page = resource.data || resources[0].data || { items: [], total: 0 };
+        const rows = Array.from(new Map(resources.flatMap(value => value.data && value.data.items || []).map(item => [item.questionId, item])).values());
         const summary = this.repository.getRemoteCollectionSummary(this.storage, options.kind) || { total: 0, facets: [] };
         const subjects = [{ id: 'all', name: '全部科目' }];
         const distribution = new Map();
@@ -142,7 +160,7 @@ class WrongBookViewModel {
         });
         const counts = { all: summary.total, subjective: summary.subjectiveCount, repeat: summary.repeatCount, recent: summary.recentCount, practiced: summary.practicedCount, pending: summary.pendingCount };
         const judged = (summary.rightCount || 0) + (summary.wrongCount || 0);
-        const items = page.items.map(item => ({ id: item.questionId, bankId: item.questionBankId, subjectId: item.subjectId,
+        const items = rows.map(item => ({ id: item.questionId, bankId: item.questionBankId, subjectId: item.subjectId,
             subjectName: item.subjectName, bankName: item.questionBankName, title: `${item.subjectName} · ${item.questionBankName}`,
             stem: item.stem, blankInputs: item.type === 'FILL_BLANK' ? [] : null, contentFormat: item.contentFormat || 'PLAIN_TEXT', typeText: ({ SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' })[item.type],
             wrongCount: item.wrongCount || 0, rightCount: item.rightCount || 0, practiced: !!item.practiced, available: item.available,
@@ -167,10 +185,11 @@ class WrongBookViewModel {
             subjectFilterText: this.getSubjectFilterText(subjects), subjectMenuOpen: this.state.subjectMenuOpen, sortText: this.getSortText(),
             chips: CHIPS[this.state.type].map(chip => ({ key: chip.key, text: `${chip.text} ${counts[chip.key] || 0}` })),
             activeChip: this.state.activeChip, items, totalCount: subjective ? summary.subjectiveCount || 0 : summary.total, filteredCount: page.total,
-            pageCount, page: this.state.page, pageText: page.total ? `共 ${page.total} 题 · 第 ${this.state.page} 页` : '',
+            pageCount, page: this.state.page,
             manage: !wrong && this.state.manage, footerText: `开始${subjective ? '主观复习' : wrong ? '错题' : '收藏'}练习 · ${page.total} 道`,
             footerHint: subjective ? '自评掌握后移出；未自评保持原记录' : wrong ? '掌握的题目会随练习结果更新' : '做错的题会自动进入错题本',
-            emptyText: subjective ? '主动自评为待复习的主观题会显示在这里' : this.getEmptyText(wrong, summary.total), collectionLoading: resource.status === 'loading', collectionError: resource.error || summaryState.error
+            emptyText: subjective ? '主动自评为待复习的主观题会显示在这里' : this.getEmptyText(wrong, summary.total), collectionLoading: !items.length && resource.status === 'loading', collectionError: (this.state.page === 1 ? resource.error : '') || summaryState.error,
+            loadingMore: !!this.loadingMore, loadMoreError: this.state.page > 1 ? resource.error || '' : '', hasMore: items.length < page.total
         });
     }
     static getInitialData() {
@@ -237,20 +256,6 @@ class WrongBookViewModel {
             subjectMenuOpen: false,
             page: 1
         });
-    }
-    setPage(page) {
-        const pageCount = this.buildViewData().pageCount;
-        const target = Math.min(Math.max(Number(page) || 1, 1), pageCount);
-        if (target === this.state.page) {
-            return null;
-        }
-        return this.refresh({ page: target });
-    }
-    goPrevPage() {
-        return this.setPage((this.state.page || 1) - 1);
-    }
-    goNextPage() {
-        return this.setPage((this.state.page || 1) + 1);
     }
     toggleManage() {
         if (this.state.type === TYPE_WRONG) return null;

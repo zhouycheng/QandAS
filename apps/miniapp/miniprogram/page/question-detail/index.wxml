@@ -11,10 +11,10 @@
     </view>
 
     <scroll-view wx:else class="detail-area" scroll-y enhanced bounces show-scrollbar="{{false}}">
-      <view class="detail-card card">
+      <view class="detail-content">
         <view class="detail-head">
           <text class="detail-type">{{typeText}}</text>
-          <text class="detail-source">{{subjectName}} · {{bankName}}</text>
+          <text wx:if="{{subjectName || bankName}}" class="detail-source">{{subjectName}}{{subjectName && bankName ? ' · ' : ''}}{{bankName}}</text>
         </view>
 
         <view wx:if="{{material}}" class="detail-material"><text class="section-title">阅读材料</text><rich-content text="{{(material.passage) || ''}}" format="{{(material.contentFormat) || 'PLAIN_TEXT'}}" /></view>
@@ -30,38 +30,34 @@
           <text class="detail-option-label">{{item.label}}</text>
           <rich-content class="detail-option-text" text="{{(item.text) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
         </view>
-      </view>
 
-      <view wx:if="{{hasAnswer || canReveal}}" class="answer-card card">
-        <text class="section-title">作答情况</text>
-        <view wx:if="{{hasAnswer}}" class="answer-row">
-          <text class="answer-label">你的答案</text>
-          <rich-content class="answer-value" text="{{(selectedText) || ''}}" code-language="{{(presentation === 'CODE_WRITING' ? codeLanguage : '') || ''}}" />
+        <view wx:if="{{canReveal}}" class="answer-summary {{isShortAnswer ? 'answer-summary-block' : ''}}">
+          <view class="answer-row">
+            <text class="answer-label">{{isShortAnswer ? (presentation === 'CODE_WRITING' ? '参考实现' : '参考思路') : '正确答案'}}</text>
+            <rich-content class="answer-value correct-value" text="{{(correctText) || ''}}" format="{{(isShortAnswer ? contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" code-language="{{(presentation === 'CODE_WRITING' ? codeLanguage : '') || ''}}" />
+          </view>
+          <view wx:if="{{hasAnswer}}" class="answer-row">
+            <text class="answer-label">你的答案</text>
+            <rich-content class="answer-value {{isShortAnswer ? '' : isCorrect ? 'ok' : 'no'}}" text="{{(selectedText) || ''}}" code-language="{{(presentation === 'CODE_WRITING' ? codeLanguage : '') || ''}}" />
+          </view>
+          <text wx:if="{{isShortAnswer}}" class="detail-subjective">不计分</text>
         </view>
-        <view wx:if="{{canReveal}}" class="answer-row">
-          <text class="answer-label">{{isShortAnswer ? (presentation === 'CODE_WRITING' ? '参考实现' : '参考思路') : '正确答案'}}</text>
-          <rich-content class="answer-value" text="{{(correctText) || ''}}" format="{{(isShortAnswer ? contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" />
-        </view>
-        <view wx:if="{{canReveal && hasAnswer && !isShortAnswer}}" class="answer-flag {{isCorrect ? 'ok' : 'no'}}">
-          <text>{{isCorrect ? '回答正确' : '回答错误'}}</text>
-        </view>
-        <text wx:if="{{isShortAnswer}}">{{hasAnswer ? '已作答' : '未作答'}} · 不计分</text>
-      </view>
 
-      <view wx:if="{{explanation}}" class="explain-card card">
-        <text class="section-title">解析</text>
-        <rich-content class="explain-text" text="{{(explanation) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
-        <rich-content class="detail-scoring" wx:for="{{scoringPoints}}" wx:key="*this" text="{{(index + 1) + '. ' + (item || '')}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
-      </view>
+        <view wx:if="{{explanation}}" class="explain-block">
+          <view class="detail-explanation-title">试题详解</view>
+          <rich-content class="explain-text" text="{{(explanation) || ''}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
+          <rich-content class="detail-scoring" wx:for="{{scoringPoints}}" wx:key="*this" text="{{(index + 1) + '. ' + (item || '')}}" format="{{(contentFormat) || 'PLAIN_TEXT'}}" />
+        </view>
 
-      <button
-        class="q-button  {{isFavorite ? 'q-button--selected' : ''}} favorite-btn {{isFavorite ? 'active' : ''}}"
-        bindtap="handleToggleFavorite"
-        hover-class="q-button-hover"
-        hover-start-time="0"
-        hover-stay-time="80"
-      >{{isFavorite ? '已收藏' : '收藏本题'}}</button>
-      <button class="q-button  favorite-btn" bindtap="handleFeedback" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">题目纠错</button>
+        <button
+          class="q-button  {{isFavorite ? 'q-button--selected' : ''}} favorite-btn {{isFavorite ? 'active' : ''}}"
+          bindtap="handleToggleFavorite"
+          hover-class="q-button-hover"
+          hover-start-time="0"
+          hover-stay-time="80"
+        >{{isFavorite ? '已收藏' : '收藏本题'}}</button>
+        <button class="q-button  favorite-btn" bindtap="handleFeedback" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">题目纠错</button>
+      </view>
     </scroll-view>
   </block>
 </view>

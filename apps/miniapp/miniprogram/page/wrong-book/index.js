@@ -33,7 +33,7 @@ Page(withPageLifecycle({
       return
     }
 
-    return this.applyViewModelResult(this.viewModel.refreshRemote({ force: true })).finally(() => wx.stopPullDownRefresh())
+    return this.applyViewModelResult(this.viewModel.reload()).finally(() => wx.stopPullDownRefresh())
   },
 
   applyCollectionChange(result) {
@@ -64,12 +64,12 @@ Page(withPageLifecycle({
     this.applyCollectionChange(this.viewModel.setChip(e.currentTarget.dataset.key))
   },
 
-  handlePrevPage() {
-    this.applyCollectionChange(this.viewModel.goPrevPage())
-  },
+  onReachBottom() { return this.handleLoadMore() },
 
-  handleNextPage() {
-    this.applyCollectionChange(this.viewModel.goNextPage())
+  handleLoadMore() {
+    const pending = this.viewModel.loadMore()
+    this.applyViewModelResult(this.viewModel.refresh({}))
+    return this.applyViewModelResult(pending)
   },
 
   handleItemTap(e) {
@@ -80,7 +80,7 @@ Page(withPageLifecycle({
     }
 
     navigation.navigateTo({
-      url: `/page/question-detail/index?id=${encodeURIComponent(questionId)}`
+      url: `/page/question-detail/index?id=${encodeURIComponent(questionId)}${this.data.type === 'wrong' ? '&latest=1' : ''}`
     })
   },
 

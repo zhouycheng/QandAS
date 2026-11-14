@@ -10,8 +10,9 @@ async function main() {
   storage.set('qandaTrialPractice', { version: 1, usedCount: 1, sessions: [a] }); vault.publish(a)
   let reads = 0
   const original = api.request
-  api.request = async (method, path) => {
+  api.request = async (method, path, query) => {
     if (path === '/content/revision-status') return { ok: true, data: [{ questionId: 'q', revisionId: 'B', contentVersion: 2, available: true, changed: true }] }
+    assert.equal(query && query.includeAnswers, true, '单题下载显式请求配套答案')
     reads++; return { ok: true, data: question('B', 'B') }
   }
   const updates = await revisions.check(storage, a)

@@ -14,7 +14,7 @@ class ContentController(private val service: ContentService,private val sessions
     @GetMapping("/question-banks/{id}") fun bank(@PathVariable id: UUID): BankView=service.bank(sessions.studentOrGuest(),id)
     @GetMapping("/question-banks/{id}/chapters") fun chapters(@PathVariable id: UUID): List<ChapterView> = service.chapters(sessions.studentOrGuest(),id)
     @GetMapping("/questions") fun search(@RequestParam keyword: String,@RequestParam(defaultValue="full") view: String,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<QuestionView> = service.search(sessions.studentOrGuest(),keyword,PageSpec(page,pageSize),view)
-    @GetMapping("/questions/{id}") fun question(@PathVariable id: UUID): QuestionView=service.question(sessions.studentOrGuest(),id)
+    @GetMapping("/questions/{id}") fun question(@PathVariable id: UUID,@RequestParam(defaultValue="false") includeAnswers: Boolean): QuestionView=service.question(sessions.studentOrGuest(),id,includeAnswers)
     @GetMapping("/admin/question-banks") fun adminBanks(@RequestParam(required=false) subjectId: UUID?,@RequestParam(required=false) keyword: String?,@RequestParam(required=false) publicationStatus: String?,@RequestParam(defaultValue="1") page: Int,@RequestParam(defaultValue="20") pageSize: Int): Page<BankView> = service.banks(sessions.admin(),subjectId,keyword,PageSpec(page,pageSize),publicationStatus=publicationStatus)
     @GetMapping("/admin/question-banks/{id}") fun adminBank(@PathVariable id: UUID): BankView=service.bank(sessions.admin(),id)
     @GetMapping("/admin/question-banks/{id}/publication-checks") fun publicationChecks(@PathVariable id: UUID): List<PublicationCheck> = service.publicationChecks(sessions.admin(),id)
