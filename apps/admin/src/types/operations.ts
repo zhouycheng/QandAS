@@ -89,6 +89,7 @@ export interface StudentFeedback extends Versioned {
   questionSnapshot?: import('./admin').QuestionContent
   status: FeedbackStatus
   response: string
+  unread: boolean
   createdAt: string
   updatedAt: string
 }

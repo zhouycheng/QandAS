@@ -29,8 +29,8 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
         requests.insert(row);return MutationResult(row.id!!,1)
     }
     private fun feedbackView(row: QuestionFeedback,admin: Boolean): FeedbackView=FeedbackView(row.id!!,row.userId!!,row.category,row.body,row.status,row.response,row.version,
-        library.revision(row.questionId!!,row.revisionId!!,admin),row.createdAt,row.updatedAt)
-    private fun requestView(row: CourseRequest)=CourseRequestView(row.id!!,row.userId!!,row.courseName,row.majorId,row.body,row.status,row.response,row.version,row.createdAt,row.updatedAt)
+        library.revision(row.questionId!!,row.revisionId!!,admin),row.createdAt,row.updatedAt,row.response.isNotBlank() && row.version>row.readVersion)
+    private fun requestView(row: CourseRequest)=CourseRequestView(row.id!!,row.userId!!,row.courseName,row.majorId,row.body,row.status,row.response,row.version,row.createdAt,row.updatedAt,row.response.isNotBlank() && row.version>row.readVersion)
     fun feedback(actor: Actor,status: String?,p: PageSpec): Page<FeedbackView> {
         val userId=actor.takeIf { it.kind=="USER" }?.id
         return Page(sql.feedback(userId,status,p.offset,p.pageSize).map { feedbackView(it,actor.kind=="ADMIN") },sql.feedbackCount(userId,status),p.page,p.pageSize)
@@ -39,6 +39,28 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
         val userId=actor.takeIf { it.kind=="USER" }?.id
         return Page(sql.requests(userId,status,p.offset,p.pageSize).map(::requestView),sql.requestCount(userId,status),p.page,p.pageSize)
     }
+    fun feedbackSummary(actor: Actor): FeedbackSummaryView=sql.feedbackSummary(actor.id)
+    private fun readItems(input: FeedbackReadInput): List<FeedbackReadItem> {
+        if(input.items.size !in 1..20 || input.items.map { it.id }.distinct().size!=input.items.size) invalid("/items")
+        if(input.items.any { it.version<1 }) invalid("/items/version")
+        return input.items.sortedBy { it.id.toString() }
+    }
+    private fun validateRead(actor: Actor,item: FeedbackReadItem,userId: UUID?,version: Long) {
+        if(userId!=actor.id) missing()
+        if(item.version>version) invalid("/items/version")
+    }
+    fun readFeedback(actor: Actor,input: FeedbackReadInput): FeedbackReadResult {
+        val items=readItems(input)
+        items.forEach { item -> val row=sql.lockFeedback(item.id) ?: missing();validateRead(actor,item,row.userId,row.version) }
+        items.forEach { sql.readFeedback(it.id,actor.id,it.version) }
+        return FeedbackReadResult(items.size)
+    }
+    fun readRequests(actor: Actor,input: FeedbackReadInput): FeedbackReadResult {
+        val items=readItems(input)
+        items.forEach { item -> val row=sql.lockRequest(item.id) ?: missing();validateRead(actor,item,row.userId,row.version) }
+        items.forEach { sql.readRequest(it.id,actor.id,it.version) }
+        return FeedbackReadResult(items.size)
+    }
     private fun validateHandling(input: HandleInput) {
         if(input.status !in setOf("OPEN","IN_PROGRESS","RESOLVED","DISMISSED")) invalid("/status")
         text(input.response,4000)
@@ -46,11 +68,15 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
     }
     fun handleFeedback(actor: Actor,id: UUID,input: HandleInput): MutationResult {
         val row=sql.lockFeedback(id) ?: missing();library.bank(actor,library.question(row.questionId!!).bankId!!,true);requireVersion(input.expectedVersion,row.version);validateHandling(input)
-        row.status=input.status;row.response=input.response;row.version++;row.updatedAt=clock.instant();feedbacks.updateById(row);return MutationResult(id,row.version)
+        val response=input.response.takeUnless { it.isBlank() } ?: ""
+        if(row.status==input.status && row.response==response) return MutationResult(id,row.version)
+        row.status=input.status;row.response=response;row.version++;row.updatedAt=clock.instant();feedbacks.updateById(row);return MutationResult(id,row.version)
     }
     fun handleRequest(id: UUID,input: HandleInput): MutationResult {
         val row=sql.lockRequest(id) ?: missing();requireVersion(input.expectedVersion,row.version);validateHandling(input)
-        row.status=input.status;row.response=input.response;row.version++;row.updatedAt=clock.instant();requests.updateById(row);return MutationResult(id,row.version)
+        val response=input.response.takeUnless { it.isBlank() } ?: ""
+        if(row.status==input.status && row.response==response) return MutationResult(id,row.version)
+        row.status=input.status;row.response=response;row.version++;row.updatedAt=clock.instant();requests.updateById(row);return MutationResult(id,row.version)
     }
     fun dashboard(): DashboardView=sql.dashboard().let { DashboardView(it.collegeCount,it.subjectCount,it.questionBankCount,it.questionCount,it.userCount,it.answeredCount,it.pendingFeedbackCount,it.pendingCourseRequestCount,it.publishedBankCount,it.draftBankCount,it.missingExplanationCount,it.unassignedQuestionCount,it.emptyBankCount) }
 }

@@ -2,8 +2,8 @@
 <page-header title="反馈与处理结果" />
 <view class="feedback-page settings-detail {{!compose && kind === 'course' ? 'has-footer' : ''}}">
   <view wx:if="{{!compose}}" class="tabs">
-    <view class="tab {{kind === 'question' ? 'selected' : ''}}" data-kind="question" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">题目纠错</view>
-    <view class="tab {{kind === 'course' ? 'selected' : ''}}" data-kind="course" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">缺课需求</view>
+    <view class="tab {{kind === 'question' ? 'selected' : ''}}" data-kind="question" aria-role="tab" aria-label="{{'题目纠错' + (questionUnread ? '，有未读反馈' : '')}}" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">题目纠错<view wx:if="{{questionUnread}}" class="feedback-dot" aria-hidden="true"></view></view>
+    <view class="tab {{kind === 'course' ? 'selected' : ''}}" data-kind="course" aria-role="tab" aria-label="{{'缺课需求' + (courseUnread ? '，有未读反馈' : '')}}" bindtap="handleKind" hover-class="pressed" hover-start-time="0" hover-stay-time="80">缺课需求<view wx:if="{{courseUnread}}" class="feedback-dot" aria-hidden="true"></view></view>
   </view>
   <view wx:if="{{compose}}" class="form">
     <text class="settings-label">{{kind === 'course' ? '课程名称' : '问题类型'}}</text>
@@ -20,7 +20,7 @@
     <view class="entry settings-divider" wx:for="{{items}}" wx:key="id">
       <text class="status">{{item.statusText}} · {{item.updatedAt}}</text>
       <text class="title">{{item.title}}</text><text>{{item.body}}</text>
-      <view wx:if="{{item.response}}" class="reply">管理员回复：{{item.response}}</view>
+      <view wx:if="{{item.response}}" class="reply {{item.unread ? 'reply-unread' : ''}}" data-id="{{item.id}}" data-version="{{item.version}}">管理员回复：{{item.response}}</view>
     </view>
     <view class="tabs">
       <button class="q-button" wx:if="{{page > 1}}" data-step="-1" bindtap="handlePage" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">上一页</button>

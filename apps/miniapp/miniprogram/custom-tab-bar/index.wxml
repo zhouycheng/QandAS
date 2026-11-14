@@ -7,11 +7,13 @@
       class="tab-item {{selected === index ? 'active' : ''}}"
       data-index="{{index}}"
       bindtap="handleTabTap"
+      aria-role="button"
+      aria-label="{{item.text + (item.key === 'my' && hasUnreadFeedback ? '，有未读反馈' : '')}}"
       hover-class="tab-item-hover"
       hover-start-time="0"
       hover-stay-time="80"
     >
-      <image class="tab-icon" src="{{selected === index ? item.activeIcon : item.icon}}" mode="aspectFit"></image>
+      <view class="tab-icon-wrap"><image class="tab-icon" src="{{selected === index ? item.activeIcon : item.icon}}" mode="aspectFit"></image><view wx:if="{{item.key === 'my' && hasUnreadFeedback}}" class="feedback-dot" aria-hidden="true"></view></view>
       <text class="tab-text">{{item.text}}</text>
     </view>
   </view>

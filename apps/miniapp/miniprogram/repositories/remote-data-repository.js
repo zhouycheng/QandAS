@@ -13,7 +13,7 @@ let sessionToken = ''
 let scope = ''
 let activeStorage = null
 let overviewBase = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, feedbackSummary: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { overviewBase = null; cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
@@ -27,7 +27,7 @@ function bind(storage) {
     sessionToken = auth.token || ''; owner = id; scope = nextScope; reset(); api.cancelReads()
     const saved = id && activeStorage && activeStorage.get && activeStorage.get('qandaReadCache:' + id)
     if (saved && saved.version === 1) runInAction(() => {
-      state.overview = saved.overview || null; state.profile = saved.profile || null
+      state.overview = saved.overview || null; state.profile = saved.profile || null; state.feedbackSummary = saved.feedbackSummary || null
     })
   } else if (scope !== nextScope) {
     scope = nextScope; reset(); api.cancelReads()
@@ -36,7 +36,7 @@ function bind(storage) {
 }
 function persistSummary() {
   if (!owner || !activeStorage || !activeStorage.set) return
-  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: overviewBase || state.overview, profile: state.profile }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
+  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: overviewBase || state.overview, profile: state.profile, feedbackSummary: state.feedbackSummary }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
 }
 function checked(response) {
   if (!response.ok) throw Object.assign(new Error(response.reason || '请求失败'), { statusCode: response.statusCode })
@@ -172,6 +172,15 @@ function refreshAnnouncements(storage, options) {
     state.announcementTotal = data.total
   }, options && options.force)
 }
+function refreshFeedbackSummary(storage) {
+  return resource(storage, 'feedbackSummary', {}, 0, '/me/feedback-summary', data => {
+    if (!data || ![data.questionUnreadCount, data.courseRequestUnreadCount].every(n => Number.isInteger(n) && n >= 0)) throw new Error('反馈提醒读取失败，请重试')
+    state.feedbackSummary = data
+    persistSummary()
+  })
+}
+function getFeedbackSummary(storage) { bind(storage); return enabled && state.feedbackSummary || { questionUnreadCount: 0, courseRequestUnreadCount: 0 } }
+function invalidateFeedbackSummary(storage) { bind(storage); cache.invalidate('feedbackSummary:') }
 async function refreshHomeAnnouncements(storage, options) {
   const identity = authRepository.getAuth(storage).token
   await refreshAnnouncements(storage, options)
@@ -451,6 +460,7 @@ module.exports.getChapters = getChapters
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })
 
 module.exports.getAnnouncementIndex = storage => { bind(storage); return state.announcementIndex }
+Object.assign(module.exports, { refreshFeedbackSummary, getFeedbackSummary, invalidateFeedbackSummary })
 
 module.exports.releaseQuestion = function (id) {
   for (const q of Object.values(state.questionRevisions)) if (q.id === id) { require('./answer-vault.js').release([q]); q.complete = false }

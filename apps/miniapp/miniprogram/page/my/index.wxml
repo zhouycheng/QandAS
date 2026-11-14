@@ -34,12 +34,15 @@
       wx:for="{{learnRows}}"
       wx:key="key"
       data-key="{{item.key}}"
+      aria-role="button"
+      aria-label="{{item.title + (item.unread ? '，有未读反馈' : '')}}"
       bindtap="handleRowTap"
       hover-class="row-hover"
       hover-start-time="0"
       hover-stay-time="80"
     >
       <text class="row-label">{{item.title}}</text>
+      <view wx:if="{{item.unread}}" class="feedback-dot" aria-hidden="true"></view>
       <text class="row-value">{{item.value}}</text>
       <view class="chevron"></view>
     </view>

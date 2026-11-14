@@ -72,6 +72,9 @@ App({
 
   syncActivityHeartbeat() {
     if (this.appVisible && this.activityHeartbeat) this.activityHeartbeat.start()
+    const storage = createWxStorageAdapter()
+    remoteData.bind(storage)
+    if (this.appVisible) remoteData.refreshFeedbackSummary(storage).catch(() => {})
   },
 
 

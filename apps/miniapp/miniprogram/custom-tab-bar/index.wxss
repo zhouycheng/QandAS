@@ -60,6 +60,8 @@
   width: 50rpx;
   height: 50rpx;
 }
+.tab-icon-wrap { position: relative; width: 50rpx; height: 50rpx; }
+.feedback-dot { position: absolute; top: -4rpx; right: -6rpx; width: 14rpx; height: 14rpx; border-radius: 50%; background: var(--danger); }
 
 .tab-text {
   margin-top: 4rpx;

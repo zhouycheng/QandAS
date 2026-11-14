@@ -1,4 +1,6 @@
 const navigation = require('../utils/navigation.js')
+const remote = require('../repositories/remote-data-repository.js')
+const { createWxStorageAdapter } = require('../utils/wx-storage.js')
 
 /**
  * tab 索引 → 页面路径。
@@ -34,6 +36,7 @@ Component({
 
   data: {
     selected: 0,
+    hasUnreadFeedback: false,
     tabs: [
       { key: 'home', text: '首页', icon: '/assets/tabbar/home.png', activeIcon: '/assets/tabbar/home-active.png' },
       { key: 'bank', text: '题库', icon: '/assets/tabbar/bank.png', activeIcon: '/assets/tabbar/bank-active.png' },
@@ -44,10 +47,21 @@ Component({
 
   lifetimes: {
     attached() {
+      this.storage = createWxStorageAdapter()
+      this.binding = require('mobx-miniprogram-bindings').createStoreBindings(this, { fields: {
+        hasUnreadFeedback: () => {
+          const summary = remote.getFeedbackSummary(this.storage)
+          return summary.questionUnreadCount + summary.courseRequestUnreadCount > 0
+        }
+      } })
       // 组件实例可能早于页面 onShow 创建，先按当前页面栈定位一次
       this.syncFromRoute()
+    },
+    detached() {
+      if (this.binding) this.binding.destroyStoreBindings()
     }
   },
+  pageLifetimes: { show() { this.syncFromRoute() } },
 
   methods: {
     syncFromRoute() {
@@ -66,7 +80,9 @@ Component({
     setSelected(route) {
       const index = findTabIndexByRoute(route)
       if (index >= 0 && index !== this.data.selected) this.setData({ selected: index })
+      return this.refreshFeedback()
     },
+    refreshFeedback() { return remote.refreshFeedbackSummary(this.storage).catch(() => {}) },
 
     handleTabTap(e) {
       const index = Number(e.currentTarget.dataset.index)
