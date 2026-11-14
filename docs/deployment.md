@@ -28,7 +28,7 @@ Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 S
 2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信、内容审核公网 HTTPS 地址、与微信控制台一致的回调 Token／EncodingAESKey，以及腾讯云 SES 参数，并为数据库、队列、缓存、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置必须具备当前模板中的全部字段；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
 3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
-5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限，已有结构须与发布代码匹配。
+5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限；已有数据库通过同一入口幂等添加 `practice_item.confirmed_at` 以及反馈、缺课需求的 `read_version` 字段，保留已有记录，其他结构须与发布代码匹配。
 6. 在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
 7. 小程序扩展配置 `apiBaseUrl` 设为 `https://qanda.api.zhoust.cn/api/v1`，通过官方 npm 构建同步运行配置，并在微信后台配置相应网络能力的合法域名 `https://qanda.api.zhoust.cn`。微信上传、审核和发布独立执行。
 

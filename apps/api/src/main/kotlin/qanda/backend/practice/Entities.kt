@@ -47,6 +47,7 @@ class PracticeItem {
     var answerText: String? = null
     var answerBoolean: Boolean? = null
     var confirmed: Boolean = false
+    var confirmedAt: Instant? = null
     var marked: Boolean = false
     var outcome: String? = null
     var selfAssessment: String? = null

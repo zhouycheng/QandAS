@@ -392,6 +392,7 @@
 | `status` | `character varying(16)` | 否 | `'OPEN'::character varying` |
 | `response` | `text` | 否 | `''::text` |
 | `version` | `bigint` | 否 | `1` |
+| `read_version` | `bigint` | 否 | `0` |
 | `created_at` | `timestamp with time zone` | 否 | `now()` |
 | `updated_at` | `timestamp with time zone` | 否 | `now()` |
 
@@ -399,6 +400,7 @@
 | --- | --- |
 | `course_request_major_id_fkey` | `FOREIGN KEY (major_id) REFERENCES major(id)` |
 | `course_request_pkey` | `PRIMARY KEY (id)` |
+| `course_request_read_version_check` | `CHECK (((read_version >= 0) AND (read_version <= version)))` |
 | `course_request_status_check` | `CHECK (((status)::text = ANY ((ARRAY['OPEN'::character varying, 'IN_PROGRESS'::character varying, 'RESOLVED'::character varying, 'DISMISSED'::character varying])::text[])))` |
 | `course_request_user_id_fkey` | `FOREIGN KEY (user_id) REFERENCES user_account(id)` |
 | `course_request_version_check` | `CHECK ((version > 0))` |
@@ -572,6 +574,7 @@
 | `answer_text` | `text` | 是 | — |
 | `answer_boolean` | `boolean` | 是 | — |
 | `confirmed` | `boolean` | 否 | `false` |
+| `confirmed_at` | `timestamp with time zone` | 是 | — |
 | `marked` | `boolean` | 否 | `false` |
 | `outcome` | `character varying(12)` | 是 | — |
 | `self_assessment` | `character varying(12)` | 是 | — |
@@ -805,6 +808,7 @@
 | `status` | `character varying(16)` | 否 | `'OPEN'::character varying` |
 | `response` | `text` | 否 | `''::text` |
 | `version` | `bigint` | 否 | `1` |
+| `read_version` | `bigint` | 否 | `0` |
 | `created_at` | `timestamp with time zone` | 否 | `now()` |
 | `updated_at` | `timestamp with time zone` | 否 | `now()` |
 
@@ -812,6 +816,7 @@
 | --- | --- |
 | `question_feedback_category_check` | `CHECK (((category)::text = ANY ((ARRAY['ANSWER'::character varying, 'EXPLANATION'::character varying, 'STEM_OPTIONS'::character varying, 'OTHER'::character varying])::text[])))` |
 | `question_feedback_pkey` | `PRIMARY KEY (id)` |
+| `question_feedback_read_version_check` | `CHECK (((read_version >= 0) AND (read_version <= version)))` |
 | `question_feedback_question_id_revision_id_fkey` | `FOREIGN KEY (question_id, revision_id) REFERENCES question_revision(question_id, id)` |
 | `question_feedback_status_check` | `CHECK (((status)::text = ANY ((ARRAY['OPEN'::character varying, 'IN_PROGRESS'::character varying, 'RESOLVED'::character varying, 'DISMISSED'::character varying])::text[])))` |
 | `question_feedback_user_id_fkey` | `FOREIGN KEY (user_id) REFERENCES user_account(id)` |
