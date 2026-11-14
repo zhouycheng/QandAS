@@ -221,7 +221,7 @@ def main():
         ),
         'BACKEND_CONTENT_SAFETY_PROVIDER': 'official',
         'BACKEND_CONTENT_SAFETY_PUBLIC_BASE_URL': prompt(
-            '内容审核使用的公网 HTTPS origin（如 https://qanda.zhoust.cn）：', valid=https_origin,
+            '内容审核使用的公网 HTTPS origin（如 https://qanda.api.zhoust.cn）：', valid=https_origin,
             invalid='请输入不含账号、路径、查询和片段的 HTTPS 地址。',
         ),
         'BACKEND_WECHAT_CALLBACK_TOKEN': prompt(
