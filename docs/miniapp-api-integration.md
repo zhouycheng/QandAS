@@ -1,6 +1,6 @@
 # 接口接入台账
 
-合同版本为 **1.0.0**，当前包含 **137 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
+合同版本为 **1.0.0**，当前包含 **144 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
 
 ## 调用与身份
 
@@ -187,8 +187,13 @@
 | `PUT /api/v1/admin/question-feedback/{id}` | `Operations_handleFeedback_PUT` | 管理员会话 |
 | `GET /api/v1/me/course-requests` | `Operations_requests_GET` | 用户会话 |
 | `POST /api/v1/me/course-requests` | `Operations_requestCourse_POST` | 用户会话 |
+| `PUT /api/v1/me/course-requests/read` | `Operations_readRequests_PUT` | 用户会话 |
+| `GET /api/v1/me/feedback-summary` | `Operations_feedbackSummary_GET` | 用户会话 |
 | `GET /api/v1/me/question-feedback` | `Operations_feedback_GET` | 用户会话 |
 | `POST /api/v1/me/question-feedback` | `Operations_submitFeedback_POST` | 用户会话 |
+| `PUT /api/v1/me/question-feedback/read` | `Operations_readFeedback_PUT` | 用户会话 |
+
+反馈摘要返回题目纠错及缺课需求的未读数量。列表中的 `version` 与 `unread` 用于可视区域确认；两类已读接口接受 `{items:[{id,version}]}`，每批 1–20 条，携带 `Idempotency-Key`，返回 `acknowledgedCount`。已读版本只前进，确认操作保留处理时间与业务版本，旧版本确认保留新回复的提醒。
 
 ### platform
 
