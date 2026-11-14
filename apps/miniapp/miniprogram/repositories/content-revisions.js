@@ -8,7 +8,7 @@ const revisionKey = q => `${q.id}:${q.revisionId}:${q.material && q.material.rev
 function keys(storage, id) { return { latest: `qandaContentLatest:${owner(storage)}:${id}`, prefix: `qandaContent:${owner(storage)}:` } }
 async function download(storage, id) {
   const expected = owner(storage)
-  const response = await http.request('GET', `/questions/${encodeURIComponent(id)}`, null, { priority: 'background' })
+  const response = await http.request('GET', `/questions/${encodeURIComponent(id)}`, { includeAnswers: true }, { priority: 'background' })
   if (!response.ok) throw new Error(response.reason || '题目暂时无法读取')
   if (owner(storage) !== expected) throw new Error('账号已切换，请重新打开题目')
   const original = { id, items: [{ itemId: id, question: response.data }] }

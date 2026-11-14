@@ -41,6 +41,7 @@ class ClientPracticeResults(private val sql: PracticeQueries,private val json: O
             if(change.selfAssessment!=null && (outcome!="SELF_RATED" || change.selfAssessment !in setOf("CORRECT","WRONG"))) invalid("/items/selfAssessment")
             item.answerText=change.answer?.text;item.answerBoolean=change.answer?.value;item.answerBlanks=change.answer?.blanks?.let { json.writeValueAsString(it) }
             item.confirmed=change.confirmed;item.marked=change.marked;item.outcome=outcome;item.selfAssessment=change.selfAssessment
+            if(feedback=="IMMEDIATE" && change.confirmed && outcome in setOf("CORRECT","WRONG") && item.confirmedAt==null) item.confirmedAt=clock.instant()
             changed.add(item)
             change.answer?.optionKeys.orEmpty().sorted().forEach { key -> choices.add(PracticeChoiceRow().apply { itemId=item.id;revisionId=item.revisionId;optionKey=key }) }
         }

@@ -91,9 +91,15 @@ async function main() {
   const editor = new PracticeLayoutViewModel({ storage: local })
   const displayed = editor.load().data
   assert.equal(displayed.shouldRevealAnswer, true)
-  assert.equal(displayed.currentQuestion.options.length, 3)
+  assert.equal(displayed.currentQuestion.options.length, 4)
   assert.equal(displayed.layoutDirty, false, '初始布局禁用保存')
   assert.deepEqual(editor.save(), {}, '没有修改时不写入也不提示保存')
+  assert.equal(displayed.layoutMode, 'flow')
+  assert.deepEqual(editor.setPercent(70), {}, '顺序模式禁用比例调整')
+  editor.toggleMode(); editor.setPercent(65); editor.toggleMode()
+  assert.equal(editor.getLayoutData().stemPercent, 65)
+  editor.toggleMode(); assert.equal(editor.getLayoutData().stemPercent, 65)
+  editor.reset()
   const moved = move(DEFAULT_ORDER, 'tools', 0)
   assert.equal(editor.drop('tools', 0).data.layoutDirty, true, '调整顺序后启用保存')
   assert.equal(editor.drop('tools', 3).data.layoutDirty, false, '拖回原顺序后禁用保存')
@@ -158,7 +164,7 @@ async function main() {
   global.Page = value => { definition = value }
   global.wx = {}
   require('../miniprogram/page/practice-layout/index.js')
-  const page = Object.assign({}, definition, { data: {}, viewModel: { order: DEFAULT_ORDER }, setData(patch) { Object.assign(this.data, patch) }, createSelectorQuery() {
+  const page = Object.assign({}, definition, { data: { editLayout: true }, viewModel: { order: DEFAULT_ORDER }, setData(patch) { Object.assign(this.data, patch) }, createSelectorQuery() {
     const query = { select() { return query }, selectAll() { return query }, fields() { return query }, boundingClientRect() { return query }, exec: done => {
       const viewportHeight = this.testViewportHeight || 400
       const blocks = DEFAULT_ORDER.map((id, i) => ({ top: 100 + i * 160, bottom: 260 + i * 160, height: ['stem', 'response'].includes(id) ? (this.data.paneHeights && this.data.paneHeights[id] || 0) + 20 : 40, dataset: { module: id } }))
@@ -191,6 +197,7 @@ async function main() {
   page.handleDragCancel()
   assert.equal(page.drag, null, '取消后可以再次拖拽')
   assert.deepEqual(local.get('qandaPreferences'), savedPreferences, '取消拖动不更改已保存布局')
+  page.handleToggleMode()
   page.handleRatioTouchStart({ touches: [{ clientY: 218 }] })
   assert.equal(page.data.stemPercent, 65, '竖向拖动按实际轨道坐标更新比例')
   assert.equal(page.drag, null, '拖动比例滑杆不触发模块排序')

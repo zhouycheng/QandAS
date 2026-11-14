@@ -118,7 +118,7 @@ function buildHomeTip(summary) {
       tag: '待复习',
       text: `错题本里还有 ${pendingWrong} 道题待复习。`,
       detail:
-        `你有 ${pendingWrong} 道错题待复习。开启自动收集后，正式练习中答错的客观题会加入错题本。\n\n` +
+        `你有 ${pendingWrong} 道错题待复习。即时答题确认答错后会立即收录，非即时答题在交卷后收录。\n\n` +
         '复习答对后，该题会移出待复习列表。主观题可在交卷后自评为“掌握”或“待复习”。' +
         (masteredWrong > 0 ? `已有 ${masteredWrong} 道错题复习后答对。` : ''),
       actionText: '去复习',

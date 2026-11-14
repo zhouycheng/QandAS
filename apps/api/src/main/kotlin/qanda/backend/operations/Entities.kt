@@ -16,6 +16,7 @@ class QuestionFeedback {
     var status: String = "OPEN"
     var response: String = ""
     var version: Long = 1
+    var readVersion: Long = 0
     var createdAt: Instant = Instant.now()
     var updatedAt: Instant = Instant.now()
 }
@@ -31,6 +32,7 @@ class CourseRequest {
     var status: String = "OPEN"
     var response: String = ""
     var version: Long = 1
+    var readVersion: Long = 0
     var createdAt: Instant = Instant.now()
     var updatedAt: Instant = Instant.now()
 }

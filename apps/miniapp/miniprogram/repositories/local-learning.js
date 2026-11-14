@@ -1,23 +1,32 @@
-function snapshots(storage) {
+function snapshots(storage, includeImmediate) {
   if (!storage) return []
   const auth = storage.get('qandaAuth') || {}, user = auth.userId
   if (!user) return []
   const entries = storage.get(`qandaPracticeRecords:${user}`) || {}
   const ids = new Set(Object.keys(entries).concat(storage.get(`qandaSync:v1:${user}:index`) || []))
   const runtime = require('./online-practice.js').current()
-  return Array.from(ids).map(id => runtime && runtime.userId === user ? runtime.get(id) : require('./answer-vault.js').restore(storage.get(`qandaOnline:${user}:${id}`))).filter(s => s && s.localResult).sort((a, b) => Date.parse(a.localResult.submittedAt) - Date.parse(b.localResult.submittedAt))
+  return Array.from(ids).map(id => runtime && runtime.userId === user ? runtime.get(id) : require('./answer-vault.js').restore(storage.get(`qandaOnline:${user}:${id}`))).map(snapshot => {
+    if (!snapshot || snapshot.localResult) return snapshot
+    if (!includeImmediate || !(snapshot.immediateFacts || []).length) return null
+    const items = snapshot.immediateFacts.map(fact => ({ ...snapshot.items.find(item => item.itemId === fact.itemId), ...fact }))
+    return { ...snapshot, immediateOnly: true, localResult: { items, submittedAt: snapshot.immediateFacts.reduce((latest, item) => item.confirmedAt > latest ? item.confirmedAt : latest, '') } }
+  }).filter(s => s && s.localResult).sort((a, b) => Date.parse(a.localResult.submittedAt) - Date.parse(b.localResult.submittedAt))
 }
 function pending(snapshots, overview) {
   const included = new Set(overview && overview.includedSessionIds || [])
   return snapshots.filter(s => !included.has(s.id))
 }
-function facts(overview, records) {
-  const result = new Map((overview.questionFacts || []).map(q => [q.questionId, { ...q }]))
-  for (const snapshot of pending(records, overview)) for (const item of snapshot.localResult.items) {
+function facts(overview, records, collection) {
+  const source = collection && Array.isArray(overview.collectionQuestionFacts) ? overview.collectionQuestionFacts : overview.questionFacts
+  const result = new Map((source || []).map(q => [q.questionId, { ...q }]))
+  const included = new Set(collection ? overview.includedItemIds || [] : [])
+  for (const snapshot of pending(records.filter(s => collection || !s.immediateOnly), overview)) for (const item of snapshot.localResult.items) {
+    if (included.has(item.itemId)) continue
     if (!item.outcome || item.outcome === 'UNANSWERED') continue
     const id = item.question.id, old = result.get(id) || { questionId: id, rightCount: 0, wrongCount: 0, judgment: '' }
     const next = { ...old, rightCount: old.rightCount + (item.outcome === 'CORRECT' ? 1 : 0), wrongCount: old.wrongCount + (item.outcome === 'WRONG' && (old.wrongCount || snapshot.autoAddWrongBook !== false) ? 1 : 0) }
-    if (!old.lastPracticedAt || Date.parse(old.lastPracticedAt) <= Date.parse(snapshot.localResult.submittedAt)) Object.assign(next, { judgment: item.outcome, selfAssessment: item.selfAssessment || old.selfAssessment, lastPracticedAt: snapshot.localResult.submittedAt, item, snapshot })
+    const stamp = item.confirmedAt || snapshot.localResult.submittedAt
+    if (!old.lastPracticedAt || Date.parse(old.lastPracticedAt) <= Date.parse(stamp)) Object.assign(next, { judgment: item.outcome, selfAssessment: item.selfAssessment || old.selfAssessment, lastPracticedAt: stamp, item, snapshot })
     result.set(id, next)
   }
   for (const snapshot of records) for (const itemId of Object.keys(snapshot.assessmentCommands || {})) {
@@ -38,7 +47,7 @@ function assessmentDelta(value, base, records) {
 }
 function overview(base, records) {
   const value = { ...(base || {}) }
-  const unconfirmed = pending(records, base)
+  const unconfirmed = pending(records.filter(s => !s.immediateOnly), base)
   for (const snapshot of unconfirmed) {
     const r = snapshot.localResult
     for (const [field, n] of Object.entries({ answerAttemptCount: r.answeredCount, objectiveAnsweredCount: r.objective.answered, objectiveCorrectCount: r.objective.correct, durationSeconds: r.durationSeconds, practiceCount: 1, selfRatedCount: r.shortAnswer.rated, selfRatedCorrectCount: r.shortAnswer.correct, selfRatedWrongCount: r.shortAnswer.wrong })) value[field] = (value[field] || 0) + n
@@ -46,17 +55,17 @@ function overview(base, records) {
   assessmentDelta(value, base, records)
   const before = facts(base || {}, []), after = facts(base || {}, records)
   const count = (all, test) => Array.from(all.values()).filter(test).length
-  for (const [field, test] of Object.entries({ answeredCount: q => !!q.judgment, distinctQuestionCount: q => !!q.judgment, correctCount: q => q.judgment === 'CORRECT', wrongCount: q => q.judgment === 'WRONG', wrongBookCount: q => q.wrongCount > 0 && q.judgment === 'WRONG', masteredCount: q => q.wrongCount > 0 && q.judgment === 'CORRECT' })) value[field] = (value[field] || 0) + count(after, test) - count(before, test)
+  for (const [field, test] of Object.entries({ answeredCount: q => !!q.judgment, distinctQuestionCount: q => !!q.judgment, correctCount: q => q.judgment === 'CORRECT', wrongCount: q => q.judgment === 'WRONG' })) value[field] = (value[field] || 0) + count(after, test) - count(before, test)
+  const collectionBefore = facts(base || {}, [], true), collectionAfter = facts(base || {}, records, true)
+  for (const [field, judgment] of [['wrongBookCount', 'WRONG'], ['masteredCount', 'CORRECT']]) {
+    const test = q => q.wrongCount > 0 && q.judgment === judgment
+    value[field] = (value[field] || 0) + count(collectionAfter, test) - count(collectionBefore, test)
+  }
   value.objectiveAccuracy = value.objectiveAnsweredCount ? value.objectiveCorrectCount / value.objectiveAnsweredCount : null
   return value
 }
 function wrong(base, records) {
-  return Array.from(facts(base || {}, records).values()).filter(q => q.item && q.wrongCount > 0).map(q => {
-    const question = q.item.question
-    return { questionId: question.id, questionBankId: question.questionBankId || q.snapshot.questionBankId, stem: question.stem, type: question.type,
-      contentFormat: question.contentFormat, presentation: question.presentation, lastOutcome: q.judgment, lastPracticedAt: q.lastPracticedAt, rightCount: q.rightCount, wrongCount: q.wrongCount,
-      subjectId: q.snapshot.route && q.snapshot.route.subjectId, questionBankName: q.snapshot.title, available: true }
-  })
+  return collectionRows(base, records, true).filter(q => q.wrongCount > 0)
 }
 module.exports = { snapshots, pending, overview, facts, wrong }
 
@@ -91,7 +100,7 @@ module.exports.days = days
 function collectionRows(base, records, withPending) {
   const metadata = new Map()
   for (const snapshot of records) for (const item of snapshot.localResult.items) metadata.set(item.question.id, { item, snapshot })
-  return Array.from(facts(base || {}, withPending ? records : []).values()).map(q => {
+  return Array.from(facts(base || {}, withPending ? records : [], true).values()).map(q => {
     const source = q.item ? q : metadata.get(q.questionId)
     if (!source) return null
     const item = source.item, snapshot = source.snapshot, question = item.question

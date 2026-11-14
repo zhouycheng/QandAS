@@ -194,7 +194,7 @@ CREATE TABLE practice_sync_state (
 CREATE TABLE practice_item (
  id uuid PRIMARY KEY, session_id uuid NOT NULL REFERENCES practice_session(id), question_id uuid NOT NULL, revision_id uuid NOT NULL,
  material_revision_id uuid REFERENCES question_revision(id), answer_blanks text CHECK(answer_blanks IS NULL OR jsonb_typeof(answer_blanks::jsonb)='array'),
- position integer NOT NULL CHECK(position>=0), answer_text text, answer_boolean boolean, confirmed boolean NOT NULL DEFAULT false, marked boolean NOT NULL DEFAULT false,
+ position integer NOT NULL CHECK(position>=0), answer_text text, answer_boolean boolean, confirmed boolean NOT NULL DEFAULT false, confirmed_at timestamptz, marked boolean NOT NULL DEFAULT false,
  outcome varchar(12) CHECK(outcome IN ('CORRECT','WRONG','UNANSWERED','SELF_RATED')), self_assessment varchar(12) CHECK(self_assessment IN ('CORRECT','WRONG')),
  FOREIGN KEY(question_id,revision_id) REFERENCES question_revision(question_id,id), UNIQUE(session_id,position), UNIQUE(session_id,question_id), UNIQUE(id,revision_id)
 );
@@ -216,14 +216,14 @@ CREATE TABLE question_feedback (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), question_id uuid NOT NULL, revision_id uuid NOT NULL,
  category varchar(24) NOT NULL CHECK(category IN ('ANSWER','EXPLANATION','STEM_OPTIONS','OTHER')), body text NOT NULL,
  status varchar(16) NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','IN_PROGRESS','RESOLVED','DISMISSED')), response text NOT NULL DEFAULT '',
- version bigint NOT NULL DEFAULT 1 CHECK(version>0), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+ version bigint NOT NULL DEFAULT 1 CHECK(version>0), read_version bigint NOT NULL DEFAULT 0 CHECK(read_version BETWEEN 0 AND version), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(question_id,revision_id) REFERENCES question_revision(question_id,id)
 );
 CREATE INDEX question_feedback_queue_idx ON question_feedback(status,created_at DESC);
 CREATE TABLE course_request (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES user_account(id), course_name varchar(120) NOT NULL, major_id uuid REFERENCES major(id), body text NOT NULL,
  status varchar(16) NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','IN_PROGRESS','RESOLVED','DISMISSED')), response text NOT NULL DEFAULT '', version bigint NOT NULL DEFAULT 1 CHECK(version>0),
- created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+ read_version bigint NOT NULL DEFAULT 0 CHECK(read_version BETWEEN 0 AND version), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE announcement (
  id uuid PRIMARY KEY, title varchar(120) NOT NULL, summary varchar(500) NOT NULL, body text NOT NULL,

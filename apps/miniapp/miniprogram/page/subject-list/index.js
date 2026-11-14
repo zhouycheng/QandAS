@@ -75,7 +75,7 @@ Page(withPageLifecycle({
       return
     }
 
-    return this.refresh({ force: true })
+    return Promise.all([this.refresh({ force: true }), require('../../repositories/remote-data-repository.js').refreshFeedbackSummary(this.viewModel.storage)])
   },
 
   refresh(options) {

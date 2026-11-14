@@ -50,7 +50,7 @@ for (const feedback of ['IMMEDIATE', 'AFTER_FINISH']) for (const autoNextWhenCor
   model.selectOption(1); model.selectOption(0)
   assert.equal(model.state.answers[0].confirmed, false)
   assert.equal(model.state.shouldRevealAnswer, false)
-  assert.equal(model.state.primaryActionText, feedback === 'IMMEDIATE' ? '确认' : '下一题')
+  assert.equal(model.state.primaryActionText, feedback === 'IMMEDIATE' ? '确认答案' : '下一题')
   assert.equal(model.getOverviewItems(model.state.answers, 0)[0].isDraft, true)
   const next = model.goNext()
   assert.equal(!!next.autoAdvance, feedback === 'IMMEDIATE' && autoNextWhenCorrect)

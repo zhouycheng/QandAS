@@ -1,5 +1,6 @@
 @import "../../styles/list-page.wxss";
 page { background: var(--card); }
+.feedback-dot { flex: none; width: 14rpx; height: 14rpx; margin-left: 12rpx; border-radius: 50%; background: var(--danger); }
 
 /* 我的｜设计稿 Figma 781:1922（画板 402x874，系数 750/402 ≈ 1.8657）
    三页公共的行高 / 分隔线 / 配色在 styles/list-page.wxss，这里只写本页差异。 */

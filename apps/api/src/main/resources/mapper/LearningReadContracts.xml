@@ -2,15 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.learning.api.ReadContracts">
   <sql id="wrongFacts">
+    <include refid="qanda.backend.learning.api.ReadContracts.questionFacts"><property name="immediate" value="false"/></include>
+  </sql>
+  <sql id="collectionFacts">
+    <include refid="qanda.backend.learning.api.ReadContracts.questionFacts"><property name="immediate" value="true"/></include>
+  </sql>
+  <sql id="questionFacts">
     WITH facts AS (
-      SELECT i.question_id,i.outcome judgment,s.submitted_at,s.id session_id,
+      SELECT i.question_id,i.outcome judgment,s.submitted_at completed_at,s.status session_status,
+        CASE WHEN ${immediate} AND s.feedback='IMMEDIATE' THEN coalesce(i.confirmed_at,s.submitted_at,s.updated_at) ELSE s.submitted_at END submitted_at,s.id session_id,
         bool_or(s.auto_add_wrong_book AND i.outcome='WRONG') OVER (
-          PARTITION BY i.question_id ORDER BY s.submitted_at,s.id
+          PARTITION BY i.question_id ORDER BY CASE WHEN ${immediate} AND s.feedback='IMMEDIATE' THEN coalesce(i.confirmed_at,s.submitted_at,s.updated_at) ELSE s.submitted_at END,s.id
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) wrong_book_member,
-        row_number() OVER(PARTITION BY i.question_id ORDER BY s.submitted_at DESC,s.id DESC) rn
+        row_number() OVER(PARTITION BY i.question_id ORDER BY CASE WHEN ${immediate} AND s.feedback='IMMEDIATE' THEN coalesce(i.confirmed_at,s.submitted_at,s.updated_at) ELSE s.submitted_at END DESC,s.id DESC) rn
       FROM practice_item i JOIN practice_session s ON s.id=i.session_id
-      WHERE s.user_id=#{userId} AND s.status='SUBMITTED' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED')
+      WHERE s.user_id=#{userId} AND (s.status='SUBMITTED' OR (${immediate} AND s.feedback='IMMEDIATE' AND i.confirmed AND i.outcome IN ('CORRECT','WRONG'))) AND i.outcome IN ('CORRECT','WRONG','SELF_RATED')
       <if test="_parameter.containsKey('pendingFactIds')">AND i.question_id IN <foreach collection="pendingFactIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     ), totals AS (
       SELECT question_id,count(*) FILTER(WHERE judgment='CORRECT') right_count,

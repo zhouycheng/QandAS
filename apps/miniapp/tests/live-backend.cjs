@@ -5,6 +5,7 @@ const remote = require('../miniprogram/repositories/remote-data-repository.js')
 const online = require('../miniprogram/repositories/online-practice.js')
 const auth = require('../miniprogram/repositories/auth-repository.js')
 const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmodel.js')
+const { QuestionDetailViewModel } = require('../miniprogram/viewmodels/question-detail-viewmodel.js')
 const source = process.env
 if (!source.QANDA_TEST_URL || !source.QANDA_TEST_TOKEN || !source.QANDA_TEST_BANK_ID || !source.QANDA_TEST_USER_ID) throw new Error('需要隔离的后端验收环境')
 const values = new Map()
@@ -67,6 +68,19 @@ async function main() {
   assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'))
   assert.ok(requests.some(item => item.path.endsWith('/sync-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
+  for (const item of completed.items) {
+    const id = item.question.id
+    const hidden = await api.request('GET', '/questions/' + id)
+    assert.equal(hidden.data.correctAnswer, null)
+    assert.equal(hidden.data.explanation, null)
+    const detail = new QuestionDetailViewModel({ storage })
+    const review = (await detail.refreshRemote({ id, latest: '1' })).data
+    assert.equal(review.emptyText, '')
+    assert.equal(review.canReveal, true)
+    assert.ok(review.correctText, item.question.type)
+    assert.equal(review.hasAnswer, false)
+    detail.release(); remote.releaseQuestion(id)
+  }
   runtime.queue.stop()
   console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.localResult.objective.correct, selfRated: completed.localResult.shortAnswer.rated }))
 }

@@ -419,7 +419,7 @@ class PracticeViewModel {
             return this.online.completeView(this.session).then(() => this.session.goNext())
                 .catch(error => ({ command: { type: 'toast', title: error.message || '保存失败，请重试' } }));
         }
-        return this.navigateQuestion(() => bySwipe && this.session.preferences.swipeDraftAction === 'save' && !this.session.state.isLastQuestion
+        return this.navigateQuestion(() => bySwipe && (this.session.preferences.swipeDraftAction === 'save' || !this.session.shouldConfirmCurrentAnswer()) && !this.session.state.isLastQuestion
             ? this.session.showQuestionAtIndex(this.session.state.currentIndex + 1) : this.session.goNext());
     }
     goPrev() {

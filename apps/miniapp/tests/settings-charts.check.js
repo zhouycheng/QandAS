@@ -86,11 +86,13 @@ function checkBase64() {
 // ---------- 二、偏好规范化 ----------
 function checkPreferences() {
   const defaults = preferenceUtils.normalizePreferences(null)
+  assert('偏好 - 已移除错题收录开关', !preferenceUtils.PREFERENCE_SWITCHES.some(item => item.key === 'autoAddWrongBook') && preferenceUtils.normalizePreferences({ autoAddWrongBook: false }).autoAddWrongBook === undefined)
+  assert('偏好 - 外框开关使用指定文案', preferenceUtils.PREFERENCE_SWITCHES.some(item => item.key === 'optionOutline' && item.label === '答题卡选项显示外框' && item.description === '更清楚的看清楚选项范围'))
 
   // vibrateOnAnswer 默认必须是 false：vibrateShort 会让整台设备震一下，
   // 答题时被感知成「整个页面在颤抖」，用户无法与「点击动效」区分开。
   assert('偏好 - 空值给全套默认', defaults.autoOpenAnalysis === true &&
-    defaults.autoAddWrongBook === true &&
+    defaults.optionOutline === false &&
     defaults.autoNextWhenCorrect === false &&
     defaults.vibrateOnAnswer === false &&
     defaults.fontSize === 'normal' &&
@@ -123,11 +125,11 @@ function checkPreferences() {
   const view = preferenceUtils.buildPreferenceView({ fontSize: 'large' })
   const fontChoice = view.choices.find((item) => item.key === 'fontSize')
 
-  assert('偏好 - 设置视图包含六个开关', view.switches.length === 6, `实际 ${view.switches.length}`)
+  assert('偏好 - 设置视图包含五个开关', view.switches.length === 5, `实际 ${view.switches.length}`)
   assert('偏好 - 设置视图提供字号选择',
     view.choices.length === 1 && fontChoice, `实际 ${view.choices.length}`)
-  assert('偏好 - 答题操作与通用设置分组', view.switches.filter(item => item.heading).map(item => item.heading).join(',') === '答题操作,通用设置')
-  assert('偏好 - 解析展开默认开启', view.switches.find(item => item.key === 'autoOpenAnalysis').value === true)
+  assert('偏好 - 答题操作与通用设置分组', view.switches.filter(item => item.heading).map(item => item.heading).join(',') === '即时答题设置,通用设置')
+  assert('偏好 - 详解直接显示，设置中移除自动展开', !view.switches.some(item => item.key === 'autoOpenAnalysis'))
   assert('偏好 - 出题顺序由本次配置提供', !view.switches.some(item => item.key === 'practiceOrder'))
   assert('偏好 - 字号选中态唯一',
     fontChoice.options.filter((option) => option.selected).length === 1)
@@ -243,7 +245,7 @@ function checkSettingsViewModel() {
   const vm = new SettingsViewModel({ storage })
   const initial = vm.load()
 
-  assert('设置 - 初始开关非空', initial.data.switches.length === 6)
+  assert('设置 - 初始开关非空', initial.data.switches.length === 5)
   assert('设置 - 目录统计由其他页面负责', initial.data.catalog === undefined)
   // 改版后账户分组迁到「我的 → 账号管理」（设计稿 781:2123），设置页不该再有第二份账号状态
   assert('设置 - 账户分组已迁出',
@@ -252,22 +254,22 @@ function checkSettingsViewModel() {
 
   assert('设置 - 布局由独立页面编辑', !initial.data.choices.some(item => item.key === 'answerLayout'))
 
-  vm.toggleSwitch('autoAddWrongBook', false)
+  vm.toggleSwitch('optionOutline', true)
 
   const stored = storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY)
 
-  assert('设置 - 开关切换落盘', stored.autoAddWrongBook === false, JSON.stringify(stored))
+  assert('设置 - 开关切换落盘', stored.optionOutline === true, JSON.stringify(stored))
 
-  const afterToggle = vm.toggleSwitch('autoAddWrongBook', false)
+  const afterToggle = vm.toggleSwitch('optionOutline', true)
 
   assert('设置 - 切换后回传最新视图',
-    afterToggle.data.switches.find((item) => item.key === 'autoAddWrongBook').value === false)
+    afterToggle.data.switches.find((item) => item.key === 'optionOutline').value === true)
 
   assert('设置 - 非法 key 返回空', vm.toggleSwitch('', true) === null)
 
   const explanation = vm.toggleSwitch('autoOpenAnalysis', false)
-  assert('设置 - 自动展开开关可以关闭',
-    explanation.data.switches.find(item => item.key === 'autoOpenAnalysis').value === false &&
+  assert('设置 - 旧字段兼容读取，视图不再提供开关',
+    !explanation.data.switches.some(item => item.key === 'autoOpenAnalysis') &&
     storage.get(preferenceUtils.PREFERENCE_STORAGE_KEY).autoOpenAnalysis === false)
 
   const fontSize = vm.selectChoice('fontSize', 'large')

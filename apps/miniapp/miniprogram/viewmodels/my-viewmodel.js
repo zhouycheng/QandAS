@@ -51,7 +51,7 @@ class MyViewModel {
         this.storage = normalizedOptions.storage || createNullStorage();
     }
     refreshRemote(options) {
-        return this.repository.refreshRemote(this.storage, 'profile', options).then(() => ({ data: Object.assign(this.projectRemote(), { profileError: '' }) })).catch((error) => ({ data: { profileError: error.message }, command: { type: 'toast', title: error.message } }));
+        return Promise.all([this.repository.refreshRemote(this.storage, 'profile', options), require('../repositories/remote-data-repository.js').refreshFeedbackSummary(this.storage)]).then(() => ({ data: Object.assign(this.projectRemote(), { profileError: '' }) })).catch((error) => ({ data: { profileError: error.message }, command: { type: 'toast', title: error.message } }));
     }
     projectRemote() {
         require('../repositories/remote-data-repository.js').getProfile(this.storage);
@@ -67,13 +67,14 @@ class MyViewModel {
     load() {
         const preferences = normalizePreferences(this.repository.getPreferences(this.storage));
         const auth = this.readAuthView();
+        const summary = require('../repositories/remote-data-repository.js').getFeedbackSummary(this.storage);
         return {
             data: Object.assign(getInitialMyViewData(), {
                 auth,
                 learnRows: [
                     { key: 'practice', title: '答题偏好', value: '文字大小：' + describeChoiceLabel(preferences, 'fontSize') },
                     { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
-                    { key: 'feedback', title: '反馈与处理结果', value: '' },
+                    { key: 'feedback', title: '反馈与处理结果', value: '', unread: auth.loggedIn && summary.questionUnreadCount + summary.courseRequestUnreadCount > 0 },
                     { key: 'countdown', title: '考试倒计时', value: '' },
                     { key: 'about', title: '关于题小搭', value: '' }
                 ],

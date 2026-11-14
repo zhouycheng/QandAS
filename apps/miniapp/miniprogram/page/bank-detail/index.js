@@ -181,7 +181,7 @@ Page(withPageLifecycle({
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
   handleRetryLoad() { return this.refreshCatalog({ force: true }) },
   getRefreshError() { return this.data.catalogError || this.data.filterError || '' },
-  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad()]) },
+  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad(), require('../../repositories/remote-data-repository.js').refreshFeedbackSummary(this.viewModel.storage)]) },
   onHide() {
     this.viewModel.closeConfig()
     const pages = getCurrentPages()

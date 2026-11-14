@@ -2,34 +2,27 @@
   <text class="pra-meta-index">{{currentNumber}}/{{total}}</text>
   <view class="pra-meta-tags"><text wx:if="{{practiceModeText}}" class="pra-meta-type">{{practiceModeText}}</text><text class="pra-meta-type">阅读理解</text></view>
   <text class="pra-meta-timer">{{isTimed ? timerText : elapsedText}}</text>
-  <button class="q-button q-button--text reading-overview" aria-label="答题卡" catchtap="openOverview" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80"><view class="pra-tool-icon icon-grid" aria-hidden="true"></view></button>
 </view>
-<view class="reading-workspace" motion="{{ {version: readingVersion, geometry: readingGeometry, stop: readingStop, keyboard: keyboardVisible, enabled: !readingSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !analysisSheetOpen && !editingLocked} }}" change:motion="{{readingDrag.sync}}">
+<view class="reading-workspace" motion="{{ {version: readingVersion, geometry: readingGeometry, open: readingOpen, ratio: readingRatio, keyboard: keyboardVisible, enabled: !readingSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked} }}" change:motion="{{readingDrag.sync}}">
   <scroll-view class="reading-material" scroll-y enhanced bounces="{{false}}" scroll-top="{{paneScroll.material}}" data-pane="material" bindscroll="onPaneScroll">
     <view class="pra-material"><text class="pra-side-title">阅读原文</text><rich-content text="{{currentQuestion.material.passage || ''}}" format="{{currentQuestion.material.contentFormat || 'PLAIN_TEXT'}}" /><question-images paths="{{currentQuestion.material.imagePaths || []}}" /></view>
+    <view wx:if="{{!readingOpen}}" class="reading-launcher-clearance"></view>
   </scroll-view>
-  <view class="reading-panel">
-    <view class="reading-handle" aria-role="button" aria-label="{{readingStop ? '收起小题' : '展开小题'}}" aria-expanded="{{readingStop > 0 || keyboardVisible}}" catchtap="{{readingDrag.tap}}" catchtouchstart="{{readingDrag.start}}" catchtouchmove="{{readingDrag.move}}" catchtouchend="{{readingDrag.end}}" catchtouchcancel="{{readingDrag.cancel}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
-      <view class="reading-grip"></view>
-      <view class="reading-handle-caption">
-      <text class="reading-remaining" wx:if="{{isViewMode}}">小题 {{readingGroupNumber}}/{{readingGroupTotal}}</text>
-      <text class="reading-remaining" wx:elif="{{readingGroupUnansweredCount}}">剩 {{readingGroupUnansweredCount}} 小题未答</text>
-      <text class="reading-remaining" wx:elif="{{readingGroupDraftCount}}">已填写，{{readingGroupDraftCount}} 道待确认</text>
-      <text class="reading-remaining" wx:else>本篇小题已答完</text>
-      <text class="reading-hint"> · {{readingStop ? '上下拖动调整作答区' : '上拉展开小题'}}</text>
-      </view>
+  <view class="reading-panel" aria-hidden="{{!readingOpen && !keyboardVisible}}">
+    <view class="reading-question-heading">
+      <text class="reading-question-number">小题 {{readingGroupNumber}}/{{readingGroupTotal}}</text>
+      <view class="reading-handle" aria-role="button" aria-label="拖动调整选项浮层高度" catchtap="{{readingDrag.tap}}" catchtouchstart="{{readingDrag.start}}" catchtouchmove="{{readingDrag.move}}" catchtouchend="{{readingDrag.end}}" catchtouchcancel="{{readingDrag.cancel}}"><view class="reading-grip"></view></view>
+      <button class="q-button q-button--text reading-close" catchtap="closeReading" aria-label="关闭选项卡" hover-class="q-button-hover">×</button>
     </view>
-    <view class="reading-question-surface" aria-hidden="{{!readingStop && !keyboardVisible}}">
-      <view class="reading-question-heading">
-        <view><text class="reading-question-number">小题 {{readingGroupNumber}}/{{readingGroupTotal}}</text><text class="pra-meta-type">{{currentQuestion.typeText}}</text></view>
-      </view>
-      <scroll-view class="reading-question" scroll-y enhanced bounces="{{false}}" scroll-top="{{readingQuestionScrollTop}}" bindscroll="onReadingQuestionScroll">
-        <view class="reading-question-content">
-          <include src="practice-stem.wxml" />
-          <view wx:if="{{!currentQuestion.isFillBlank}}" class="pra-module reading-response"><include src="practice-response.wxml" /></view>
-          <include src="practice-tools.wxml" />
-        </view>
-      </scroll-view>
-    </view>
+    <scroll-view class="reading-question" scroll-y enhanced bounces="{{false}}" scroll-top="{{readingQuestionScrollTop}}" bindscroll="onReadingQuestionScroll">
+      <view class="reading-question-content"><include src="practice-stem.wxml" /><view wx:if="{{!currentQuestion.isFillBlank}}" class="pra-module reading-response"><include src="practice-response.wxml" /></view></view>
+    </scroll-view>
   </view>
+  <button wx:if="{{!readingOpen && !keyboardVisible}}" class="q-button reading-launcher" catchtap="openReading" aria-label="打开选项卡，已答 {{readingGroupAnsweredCount}}／{{readingGroupTotal}}" hover-class="q-button-hover">
+    <view class="reading-ring-track" aria-hidden="true"></view>
+    <view class="reading-ring-half ring-right" aria-hidden="true"><view class="reading-ring-value" style="transform:rotate({{readingProgressDegrees > 180 ? 180 : readingProgressDegrees}}deg);"></view></view>
+    <view class="reading-ring-half ring-left" aria-hidden="true"><view class="reading-ring-value" style="transform:rotate({{readingProgressDegrees > 180 ? readingProgressDegrees - 180 : 0}}deg);"></view></view>
+    <text>选项卡</text>
+  </button>
 </view>
+<view class="reading-tools" hidden="{{keyboardVisible}}"><include src="practice-tools.wxml" /></view>

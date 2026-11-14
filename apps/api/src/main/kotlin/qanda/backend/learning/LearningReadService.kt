@@ -22,8 +22,8 @@ data class LearningOverviewView(val answeredCount: Long,val correctCount: Long,v
     val favoriteCount: Long,val totalCount: Long,val subjectCount: Long,val bankCount: Long,val durationSeconds: Long,
     val practiceCount: Long,val recentSession: PracticeSummary?,val wrongBookCount: Long,
     val answerAttemptCount: Long,val distinctQuestionCount: Long,val objectiveAnsweredCount: Long,val objectiveCorrectCount: Long,
-    val objectiveAccuracy: Double?,val selfRatedCount: Long,val selfRatedCorrectCount: Long,val selfRatedWrongCount: Long,val includedSessionIds: List<UUID> = emptyList(),val questionFacts: List<PendingQuestionFact> = emptyList(),val assessmentFacts: List<PendingAssessmentFact> = emptyList())
-data class PendingLearningInput(val pendingSessionIds: List<UUID> = emptyList(),val pendingQuestionIds: List<UUID> = emptyList(),val deviceId: UUID?=null,val pendingAssessmentItemIds: List<UUID> = emptyList())
+    val objectiveAccuracy: Double?,val selfRatedCount: Long,val selfRatedCorrectCount: Long,val selfRatedWrongCount: Long,val includedSessionIds: List<UUID> = emptyList(),val questionFacts: List<PendingQuestionFact> = emptyList(),val assessmentFacts: List<PendingAssessmentFact> = emptyList(),val collectionQuestionFacts: List<PendingQuestionFact> = emptyList(),val includedItemIds: List<UUID> = emptyList())
+data class PendingLearningInput(val pendingSessionIds: List<UUID> = emptyList(),val pendingQuestionIds: List<UUID> = emptyList(),val deviceId: UUID?=null,val pendingAssessmentItemIds: List<UUID> = emptyList(),val pendingItemIds: List<UUID> = emptyList())
 data class PendingAssessmentFact(var itemId: UUID?=null,var selfAssessment: String?=null)
 data class PendingQuestionFact(var questionId: UUID?=null,var judgment: String="",var selfAssessment: String?=null,var lastPracticedAt: Instant?=null,var wrongCount: Long=0,var rightCount: Long=0)
 class CollectionRow {
@@ -48,6 +48,8 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
 @Mapper interface LearningReadMapper {
     fun overview(@Param("userId") userId: UUID): OverviewRow
     fun pendingFacts(@Param("userId") userId: UUID,@Param("pendingFactIds") ids: List<UUID>): List<PendingQuestionFact>
+    fun pendingCollectionFacts(@Param("userId") userId: UUID,@Param("pendingFactIds") ids: List<UUID>): List<PendingQuestionFact>
+    fun includedItems(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
     fun assessmentFacts(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<PendingAssessmentFact>
     fun includedSessions(@Param("userId") userId: UUID,@Param("ids") ids: List<UUID>): List<UUID>
     fun latestSession(@Param("userId") userId: UUID,@Param("deviceId") deviceId: UUID?): PracticeSummary?
@@ -59,13 +61,14 @@ data class CollectionFilter(val kind: String,val status: String="UNMASTERED",val
 @Transactional(readOnly=true)
 class LearningReadService(private val sql: LearningReadMapper,private val clock: Clock) {
     @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun overview(userId: UUID,deviceId: UUID?=null,pendingSessionIds: List<UUID> = emptyList(),pendingQuestionIds: List<UUID> = emptyList(),pendingAssessmentItemIds: List<UUID> = emptyList()): LearningOverviewView {
+    fun overview(userId: UUID,deviceId: UUID?=null,pendingSessionIds: List<UUID> = emptyList(),pendingQuestionIds: List<UUID> = emptyList(),pendingAssessmentItemIds: List<UUID> = emptyList(),pendingItemIds: List<UUID> = emptyList()): LearningOverviewView {
         if(pendingSessionIds.size>1000 || pendingQuestionIds.size>10000 || pendingAssessmentItemIds.size>1000 || pendingSessionIds.distinct().size!=pendingSessionIds.size) invalid("/pendingSessionIds")
+        if(pendingItemIds.size>10000 || pendingItemIds.distinct().size!=pendingItemIds.size) invalid("/pendingItemIds")
         val r=sql.overview(userId);val s=sql.latestSession(userId,deviceId)
         return LearningOverviewView(r.answeredCount,r.correctCount,r.wrongCount,r.masteredCount,r.favoriteCount,r.totalCount,
             r.subjectCount,r.bankCount,r.durationSeconds,r.practiceCount,s,r.wrongBookCount,r.answerAttemptCount,r.answeredCount,
             r.objectiveAnsweredCount,r.objectiveCorrectCount,if(r.objectiveAnsweredCount==0L) null else r.objectiveCorrectCount.toDouble()/r.objectiveAnsweredCount,
-            r.selfRatedCount,r.selfRatedCorrectCount,r.selfRatedWrongCount,if(pendingSessionIds.isEmpty()) emptyList() else sql.includedSessions(userId,pendingSessionIds),if(pendingQuestionIds.isEmpty()) emptyList() else sql.pendingFacts(userId,pendingQuestionIds.distinct()),if(pendingAssessmentItemIds.isEmpty()) emptyList() else sql.assessmentFacts(userId,pendingAssessmentItemIds.distinct()))
+            r.selfRatedCount,r.selfRatedCorrectCount,r.selfRatedWrongCount,if(pendingSessionIds.isEmpty()) emptyList() else sql.includedSessions(userId,pendingSessionIds),if(pendingQuestionIds.isEmpty()) emptyList() else sql.pendingFacts(userId,pendingQuestionIds.distinct()),if(pendingAssessmentItemIds.isEmpty()) emptyList() else sql.assessmentFacts(userId,pendingAssessmentItemIds.distinct()),if(pendingItemIds.isEmpty() || pendingQuestionIds.isEmpty()) emptyList() else sql.pendingCollectionFacts(userId,pendingQuestionIds.distinct()),if(pendingItemIds.isEmpty()) emptyList() else sql.includedItems(userId,pendingItemIds))
     }
     private fun filter(kind: String,status: String="UNMASTERED",subjectId: UUID?=null,bankId: UUID?=null,chip: String="all",sort: String="recent"): CollectionFilter {
         if(kind !in setOf("WRONG","FAVORITE")) invalid("/kind")

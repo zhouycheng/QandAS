@@ -1,5 +1,6 @@
 const { createFeedbackRepository } = require('../repositories/feedback-repository.js');
 const authRepository = require('../repositories/auth-repository.js');
+const remote = require('../repositories/remote-data-repository.js');
 const categories = ['ANSWER', 'EXPLANATION', 'STEM_OPTIONS', 'OTHER'];
 const statuses = { OPEN: '待处理', IN_PROGRESS: '处理中', RESOLVED: '已处理', DISMISSED: '已回复' };
 class FeedbackViewModel {
@@ -9,30 +10,59 @@ class FeedbackViewModel {
         this.kind = 'question';
         this.sequence = 0;
         this.saving = false;
+        this.auth = authRepository.getAuth(this.storage);
+        this.items = [];
     }
     static getInitialData() {
         return { kind: 'question', compose: false, questionId: '', revisionId: '', courseName: '', body: '', categoryIndex: 0,
-            categories: ['答案问题', '解析问题', '题干或选项问题', '其他问题'], items: [], page: 1, hasMore: false, loading: false, saving: false, error: '' };
+            categories: ['答案问题', '解析问题', '题干或选项问题', '其他问题'], items: [], page: 1, hasMore: false, loading: false, saving: false, error: '', questionUnread: false, courseUnread: false };
     }
     load(options) {
         this.kind = options.kind === 'course' ? 'course' : 'question';
         return { data: Object.assign(FeedbackViewModel.getInitialData(), { kind: this.kind, compose: options.compose === '1', questionId: options.questionId || '', revisionId: options.revisionId || '' }) };
     }
+    isCurrent() {
+        const auth = authRepository.getAuth(this.storage);
+        return auth.token === this.auth.token && auth.userId === this.auth.userId;
+    }
+    cancel() { this.sequence++; }
+    projectRemote() {
+        const summary = remote.getFeedbackSummary(this.storage);
+        if (!this.isCurrent()) return { items: [], compose: false, body: '', courseName: '', loading: false, saving: false, questionUnread: false, courseUnread: false };
+        return { questionUnread: summary.questionUnreadCount > 0, courseUnread: summary.courseRequestUnreadCount > 0 };
+    }
     async list(page) {
         const sequence = ++this.sequence;
         try {
             const result = await this.repository.list(this.kind, page || 1);
-            if (sequence !== this.sequence)
+            if (sequence !== this.sequence || !this.isCurrent())
                 return null;
             if (!result || !Array.isArray(result.items) || !Number.isInteger(result.total))
                 throw new Error('反馈记录读取失败，请重试');
-            return { data: { loading: false, error: '', page: result.page, hasMore: result.page * result.pageSize < result.total,
-                    items: result.items.map(item => ({ id: item.id, title: item.courseName || item.question && item.question.stem || '题目纠错', body: item.body,
-                        response: item.response, statusText: statuses[item.status] || item.status, updatedAt: item.updatedAt ? new Date(Date.parse(item.updatedAt) + 8 * 3600000).toISOString().replace('T', ' ').slice(0, 16) : '' })) } };
+            this.items = result.items.map(item => ({ id: item.id, version: item.version, unread: item.unread === true, title: item.courseName || item.question && item.question.stem || '题目纠错', body: item.body,
+                response: item.response, statusText: statuses[item.status] || item.status, updatedAt: item.updatedAt ? new Date(Date.parse(item.updatedAt) + 8 * 3600000).toISOString().replace('T', ' ').slice(0, 16) : '' }));
+            return { data: { loading: false, error: '', page: result.page, hasMore: result.page * result.pageSize < result.total, items: this.items } };
         }
         catch (error) {
-            return sequence === this.sequence ? { data: { loading: false, error: error.message } } : null;
+            return sequence === this.sequence ? { data: Object.assign({ loading: false, error: error.message }, this.isCurrent() ? {} : this.projectRemote()) } : null;
         }
+    }
+    async acknowledge(items, shouldSend) {
+        const sequence = this.sequence;
+        if (!this.isCurrent()) return { data: this.projectRemote() };
+        const visible = items.filter(item => this.items.some(row => row.id === item.id && row.version === item.version && row.unread));
+        if (!visible.length) return null;
+        try {
+            await this.repository.acknowledge(this.kind, visible, shouldSend);
+            if (sequence !== this.sequence || !this.isCurrent()) return null;
+            const data = {};
+            this.items = this.items.map((row, index) => {
+                if (!visible.some(item => item.id === row.id && item.version === row.version)) return row;
+                data['items[' + index + '].unread'] = false;
+                return Object.assign({}, row, { unread: false });
+            });
+            return { data };
+        } catch (_) { return this.isCurrent() ? null : { data: this.projectRemote() }; }
     }
     async submit(data) {
         if (this.saving)

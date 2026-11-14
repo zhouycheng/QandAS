@@ -31,7 +31,7 @@ api.request = async (method, path, body) => {
   if (path.startsWith('/me/recent-learning')) return { ok: true, data: { total: 1, page: 1, pageSize: 20, items: [{ id: 'p1', questionBankId: 'b1', status: 'IN_PROGRESS', deviceId: body.deviceId }] } }
   if (path === '/me') return { ok: true, data: { id: 'u1', nickname: '同学', version: 2, collegeId: 'c1', majorId: 'm1' } }
   if (path === '/search') return { ok: true, data: { total: 1, page: 1, items: [{ id: 'q1', questionBankId: 'b1', kind: 'QUESTION', title: '题目', summary: '课程一' }] } }
-  if (path.startsWith('/questions/')) return { ok: true, data: { id: 'q1', revisionId: 'r1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '选项' }], correctAnswer: ['A'], explanation: '不可提前显示' } }
+  if (path.startsWith('/questions/')) return { ok: true, data: { id: 'q1', revisionId: 'r1', questionBankId: 'b1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '选项' }], correctAnswer: body && body.includeAnswers ? ['A'] : null, explanation: body && body.includeAnswers ? '不可提前显示' : null } }
   if (path === '/me/statistics') return { ok: true, data: { answeredCount: 20, objectiveAccuracy: 0.75, durationSeconds: 600 } }
   if (path.startsWith('/me/statistics/days')) return { ok: true, data: [{ date: '2026-10-28', answeredCount: 5, correctCount: 4, durationSeconds: 60 }] }
   return { ok: true, data: {} }

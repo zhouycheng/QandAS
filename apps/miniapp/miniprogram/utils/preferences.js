@@ -21,13 +21,13 @@ const FONT_SIZE_OPTIONS = [
 // 模块顺序通过 flex order 应用，保持题目节点与滚动位置稳定。
 const DEFAULT_PREFERENCES = {
   autoOpenAnalysis: true,
-  // 答错是否自动进错题本
-  autoAddWrongBook: true,
+  optionOutline: false,
   // 即时反馈中客观题确认答对后自动翻题
   autoNextWhenCorrect: false,
   vibrateOnAnswer: false,
   fontSize: 'normal',
   moduleOrder: DEFAULT_ORDER,
+  layoutMode: 'flow',
   practiceStemPercent: 50,
   swipeEnabled: true,
   swipeDraftAction: 'save',
@@ -36,14 +36,13 @@ const DEFAULT_PREFERENCES = {
 
 /** 设置页的长期答题习惯。 */
 const PREFERENCE_SWITCHES = [
-  { key: 'autoOpenAnalysis', heading: '答题操作', note: '新练习生效', label: '答题后自动打开解析', description: '即时反馈下，确认答案后展开；关闭时可手动打开' },
-  { key: 'autoNextWhenCorrect', label: '答对后自动下一题', description: '即时反馈答对后等待 0.8 秒切题，优先于自动打开解析' },
+  { key: 'autoNextWhenCorrect', heading: '即时答题设置', note: '新练习生效', label: '答对后自动下一题', description: '即时反馈答对后等待 0.8 秒切题' },
   { key: 'swipeDraftAction', label: '左滑时先确认答案', description: '即时反馈的多选、填空先确认答案；关闭时保存草稿并切题' },
   { key: 'swipeEnabled', heading: '通用设置', label: '左右手势切题', description: '新练习生效：左滑下一题，右滑上一题' },
   {
-    key: 'autoAddWrongBook',
-    label: '自动收录错题',
-    description: '交卷后，将答错的题加入错题本。关闭后不收录新错题，已有错题照常更新'
+    key: 'optionOutline',
+    label: '答题卡选项显示外框',
+    description: '更清楚的看清楚选项范围'
   },
   {
     key: 'vibrateOnAnswer',
@@ -92,6 +91,8 @@ function normalizePreferences(rawPreferences) {
       next[key] = pickOptionValue(PREFERENCE_CHOICES.find(item => item.key === key).options, value, DEFAULT_PREFERENCES[key])
       return
     }
+
+    if (key === 'layoutMode') { next[key] = value === 'custom' ? 'custom' : 'flow'; return }
 
     if (key === 'moduleOrder') {
       next[key] = normalizeOrder(value)

@@ -31,7 +31,22 @@ class DeploymentPostgresTest : PostgresFixture() {
                 statement.executeQuery("SELECT id FROM active_question WHERE false").close()
                 statement.executeQuery("SELECT id FROM visible_question_bank WHERE false").close()
                 statement.executeUpdate("INSERT INTO subject(id,name,status) VALUES(gen_random_uuid(),'Test course','ACTIVE')")
+                statement.execute("ALTER TABLE practice_item DROP COLUMN confirmed_at")
+                statement.execute("ALTER TABLE question_feedback DROP COLUMN read_version")
+                statement.execute("ALTER TABLE course_request DROP COLUMN read_version")
             } }
+            repeat(2) {
+                val upgrade=ProcessBuilder(java.nio.file.Path.of(System.getProperty("java.home"),"bin/java").toString(),"-jar","target/qanda-backend-1.0.0.jar","schema-init").apply {
+                    environment().putAll(mapOf("BACKEND_DB_URL" to database.jdbcUrl,"BACKEND_DB_USER" to database.username,"BACKEND_DB_PASSWORD" to database.password))
+                    redirectErrorStream(true)
+                }.start()
+                assertTrue(upgrade.waitFor(30,java.util.concurrent.TimeUnit.SECONDS));assertEquals(0,upgrade.exitValue(),upgrade.inputStream.bufferedReader().readText())
+                source.connection.use { connection -> connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT confirmed_at FROM practice_item WHERE false").close()
+                    statement.executeQuery("SELECT f.read_version,c.read_version FROM question_feedback f,course_request c WHERE false").close()
+                    statement.executeQuery("SELECT count(*) FROM subject").use { row -> row.next();assertEquals(1,row.getInt(1),"结构升级保留已有记录") }
+                } }
+            }
             assertThrows(IllegalArgumentException::class.java) { qanda.backend.platform.bootstrap.DatabaseCommands.initialize(source) }
             qanda.backend.platform.bootstrap.DatabaseCommands.initialize(source,reset=true)
             source.connection.use { connection -> connection.createStatement().use { statement ->

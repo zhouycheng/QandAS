@@ -881,6 +881,32 @@
     "body": null
   },
   {
+    "operationId": "Operations_readFeedback_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/question-feedback/read",
+    "body": {
+      "items": [
+        {
+          "id": "{{id}}",
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
+    "operationId": "Operations_readRequests_PUT",
+    "method": "PUT",
+    "path": "/api/v1/me/course-requests/read",
+    "body": {
+      "items": [
+        {
+          "id": "{{id}}",
+          "version": 1
+        }
+      ]
+    }
+  },
+  {
     "operationId": "Operations_handleFeedback_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/question-feedback/{id}",
@@ -931,6 +957,12 @@
       "courseName": "示例内容",
       "body": "示例内容"
     }
+  },
+  {
+    "operationId": "Operations_feedbackSummary_GET",
+    "method": "GET",
+    "path": "/api/v1/me/feedback-summary",
+    "body": null
   },
   {
     "operationId": "Operations_adminFeedback_GET",

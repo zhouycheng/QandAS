@@ -69,7 +69,7 @@ async function main() {
   assert.equal(preferences.getPreferences({ get: () => ({ practiceStemPercent: 40 }) }).practiceStemPercent, 40, '保留已保存的题干比例')
   assert.deepEqual(normalizeOrder(['tools', 'analysis', 'stem', 'info', 'response']), ['tools', 'stem', 'info', 'response'], '移除解析时保留其他模块的顺序')
   const layout = new PracticeLayoutViewModel({ storage: store })
-  layout.load(); layout.setPercent(70)
+  layout.load(); layout.toggleMode(); layout.setPercent(70)
   assert.equal(layout.getLayoutData().layoutDirty, true)
   assert.equal(preferences.getPreferences(store).practiceStemPercent, 50)
   store.full = true; layout.save()
@@ -209,12 +209,12 @@ async function main() {
     page.stopElapsedTimer(); assert.equal(clears, 1)
     page.scheduleMeasure = () => {}
     page.data.currentQuestion = { material: m1 }
-    page.data.readingStop = 2
+    page.data.readingOpen = true; page.data.readingRatio = .9
     page.lastQuestionIndex = 0
     page.applyViewModelResult({ data: { currentIndex: 1, currentQuestion: { material: m1 } } })
-    assert.equal(page.data.readingStop, 2)
+    assert.equal(page.data.readingOpen, true); assert.equal(page.data.readingRatio, .9)
     page.applyViewModelResult({ data: { currentIndex: 2, currentQuestion: { material: m2 } } })
-    assert.equal(page.data.readingStop, 1)
+    assert.equal(page.data.readingOpen, false); assert.equal(page.data.readingRatio, .65)
     let advances = 0
     page.viewModel.goNext = () => { advances++ }
     page.data.isLastQuestion = true; page.showHint = () => {}

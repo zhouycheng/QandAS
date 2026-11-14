@@ -12,7 +12,6 @@
         </view>
 
         <view
-          wx:if="{{!readingLayout}}"
           class="pra-tool"
           bindtap="openOverview"
           hover-class="chip-flat-hover"

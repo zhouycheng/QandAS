@@ -148,24 +148,11 @@
     <text class="wb-empty-text">{{emptyText}}</text>
   </view>
 
-  <!-- ⑤ 分页 -->
-  <view class="pager" wx:if="{{items.length}}">
-    <button
-      class="{{page <= 1 ? 'q-button--disabled' : ''}} q-button  q-button--compact pager-btn"
-      bindtap="handlePrevPage"
-      hover-class="q-button-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-     disabled="{{page <= 1}}">‹</button>
-    <text class="pager-text">{{pageText}}</text>
-    <text class="pager-index">{{page}} / {{pageCount}}</text>
-    <button
-      class="{{page >= pageCount ? 'q-button--disabled' : ''}} q-button  q-button--compact pager-btn"
-      bindtap="handleNextPage"
-      hover-class="q-button-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-     disabled="{{page >= pageCount}}">›</button>
+  <view class="wb-more" wx:if="{{items.length}}">
+    <text wx:if="{{loadingMore}}">正在加载更多…</text>
+    <button wx:elif="{{loadMoreError}}" class="q-button q-button--text" bindtap="handleLoadMore" hover-class="q-button-hover">加载失败，点击重试</button>
+    <text wx:elif="{{hasMore}}">继续下滑加载更多</text>
+    <text wx:else>已显示全部 {{totalCount}} 题</text>
   </view>
 
   <!-- ⑥ 底部固定：主按钮 + 一句口径说明 -->

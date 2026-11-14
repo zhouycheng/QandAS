@@ -13,7 +13,7 @@ let sessionToken = ''
 let scope = ''
 let activeStorage = null
 let overviewBase = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, feedbackSummary: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
 function reset() { overviewBase = null; cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
@@ -27,7 +27,7 @@ function bind(storage) {
     sessionToken = auth.token || ''; owner = id; scope = nextScope; reset(); api.cancelReads()
     const saved = id && activeStorage && activeStorage.get && activeStorage.get('qandaReadCache:' + id)
     if (saved && saved.version === 1) runInAction(() => {
-      state.overview = saved.overview || null; state.profile = saved.profile || null
+      state.overview = saved.overview || null; state.profile = saved.profile || null; state.feedbackSummary = saved.feedbackSummary || null
     })
   } else if (scope !== nextScope) {
     scope = nextScope; reset(); api.cancelReads()
@@ -36,7 +36,7 @@ function bind(storage) {
 }
 function persistSummary() {
   if (!owner || !activeStorage || !activeStorage.set) return
-  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: overviewBase || state.overview, profile: state.profile }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
+  try { activeStorage.set('qandaReadCache:' + owner, { version: 1, overview: overviewBase || state.overview, profile: state.profile, feedbackSummary: state.feedbackSummary }) } catch (_) { /* Read caches can be rebuilt from the server. */ }
 }
 function checked(response) {
   if (!response.ok) throw Object.assign(new Error(response.reason || '请求失败'), { statusCode: response.statusCode })
@@ -59,11 +59,11 @@ function mergeById(previous, items) {
 async function refreshOverview(storage, options) {
   bind(storage)
   if (!owner) return null
-  const records = localLearning.snapshots(storage)
+  const records = localLearning.snapshots(storage, true)
   const query = { deviceId: authRepository.deviceId(storage) }
   if (!records.length) return resource(storage, 'overview', query, TTL.learning, '/me/learning-overview', data => { overviewBase = data; state.overview = data; persistSummary() }, options && options.force)
   const expected = owner
-  const data = await cache.load(queryKey('overview', { ...query, sessions: records.map(s => [s.id, s.localResult.submittedAt, s.assessmentCommands]) }), TTL.learning, async () => checked(await api.request('POST', '/me/learning-overview', { ...query, pendingSessionIds: records.map(s => s.id), pendingQuestionIds: [...new Set(records.flatMap(s => s.localResult.items.map(i => i.question.id)))], pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) })), null, options && options.force)
+  const data = await cache.load(queryKey('overview', { ...query, sessions: records.map(s => [s.id, s.immediateOnly, s.localResult.submittedAt, s.assessmentCommands]) }), TTL.learning, async () => checked(await api.request('POST', '/me/learning-overview', { ...query, pendingSessionIds: records.filter(s => !s.immediateOnly).map(s => s.id), pendingItemIds: [...new Set(records.flatMap(s => s.localResult.items.filter(i => ['CORRECT', 'WRONG'].includes(i.outcome)).map(i => i.itemId)))], pendingQuestionIds: [...new Set(records.flatMap(s => s.localResult.items.map(i => i.question.id)))], pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) })), null, options && options.force)
   if (owner !== expected) return null
   overviewBase = data; state.overview = data; persistSummary()
   return state.overview
@@ -172,6 +172,15 @@ function refreshAnnouncements(storage, options) {
     state.announcementTotal = data.total
   }, options && options.force)
 }
+function refreshFeedbackSummary(storage) {
+  return resource(storage, 'feedbackSummary', {}, 0, '/me/feedback-summary', data => {
+    if (!data || ![data.questionUnreadCount, data.courseRequestUnreadCount].every(n => Number.isInteger(n) && n >= 0)) throw new Error('反馈提醒读取失败，请重试')
+    state.feedbackSummary = data
+    persistSummary()
+  })
+}
+function getFeedbackSummary(storage) { bind(storage); return enabled && state.feedbackSummary || { questionUnreadCount: 0, courseRequestUnreadCount: 0 } }
+function invalidateFeedbackSummary(storage) { bind(storage); cache.invalidate('feedbackSummary:') }
 async function refreshHomeAnnouncements(storage, options) {
   const identity = authRepository.getAuth(storage).token
   await refreshAnnouncements(storage, options)
@@ -218,7 +227,7 @@ function collectionQuery(options) {
   return { subjectId: input.subjectId || undefined, questionBankId: input.questionBankId || undefined, chip: input.chip || 'all', sort: input.sort || (input.kind === 'FAVORITE' ? 'recent' : 'urgent'), page: input.page || 1, pageSize: 5 }
 }
 async function refreshCollection(storage, options) {
-  if (localLearning.snapshots(storage).length) { try { await refreshOverview(storage, options) } catch (_) {} }
+  if (localLearning.snapshots(storage, true).length) { try { await refreshOverview(storage, options) } catch (_) {} }
   const kind = options.kind === 'FAVORITE' ? 'FAVORITE' : 'WRONG'
   const query = collectionQuery(options)
   const path = kind === 'FAVORITE' ? '/me/favorites' : '/me/wrong-questions'
@@ -250,7 +259,7 @@ async function refreshCollection(storage, options) {
   return [summary, currentPage]
 }
 function collectionLocal(storage) {
-  const records = localLearning.snapshots(storage)
+  const records = localLearning.snapshots(storage, true)
   const base = overviewBase || { includedSessionIds: records.filter(s => s.cloudConfirmed).map(s => s.id) }
   const enrich = row => { const bank = getBankMeta(row.questionBankId) || {}; return { ...row, subjectId: row.subjectId || bank.subjectId, subjectName: row.subjectName || bank.subjectName || '', questionBankName: row.questionBankName || bank.name || '' } }
   return { before: localLearning.collectionRows(base, records, false).map(enrich), after: localLearning.collectionRows(base, records, true).map(enrich) }
@@ -286,7 +295,7 @@ function getCollectionSummary(storage, kind) {
   }
   return result
 }
-function getOverview(storage) { bind(storage); return localLearning.overview(overviewBase || state.overview, localLearning.snapshots(storage)) }
+function getOverview(storage) { bind(storage); return localLearning.overview(overviewBase || state.overview, localLearning.snapshots(storage, true)) }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
 function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
 function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
@@ -314,7 +323,7 @@ function refresh(storage, kind, options) {
 function mapQuestion(q) {
   const type = ({ SINGLE_CHOICE: 'single', MULTIPLE_CHOICE: 'multiple', TRUE_FALSE: 'judge', FILL_BLANK: 'fill', SHORT_ANSWER: 'short' })[q.type] || q.type || 'single'
   const options = type === 'judge' ? [{ key: 'true', label: 'A', text: '正确' }, { key: 'false', label: 'B', text: '错误' }] : (q.options || []).map((o) => ({ key: o.key, label: o.key, text: o.content === undefined ? o.text : o.content }))
-  return { id: q.id, bankId: q.questionBankId, chapterId: q.chapterId, revisionId: q.revisionId, type, isMultiple: type === 'multiple', isJudge: type === 'judge', isFillBlank: type === 'fill', isShortAnswer: type === 'short', blankCount: q.blankCount || 0, blanks: q.blanks || [], blankMatch: q.blankMatch || {}, material: q.material || null, scoringPoints: q.scoringPoints || [], assetIds: q.assetIds || [], imagePaths: q.imagePaths || [], typeText: ({ single: '单选题', multiple: '多选题', judge: '判断题', fill: '填空题', short: '简答题' })[type], contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem || '', options, answerKeys: q.correctAnswer || (typeof q.correctValue === 'boolean' ? [String(q.correctValue)] : []), referenceAnswer: q.referenceAnswer || '', explanation: q.explanation || '', available: q.available !== false, complete: q.view !== 'summary', subjectId: q.subjectId || '', subjectName: q.subjectName || '', bankName: q.questionBankName || '' }
+  return { id: q.id, bankId: q.questionBankId, chapterId: q.chapterId, revisionId: q.revisionId, type, isMultiple: type === 'multiple', isJudge: type === 'judge', isFillBlank: type === 'fill', isShortAnswer: type === 'short', blankCount: q.blankCount || 0, blanks: q.blanks || [], blankMatch: q.blankMatch || {}, material: q.material || null, scoringPoints: q.scoringPoints || [], assetIds: q.assetIds || [], imagePaths: q.imagePaths || [], typeText: ({ single: '单选题', multiple: '多选题', judge: '判断题', fill: '填空题', short: '简答题' })[type], contentFormat: q.contentFormat || 'PLAIN_TEXT', presentation: q.presentation || 'STANDARD', codeLanguage: q.codeLanguage || 'text', stem: q.stem || '', options, answerKeys: typeof q.correctValue === 'boolean' ? [String(q.correctValue)] : q.correctAnswer || [], referenceAnswer: q.referenceAnswer || '', explanation: q.explanation || '', available: q.available !== false, complete: q.view !== 'summary', subjectId: q.subjectId || '', subjectName: q.subjectName || '', bankName: q.questionBankName || '' }
 }
 function cacheQuestions(questions) { questions.forEach((q) => {
   const mapped = mapQuestion(q)
@@ -339,6 +348,7 @@ async function loadQuestion(storage, id, options) {
   if (scopeKey(authRepository.getAuth(storage)) !== context) return
   question.imagePaths = imagePaths
   if (question.material) question.material.imagePaths = materialImages
+  return question
 }
 function getSubjectSummaries() {
   bind(activeStorage)
@@ -360,7 +370,7 @@ function getSubjectQuiz(id) { const s = getSubjectDetail(id); return s ? { subje
 function getQuestionIndex() { bind(activeStorage); const index = {}; Object.values(state.questions).forEach((q) => { const b = state.banks.find((b) => b.id === q.bankId); const s = b && state.subjects.find((s) => s.id === b.subjectId); index[q.id] = { id: q.id, question: q, bankId: q.bankId, bankName: q.bankName || b && b.name || '', subjectId: q.subjectId || s && s.id || '', subjectName: q.subjectName || s && s.name || '' } }); return index }
 function findQuestionEntries(ids) { const index = getQuestionIndex(); return ids.map((id) => index[id]).filter(Boolean) }
 function getFavorites(storage) { bind(storage); return { ids: state.favorites.map((q) => q.questionId) } }
-function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered, localLearning.wrong(overviewBase || {}, localLearning.snapshots(storage))).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: q.lastOutcome === 'CORRECT', updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
+function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered, localLearning.wrong(overviewBase || {}, localLearning.snapshots(storage, true))).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: q.lastOutcome === 'CORRECT', updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
 function getDailyLog(storage) { bind(storage); const result = {}; localLearning.days(state.days, localLearning.snapshots(storage)).forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, objectiveAnswered: d.objectiveAnsweredCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
 function getStudyTime(storage) { const overview = getOverview(storage); return { totalSeconds: overview.durationSeconds || 0, sessionCount: overview.practiceCount || 0 } }
 function getStatistics(storage, period) { bind(storage); return localLearning.statistics(period ? state.periodStatistics[period] : state.statistics, localLearning.snapshots(storage)) }
@@ -450,6 +460,7 @@ module.exports.getChapters = getChapters
 Object.assign(module.exports, { refreshOverview, refreshSubjects, refreshBanks, refreshAnnouncements, refreshRecent, refreshCollection, refreshStatistics, getOverview, getCollection, getCollectionSummary, getCatalogPage, getSubjectPage, getResourceState, getAnnouncementTotal, loadColleges, loadSubject, loadBank, loadChapters, previewPracticeScope, getScopePreview })
 
 module.exports.getAnnouncementIndex = storage => { bind(storage); return state.announcementIndex }
+Object.assign(module.exports, { refreshFeedbackSummary, getFeedbackSummary, invalidateFeedbackSummary })
 
 module.exports.releaseQuestion = function (id) {
   for (const q of Object.values(state.questionRevisions)) if (q.id === id) { require('./answer-vault.js').release([q]); q.complete = false }

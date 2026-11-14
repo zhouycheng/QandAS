@@ -57,7 +57,7 @@ function updatePreferenceChoice(storage, key, value) {
 function resetPreferences(storage) {
   const current = getPreferences(storage)
   const defaults = normalizePreferences(null)
-  for (const key of ['autoAddWrongBook', 'vibrateOnAnswer', 'fontSize', 'autoOpenAnalysis', 'autoNextWhenCorrect', 'swipeEnabled', 'swipeDraftAction']) current[key] = defaults[key]
+  for (const key of ['optionOutline', 'vibrateOnAnswer', 'fontSize', 'autoOpenAnalysis', 'autoNextWhenCorrect', 'swipeEnabled', 'swipeDraftAction']) current[key] = defaults[key]
   return savePreferences(storage, current)
 }
 function getDefaultPracticeRoute(storage) {

@@ -1,4 +1,5 @@
 {
   "navigationBarTitleText": "反馈与处理结果",
-  "backgroundColor": "#ffffff"
+  "backgroundColor": "#ffffff",
+  "usingComponents": {}
 }

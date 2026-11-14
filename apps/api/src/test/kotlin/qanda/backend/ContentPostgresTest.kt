@@ -31,6 +31,43 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class ContentPostgresTest : PostgresFixture() {
+    @Test fun `single question review explicitly includes matching answers and preserves default disclosure`() {
+        val learner=student();val f=fixture()
+        val fill=id(call("POST","/admin/questions",mapOf("questionBankId" to f.bank,"type" to "FILL_BLANK","stem" to "协议 {{1}}",
+            "blanks" to listOf(mapOf("answers" to listOf("HTTP","超文本传输协议"))),"explanation" to "协议解析")))
+        val child=UUID.randomUUID()
+        val reading=id(call("POST","/admin/questions",mapOf("questionBankId" to f.bank,"type" to "READING","stem" to "阅读题组","passage" to "完整阅读材料",
+            "subQuestions" to listOf(mapOf("id" to child,"type" to "SHORT_ANSWER","stem" to "阅读小题","referenceAnswer" to "材料观点","explanation" to "材料解析","scoringPoints" to listOf("关键要点"))))))
+        val accounts=jdbc.queryForObject("SELECT count(*) FROM user_account",Long::class.java)
+        val sessions=jdbc.queryForObject("SELECT count(*) FROM practice_session",Long::class.java)
+        val fields=listOf("correctAnswer","correctValue","referenceAnswer","explanation","blanks","blankMatch","scoringPoints")
+        for(questionId in f.questions+listOf(fill,child,reading)) {
+            val expected=call("GET","/admin/questions/$questionId")
+            for(token in listOf(null,learner.token)) {
+                for(query in listOf("","?includeAnswers=false")) {
+                    val hidden=call("GET","/questions/$questionId$query",token=token)
+                    fields.forEach { assertTrue(hidden[it].isNull,"$questionId $it") }
+                    hidden["subQuestions"].forEach { nested -> fields.forEach { assertTrue(nested[it].isNull) } }
+                }
+                val review=call("GET","/questions/$questionId?includeAnswers=true",token=token)
+                assertEquals(expected["revisionId"],review["revisionId"])
+                assertEquals(expected["material"],review["material"])
+                assertEquals(expected["options"],review["options"])
+                fields.forEach { assertEquals(expected[it],review[it],"$questionId $it") }
+                assertEquals(expected["subQuestions"],review["subQuestions"])
+            }
+        }
+        assertEquals(accounts,jdbc.queryForObject("SELECT count(*) FROM user_account",Long::class.java))
+        assertEquals(sessions,jdbc.queryForObject("SELECT count(*) FROM practice_session",Long::class.java))
+        jdbc.update("UPDATE question SET status='INACTIVE' WHERE id=?",reading)
+        call("GET","/questions/$child?includeAnswers=true",token=learner.token,status=404)
+        call("GET","/questions/$child",token=null,status=404)
+        call("GET","/admin/questions/$child")
+        jdbc.update("UPDATE question_bank SET publication_status='UNPUBLISHED' WHERE id=?",f.bank)
+        call("GET","/questions/${f.questions.first()}?includeAnswers=true",token=learner.token,status=404)
+        call("GET","/questions/$child?includeAnswers=true",token=null,status=404)
+    }
+
     @Test fun `announcement query timeout leaves catalog and practice available`() {
         val s=student();val f=fixture();val session=createPractice(s,f)
         jdbc.dataSource!!.connection.use { blocked ->

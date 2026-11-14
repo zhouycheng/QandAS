@@ -31,6 +31,38 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class LearningPostgresTest : PostgresFixture() {
+    @Test fun `immediate confirmed mistakes enter collections before finish without duplicate scoring`() {
+        for(feedback in listOf("IMMEDIATE","AFTER_FINISH")) {
+            val learner=student();val f=fixture();val session=createPractice(learner,f,feedback)
+            val questionId=f.questions.first();val item=session["items"].first { it["question"]["id"].asText()==questionId.toString() }
+            val itemId=item["itemId"].asText();val route="/practice/sessions/${id(session)}/sync-commands"
+            val answer=mapOf("itemId" to itemId,"answer" to mapOf("optionKeys" to listOf("B")),"confirmed" to false)
+            var saved=progress(route,progressBody(session)+mapOf("items" to listOf(answer)),learner.token)
+            fun wrong()=call("GET","/me/wrong-questions",token=learner.token)
+            assertEquals(0,wrong()["total"].asInt(),"草稿不收录")
+            val confirmed=answer+mapOf("confirmed" to true)
+            saved=progress(route,progressBody(session)+mapOf("expectedVersion" to saved["version"].asLong(),"clientSequence" to 2,"items" to listOf(confirmed)),learner.token)
+            val time=jdbc.queryForObject("SELECT confirmed_at FROM practice_item WHERE id=?",java.sql.Timestamp::class.java,UUID.fromString(itemId))
+            assertEquals(if(feedback=="IMMEDIATE") 1 else 0,wrong()["total"].asInt())
+            saved=progress(route,progressBody(session)+mapOf("expectedVersion" to saved["version"].asLong(),"clientSequence" to 3,"items" to listOf(confirmed)),learner.token)
+            assertEquals(time,jdbc.queryForObject("SELECT confirmed_at FROM practice_item WHERE id=?",java.sql.Timestamp::class.java,UUID.fromString(itemId)))
+            val overview=call("POST","/me/learning-overview",mapOf("pendingSessionIds" to emptyList<UUID>(),"pendingQuestionIds" to listOf(questionId),"pendingItemIds" to listOf(itemId)),learner.token)
+            assertEquals(0,overview["practiceCount"].asInt());assertEquals(0,overview["answerAttemptCount"].asInt());assertEquals(0,overview["distinctQuestionCount"].asInt())
+            assertEquals(if(feedback=="IMMEDIATE") 1 else 0,overview["wrongBookCount"].asInt())
+            assertEquals(if(feedback=="IMMEDIATE") 1 else 0,overview["includedItemIds"].size())
+            if(feedback=="IMMEDIATE") {
+                assertEquals(1,wrong()["items"][0]["wrongCount"].asInt())
+                val scope=call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"selectionKind" to "WRONG","count" to 1),learner.token)
+                assertEquals(1,scope["availableCount"].asInt())
+                assertEquals(1,overview["collectionQuestionFacts"][0]["wrongCount"].asInt())
+            }
+            finish("/practice/sessions/${id(session)}/finish",mapOf("expectedVersion" to saved["version"].asLong(),"durationSeconds" to 0,"writerToken" to session["writer"]["writerToken"].asText()),learner.token)
+            assertEquals(1,wrong()["total"].asInt());assertEquals(1,wrong()["items"][0]["wrongCount"].asInt(),"交卷不重复累计即时错题")
+            val finalOverview=call("GET","/me/learning-overview",token=learner.token)
+            assertEquals(1,finalOverview["practiceCount"].asInt());assertEquals(1,finalOverview["answerAttemptCount"].asInt())
+        }
+    }
+
     @Test fun `wrong book preference controls new entries while scores and prior entries stay accurate`() {
         val s=student();val f=fixture()
         fun submit(collect: Boolean,correct: Boolean=false) {

@@ -2,7 +2,7 @@
 <wxs module="analysisDrag" src="../../utils/analysis-drag.wxs" />
 <wxs module="readingDrag" src="../../utils/reading-drag.wxs" />
 <!-- 答题页：顶部导航、题目模块与底部操作共用练习模板。 -->
-<view class="page practice-page pra-viewport {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
+<view class="page practice-page pra-viewport {{fixedLayout ? 'pra-fixed' : 'pra-flow'}} {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
   <light-toast id="practice-hint" />
   <include src="../../templates/practice-head.wxml" />
   <view wx:if="{{contentUpdateText}}" class="practice-content-update">{{contentUpdateText}}<button wx:if="{{canViewLatest}}" class="practice-latest-link" catchtap="handleViewLatest" aria-label="查看新版题目与答案" hover-class="text-hover">查看新版</button></view>
@@ -17,9 +17,11 @@
       <block wx:if="{{readingLayout}}">
         <include src="../../templates/practice-reading.wxml" />
       </block>
-      <block wx:else><include src="../../templates/practice-content.wxml" /></block>
+      <block wx:elif="{{fixedLayout}}"><include src="../../templates/practice-content.wxml" /></block>
+      <scroll-view wx:else class="pra-flow-scroll" scroll-y enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{flowScrollTop}}" bindscroll="onFlowScroll"><include src="../../templates/practice-content.wxml" /></scroll-view>
     </view>
     <view class="pra-footer">
+      <view wx:if="{{!readingLayout && !fixedLayout && layoutRanks.tools === 3 && !keyboardVisible}}" class="pra-footer-tools"><include src="../../templates/practice-tools.wxml" /></view>
       <view wx:if="{{canAssessCurrent}}" class="res-self-assessment">
         <text class="res-item-label">这道题掌握了吗？</text>
         <view class="res-assessment-actions">
@@ -30,7 +32,8 @@
       <include src="../../templates/practice-actions.wxml" />
     </view>
 
-    <root-portal enable="{{true}}" wx:if="{{shouldRevealAnswer && hasAnswered && feedback === 'IMMEDIATE' && !isViewMode && analysisAreaHeight && !analysisSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked}}">
+    <!-- 下拉解析备选保留；正式交互使用作答区后的详解。 -->
+    <root-portal enable="{{true}}" wx:if="{{legacyAnalysisEnabled && shouldRevealAnswer && hasAnswered && feedback === 'IMMEDIATE' && !isViewMode && analysisAreaHeight && !analysisSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked}}">
       <view class="portal-theme analysis-layer font-{{preferences.fontSize}}" style="top:{{analysisAreaTop}}px;height:{{analysisAreaHeight}}px;">
         <view class="analysis-mask" catchtap="closeAnalysis" catchtouchmove="blockAnalysisTouch"></view>
         <view class="analysis-sheet" motion="{{ {version: analysisSheetVersion, height: analysisSheetHeight, offset: analysisSheetOffset} }}" change:motion="{{analysisDrag.sync}}">

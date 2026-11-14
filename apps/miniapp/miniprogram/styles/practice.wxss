@@ -818,3 +818,42 @@
 
 .layout-editor .pra-pane-scroll { height: 100%; }
 .layout-editor .pra-pane { overflow: hidden; }
+
+/* 顺序布局按内容自然撑开，末位工具栏由页脚承载。 */
+.pra-flow-scroll { height: 100%; min-height: 0; display: block; }
+.pra-flow .pra-content { height: auto; min-height: 0; gap: 12px; padding-bottom: 16px; }
+.pra-flow .pra-pane { overflow: visible; }
+.pra-flow.pra-viewport .pra-pane-scroll, .pra-flow.layout-editor .pra-pane-scroll { height: auto; }
+.pra-flow .pra-pane-content { min-height: 0; padding-bottom: 0; }
+.pra-flow .pra-textarea-content { height: auto; }
+.pra-flow .pra-textarea-content textarea { height: 160px; min-height: 140px; }
+.pra-flow .pra-options-content { display: block; }
+.practice-page .pra-option { min-height: 44px; padding: 6px 0; margin-bottom: 4px; border: 0; border-radius: 0; background: transparent; }
+.practice-page .pra-option-key { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; min-height: 28px; margin-right: 10px; font-size: 15px; }
+.pra-multiple .pra-option-key { border-radius: 4px; }
+.practice-page .pra-option.is-selected { color: var(--brand); }
+.practice-page .pra-option.is-correct { color: var(--success); }
+.practice-page .pra-option.is-wrong { color: var(--danger); }
+.practice-page .pra-options-outlined .pra-option {
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius-tag);
+  padding-left: 16rpx;
+  padding-right: 16rpx;
+}
+.practice-page .pra-option-text { color: inherit; line-height: 1.5; }
+.practice-page .pra-tools { flex-wrap: nowrap; gap: 5px; }
+.practice-page .pra-tool { flex: 1; min-width: 0; min-height: 32px; height: 32px; margin: 0; padding: 0 4px; border-radius: 6px; }
+.practice-page .pra-tool-text { font-size: 12px; white-space: nowrap; }
+.practice-page .pra-tool-icon { width: 15px; height: 15px; margin-right: 4px; }
+.pra-footer-tools { margin-bottom: 12px; }
+.practice-page .pra-footer-tools .pra-tools { margin: 0; padding: 0; }
+.practice-page .pra-footer { padding-top: 6px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+.practice-page .pra-actions .pra-btn { min-height: 40px; height: 40px; padding: 8px 4px; font-size: 14px; border-radius: 10px; }
+.practice-page .pra-actions .pra-btn + .pra-btn { margin-left: 10px; }
+.pra-inline-analysis { margin-top: 12px; padding-bottom: 12px; }
+.pra-answer-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; padding: 8px 0 18px; font-size: var(--reading-size, var(--reading-normal)); }
+.pra-correct-answer, .answer-correct { color: var(--success); }
+.answer-wrong { color: var(--danger); }
+.pra-detail-title { display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 7px solid var(--page-bg); padding-top: 16px; margin-bottom: 18px; font-size: var(--font-title); font-weight: 600; }
+.pra-detail-title view { width: 20px; height: 2px; background: var(--line); }
+.pra-detail-text { display: block; font-size: var(--reading-size, var(--reading-normal)); line-height: 1.8; }

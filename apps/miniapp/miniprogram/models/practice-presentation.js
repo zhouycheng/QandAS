@@ -3,18 +3,11 @@ const { formatTimer } = require('./practice-view-data.js')
 const { materialKey } = require('../utils/practice-layout.js')
 function projectPractice(session) {
     const data = Object.assign({}, session.state)
-    const key = materialKey(data.currentQuestion)
-    const group = key ? session.state.questions.filter(q => materialKey(q) === key) : []
-    data.readingGroupTotal = group.length
-    data.readingGroupNumber = group.findIndex(q => q.id === (data.currentQuestion && data.currentQuestion.id)) + 1
-    data.readingGroupUnansweredCount = 0
-    data.readingGroupDraftCount = 0
-    session.state.questions.forEach((question, index) => {
-      if (!key || materialKey(question) !== key) return
-      const answer = session.state.answers[index]
-      if (!session.hasInput(question, answer)) data.readingGroupUnansweredCount++
-      else if (answer.confirmed === false) data.readingGroupDraftCount++
-    })
+    Object.assign(data, readingProgress(session))
+    const question = session.getCurrentBaseQuestion()
+    data.primaryActionDisabled = !!(question && question.isMultiple && data.feedback === 'IMMEDIATE' && !data.isViewMode && !data.hasAnswered && !data.selectedKeys.length)
+    data.currentSelectedAnswerText = data.shouldRevealAnswer && data.hasAnswered
+      ? (question && question.isFillBlank ? (session.state.answers[data.currentIndex].blanks || []).join('；') : question && question.isShortAnswer ? data.answerText : data.selectedKeys.join('、')) : ''
 
     /**
      * 结果页要显示「用时」。
@@ -48,12 +41,33 @@ function projectPractice(session) {
     }
     return data
   }
+function readingProgress(session) {
+    const data = session.state
+    const result = {}
+    const key = materialKey(data.currentQuestion)
+    const group = key ? session.state.questions.filter(q => materialKey(q) === key) : []
+    result.readingGroupTotal = group.length
+    result.readingGroupNumber = group.findIndex(q => q.id === (data.currentQuestion && data.currentQuestion.id)) + 1
+    result.readingGroupUnansweredCount = 0
+    result.readingGroupDraftCount = 0
+    session.state.questions.forEach((question, index) => {
+      if (!key || materialKey(question) !== key) return
+      const answer = session.state.answers[index]
+      if (!session.hasInput(question, answer)) result.readingGroupUnansweredCount++
+      else if (answer.confirmed === false) result.readingGroupDraftCount++
+    })
+
+    result.readingGroupAnsweredCount = result.readingGroupTotal - result.readingGroupUnansweredCount - (data.feedback === 'IMMEDIATE' ? result.readingGroupDraftCount : 0)
+    result.readingProgressDegrees = result.readingGroupTotal ? Math.round(result.readingGroupAnsweredCount / result.readingGroupTotal * 360) : 0
+    return result
+}
+
 function getQuestionView(question, selectedKeys, revealAnswer) {
     if (!question) {
       return null
     }
 
-    return Object.assign({ contentFormat: question.contentFormat || 'PLAIN_TEXT', presentation: question.presentation || 'STANDARD', codeLanguage: question.codeLanguage || 'text', id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
+    return Object.assign({ contentFormat: question.contentFormat || 'PLAIN_TEXT', presentation: question.presentation || 'STANDARD', codeLanguage: question.codeLanguage || 'text', id: question.id, stem: question.stem, typeText: question.typeText, isShortAnswer: !!question.isShortAnswer, isMultiple: !!question.isMultiple, isFillBlank: !!question.isFillBlank, material: question.material || null, imagePaths: question.imagePaths || [], scoringPoints: revealAnswer ? question.scoringPoints || [] : [], assetIds: question.assetIds || [] }, {
       options: question.options.map((option) => ({
         key: option.key,
         label: option.label,
@@ -111,4 +125,4 @@ function getExplanation(question) {
     return question && question.explanation ? question.explanation : '本题暂无解析。'
   }
 
-module.exports = { projectPractice, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation }
+module.exports = { projectPractice, readingProgress, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation }

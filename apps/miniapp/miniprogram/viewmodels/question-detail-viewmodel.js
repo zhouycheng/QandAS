@@ -55,9 +55,9 @@ function getAnswerText(question, keys) {
     return keys
         .map((key) => {
         const option = question.options.find((item) => item.key === key);
-        return option ? `${key}. ${option.text}` : key;
+        return question.isJudge && option ? option.text : key;
     })
-        .join('  ');
+        .join('、');
 }
 class QuestionDetailViewModel {
     constructor(options) {
@@ -98,8 +98,7 @@ class QuestionDetailViewModel {
         const question = entry.question;
         this.feedbackQuestion = { id: question.id, revisionId: question.revisionId };
         const answer = onlineContext ? onlineContext.answer : null;
-        const local = null;
-        const reveal = onlineContext ? onlineContext.reveal && !!this.loadedGrading : normalizedOptions.latest === '1';
+        const reveal = onlineContext ? onlineContext.reveal && !!this.loadedGrading : normalizedOptions.latest === '1' && this.latestQuestion === question;
         const favoriteIds = typeof this.repository.getFavoriteIds === 'function'
             ? this.repository.getFavoriteIds(this.repository.getFavorites(this.storage))
             : [];
@@ -116,7 +115,7 @@ class QuestionDetailViewModel {
                 presentation: question.presentation || 'STANDARD',
                 codeLanguage: question.codeLanguage || 'text',
                 isShortAnswer: !!question.isShortAnswer,
-                blankInputs: question.isFillBlank ? (question.blanks || []).map((_, i) => ({ value: answer && (answer.blanks || [])[i] || '' })) : null,
+                blankInputs: question.isFillBlank ? Array.from({ length: question.blankCount }, (_, i) => ({ value: answer && (answer.blanks || [])[i] || '' })) : null,
                 canReveal: reveal,
                 stem: question.stem || '',
                 material: question.material || null,
@@ -160,7 +159,7 @@ class QuestionDetailViewModel {
         const reveal = snapshot.status === 'SUBMITTED' || local.status === 'SUBMITTED' || ((snapshot.configuration || snapshot.route || {}).mode === 'view') || (snapshot.feedback === 'IMMEDIATE' && item.question.type !== 'SHORT_ANSWER' && answer && answer.confirmed);
         return { question: online.mapQuestion(item, this.loadedGrading), answer, reveal };
     }
-    release() { this.answerEpoch = (this.answerEpoch || 0) + 1; this.loadedGrading = null; }
+    release() { this.answerEpoch = (this.answerEpoch || 0) + 1; this.loadedGrading = null; this.latestQuestion = null; }
     async loadContextAnswers(options, epoch) {
         const context = this.onlineContext(decodeOptionValue(options.sessionId), decodeOptionValue(options.id));
         if (!context || !context.reveal) { this.loadedGrading = null; return; }
@@ -178,11 +177,13 @@ class QuestionDetailViewModel {
             return this.loadContextAnswers(options, epoch).then(() => epoch === (this.answerEpoch || 0) ? this.load(options) : null);
         if (!options || !options.id)
             return Promise.resolve(null);
-        return this.repository.loadRemoteQuestion(this.storage, decodeOptionValue(options.id), { reveal: options.latest === '1' }).then(() => {
+        return this.repository.loadRemoteQuestion(this.storage, decodeOptionValue(options.id), { reveal: options.latest === '1' }).then(question => {
             if (epoch !== (this.answerEpoch || 0)) { require('../repositories/remote-data-repository.js').releaseQuestion(decodeOptionValue(options.id)); return null; }
+            if (!question) return null;
+            this.latestQuestion = question;
             return this.load(options);
         })
-            .catch(error => ({ data: { ready: true, emptyText: error.message || '题目加载失败，请重试' } }));
+            .catch(error => epoch === (this.answerEpoch || 0) ? { data: Object.assign(getInitialQuestionDetailData(), { ready: true, emptyText: error.message || '题目加载失败，请重试' }) } : null);
     }
     /** 读偏好失败时退回标准字号：少一个字号不该让整页打不开 */
     readFontSize() {

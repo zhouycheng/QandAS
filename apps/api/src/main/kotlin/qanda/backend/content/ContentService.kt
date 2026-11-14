@@ -162,9 +162,10 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     fun materialRevision(question: Question): UUID? = question.readingParentId?.let { questions.selectById(it)?.currentRevisionId }
     fun questionView(question: Question,revisionId: UUID=question.currentRevisionId!!,answers: Boolean=false,materialRevisionId: UUID?=materialRevision(question)): QuestionView =
         reader.read(listOf(qanda.backend.content.api.RevisionReference(question.id!!,revisionId,materialRevisionId)),answers).single()
-    fun question(actor: Actor?,id: UUID): QuestionView {
-        val row=questions.selectById(id) ?: missing();access.bank(actor,row.bankId!!);if(actor?.kind!="ADMIN" && row.status!="ACTIVE") missing()
-        return questionView(row,answers=actor?.kind=="ADMIN")
+    fun question(actor: Actor?,id: UUID,includeAnswers: Boolean=false): QuestionView {
+        val row=questions.selectById(id) ?: missing();access.bank(actor,row.bankId!!)
+        if(actor?.kind!="ADMIN" && (row.status!="ACTIVE" || row.readingParentId?.let { questions.selectById(it)?.status!="ACTIVE" }==true)) missing()
+        return questionView(row,answers=includeAnswers || actor?.kind=="ADMIN")
     }
     fun search(actor: Actor?,keyword: String,p: PageSpec,view: String="full"): Page<QuestionView> {
         if(actor!=null && actor.kind!="USER") forbidden()

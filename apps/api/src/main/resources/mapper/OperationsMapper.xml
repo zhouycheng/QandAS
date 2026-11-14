@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="qanda.backend.operations.OperationsMapper">
+  <select id="feedbackSummary" resultType="qanda.backend.operations.FeedbackSummaryView">SELECT
+    (SELECT count(*) FROM question_feedback WHERE user_id=#{userId} AND response&lt;&gt;'' AND version&gt;read_version) question_unread_count,
+    (SELECT count(*) FROM course_request WHERE user_id=#{userId} AND response&lt;&gt;'' AND version&gt;read_version) course_request_unread_count
+  </select>
+  <update id="readFeedback">UPDATE question_feedback SET read_version=greatest(read_version,#{version}) WHERE id=#{id} AND user_id=#{userId}</update>
+  <update id="readRequest">UPDATE course_request SET read_version=greatest(read_version,#{version}) WHERE id=#{id} AND user_id=#{userId}</update>
   <select id="issuedRevision" resultType="boolean">SELECT EXISTS(SELECT 1 FROM practice_item i JOIN practice_session s ON s.id=i.session_id WHERE s.user_id=#{userId} AND i.revision_id=#{revisionId})</select>
   <select id="lockFeedback" resultType="qanda.backend.operations.QuestionFeedback">SELECT * FROM question_feedback WHERE id=#{id} FOR UPDATE</select>
   <sql id="feedbackFilter">FROM question_feedback f <where><if test="userId != null">f.user_id=#{userId} </if><if test="status != null">AND f.status=#{status} </if></where></sql>
-  <select id="feedback" resultType="qanda.backend.operations.QuestionFeedback">SELECT f.* <include refid="feedbackFilter"/> ORDER BY f.created_at DESC,f.id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="feedback" resultType="qanda.backend.operations.QuestionFeedback">SELECT f.* <include refid="feedbackFilter"/> ORDER BY <choose><when test="userId != null">f.updated_at</when><otherwise>f.created_at</otherwise></choose> DESC,f.id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="feedbackCount" resultType="long">SELECT count(*) <include refid="feedbackFilter"/></select>
   <select id="lockRequest" resultType="qanda.backend.operations.CourseRequest">SELECT * FROM course_request WHERE id=#{id} FOR UPDATE</select>
   <sql id="requestFilter"><where><if test="userId != null">user_id=#{userId} </if><if test="status != null">AND status=#{status} </if></where></sql>
-  <select id="requests" resultType="qanda.backend.operations.CourseRequest">SELECT * FROM course_request <include refid="requestFilter"/> ORDER BY created_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="requests" resultType="qanda.backend.operations.CourseRequest">SELECT * FROM course_request <include refid="requestFilter"/> ORDER BY <choose><when test="userId != null">updated_at</when><otherwise>created_at</otherwise></choose> DESC,id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="requestCount" resultType="long">SELECT count(*) FROM course_request <include refid="requestFilter"/></select>
   <select id="dashboard" resultType="qanda.backend.operations.DashboardRow">SELECT (SELECT count(*) FROM college) college_count,(SELECT count(*) FROM subject) subject_count,(SELECT count(*) FROM question_bank) question_bank_count,(SELECT count(*) FROM question WHERE NOT is_group) question_count,(SELECT count(*) FROM user_account WHERE account_in_statistics(id)) user_count,(SELECT coalesce(sum(r.answered_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE account_in_statistics(s.user_id)) answered_count,(SELECT count(*) FROM question_feedback WHERE status IN ('OPEN','IN_PROGRESS')) pending_feedback_count,
     (SELECT count(*) FROM course_request WHERE status IN ('OPEN','IN_PROGRESS')) pending_course_request_count,
