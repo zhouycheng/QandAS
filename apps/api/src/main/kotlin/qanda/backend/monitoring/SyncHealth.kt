@@ -43,7 +43,8 @@ class SyncHealth(private val json: ObjectMapper,private val jdbc: JdbcTemplate,p
             val values=body["data"]["result"].toList()
             fun value(name: String)=values.firstOrNull { it["metric"]["__name__"]?.asText()==name }?.get("value")?.get(1)?.asText()?.toDoubleOrNull()?.takeIf { it.isFinite() }
             components=values.filter { it["metric"]["__name__"]?.asText()=="up" }.map { ComponentHealth(it["metric"]["job"].asText(),if(it["value"][1].asDouble()==1.0) "UP" else "DOWN") }
-            endpoints=values.filter { it["metric"]["__name__"]?.asText()?.startsWith("qanda_http_")==true }.groupBy { it["metric"]["method"].asText() to it["metric"]["uri"].asText() }.map { (route,metrics) ->
+            val endpointMetrics=setOf("qanda_http_requests","qanda_http_errors","qanda_http_p95")
+            endpoints=values.filter { it["metric"]["__name__"]?.asText() in endpointMetrics }.groupBy { it["metric"]["method"].asText() to it["metric"]["uri"].asText() }.map { (route,metrics) ->
                 fun number(name: String)=metrics.firstOrNull { it["metric"]["__name__"].asText()==name }?.get("value")?.get(1)?.asText()?.toDoubleOrNull()?.takeIf { it.isFinite() }
                 EndpointHealth(route.first,route.second,number("qanda_http_requests"),number("qanda_http_errors"),number("qanda_http_p95"))
             }
