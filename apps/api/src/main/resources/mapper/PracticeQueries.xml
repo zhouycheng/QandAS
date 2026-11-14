@@ -5,18 +5,16 @@
     <if test="scope.questionIds.size > 0">AND q.id IN <foreach collection="scope.questionIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     <if test="scope.chapterIds.size > 0">AND q.chapter_id IN <foreach collection="scope.chapterIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
     <if test="scope.selectionKind == 'FAVORITE'">AND EXISTS(SELECT 1 FROM user_favorite f WHERE f.user_id=#{userId} AND f.question_id=q.id)</if>
-    <if test="scope.selectionKind == 'WRONG'">AND (SELECT <choose><when test="scope.collectionChip == 'subjective'">i.self_assessment</when><otherwise>i.outcome</otherwise></choose> FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED'
-      <choose><when test="scope.collectionChip == 'subjective'">AND i.outcome='SELF_RATED' AND i.self_assessment IS NOT NULL</when><otherwise>AND i.outcome IN ('CORRECT','WRONG')</otherwise></choose>
-      ORDER BY ps.submitted_at DESC,ps.id DESC LIMIT 1)='WRONG'</if>
+    <if test="scope.selectionKind == 'WRONG'">AND EXISTS(SELECT 1 FROM <choose><when test="scope.collectionChip == 'subjective'">self_facts</when><otherwise>facts</otherwise></choose> f WHERE f.question_id=q.id AND f.rn=1 AND <choose><when test="scope.collectionChip == 'subjective'">f.self_assessment</when><otherwise>f.judgment</otherwise></choose>='WRONG')</if>
     <if test="scope.selectionKind == 'WRONG' and scope.collectionChip != 'subjective' and scope.questionIds.size == 0">AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=q.id AND t.wrong_count>0)</if>
     <if test="scope.collectionChip == 'repeat'">AND EXISTS(SELECT 1 FROM totals t WHERE t.question_id=q.id AND t.wrong_count &gt;= 2)</if>
-    <if test="scope.collectionChip == 'recent'">AND EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND ps.submitted_at &gt;= now()-interval '7 days' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED'))</if>
-    <if test="scope.collectionChip == 'pending' or scope.collectionChip == 'practiced'">AND <if test="scope.collectionChip == 'pending'">NOT</if> EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND ps.status='SUBMITTED' AND i.outcome IN ('CORRECT','WRONG','SELF_RATED'))</if>
+    <if test="scope.collectionChip == 'recent'">AND EXISTS(SELECT 1 FROM facts f WHERE f.question_id=q.id AND f.rn=1 AND f.submitted_at &gt;= now()-interval '7 days')</if>
+    <if test="scope.collectionChip == 'pending' or scope.collectionChip == 'practiced'">AND <if test="scope.collectionChip == 'pending'">NOT</if> EXISTS(SELECT 1 FROM practice_item i JOIN practice_session ps ON ps.id=i.session_id WHERE i.question_id=q.id AND ps.user_id=#{userId} AND (ps.status='SUBMITTED' OR (ps.feedback='IMMEDIATE' AND i.confirmed AND i.outcome IN ('CORRECT','WRONG'))) AND i.outcome IN ('CORRECT','WRONG','SELF_RATED'))</if>
   </sql>
   <sql id="groupId"><choose><when test="scope.selectionKind == 'NORMAL'">coalesce(q.reading_parent_id,q.id)</when><otherwise>q.id</otherwise></choose></sql>
   <sql id="groupIds"><foreach collection="groupIds" item="id" open="(" close=")" separator=",">#{id}</foreach></sql>
   <select id="candidateGroups" resultType="qanda.backend.practice.EligibilityGroupRow">
-    <choose><when test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/>,</when><otherwise>WITH</otherwise></choose> candidates AS(SELECT <include refid="groupId"/> group_id,
+    <choose><when test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.collectionFacts"/>,</when><otherwise>WITH</otherwise></choose> candidates AS(SELECT <include refid="groupId"/> group_id,
       coalesce(parent.created_at,q.created_at) group_created,
       <choose><when test="scope.questionIds.size > 0">array_position(ARRAY[<foreach collection="scope.questionIds" item="id" separator=",">CAST(#{id} AS uuid)</foreach>],q.id)</when><otherwise>0</otherwise></choose> requested_position
       FROM active_question q LEFT JOIN question parent ON parent.id=q.reading_parent_id <include refid="eligibleFilter"/>),
@@ -25,12 +23,12 @@
     ORDER BY <choose><when test="scope.questionIds.size > 0">requested_position,</when><when test="scope.order == 'RANDOM'">random(),</when></choose>created_at,group_id LIMIT #{limit}
   </select>
   <select id="groupQuestions" resultType="qanda.backend.content.api.QuestionReference">
-    <if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/></if>
+    <if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.collectionFacts"/></if>
     SELECT q.id,q.bank_id,q.current_revision_id,q.reading_parent_id,q.status FROM active_question q <include refid="eligibleFilter"/>
     AND <choose><when test="scope.selectionKind == 'NORMAL'">(q.id IN <include refid="groupIds"/> OR q.reading_parent_id IN <include refid="groupIds"/>)</when><otherwise>q.id IN <include refid="groupIds"/></otherwise></choose>
     ORDER BY array_position(ARRAY[<foreach collection="groupIds" item="id" separator=",">CAST(#{id} AS uuid)</foreach>],<include refid="groupId"/>),q.reading_order,q.id
   </select>
-  <select id="eligibleCount" resultType="long"><if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.wrongFacts"/></if> SELECT count(*) FROM active_question q <include refid="eligibleFilter"/></select>
+  <select id="eligibleCount" resultType="long"><if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.collectionFacts"/></if> SELECT count(*) FROM active_question q <include refid="eligibleFilter"/></select>
   <insert id="insertItems">INSERT INTO practice_item(id,session_id,question_id,revision_id,material_revision_id,position) VALUES <foreach collection="items" item="item" separator=",">(#{item.id},#{item.sessionId},#{item.questionId},#{item.revisionId},#{item.materialRevisionId},#{item.position})</foreach></insert>
   <select id="lockSession" resultType="qanda.backend.practice.PracticeSession">SELECT * FROM practice_session WHERE id=#{id} FOR UPDATE</select>
   <select id="items" resultType="qanda.backend.practice.PracticeItem">SELECT * FROM practice_item WHERE session_id=#{sessionId}<if test="ids != null"> AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></if> ORDER BY position</select>
@@ -41,9 +39,9 @@
     FROM practice_item i JOIN question_revision r ON r.id=i.revision_id WHERE i.session_id=#{id} AND i.id IN <foreach collection="ids" item="itemId" open="(" separator="," close=")">#{itemId}</foreach></select>
   <delete id="clearBatchChoices">DELETE FROM practice_item_choice WHERE item_id IN <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach></delete>
   <insert id="insertChoices">INSERT INTO practice_item_choice(item_id,revision_id,option_key) VALUES <foreach collection="choices" item="c" separator=",">(#{c.itemId},#{c.revisionId},#{c.optionKey})</foreach></insert>
-  <update id="updateAnswers">UPDATE practice_item p SET answer_text=v.answer_text,answer_boolean=v.answer_boolean,answer_blanks=v.answer_blanks,confirmed=v.confirmed,marked=v.marked,outcome=v.outcome,self_assessment=v.self_assessment
-    FROM (VALUES <foreach collection="items" item="i" separator=",">(#{i.id},CAST(#{i.answerText} AS text),CAST(#{i.answerBoolean} AS boolean),CAST(#{i.answerBlanks} AS text),#{i.confirmed},#{i.marked},CAST(#{i.outcome} AS text),CAST(#{i.selfAssessment} AS text))</foreach>)
-    v(id,answer_text,answer_boolean,answer_blanks,confirmed,marked,outcome,self_assessment) WHERE p.id=v.id</update>
+  <update id="updateAnswers">UPDATE practice_item p SET answer_text=v.answer_text,answer_boolean=v.answer_boolean,answer_blanks=v.answer_blanks,confirmed=v.confirmed,marked=v.marked,outcome=v.outcome,self_assessment=v.self_assessment,confirmed_at=v.confirmed_at
+    FROM (VALUES <foreach collection="items" item="i" separator=",">(#{i.id},CAST(#{i.answerText} AS text),CAST(#{i.answerBoolean} AS boolean),CAST(#{i.answerBlanks} AS text),#{i.confirmed},#{i.marked},CAST(#{i.outcome} AS text),CAST(#{i.selfAssessment} AS text),CAST(#{i.confirmedAt} AS timestamptz))</foreach>)
+    v(id,answer_text,answer_boolean,answer_blanks,confirmed,marked,outcome,self_assessment,confirmed_at) WHERE p.id=v.id</update>
   <select id="result" resultType="qanda.backend.practice.PracticeResult">SELECT * FROM practice_result WHERE session_id=#{sessionId}</select>
   <select id="history" resultType="qanda.backend.practice.PracticeSession">SELECT practice_session.*,sync.writer_device_id,sync.finish_sequence,(SELECT name FROM question_bank WHERE id=practice_session.bank_id) bank_name FROM practice_session LEFT JOIN practice_sync_state sync ON sync.session_id=practice_session.id WHERE user_id=#{userId}<if test="deviceId != null">AND (status&lt;&gt;'IN_PROGRESS' OR EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId}))</if> ORDER BY updated_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="historyCount" resultType="long">SELECT count(*) FROM practice_session WHERE user_id=#{userId}<if test="deviceId != null">AND (status&lt;&gt;'IN_PROGRESS' OR EXISTS(SELECT 1 FROM practice_sync_state own WHERE own.session_id=practice_session.id AND own.writer_device_id=#{deviceId}))</if></select>

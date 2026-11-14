@@ -59,11 +59,11 @@ function mergeById(previous, items) {
 async function refreshOverview(storage, options) {
   bind(storage)
   if (!owner) return null
-  const records = localLearning.snapshots(storage)
+  const records = localLearning.snapshots(storage, true)
   const query = { deviceId: authRepository.deviceId(storage) }
   if (!records.length) return resource(storage, 'overview', query, TTL.learning, '/me/learning-overview', data => { overviewBase = data; state.overview = data; persistSummary() }, options && options.force)
   const expected = owner
-  const data = await cache.load(queryKey('overview', { ...query, sessions: records.map(s => [s.id, s.localResult.submittedAt, s.assessmentCommands]) }), TTL.learning, async () => checked(await api.request('POST', '/me/learning-overview', { ...query, pendingSessionIds: records.map(s => s.id), pendingQuestionIds: [...new Set(records.flatMap(s => s.localResult.items.map(i => i.question.id)))], pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) })), null, options && options.force)
+  const data = await cache.load(queryKey('overview', { ...query, sessions: records.map(s => [s.id, s.immediateOnly, s.localResult.submittedAt, s.assessmentCommands]) }), TTL.learning, async () => checked(await api.request('POST', '/me/learning-overview', { ...query, pendingSessionIds: records.filter(s => !s.immediateOnly).map(s => s.id), pendingItemIds: [...new Set(records.flatMap(s => s.localResult.items.filter(i => ['CORRECT', 'WRONG'].includes(i.outcome)).map(i => i.itemId)))], pendingQuestionIds: [...new Set(records.flatMap(s => s.localResult.items.map(i => i.question.id)))], pendingAssessmentItemIds: records.flatMap(s => Object.keys(s.assessmentCommands || {})) })), null, options && options.force)
   if (owner !== expected) return null
   overviewBase = data; state.overview = data; persistSummary()
   return state.overview
@@ -218,7 +218,7 @@ function collectionQuery(options) {
   return { subjectId: input.subjectId || undefined, questionBankId: input.questionBankId || undefined, chip: input.chip || 'all', sort: input.sort || (input.kind === 'FAVORITE' ? 'recent' : 'urgent'), page: input.page || 1, pageSize: 5 }
 }
 async function refreshCollection(storage, options) {
-  if (localLearning.snapshots(storage).length) { try { await refreshOverview(storage, options) } catch (_) {} }
+  if (localLearning.snapshots(storage, true).length) { try { await refreshOverview(storage, options) } catch (_) {} }
   const kind = options.kind === 'FAVORITE' ? 'FAVORITE' : 'WRONG'
   const query = collectionQuery(options)
   const path = kind === 'FAVORITE' ? '/me/favorites' : '/me/wrong-questions'
@@ -250,7 +250,7 @@ async function refreshCollection(storage, options) {
   return [summary, currentPage]
 }
 function collectionLocal(storage) {
-  const records = localLearning.snapshots(storage)
+  const records = localLearning.snapshots(storage, true)
   const base = overviewBase || { includedSessionIds: records.filter(s => s.cloudConfirmed).map(s => s.id) }
   const enrich = row => { const bank = getBankMeta(row.questionBankId) || {}; return { ...row, subjectId: row.subjectId || bank.subjectId, subjectName: row.subjectName || bank.subjectName || '', questionBankName: row.questionBankName || bank.name || '' } }
   return { before: localLearning.collectionRows(base, records, false).map(enrich), after: localLearning.collectionRows(base, records, true).map(enrich) }
@@ -286,7 +286,7 @@ function getCollectionSummary(storage, kind) {
   }
   return result
 }
-function getOverview(storage) { bind(storage); return localLearning.overview(overviewBase || state.overview, localLearning.snapshots(storage)) }
+function getOverview(storage) { bind(storage); return localLearning.overview(overviewBase || state.overview, localLearning.snapshots(storage, true)) }
 function getCatalogPage(options) { return cache.read(queryKey('banks', bankQuery(options))) }
 function getSubjectPage(page) { return cache.read(queryKey('subjects', Object.assign({ page: page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)))) }
 function getResourceState(name, query) { return cache.read(queryKey(name, name === 'recommendations' ? Object.assign({}, query, catalogFilters.query(activeStorage)) : query || {})) }
@@ -360,7 +360,7 @@ function getSubjectQuiz(id) { const s = getSubjectDetail(id); return s ? { subje
 function getQuestionIndex() { bind(activeStorage); const index = {}; Object.values(state.questions).forEach((q) => { const b = state.banks.find((b) => b.id === q.bankId); const s = b && state.subjects.find((s) => s.id === b.subjectId); index[q.id] = { id: q.id, question: q, bankId: q.bankId, bankName: q.bankName || b && b.name || '', subjectId: q.subjectId || s && s.id || '', subjectName: q.subjectName || s && s.name || '' } }); return index }
 function findQuestionEntries(ids) { const index = getQuestionIndex(); return ids.map((id) => index[id]).filter(Boolean) }
 function getFavorites(storage) { bind(storage); return { ids: state.favorites.map((q) => q.questionId) } }
-function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered, localLearning.wrong(overviewBase || {}, localLearning.snapshots(storage))).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: q.lastOutcome === 'CORRECT', updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
+function getWrongBook(storage) { bind(storage); const result = {}; state.wrong.concat(state.mastered, localLearning.wrong(overviewBase || {}, localLearning.snapshots(storage, true))).forEach((q) => { result[q.questionId] = { wrongCount: q.wrongCount, rightCount: q.rightCount, mastered: q.lastOutcome === 'CORRECT', updatedAt: Date.parse(q.lastPracticedAt) || 0 } }); return result }
 function getDailyLog(storage) { bind(storage); const result = {}; localLearning.days(state.days, localLearning.snapshots(storage)).forEach((d) => { result[d.date] = { answered: d.answeredCount, correct: d.correctCount, objectiveAnswered: d.objectiveAnsweredCount, seconds: d.durationSeconds, sessions: d.practiceCount } }); return result }
 function getStudyTime(storage) { const overview = getOverview(storage); return { totalSeconds: overview.durationSeconds || 0, sessionCount: overview.practiceCount || 0 } }
 function getStatistics(storage, period) { bind(storage); return localLearning.statistics(period ? state.periodStatistics[period] : state.statistics, localLearning.snapshots(storage)) }

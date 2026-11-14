@@ -11,7 +11,8 @@ global.Page = value => { definition = value }
 global.wx = {}
 require('../miniprogram/page/practice/index.js')
 const page = () => Object.assign({}, definition, {
-  data: JSON.parse(JSON.stringify(definition.data)), pageVisible: true,
+  data: { ...JSON.parse(JSON.stringify(definition.data)), legacyAnalysisEnabled: true }, pageVisible: true,
+  applyViewModelResult(result) { if (result && result.data) result = { ...result, data: { ...result.data, legacyAnalysisEnabled: true } }; return definition.applyViewModelResult.call(this, result) },
   setData(patch, done) { Object.assign(this.data, patch); if (done) done() },
   viewModel: {}, scheduleMeasure() {}, observeSaveStatus() {}, applyViewModelEffects() {},
   clearAutoAdvance() { this.cleared = true }
@@ -55,6 +56,7 @@ const quiz = { bankId: 'b', questions: [
   { id: 'b', type: 'MULTIPLE_CHOICE', isMultiple: true, stem: '多选题', options: [{ key: 'A', text: '甲' }, { key: 'B', text: '乙' }], answerKeys: ['A', 'B'], explanation: '多选解析' }
 ] }
 try {
+  assert.equal(definition.data.legacyAnalysisEnabled, false, '正式页面默认停用下拉解析备选')
   const session = new PracticeSession({ quiz, mode: 'practice', preferences: { autoOpenAnalysis: true } })
   session.reset()
   assert.equal(session.getViewData().practiceModeText, '练习模式')
@@ -225,7 +227,9 @@ try {
   const content = fs.readFileSync(require.resolve('../miniprogram/templates/practice-content.wxml'), 'utf8')
   assert(!content.includes('layout-module-analysis'), '解析不再进入可排序布局')
   const stem = fs.readFileSync(require.resolve('../miniprogram/templates/practice-stem.wxml'), 'utf8')
-  assert.match(stem, /isViewMode && !editLayout && shouldRevealAnswer/, '背题仍直接显示答案')
+  assert.match(stem, /currentQuestion.isFillBlank/, '填空详解跟随题干输入区')
+  const inline = fs.readFileSync(require.resolve('../miniprogram/templates/practice-inline-analysis.wxml'), 'utf8')
+  assert.match(inline, /shouldRevealAnswer && !editLayout && !legacyAnalysisEnabled/, '内联详解沿用模型揭晓条件')
   assert.equal((wxml.match(/class="analysis-handle"/g) || []).length, 1, '收起与展开共用一个把手')
   assert(!wxml.includes('<canvas'), '把手使用随面板合成的普通视图')
   assert.match(wxml, /catchtouchmove="{{analysisDrag.move}}"/)

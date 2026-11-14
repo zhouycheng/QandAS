@@ -41,7 +41,7 @@ global.wx = { getWindowInfo: () => windowInfo }
 require('../miniprogram/page/practice/index.js')
 function page() {
   return Object.assign({}, definition, {
-    data: JSON.parse(JSON.stringify(definition.data)),
+    data: { ...JSON.parse(JSON.stringify(definition.data)), fixedLayout: true },
     setData(patch, done) { Object.assign(this.data, patch); if (done) done() },
     pageVisible: true,
     viewModel: {},

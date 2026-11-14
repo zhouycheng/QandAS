@@ -1,5 +1,5 @@
 const { DEFAULT_PRACTICE_TITLE, DEFAULT_TEST_DURATION_MINUTES, PRACTICE_MODES, formatTimer, getInitialPracticeViewData } = require('./practice-view-data.js')
-const { projectPractice, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation } = require('./practice-presentation.js')
+const { projectPractice, readingProgress, getQuestionView, getOverviewItems, getAnswerText, getCorrectAnswerText, getExplanation } = require('./practice-presentation.js')
 const { finish, filterResultItems, countResultItems, buildResultReviewPatch, RESULT_FILTERS, RESULT_FILTER_TEXT } = require('./practice-results.js')
 const { normalizePreferences, normalizePracticeOptions } = require('../utils/preferences.js')
 const { ranks } = require('../utils/practice-layout.js')
@@ -465,9 +465,9 @@ class PracticeSession {
   }
 
   goNext() {
-    if (!this.state.questions.length) {
-      return null
-    }
+    if (!this.state.questions.length) return null
+    const question = this.getCurrentBaseQuestion()
+    if (!this.state.isViewMode && question.isMultiple && this.state.feedback === 'IMMEDIATE' && !this.state.hasAnswered && !this.state.selectedKeys.length) return null
 
     if (this.shouldConfirmCurrentAnswer()) {
       return this.commitCurrentAnswer(this.state.selectedKeys)
@@ -632,7 +632,7 @@ class PracticeSession {
     this.state.answerText = String(text || '').slice(0, 10000)
     this.state.answers[this.state.currentIndex] = { questionId: question.id, text: this.state.answerText, selectedKeys: [], confirmed: false, isCorrect: false }
     this.state.hasAnswered = false
-    return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
+    return { data: Object.assign({ primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) }, readingProgress(this)) }
   }
 
   setBlank(index, value) {
@@ -644,7 +644,7 @@ class PracticeSession {
     this.state.blankInputs = this.state.blankInputs.map(input => input.index === index ? Object.assign({}, input, { value: blanks[index] }) : input)
     this.state.answers[this.state.currentIndex] = { questionId: question.id, blanks, selectedKeys: [], confirmed: false, isCorrect: false }
     this.state.hasAnswered = false
-    return { data: { primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) } }
+    return { data: Object.assign({ primaryActionText: this.getPrimaryActionText(this.state.currentIndex, false, []) }, readingProgress(this)) }
   }
 
   assessShortAnswer(value) {
@@ -719,8 +719,8 @@ class PracticeSession {
     if (!hasAnswered) {
       const question = this.state.questions[index]
 
-      if (question && !question.isShortAnswer && this.state.feedback === 'IMMEDIATE' && this.hasConfirmableInput(question, index, selectedKeys)) {
-        return '确认'
+      if (question && !question.isShortAnswer && this.state.feedback === 'IMMEDIATE' && (question.isMultiple || this.hasConfirmableInput(question, index, selectedKeys))) {
+        return '确认答案'
       }
     }
 

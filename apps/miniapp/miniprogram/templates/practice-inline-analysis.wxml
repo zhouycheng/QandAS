@@ -1,0 +1,9 @@
+<view wx:if="{{shouldRevealAnswer && !editLayout && !legacyAnalysisEnabled}}" class="pra-inline-analysis">
+  <view class="pra-answer-summary">
+    <rich-content class="pra-correct-answer" text="{{currentCorrectAnswerText || ''}}" format="{{currentQuestion.isShortAnswer ? currentQuestion.contentFormat : 'PLAIN_TEXT'}}" />
+    <text wx:if="{{hasAnswered && !isViewMode}}" class="pra-selected-answer">你的答案 <text class="{{isCurrentAnswerCorrect ? 'answer-correct' : 'answer-wrong'}}">{{currentSelectedAnswerText}}</text></text>
+  </view>
+  <view class="pra-detail-title"><view></view><text>试题详解</text><view></view></view>
+  <rich-content class="pra-scoring" wx:for="{{currentQuestion.scoringPoints}}" wx:key="*this" text="{{(index + 1) + '. ' + item}}" format="{{currentQuestion.contentFormat || 'PLAIN_TEXT'}}" />
+  <rich-content class="pra-detail-text" text="{{currentExplanation || ''}}" format="{{currentQuestion.contentFormat || 'PLAIN_TEXT'}}" />
+</view>

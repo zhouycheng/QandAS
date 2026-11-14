@@ -1,24 +1,30 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
-<view class="page practice-page layout-editor settings-detail font-{{preferences.fontSize}}" drag-scroll="{{dragScroll}}" change:drag-scroll="{{layoutDrag.scroll}}" drag-reset="{{dragReset}}" change:drag-reset="{{layoutDrag.clear}}" capture-bind:touchmove="{{layoutDrag.move}}" capture-bind:touchend="{{layoutDrag.end}}" capture-bind:touchcancel="{{layoutDrag.cancel}}">
-  <page-header title="自定义布局" />
-  <scroll-view id="layout-scroll" class="pra-body" scroll-y scroll-top="{{scrollTop}}" bindscroll="handleScroll" bind:contentready="measure" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
+<view class="page practice-page {{editLayout ? 'layout-editor' : 'layout-preview pra-viewport'}} {{fixedLayout ? 'pra-fixed' : 'pra-flow'}} settings-detail font-{{preferences.fontSize}}" drag-scroll="{{dragScroll}}" change:drag-scroll="{{layoutDrag.scroll}}" drag-reset="{{dragReset}}" change:drag-reset="{{layoutDrag.clear}}" capture-bind:touchmove="{{layoutDrag.move}}" capture-bind:touchend="{{layoutDrag.end}}" capture-bind:touchcancel="{{layoutDrag.cancel}}">
+  <page-header title="{{editLayout ? '自定义布局' : '布局预览'}}" />
+  <scroll-view id="layout-scroll" class="pra-body" scroll-y="{{editLayout || !fixedLayout}}" scroll-top="{{scrollTop}}" bindscroll="handleScroll" bind:contentready="measure" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
     <include src="../../templates/practice-content.wxml" />
     <view class="layout-end" wx:if="{{dragTarget === 'end'}}">松手放在这里</view>
   </scroll-view>
   <view class="pra-footer">
-    <text class="layout-tip">拖动模块调整顺序，右侧调节题干与作答比例</text>
-    <view class="layout-actions">
+    <view wx:if="{{!editLayout && !fixedLayout && layoutRanks.tools === 3}}" class="pra-footer-tools"><include src="../../templates/practice-tools.wxml" /></view>
+    <text wx:if="{{editLayout}}" class="layout-tip">{{fixedLayout ? '拖动模块调整顺序，右侧调节题干与作答比例' : '拖动模块调整顺序，内容自然排列'}}</text>
+    <view wx:if="{{editLayout}}" class="layout-actions">
       <button class="q-button" bindtap="handleResetLayout" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">恢复默认</button>
       <button class="q-button q-button--primary {{!layoutDirty ? 'q-button--disabled' : ''}}" disabled="{{!layoutDirty}}" bindtap="handleSaveLayout" hover-class="{{layoutDirty ? 'q-button-hover' : 'none'}}" hover-start-time="0" hover-stay-time="80">保存</button>
     </view>
+    <block wx:else><include src="../../templates/practice-actions.wxml" /></block>
   </view>
 </view>
-<view class="portal-theme layout-ratio-rail">
+<view class="portal-theme layout-controls">
+  <button class="q-button layout-float-button {{editLayout ? '' : 'layout-control-hidden'}}" bindtap="handleToggleMode" aria-hidden="{{!editLayout}}" aria-label="切换布局模式" hover-class="q-button-hover">{{fixedLayout ? '自定义' : '顺序'}}</button>
+  <view class="layout-ratio-rail {{fixedLayout ? '' : 'layout-ratio-disabled'}} {{editLayout ? '' : 'layout-control-hidden'}}" aria-hidden="{{!editLayout}}">
   <text class="layout-ratio-caption">题干</text><text class="layout-ratio-value">{{stemPercent}}%</text>
-  <button class="q-button q-button--text layout-ratio-step" data-step="5" bindtap="handleRatioStep" disabled="{{stemPercent >= 70}}" aria-label="增加题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">＋</button>
-  <view class="layout-ratio-track" aria-role="slider" aria-label="上下拖动调整题干与作答占比" aria-valuemin="30" aria-valuemax="70" aria-valuenow="{{stemPercent}}" catchtouchstart="handleRatioTouchStart" catchtouchmove="handleRatioTouchMove" catchtouchend="handleRatioTouchEnd" catchtouchcancel="handleRatioTouchCancel">
+  <button class="q-button q-button--text layout-ratio-step" data-step="5" bindtap="handleRatioStep" disabled="{{!fixedLayout || stemPercent >= 70}}" aria-label="增加题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">＋</button>
+  <view class="layout-ratio-track" aria-role="slider" aria-label="上下拖动调整题干与作答占比" aria-valuemin="30" aria-valuemax="70" aria-valuenow="{{stemPercent}}" aria-disabled="{{!fixedLayout}}" catchtouchstart="handleRatioTouchStart" catchtouchmove="handleRatioTouchMove" catchtouchend="handleRatioTouchEnd" catchtouchcancel="handleRatioTouchCancel">
     <view class="layout-ratio-channel"><view class="layout-ratio-fill" style="height: {{(stemPercent - 30) / 40 * 100}}%;"></view><view class="layout-ratio-thumb" style="bottom: {{(stemPercent - 30) / 40 * 100}}%;"></view></view>
   </view>
-  <button class="q-button q-button--text layout-ratio-step" data-step="-5" bindtap="handleRatioStep" disabled="{{stemPercent <= 30}}" aria-label="减少题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">－</button>
+  <button class="q-button q-button--text layout-ratio-step" data-step="-5" bindtap="handleRatioStep" disabled="{{!fixedLayout || stemPercent <= 30}}" aria-label="减少题干占比" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">－</button>
   <text class="layout-ratio-caption">作答</text><text class="layout-ratio-value">{{100 - stemPercent}}%</text>
+  </view>
+  <button class="q-button layout-float-button" bindtap="handlePreview" aria-label="{{editLayout ? '预览答题界面' : '返回编辑'}}" hover-class="q-button-hover"><text>{{editLayout ? '预览' : '返回编辑'}}</text></button>
 </view>

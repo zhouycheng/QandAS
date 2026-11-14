@@ -7,7 +7,8 @@
           hover-stay-time="80"
          disabled="{{currentIndex === 0}}">上一题</button>
         <button
-          class="q-button q-button--primary pra-btn primary"
+          class="q-button q-button--primary pra-btn primary {{primaryActionDisabled ? 'q-button--disabled' : ''}}"
+          disabled="{{primaryActionDisabled}}"
           bindtap="goNext"
           hover-class="q-button-hover"
           hover-start-time="0"

@@ -266,9 +266,13 @@ class OnlinePractice {
     snapshot.localState = state
     if ((snapshot.status === 'SUBMITTED' && snapshot.result || snapshot.finishIntent)) { this.put(snapshot.id, snapshot); return { ok: true, unchanged: true } }
     const items = client.progress(session, snapshot)
+    const previous = snapshot.immediateFacts || []
+    const previousById = new Map(previous.map(item => [item.itemId, item]))
+    if (snapshot.feedback === 'IMMEDIATE') snapshot.immediateFacts = items.filter(item => item.confirmed && ['CORRECT', 'WRONG'].includes(item.outcome)).map(item => ({ itemId: item.itemId, outcome: item.outcome, confirmedAt: (previousById.get(item.itemId) || {}).confirmedAt || new Date().toISOString() }))
     this.put(snapshot.id, snapshot)
     const saved = this.queue.save(snapshot.id, { progress: { currentIndex: state.currentIndex, durationSeconds: state.elapsedTime, items }, state })
     if (!saved.ok) throw new Error(saved.reason || '本机存储失败，请释放空间后重试')
+    if (JSON.stringify(previous) !== JSON.stringify(snapshot.immediateFacts || [])) require('./remote-data-repository.js').invalidateLearning()
     return saved
   }
   async send(id, command, queueUserId) {
@@ -322,7 +326,8 @@ class OnlinePractice {
       }
       this.storage.set(snapshotKey, vault.strip(latest))
       this.rememberSummary(latest)
-      if (response.resultId) { this.replayAssessments(id).catch(() => {}); this.trackCompleted(id); require('./remote-data-repository.js').invalidateLearning() }
+      if (response.resultId) { this.replayAssessments(id).catch(() => {}); this.trackCompleted(id) }
+      if (response.resultId || snapshot.feedback === 'IMMEDIATE' && body.items.some(item => item.confirmed && ['CORRECT', 'WRONG'].includes(item.outcome))) require('./remote-data-repository.js').invalidateLearning()
     }
     return Object.assign({}, response, response.ok ? response.data : {})
   }
@@ -430,10 +435,10 @@ class OnlinePractice {
     // Publish the finish intent before reporting completion; retries keep this exact payload.
     snapshot.localState = session.getPersistedState()
     const items = client.progress(session, snapshot)
-    const payload = { submittedAt: localResult.submittedAt, progress: { currentIndex: session.state.currentIndex, durationSeconds: localResult.durationSeconds, items }, state: session.getPersistedState(), clientResult: { totalCount: localResult.totalCount, answeredCount: localResult.answeredCount, objective: localResult.objective, shortAnswer: localResult.shortAnswer }, autoAddWrongBook: session.preferences.autoAddWrongBook }
+    const payload = { submittedAt: localResult.submittedAt, progress: { currentIndex: session.state.currentIndex, durationSeconds: localResult.durationSeconds, items }, state: session.getPersistedState(), clientResult: { totalCount: localResult.totalCount, answeredCount: localResult.answeredCount, objective: localResult.objective, shortAnswer: localResult.shortAnswer }, autoAddWrongBook: true }
     const saved = this.queue.finish(id, payload)
     if (!saved.ok) throw new Error(saved.reason)
-    snapshot.autoAddWrongBook = session.preferences.autoAddWrongBook; snapshot.localResult = localResult; snapshot.finishIntent = true; snapshot.localState = session.getPersistedState()
+    snapshot.autoAddWrongBook = true; snapshot.localResult = localResult; snapshot.finishIntent = true; snapshot.localState = session.getPersistedState()
     // The complete queue payload is the durable finish record; summary writes can be rebuilt from it.
     try { this.put(id, snapshot) } catch (_) { /* Keep the already durable finish intent. */ }
     this.queue.flush(id).catch(() => {})

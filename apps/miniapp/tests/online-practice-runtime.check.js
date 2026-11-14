@@ -47,6 +47,18 @@ async function main() {
   session.reset(); session.selectOption(1)
   assert.equal(session.state.answers[0].isCorrect, false)
   session.showQuestionAtIndex(1); session.setAnswerText('我的简答'); runtime.save(session)
+  const localLearning = require('../miniprogram/repositories/local-learning.js')
+  const early = localLearning.snapshots(storage, true)
+  assert.equal(localLearning.snapshots(storage).length, 0, '交卷前不生成正式成绩')
+  assert.equal(early.length, 1)
+  assert.equal(localLearning.collectionRows({}, early, true)[0].wrongCount, 1, '即时确认答错后立即进入本机错题本')
+  assert.equal(localLearning.overview({}, early).practiceCount || 0, 0)
+  const firstConfirmedAt = runtime.get('s1').immediateFacts[0].confirmedAt
+  runtime.save(session)
+  assert.equal(runtime.get('s1').immediateFacts[0].confirmedAt, firstConfirmedAt, '重复保存不改变确认时间')
+  const synchronized = { questionFacts: [], collectionQuestionFacts: [{ questionId: 'q0', judgment: 'WRONG', wrongCount: 1, rightCount: 0, lastPracticedAt: firstConfirmedAt }], includedItemIds: ['i0'], wrongBookCount: 1 }
+  assert.equal(localLearning.collectionRows(synchronized, early, true)[0].wrongCount, 1, '云端已收录的条目不重复累计')
+  assert.equal(localLearning.overview(synchronized, early).wrongBookCount, 1)
   const flush = async current => {
     storage.remove('qandaSyncCooldown:v1:u1')
     const draft = current.queue.get('s1'); if (draft) { draft.nextAttemptAt = 0; storage.set('qandaSync:v1:u1:s1', draft) }
@@ -63,6 +75,7 @@ async function main() {
   const localResult = await runtime.finish(session)
   assert.equal(localResult.objective.wrong, 1)
   assert.equal(runtime.get('s1').localResult.objective.wrong, 1)
+  assert.equal(localLearning.collectionRows(synchronized, localLearning.snapshots(storage, true), true)[0].wrongCount, 1, '交卷沿用同一条目，保留一次错题记录')
   assert(!JSON.stringify(data).includes('简答参考内容'))
   delete data['qandaOnline:u1:s1'].localResult
   assert.equal(runtime.get('s1').localResult.submittedAt, localResult.submittedAt, '完整交卷日志恢复未成功写入的摘要')

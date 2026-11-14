@@ -1,6 +1,6 @@
 @import "../../styles/practice.wxss";
 @import "../../styles/settings-detail.wxss";
-.settings-detail.layout-editor { padding: 0; }
+.settings-detail.layout-editor, .settings-detail.layout-preview { padding: 0; }
 .layout-editor .pra-body { padding: 0 var(--space-lg); }
 .layout-editor .pra-footer { padding-left: var(--space-lg); padding-right: var(--space-lg); }
 .layout-module { position: relative; padding: 20rpx; border: 1rpx solid var(--line); border-radius: var(--radius-control); margin: 8rpx 0; background: var(--card); }
@@ -20,7 +20,7 @@
 .layout-actions { display: flex; gap: var(--space-md); }
 .layout-actions > .q-button { flex: 1; }
 
-.layout-ratio-rail { position: fixed; right: 6px; top: 50%; transform: translateY(-50%); z-index: 1200; width: 44px; padding: 8px 0; border: 1px solid var(--line); border-radius: 24px; background: rgba(255, 255, 255, .94); box-shadow: 0 3px 14px rgba(31, 41, 55, .12); text-align: center; }
+.layout-ratio-rail { width: 44px; padding: 8px 0; border: 1px solid var(--line); border-radius: 24px; background: rgba(255, 255, 255, .94); box-shadow: 0 3px 14px rgba(31, 41, 55, .12); text-align: center; }
 .layout-ratio-caption, .layout-ratio-value { display: block; font-size: var(--font-caption); line-height: 16px; }
 .layout-ratio-caption { color: var(--text-sub); }
 .layout-ratio-value { color: var(--brand); font-variant-numeric: tabular-nums; }
@@ -30,3 +30,17 @@
 .layout-ratio-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 12px; background: var(--brand-soft); }
 .layout-ratio-thumb { position: absolute; left: 1px; width: 18px; height: 18px; box-sizing: border-box; margin-bottom: -9px; border: 2px solid var(--brand); border-radius: 50%; background: var(--card); }
 @media (max-height: 600px) { .layout-ratio-track { height: 104px; } }
+
+.layout-controls { position: fixed; right: 6px; top: 50%; transform: translateY(-50%); z-index: 1200; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.layout-float-button.q-button { width: 48px; min-height: 48px; height: 48px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--brand); font-size: 12px; box-shadow: 0 3px 14px rgba(31,41,55,.1); }
+.layout-ratio-disabled { opacity: .35; }
+.layout-editor .pra-body { padding-right: 62px; }
+.layout-editor.pra-flow .pra-content { min-height: 0; }
+.layout-preview .pra-body { padding: 0 var(--space-lg); overflow: hidden; }
+.layout-preview .pra-content { gap: 12px; }
+.layout-preview.pra-fixed .pra-content { height: 100%; min-height: 0; }
+.layout-preview.pra-fixed .pra-pane-scroll { height: 100%; }
+.layout-controls { pointer-events: none; }
+.layout-controls > .q-button, .layout-controls > .layout-ratio-rail { pointer-events: auto; }
+.layout-controls .layout-control-hidden { visibility: hidden; pointer-events: none; }
+.layout-float-button text { max-width: 30px; white-space: normal; line-height: 1.3; }

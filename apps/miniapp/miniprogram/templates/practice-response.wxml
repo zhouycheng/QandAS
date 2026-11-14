@@ -1,5 +1,5 @@
 <textarea data-no-swipe="true" adjust-position="{{editLayout}}" bindfocus="onAnswerFocus" bindblur="onAnswerBlur" bindkeyboardheightchange="onKeyboardHeight" wx:if="{{currentQuestion.isShortAnswer}}" value="{{answerText}}" disabled="{{answerLocked}}" maxlength="10000" placeholder="填写你的答案" bindinput="inputAnswerText" />
-        <view class="pra-options">
+        <view class="pra-options {{currentQuestion.isMultiple ? 'pra-multiple' : ''}} {{preferences.optionOutline ? 'pra-options-outlined' : ''}}">
           <view
             wx:for="{{currentQuestion.options}}"
             wx:key="key"
@@ -14,3 +14,5 @@
             <view class="pra-option-text"><rich-content text="{{(item.text) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" /></view>
           </view>
         </view>
+
+<include src="practice-inline-analysis.wxml" />

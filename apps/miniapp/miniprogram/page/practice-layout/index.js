@@ -25,10 +25,10 @@ Page(withPageLifecycle({
     const heights = Object.assign({}, this.data.paneHeights)
     const query = this.createSelectorQuery()
     query.select('#layout-scroll').boundingClientRect()
-    query.selectAll('.layout-module').boundingClientRect()
-    query.select('#layout-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom'] })
+    query.selectAll('.pra-module').boundingClientRect()
+    query.select('#layout-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom', 'row-gap'] })
     query.select('.layout-ratio-track').boundingClientRect()
-    query.selectAll('.layout-module').fields({ computedStyle: ['margin-top', 'margin-bottom'] })
+    query.selectAll('.pra-module').fields({ computedStyle: ['margin-top', 'margin-bottom'] })
     query.exec(results => {
       if (this._pageUnloaded || this.pageVisible === false || version !== this.measureVersion || !results || !results[0]) return
       this.ratioTrack = results[3]
@@ -36,12 +36,13 @@ Page(withPageLifecycle({
       this.blocks = results[1] || []
       this.scrollHeight = results[2] ? results[2].height : this.viewport.height
       this.measuredScroll = this.actualScroll || 0
-      if (this.viewModel && this.viewModel.setHeight) {
+      if (this.data.fixedLayout && this.viewModel && this.viewModel.setHeight) {
         const margins = results[4] || []
         const fixed = this.blocks.reduce((sum, block, index) => sum + block.height - (['stem', 'response'].includes(block.dataset.module) ? heights[block.dataset.module] || 0 : 0)
           + (parseFloat((margins[index] || {})['margin-top']) || 0) + (parseFloat((margins[index] || {})['margin-bottom']) || 0), 0)
         const padding = (parseFloat((results[2] || {})['padding-top']) || 0) + (parseFloat((results[2] || {})['padding-bottom']) || 0)
-        const available = Math.max(0, Math.floor(this.viewport.height - fixed - padding))
+        const gaps = (parseFloat((results[2] || {})['row-gap']) || 0) * Math.max(0, this.blocks.length - 1)
+        const available = Math.max(0, Math.floor(this.viewport.height - fixed - padding - gaps))
         if (available !== this.viewModel.height) {
           const patch = viewPatch(this.data, this.viewModel.setHeight(available).data)
           if (Object.keys(patch).length) this.setData(patch, () => this.measure())
@@ -58,6 +59,7 @@ Page(withPageLifecycle({
     } else this.measure()
   },
   handleDragStart(event) {
+    if (!this.data.editLayout) return
     if (!this.blocks || !this.viewport) { this.measure(); return }
     this.drag = { id: event.id, y: event.y, scroll: this.actualScroll || 0, index: this.viewModel.order.indexOf(event.id) }
     this.setData({ dragId: event.id, dragTarget: '', dragScroll: 0 })
@@ -103,7 +105,7 @@ Page(withPageLifecycle({
     if (rect) this.setPanePercent(stemPercentAt(y, rect.top, rect.height))
   },
   handleRatioTouchStart(e) {
-    if (e.touches.length !== 1) return
+    if (!this.data.fixedLayout || e.touches.length !== 1) return
     this.cancelDrag()
     this.ratioAdjusting = true
     this.updateRatioAt(e.touches[0].clientY)
@@ -118,14 +120,20 @@ Page(withPageLifecycle({
   },
   handleRatioTouchCancel() { this.ratioAdjusting = false },
   handleRatioStep(e) {
+    if (!this.data.fixedLayout) return
     const step = Number(e.currentTarget.dataset.step)
     if (step === 5 || step === -5) this.setPanePercent(Math.max(30, Math.min(70, this.data.stemPercent + step)))
   },
+  handleToggleMode() { this.ratioAdjusting = false; this.cancelDrag(); this.applyViewModelResult(this.viewModel.toggleMode()) },
+  handlePreview() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.setPreview(this.data.editLayout)) },
+  handleReturnEditor() { this.applyViewModelResult(this.viewModel.setPreview(false)) },
+  selectOption(e) { this.applyViewModelResult(this.viewModel.selectOption(Number(e.currentTarget.dataset.index))) },
+  goNext() { this.applyViewModelResult(this.viewModel.setPreview(true)) },
   handleResetLayout() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.reset()) },
   handleSaveLayout() { this.cancelDrag(); this.applyViewModelResult(this.viewModel.save()) },
   applyViewModelResult(result) {
     if (result.data) this.setData(result.data, () => this.measure())
     if (result.command) wx.showToast({ title: result.command.title, icon: 'none' })
   },
-  openFeedback() {}, selectOption() {}, inputAnswerText() {}, inputBlank() {}, assessShortAnswer() {}, toggleFavorite() {}, openOverview() {}, toggleMark() {}, goPrev() {}, goNext() {}
+  openFeedback() {}, inputAnswerText() {}, inputBlank() {}, assessShortAnswer() {}, toggleFavorite() {}, openOverview() {}, toggleMark() {}, goPrev() {}
 }))

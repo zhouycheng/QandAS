@@ -4,45 +4,43 @@ function state(ins) {
   if (!owner.reading) owner.reading = {};
   return owner.reading;
 }
-function clamp(s, value) { return Math.max(s.stops[0], Math.min(s.stops[2], value)); }
+function clamp(s, value) { return Math.max(s.height * 0.35, Math.min(s.height * 0.9, value)); }
 function paint(s, animate) {
   s.sheet.setStyle({ height: s.height + 'px', transition: animate ? 'transform ' + DURATION : 'none', transform: 'translate3d(0,' + (s.height - s.visible) + 'px,0)' });
   s.material.setStyle({ height: Math.max(0, s.height - s.visible) + 'px', transition: animate ? 'height ' + DURATION : 'none' });
-  s.body.setStyle({ height: Math.max(0, s.visible - s.handle - s.heading) + 'px', transition: animate ? 'height ' + DURATION : 'none' });
+  s.body.setStyle({ height: Math.max(0, s.visible - (s.keyboard ? 0 : s.heading)) + 'px', transition: animate ? 'height ' + DURATION : 'none' });
 }
 function sync(value, old, ins) {
   var s = state(ins);
   var g = value.geometry;
   // A gesture acknowledgement must not interrupt a newer drag in the view layer.
-  if (old && s.version === value.version && s.height === g.height && s.handle === g.handle && s.heading === g.heading && s.enabled === value.enabled && s.keyboard === value.keyboard) return;
+  if (old && s.version === value.version && s.height === g.height && s.heading === g.heading && s.enabled === value.enabled && s.keyboard === value.keyboard) return;
   s.sheet = ins.selectComponent('.reading-panel');
   s.material = ins.selectComponent('.reading-material');
   s.body = ins.selectComponent('.reading-question');
   if (!s.sheet || !s.material || !s.body || !g.height) return;
-  var animate = old && s.height === g.height && s.keyboard === value.keyboard && s.enabled && value.enabled && old.stop !== value.stop;
+  var animate = old && s.height === g.height && s.keyboard === value.keyboard && s.enabled && value.enabled;
   s.ignoreTap = !!s.touch || s.ignoreTap;
   s.touch = null;
   s.version = value.version;
   s.enabled = value.enabled;
   s.keyboard = value.keyboard;
   s.height = g.height;
-  s.handle = g.handle;
   s.heading = g.heading;
-  s.stops = [Math.min(g.handle, g.height), Math.min(g.height, Math.max(g.handle, Math.floor(g.height * 0.5))), Math.min(g.height, Math.max(g.handle, Math.floor(g.height * 0.9)))];
-  s.stop = value.stop;
-  s.visible = value.keyboard ? g.height : s.stops[value.stop];
+  s.open = value.open;
+  s.visible = value.keyboard ? g.height : value.open ? clamp(s, g.height * value.ratio) : 0;
   paint(s, animate);
 }
 function start(event, ins) {
   var s = state(ins);
-  if (!s.enabled || !s.height || event.touches.length !== 1) return cancel(event, ins);
+  if (!s.enabled || !s.open || !s.height || event.touches.length !== 1) return cancel(event, ins);
+  var original = s.visible;
   var transform = s.sheet.getComputedStyle(['transform']).transform || '';
   if (transform.indexOf('matrix') === 0) {
     var values = transform.slice(transform.indexOf('(') + 1, -1).split(',');
     s.visible = clamp(s, s.height - (+values[values.length === 16 ? 13 : 5]));
   }
-  var y = event.touches[0].clientY;
-  s.touch = { y: y, visible: s.visible, stop: s.stop, lastY: y, at: event.timeStamp, velocity: 0 };
+  s.touch = { y: event.touches[0].clientY, visible: s.visible, original: original };
   s.moved = false;
   s.ignoreTap = false;
   paint(s, false);
@@ -53,50 +51,37 @@ function move(event, ins) {
   var s = state(ins);
   if (!s.touch) return false;
   if (event.touches.length !== 1) return cancel(event, ins);
-  var y = event.touches[0].clientY;
-  var dy = y - s.touch.y;
-  if (!s.moved && Math.abs(dy) < 4) return false;
+  var dy = event.touches[0].clientY - s.touch.y;
+  if (!s.moved && Math.abs(dy) <= 8) return false;
   s.moved = true;
-  var dt = event.timeStamp - s.touch.at;
-  if (dt > 100) s.touch.velocity = 0;
-  else if (dt > 0 && y !== s.touch.lastY) s.touch.velocity = (s.touch.lastY - y) / dt;
-  s.touch.lastY = y;
-  s.touch.at = event.timeStamp;
   s.visible = clamp(s, s.touch.visible - dy);
   paint(s, false);
   return false;
 }
-function finish(s, ins, stop) {
+function finish(s, ins, visible) {
   s.touch = null;
-  s.stop = stop;
-  s.visible = s.stops[stop];
-  paint(s, true);
-  ins.callMethod('onReadingHandleEnd', { stop: stop, version: s.version });
+  s.visible = visible;
+  paint(s, false);
+  ins.callMethod('onReadingHandleEnd', { ratio: visible / s.height, version: s.version });
   return false;
 }
 function end(event, ins) {
   var s = state(ins);
   if (!s.touch) return false;
   if (event.changedTouches.length > 1) return cancel(event, ins);
-  if (event.changedTouches.length) move({ touches: event.changedTouches, timeStamp: event.timeStamp }, ins);
-  var stop = s.touch.stop;
+  if (event.changedTouches.length) move({ touches: event.changedTouches }, ins);
   s.ignoreTap = s.moved;
-  if (s.moved) {
-    stop = 0;
-    for (var i = 1; i < 3; i++) if (Math.abs(s.visible - s.stops[i]) < Math.abs(s.visible - s.stops[stop])) stop = i;
-    if (Math.abs(s.touch.velocity) >= 0.5) stop = Math.max(0, Math.min(2, s.touch.stop + (s.touch.velocity > 0 ? 1 : -1)));
-  }
-  return finish(s, ins, stop);
+  return finish(s, ins, s.moved ? s.visible : s.touch.original);
 }
 function cancel(event, ins) {
   var s = state(ins);
   s.ignoreTap = true;
   if (!s.touch) return false;
-  return finish(s, ins, s.touch.stop);
+  return finish(s, ins, s.touch.original);
 }
 function tap(event, ins) {
   var s = state(ins);
-  if (s.enabled && !s.ignoreTap) ins.callMethod('toggleReading', {});
+  if (s.enabled && s.open && !s.ignoreTap) ins.callMethod('toggleReadingHeight', {});
   s.ignoreTap = false;
   return false;
 }

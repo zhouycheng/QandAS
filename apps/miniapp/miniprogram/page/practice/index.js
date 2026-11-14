@@ -28,11 +28,13 @@ Page(withPageLifecycle({
     paneHeights: { material: 0, stem: 140, response: 220 },
     paneOverflow: {},
     readingLayout: false,
-    readingStop: 1,
+    readingOpen: false,
+    readingRatio: 0.65,
+    flowScrollTop: 0,
     readingVersion: 0,
     readingDragging: false,
     readingSuspended: false,
-    readingGeometry: { height: 0, handle: 56, heading: 44 },
+    readingGeometry: { height: 0, heading: 48 },
     readingQuestionScrollTop: 0,
     paneScroll: { material: 0, stem: 0, response: 0 }
   }),
@@ -75,6 +77,7 @@ Page(withPageLifecycle({
     const question = this.data.currentQuestion
     if (!question) return
     if (this.data.readingLayout) return this.measureReadingPanes()
+    if (!this.data.fixedLayout) return this.measureFlowPanes()
     const query = this.createSelectorQuery()
     query.select('.pra-content').fields({ size: true, computedStyle: ['padding-top', 'padding-bottom', 'row-gap'] })
     query.selectAll('.module-info, .module-tools').boundingClientRect()
@@ -116,12 +119,33 @@ Page(withPageLifecycle({
     })
   },
 
+  measureFlowPanes() {
+    const version = this.measureVersion, index = this.data.currentIndex
+    const query = this.createSelectorQuery()
+    ;['.pra-flow-scroll', '.module-stem .pra-stem', '.module-response textarea'].forEach(selector => query.select(selector).boundingClientRect())
+    query.exec(rects => {
+      if (this._pageUnloaded || this.pageVisible === false || version !== this.measureVersion || index !== this.data.currentIndex || !rects || !rects[0]) return
+      const [viewport, stem, input] = rects
+      this.flowHeight = viewport.height
+      this.flowStemOffset = stem ? stem.top - viewport.top + (this.flowPosition || 0) : 0
+      this.flowInputOffset = input ? input.top - viewport.top + (this.flowPosition || 0) : 0
+      const restore = this.keyboardScrollRestore
+      if (restore) {
+        const target = restore.flow || 0
+        this.keyboardScrollRestore = null
+        this.setData({ flowScrollTop: this.data.flowScrollTop === target ? target + 0.01 : target })
+      }
+      this.revealFocusedBlank()
+    })
+  },
+  onFlowScroll(event) { this.flowPosition = event.detail.scrollTop; this.clearAutoAdvance() },
+
   analysisDefaultOffset(height = this.data.analysisSheetHeight, areaHeight = this.data.analysisAreaHeight) {
     return Math.min(0, Math.floor(areaHeight * 0.5) - height)
   },
 
   analysisMeasurement(body) {
-    if (!body || this.data.analysisDragging) return {}
+    if (!this.data.legacyAnalysisEnabled || !body || this.data.analysisDragging) return {}
     const height = Math.max(44, Math.floor(body.height * 0.7))
     const visible = this.data.analysisSheetHeight + this.data.analysisSheetOffset
     const offset = !this.data.analysisSheetOpen ? -height
@@ -133,15 +157,15 @@ Page(withPageLifecycle({
   measureReadingPanes() {
     const version = this.measureVersion, index = this.data.currentIndex
     const query = this.createSelectorQuery()
-    ;['.reading-workspace', '.reading-handle', '.reading-question-heading', '.pra-body', '.reading-question', '.reading-question-content .pra-stem', '.reading-response'].forEach(selector => query.select(selector).boundingClientRect())
+    ;['.reading-workspace', '.reading-question-heading', '.reading-question', '.reading-question-content .pra-stem', '.reading-response'].forEach(selector => query.select(selector).boundingClientRect())
     query.exec(rects => {
       if (this._pageUnloaded || this.pageVisible === false || version !== this.measureVersion || index !== this.data.currentIndex || !rects || !rects[0] || this.data.readingDragging) return
-      const [workspace, handle, heading, body, question, stem, response] = rects
-      const geometry = { height: workspace.height, handle: handle ? handle.height : 56, heading: heading ? heading.height : 44 }
+      const [workspace, heading, question, stem, response] = rects
+      const geometry = { height: workspace.height, heading: heading ? heading.height : 48 }
       const scroll = this.readingQuestionPosition || 0
       if (stem && question) this.readingStemOffset = stem.top - question.top + scroll
       if (response && question) this.readingResponseOffset = response.top - question.top + scroll
-      const patch = Object.assign(viewPatch(this.data, { readingGeometry: geometry }), this.analysisMeasurement(body))
+      const patch = viewPatch(this.data, { readingGeometry: geometry })
       if (this.keyboardScrollRestore) {
         const value = this.keyboardScrollRestore.material || 0
         patch['paneScroll.material'] = this.data.paneScroll.material === value ? value + 0.01 : value
@@ -153,23 +177,33 @@ Page(withPageLifecycle({
     })
   },
 
-  onReadingQuestionScroll(event) { this.readingQuestionPosition = event.detail.scrollTop },
+  onReadingQuestionScroll(event) { this.readingQuestionPosition = event.detail.scrollTop; this.clearAutoAdvance() },
 
   onPaneScroll(event) {
     if (!this.panePositions) this.panePositions = {}
     this.panePositions[event.currentTarget.dataset.pane] = event.detail.scrollTop
+    this.clearAutoAdvance()
   },
 
   revealFocusedBlank() {
     if (!this.keyboardVisible || !this.answerFocused) return
     if (this.data.readingLayout) {
       const current = this.readingQuestionPosition || 0
-      const visible = this.data.readingGeometry.height - this.data.readingGeometry.handle - this.data.readingGeometry.heading
+      const visible = this.data.readingGeometry.height
       if (visible <= 0) return
       const top = this.focusedBlank ? (this.readingStemOffset || 0) + this.focusedBlank.top : this.readingResponseOffset || 0
       const height = this.focusedBlank ? this.focusedBlank.height : Math.min(140, visible)
       const target = top < current ? top : top + height > current + visible - 12 ? Math.max(0, top + height - visible + 12) : current
       if (target !== current) this.setData({ readingQuestionScrollTop: target })
+      return
+    }
+    if (!this.data.fixedLayout) {
+      const current = this.flowPosition || 0, visible = this.flowHeight || 0
+      if (!visible) return
+      const top = this.focusedBlank ? (this.flowStemOffset || 0) + this.focusedBlank.top : this.flowInputOffset || 0
+      const height = this.focusedBlank ? this.focusedBlank.height : Math.min(140, visible)
+      const target = top < current ? top : top + height > current + visible - 12 ? Math.max(0, top + height - visible + 12) : current
+      if (target !== current) this.setData({ flowScrollTop: target })
       return
     }
     if (!this.focusedBlank) return
@@ -305,7 +339,7 @@ Page(withPageLifecycle({
   onKeyboardHeight(e) {
     const height = Math.max(0, e.detail.height || 0)
     if (height > 0 && !this.keyboardVisible) {
-      this.keyboardPanePositions = Object.assign({}, this.panePositions)
+      this.keyboardPanePositions = Object.assign({ flow: this.flowPosition || 0 }, this.panePositions)
       this.readingKeyboardScroll = this.readingQuestionPosition || 0
     }
     if (!height && this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
@@ -325,24 +359,30 @@ Page(withPageLifecycle({
     const key = materialKey(this.data.currentQuestion)
     if (!key) return
     if (!this.readingMaterials) this.readingMaterials = new Map()
-    this.readingMaterials.set(key, { stop: this.data.readingStop, scroll: this.panePositions && this.panePositions.material || 0 })
+    this.readingMaterials.set(key, { open: this.data.readingOpen, ratio: this.data.readingRatio, scroll: this.panePositions && this.panePositions.material || 0 })
   },
-  setReadingStop(stop) {
-    if (!this.data.readingLayout || this.keyboardVisible) return
+  setReadingOpen(open) {
+    if (!this.data.readingLayout || this.keyboardVisible || this.data.readingSuspended || this.data.editingLocked) return
     this.clearAutoAdvance()
     this.ignoreSwipe()
-    this.setData({ readingStop: stop, readingDragging: false, readingVersion: this.data.readingVersion + 1 })
+    this.setData({ readingOpen: open, readingDragging: false, readingVersion: this.data.readingVersion + 1 })
   },
-  toggleReading() { this.setReadingStop(this.data.readingStop ? 0 : 1) },
+  openReading() { this.setReadingOpen(true) },
+  closeReading() { this.setReadingOpen(false) },
+  toggleReadingHeight() {
+    if (!this.data.readingOpen || this.keyboardVisible) return
+    this.clearAutoAdvance()
+    this.setData({ readingRatio: this.data.readingRatio > 0.75 ? 0.65 : 0.9, readingDragging: false, readingVersion: this.data.readingVersion + 1 })
+  },
   onReadingHandleStart({ version }) {
     if (version !== this.data.readingVersion || this.pageVisible === false || this._pageUnloaded) return
     this.ignoreSwipe()
     this.clearAutoAdvance()
     this.setData({ readingDragging: true })
   },
-  onReadingHandleEnd({ stop, version }) {
-    if (version !== this.data.readingVersion || this.pageVisible === false || this._pageUnloaded || ![0, 1, 2].includes(stop)) return
-    this.setData({ readingStop: stop, readingDragging: false })
+  onReadingHandleEnd({ ratio, version }) {
+    if (version !== this.data.readingVersion || this.pageVisible === false || this._pageUnloaded || !Number.isFinite(ratio)) return
+    this.setData({ readingRatio: Math.max(0.35, Math.min(0.9, ratio)), readingDragging: false })
   },
   canSwipe() {
     return !!this.data.preferences.swipeEnabled && !this.data.isCompleted && !this.data.editingLocked && !this.data.waitingForSync && !this.data.showSubmitModal && !this.data.showQuestionOverview && !this.data.editLayout && !this.data.submitting && !this.answerFocused && !this.keyboardVisible && !this.textSelectionActive && !this.data.readingDragging
@@ -437,7 +477,7 @@ Page(withPageLifecycle({
     const source = this.data
     const index = source.currentIndex, key = materialKey(source.currentQuestion)
     const count = source.readingGroupUnansweredCount, sessionId = source.sessionId
-    const remind = !automatic && source.readingLayout && source.readingStop === 0 && !source.isViewMode && source.readingGroupUnansweredCount > 0
+    const remind = !automatic && source.readingLayout && !source.readingOpen && !source.isViewMode && source.readingGroupUnansweredCount > 0
     const result = this.viewModel.goNext(bySwipe)
     const apply = resolved => {
       this.applyViewModelResult(resolved)
@@ -501,6 +541,7 @@ Page(withPageLifecycle({
   },
 
   setAnalysisOpen(open) {
+    if (!this.data.legacyAnalysisEnabled) return
     if (open && (!this.data.shouldRevealAnswer || !this.data.hasAnswered || this.data.feedback !== 'IMMEDIATE' || this.data.isViewMode || this.data.isCompleted || this.data.analysisSuspended)) return
     this.clearAutoAdvance()
     this.ignoreSwipe()
@@ -639,7 +680,10 @@ Page(withPageLifecycle({
         patch.readingLayout = !!(patch.currentQuestion && patch.currentQuestion.material)
         const key = materialKey(patch.currentQuestion)
         const saved = this.readingMaterials && this.readingMaterials.get(key)
-        patch.readingStop = saved ? saved.stop : 1
+        patch.readingOpen = saved ? saved.open : false
+        patch.readingRatio = saved ? saved.ratio : 0.65
+        patch.flowScrollTop = this.data.flowScrollTop === 0 ? 0.01 : 0
+        this.flowPosition = 0
         patch.readingVersion = this.data.readingVersion + 1
         patch.readingDragging = false
         patch.readingQuestionScrollTop = this.data.readingQuestionScrollTop === 0 ? 0.01 : 0
@@ -652,11 +696,12 @@ Page(withPageLifecycle({
       }
 
       const next = Object.assign({}, this.data, patch)
-      if (next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && next.preferences.autoOpenAnalysis && !result.autoAdvance && (questionChanged || !this.data.shouldRevealAnswer)) {
+      patch.fixedLayout = next.preferences.layoutMode === 'custom'
+      if (next.legacyAnalysisEnabled && next.shouldRevealAnswer && next.hasAnswered && next.feedback === 'IMMEDIATE' && !next.isViewMode && !next.isCompleted && next.preferences.autoOpenAnalysis && !result.autoAdvance && (questionChanged || !this.data.shouldRevealAnswer)) {
         patch.analysisSheetOpen = true
         patch.analysisSheetOffset = this.analysisDefaultOffset()
       }
-      if (!next.shouldRevealAnswer || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked) {
+      if (next.legacyAnalysisEnabled && (!next.shouldRevealAnswer || next.isCompleted || next.showQuestionOverview || next.showSubmitModal || next.editingLocked)) {
         patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
         patch.analysisSheetOpen = false
         patch.analysisDragging = false
