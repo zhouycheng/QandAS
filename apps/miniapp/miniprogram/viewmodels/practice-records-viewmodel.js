@@ -3,6 +3,14 @@ const auth = require('../repositories/auth-repository.js')
 const online = require('../repositories/online-practice.js')
 const remote = require('../repositories/remote-data-repository.js')
 const { merge, summarize, openRecord } = require('../models/practice-record-summary.js')
+function formatRecordTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  // 微信运行时的 locale 格式输出不一致，按本地时间逐项格式化。
+  const pad = number => number < 10 ? `0${number}` : String(number)
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 function records(remoteItems, localItems, deviceId) {
   return merge(remoteItems, localItems).map(item => {
     const bank = remote.getBankMeta(item.questionBankId)
@@ -12,7 +20,7 @@ function records(remoteItems, localItems, deviceId) {
     return { id: item.id, status: item.status, feedback: item.feedback, title: item.title || bank && bank.name || '题库练习', state,
       otherDevice, syncError: item.syncError, canRetrySync: item.canRetrySync,
       statusText: otherDevice ? '其他设备作答' : released ? '可接续' : state === 'ended' && !item.cloudConfirmed ? '已完成 · 待同步' : { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
-      countText: `${item.questionCount} 题`, timeText: item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) : '',
+      countText: `${item.questionCount} 题`, timeText: formatRecordTime(item.createdAt),
       feedbackText: { IMMEDIATE: '即时反馈', AFTER_FINISH: '交卷后反馈' }[item.feedback] || '',
       actionText: otherDevice ? '查看交接方式' : released ? '在此设备继续' : state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
       modeText: { order: '顺序练习', practice: '随机练习', test: '模拟考试', view: '背题' }[item.mode] || '练习' }

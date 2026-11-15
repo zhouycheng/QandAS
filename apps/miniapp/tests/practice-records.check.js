@@ -4,6 +4,14 @@ const http = require('../miniprogram/repositories/http-gateway.js')
 const { records, PracticeRecordsViewModel } = require('../miniprogram/viewmodels/practice-records-viewmodel.js')
 const { createSyncQueue } = require('../miniprogram/repositories/practice-sync-queue.js')
 async function main() {
+  const localeString = Date.prototype.toLocaleString
+  Date.prototype.toLocaleString = function () { return this.toString() }
+  try {
+    const createdAt = new Date(2026, 0, 2, 3, 4, 5).toISOString()
+    assert.equal(records([{ id: 'time', createdAt }], [])[0].timeText, '2026/01/02 03:04:05', '手机忽略 locale 参数时仍显示固定格式的本地时间')
+    assert.equal(records([{ id: 'invalid-time', createdAt: 'invalid' }], [])[0].timeText, '')
+    assert.equal(records([{ id: 'missing-time' }], [])[0].timeText, '')
+  } finally { Date.prototype.toLocaleString = localeString }
   const list = records([{ id: 'one', status: 'IN_PROGRESS', createdAt: '2026-11-01' }, { id: 'two', status: 'SUBMITTED', createdAt: '2026-11-02' }], [{ id: 'one', finishIntent: true, createdAt: '2026-11-03', items: [{}, {}] }])
   assert.strictEqual(list.length, 2)
   assert.strictEqual(list[0].statusText, '练习记录恢复中')
