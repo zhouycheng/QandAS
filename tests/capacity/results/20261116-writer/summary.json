@@ -1,0 +1,210 @@
+{
+  "passed": true,
+  "transport": "HTTPS/WSS",
+  "source": {
+    "verified_source_commit": "cf1702230723f2875f54edff7e17b0df457dac06",
+    "runtime_source_sha256": "ebda412e2326e4b343d5e1d004d3a0387a7ee6d26005fffde0f1e06414327f3d",
+    "gateway_source_sha256": "a18b47f719a65a1962504189634ffe7f5ed1352aa64238c708adb828dc377cea",
+    "jar_sha256": "f53f4327fdbc1b58ac10dadd10955dee5039886e845065de7aa205290057acf9",
+    "image_id": "sha256:257c03934732c350b4f0456838292bb8e53dab1459e0ab63f7b4e9a0dd04f9a3",
+    "gateway_image_id": "sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236",
+    "architecture": "arm64",
+    "gateway_architecture": "arm64",
+    "load_sha256": "23c98053831336a8201f0564eb56ee2fdf99ac0143890da26e588eeb230f69d6",
+    "runner_sha256": "a29b1add126d94acc611f7a3ccd455bc1181f2025fcdb5e3a795c3ab23da576e"
+  },
+  "quotas_mib": {
+    "api": 576,
+    "worker": 384,
+    "db": 256,
+    "rabbit": 384,
+    "gateway": 256
+  },
+  "virtual_cpus": 4,
+  "virtual_memory_gib": 6,
+  "ramp_seconds": 45,
+  "hold_seconds": 180,
+  "runs": [
+    {
+      "users": 1800,
+      "mode": "baseline",
+      "accepted": 3600,
+      "committed": 3600,
+      "verified_progress": 1800,
+      "failures": 0,
+      "retry_responses": 1,
+      "http_failed_rate": 0.00013886960144424384,
+      "receipt_p95_ms": 1263,
+      "notice_p95_ms": null,
+      "heartbeat_p95_ms": null,
+      "resources": {
+        "api": {
+          "peak_mib": 368.4,
+          "mean_cpu_percent": 16.57,
+          "steady_first_mib": 367.6,
+          "steady_last_mib": 368.1
+        },
+        "worker": {
+          "peak_mib": 330.5,
+          "mean_cpu_percent": 10.69,
+          "steady_first_mib": 329.8,
+          "steady_last_mib": 330.3
+        },
+        "db": {
+          "peak_mib": 75.32,
+          "mean_cpu_percent": 8.51,
+          "steady_first_mib": 75.12,
+          "steady_last_mib": 75.25
+        },
+        "rabbit": {
+          "peak_mib": 102.2,
+          "mean_cpu_percent": 2.12,
+          "steady_first_mib": 99.18,
+          "steady_last_mib": 98.39
+        },
+        "gateway": {
+          "peak_mib": 76.08,
+          "mean_cpu_percent": 3.03,
+          "steady_first_mib": 75.99,
+          "steady_last_mib": 19.59
+        }
+      }
+    },
+    {
+      "users": 1800,
+      "mode": "sockets",
+      "accepted": 3600,
+      "committed": 3600,
+      "verified_progress": 1800,
+      "failures": 0,
+      "retry_responses": 11,
+      "http_failed_rate": 0.0015128593040847202,
+      "receipt_p95_ms": 1281,
+      "notice_p95_ms": 234.85,
+      "heartbeat_p95_ms": 15,
+      "resources": {
+        "api": {
+          "peak_mib": 522.4,
+          "mean_cpu_percent": 14.97,
+          "steady_first_mib": 516.8,
+          "steady_last_mib": 517.5
+        },
+        "worker": {
+          "peak_mib": 335.1,
+          "mean_cpu_percent": 6.54,
+          "steady_first_mib": 334.8,
+          "steady_last_mib": 335.0
+        },
+        "db": {
+          "peak_mib": 81.66,
+          "mean_cpu_percent": 11.35,
+          "steady_first_mib": 80.86,
+          "steady_last_mib": 80.88
+        },
+        "rabbit": {
+          "peak_mib": 99.35,
+          "mean_cpu_percent": 1.87,
+          "steady_first_mib": 99.18,
+          "steady_last_mib": 99.14
+        },
+        "gateway": {
+          "peak_mib": 190.5,
+          "mean_cpu_percent": 5.12,
+          "steady_first_mib": 190.2,
+          "steady_last_mib": 168.1
+        }
+      }
+    },
+    {
+      "users": 2000,
+      "mode": "baseline",
+      "accepted": 4000,
+      "committed": 4000,
+      "verified_progress": 2000,
+      "failures": 0,
+      "retry_responses": 40,
+      "http_failed_rate": 0.004975124378109453,
+      "receipt_p95_ms": 1266,
+      "notice_p95_ms": null,
+      "heartbeat_p95_ms": null,
+      "resources": {
+        "api": {
+          "peak_mib": 528.7,
+          "mean_cpu_percent": 10.92,
+          "steady_first_mib": 527.0,
+          "steady_last_mib": 521.4
+        },
+        "worker": {
+          "peak_mib": 336.3,
+          "mean_cpu_percent": 7.53,
+          "steady_first_mib": 335.8,
+          "steady_last_mib": 335.9
+        },
+        "db": {
+          "peak_mib": 83.07,
+          "mean_cpu_percent": 9.91,
+          "steady_first_mib": 83.01,
+          "steady_last_mib": 83.04
+        },
+        "rabbit": {
+          "peak_mib": 99.8,
+          "mean_cpu_percent": 2.4,
+          "steady_first_mib": 99.78,
+          "steady_last_mib": 99.52
+        },
+        "gateway": {
+          "peak_mib": 82.59,
+          "mean_cpu_percent": 3.45,
+          "steady_first_mib": 82.38,
+          "steady_last_mib": 19.0
+        }
+      }
+    },
+    {
+      "users": 2000,
+      "mode": "sockets",
+      "accepted": 4000,
+      "committed": 4000,
+      "verified_progress": 2000,
+      "failures": 0,
+      "retry_responses": 112,
+      "http_failed_rate": 0.013705335291238374,
+      "receipt_p95_ms": 1317.05,
+      "notice_p95_ms": 90.1,
+      "heartbeat_p95_ms": 22,
+      "resources": {
+        "api": {
+          "peak_mib": 543.1,
+          "mean_cpu_percent": 12.86,
+          "steady_first_mib": 540.6,
+          "steady_last_mib": 540.6
+        },
+        "worker": {
+          "peak_mib": 336.2,
+          "mean_cpu_percent": 6.18,
+          "steady_first_mib": 336.2,
+          "steady_last_mib": 336.1
+        },
+        "db": {
+          "peak_mib": 85.97,
+          "mean_cpu_percent": 12.68,
+          "steady_first_mib": 85.69,
+          "steady_last_mib": 85.97
+        },
+        "rabbit": {
+          "peak_mib": 100.8,
+          "mean_cpu_percent": 2.09,
+          "steady_first_mib": 100.5,
+          "steady_last_mib": 100.4
+        },
+        "gateway": {
+          "peak_mib": 209.6,
+          "mean_cpu_percent": 5.91,
+          "steady_first_mib": 208.8,
+          "steady_last_mib": 187.9
+        }
+      }
+    }
+  ],
+  "raw_result_sha256": "f35b80199ab0086bcaa973f33c5826f4f69c272a7d56b19f8270f836601dfec0"
+}
