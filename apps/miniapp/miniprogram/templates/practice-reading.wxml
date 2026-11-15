@@ -15,7 +15,7 @@
       <button class="q-button q-button--text reading-close" catchtap="closeReading" aria-label="关闭选项卡" hover-class="q-button-hover">×</button>
     </view>
     <scroll-view class="reading-question" scroll-y enhanced bounces="{{false}}" scroll-top="{{readingQuestionScrollTop}}" bindscroll="onReadingQuestionScroll">
-      <view class="reading-question-content"><include src="practice-stem.wxml" /><view wx:if="{{!currentQuestion.isFillBlank}}" class="pra-module reading-response"><include src="practice-response.wxml" /></view></view>
+      <view class="reading-question-content"><include src="./practice-stem.wxml" /><view wx:if="{{!currentQuestion.isFillBlank}}" class="pra-module reading-response"><include src="./practice-response.wxml" /></view></view>
     </scroll-view>
   </view>
   <button wx:if="{{!readingOpen && !keyboardVisible}}" class="q-button reading-launcher" catchtap="openReading" aria-label="打开选项卡，已答 {{readingGroupAnsweredCount}}／{{readingGroupTotal}}" hover-class="q-button-hover">
@@ -25,4 +25,4 @@
     <text>选项卡</text>
   </button>
 </view>
-<view class="reading-tools" hidden="{{keyboardVisible}}"><include src="practice-tools.wxml" /></view>
+<view class="reading-tools" hidden="{{keyboardVisible}}"><include src="./practice-tools.wxml" /></view>

@@ -228,6 +228,14 @@ try {
   assert(!content.includes('layout-module-analysis'), '解析不再进入可排序布局')
   const stem = fs.readFileSync(require.resolve('../miniprogram/templates/practice-stem.wxml'), 'utf8')
   assert.match(stem, /currentQuestion.isFillBlank/, '填空详解跟随题干输入区')
+  // 微信按需编译需要显式相对路径才能收集嵌套 include 依赖。
+  for (const name of ['practice-content', 'practice-reading', 'practice-response', 'practice-stem']) {
+    const template = fs.readFileSync(require.resolve('../miniprogram/templates/' + name + '.wxml'), 'utf8')
+    for (const match of template.matchAll(/<include\s+src="([^"]+)"/g)) {
+      assert.match(match[1], /^\.\//, name + ' 的嵌套模板使用显式相对路径')
+      assert.doesNotThrow(() => require.resolve('../miniprogram/templates/' + match[1]))
+    }
+  }
   const inline = fs.readFileSync(require.resolve('../miniprogram/templates/practice-inline-analysis.wxml'), 'utf8')
   assert.match(inline, /shouldRevealAnswer && !editLayout && !legacyAnalysisEnabled/, '内联详解沿用模型揭晓条件')
   assert.equal((wxml.match(/class="analysis-handle"/g) || []).length, 1, '收起与展开共用一个把手')
