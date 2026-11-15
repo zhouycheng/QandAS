@@ -326,11 +326,13 @@ class StatsViewModel {
             }
         }
         // 第一列的月份可能只剩几天，标签会贴在左边缘；留出 2 列余量就不打
-        const trimmed = months.filter((month, index) => index > 0 || month.col <= 2);
-        const svg = buildHeatmapSvg({ columns });
+        const trimmed = months.filter((month, index) => index > 0 || months.length < 2 || months[1].col >= 3);
+        const cell = 18, gap = 5;
+        const step = cell + gap;
+        const svg = buildHeatmapSvg({ columns, cell, gap });
         return {
             dataUri: svg ? toDataUri(svg) : '',
-            labels: trimmed.map((month, index) => ({ text: month.text, left: month.col * 100 / HEATMAP_WEEKS, align: index === 0 ? 'start' : month.col >= HEATMAP_WEEKS - 2 ? 'end' : 'center' })),
+            labels: trimmed.map((month) => ({ text: month.text, left: month.col * step * 100 / (HEATMAP_WEEKS * step - gap), align: 'start' })),
             hasData: days.some((day) => day.answered > 0),
             legend: getInitialStatsViewData().activity.legend
         };
