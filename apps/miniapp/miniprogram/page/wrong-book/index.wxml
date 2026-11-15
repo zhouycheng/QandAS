@@ -1,7 +1,7 @@
 <!-- 错题本 / 收藏本｜设计稿「错题本」「收藏本」两张画板
      同一份结构承载两种模式：type=wrong 进错题本，type=favorite 进收藏本（由 ViewModel 决定文案与口径）。
      顶部返回由共享导航栏提供，正文保留标题与管理操作。 -->
-<view class="secondary-page">
+<view class="secondary-page {{type === 'wrong' ? 'wrong-book' : ''}}">
 <page-header title="{{title}}" />
 <view class="list-page wb-page">
   <view class="load-note" wx:if="{{collectionLoading}}">正在读取列表…</view>
@@ -16,14 +16,14 @@
     >{{manage ? '完成' : '管理'}}</button>
   </view>
 
-  <!-- ① 统计卡：标题 + 三指标 + 科目分布条 -->
+  <!-- ① 统计卡 -->
   <view class="stat-card">
     <view class="stat-head">
       <view class="stat-title-box">
         <view class="stat-icon {{type}}"></view>
         <text class="stat-title">{{statTitle}}</text>
       </view>
-      <text class="stat-hint">{{statHint}}</text>
+      <text wx:if="{{type === 'favorite'}}" class="stat-hint">{{statHint}}</text>
     </view>
 
     <view class="stat-row">
@@ -36,7 +36,7 @@
       </view>
     </view>
 
-    <view class="dist" wx:if="{{hasDist}}">
+    <view class="dist" wx:if="{{type === 'favorite' && hasDist}}">
       <view class="dist-bar">
         <view class="dist-seg {{item.tone}}" wx:for="{{dist}}" wx:key="name" style="width: {{item.percent}}%"></view>
       </view>
@@ -122,7 +122,7 @@
       <view class="q-accent {{item.badgeTone}}"></view>
       <view class="q-body">
         <view class="q-top">
-          <text class="q-title">{{item.title}}</text>
+          <text class="q-title">{{type === 'wrong' ? item.subjectName : item.title}}</text>
           <button
             class="q-button q-button--text q-remove"
             wx:if="{{manage && type === 'favorite'}}"
@@ -134,6 +134,7 @@
           >移除</button>
           <view class="q-chevron" wx:else></view>
         </view>
+        <text class="q-chapter" wx:if="{{type === 'wrong' && item.bankName}}">{{item.bankName}}</text>
         <rich-content class="q-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
         <view class="q-meta">
           <text class="q-badge {{item.badgeTone}}">{{item.badgeText}}</text>
@@ -155,7 +156,7 @@
     <text wx:else>已显示全部 {{totalCount}} 题</text>
   </view>
 
-  <!-- ⑥ 底部固定：主按钮 + 一句口径说明 -->
+  <!-- ⑥ 底部固定操作 -->
   <view class="wb-footer">
     <button
       class="q-button {{manage ? 'q-button--danger' : 'q-button--primary'}} wb-footer-btn {{manage ? 'is-danger' : ''}}"
@@ -164,7 +165,7 @@
       hover-start-time="0"
       hover-stay-time="80"
     >{{manage && type === 'favorite' ? '清空收藏' : footerText}}</button>
-    <text class="wb-footer-hint">{{footerHint}}</text>
+    <text wx:if="{{type === 'favorite'}}" class="wb-footer-hint">{{footerHint}}</text>
   </view>
 </view>
 </view>

@@ -1,13 +1,20 @@
 const assert = require('node:assert/strict')
 const { WrongBookViewModel } = require('../miniprogram/viewmodels/wrong-book-viewmodel.js')
 const rows = Array.from({ length: 12 }, (_, i) => ({ questionId: 'q' + i, type: 'SINGLE_CHOICE', stem: '题目' + i, wrongCount: 1 }))
+rows[0].createdAt = '2026-11-14T12:00:00'
+rows[0].lastPracticedAt = '2026-11-15T12:00:00'
+rows[1].createdAt = '2026-11-14T12:00:00'
+rows[3].createdAt = 'invalid'
 const pages = new Map(), calls = []
 const key = options => JSON.stringify([options.kind, options.chip, options.sort, options.subjectId, options.page])
 let blocked, rejectPage = false
 const repository = {
   getRemoteCollection(storage, options) { return pages.get(key(options)) || { status: 'idle', data: null } },
   getRemoteResourceState() { return {} },
-  getRemoteCollectionSummary() { return { total: rows.length, facets: [] } },
+  getRemoteCollectionSummary() { return { total: rows.length, facets: [
+    { subjectId: 's1', subjectName: '科目一', questionBankId: 'b1', questionBankName: '第一章', count: 2 },
+    { subjectId: 's1', subjectName: '科目一', questionBankId: 'b2', questionBankName: '第二章', count: 3 }
+  ], subjectiveFacets: [{ subjectId: 's2', subjectName: '科目二', questionBankId: 'b3', count: 1 }] } },
   async refreshRemote(storage, kind, options) {
     calls.push({ ...options })
     const resource = { status: 'loading', data: (pages.get(key(options)) || {}).data }
@@ -21,7 +28,9 @@ const repository = {
 async function main() {
   const vm = new WrongBookViewModel({ repository, storage: {} })
   vm.load({ type: 'wrong' }); await vm.refreshRemote()
+  assert.deepEqual(vm.buildViewData().subjectFilters, [{ id: 'all', name: '全部科目' }, { id: 's1', name: '科目一' }, { id: 's2', name: '科目二' }])
   assert.equal(vm.buildViewData().items.length, 5)
+  assert.deepEqual(vm.buildViewData().items.slice(0, 4).map(item => item.dateText), ['最近练习 11月15日', '收录于 11月14日', '', ''])
   assert.equal(vm.buildViewData().hasMore, true)
   let release
   blocked = new Promise(resolve => { release = resolve })
