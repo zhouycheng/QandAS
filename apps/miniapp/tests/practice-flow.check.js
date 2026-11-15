@@ -83,6 +83,19 @@ for (const action of ['save', 'confirm']) {
   assert.equal(model.state.currentIndex, 1, '空多选的主按钮禁用不影响左滑跳过')
 }
 
+for (const feedback of ['IMMEDIATE', 'AFTER_FINISH']) for (const action of ['confirm', 'save']) {
+  const model = new PracticeSession({ quiz: { bankId: 'b', questions: [multi, { ...multi, id: 'next' }] }, mode: 'practice', feedback, preferences: { swipeDraftAction: action === 'save' ? 'confirm' : 'save' } })
+  model.reset()
+  const vm = new PracticeViewModel({ repository: { getPreferences: () => normalizePreferences({ swipeDraftAction: action }) } })
+  vm.session = model; vm.persistSession = () => {}
+  vm.resumeStudy()
+  model.selectOption(0); model.selectOption(1)
+  vm.goNext(true)
+  const confirm = action === 'confirm' && feedback === 'IMMEDIATE'
+  assert.equal(model.state.currentIndex, confirm ? 0 : 1, '旧练习左滑遵循最新确认开关')
+  assert.equal(model.state.answers[0].confirmed, confirm, '关闭时保留草稿，开启时即时确认')
+}
+
 let definition
 const previousPage = global.Page, previousWx = global.wx
 global.Page = value => { definition = value }

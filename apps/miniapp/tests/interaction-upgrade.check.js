@@ -60,7 +60,7 @@ async function main() {
   settings.toggleSwitch('swipeEnabled', true)
   assert.equal(swipeSwitch(settings.load().data).disabled, false)
   assert.equal(swipeSwitch(settings.load().data).value, true, '重新开启后保留确认偏好')
-  assert.equal(normalizePracticeOptions({ swipeEnabled: false }, { swipeEnabled: true }).swipeEnabled, false, '已有练习保留关闭状态')
+  assert.equal(normalizePracticeOptions({ swipeEnabled: false }, { swipeEnabled: true }).swipeEnabled, true, '已有练习采用当前手势开关')
   assert.equal(normalizePracticeOptions({}, { swipeEnabled: false }).swipeEnabled, false, '旧快照按当前设置补齐')
   const disabledSession = session('confirm')
   disabledSession.meta.config.swipeEnabled = false
@@ -99,7 +99,7 @@ async function main() {
     assert.deepEqual(vm.session.state.selectedKeys, ['A'])
     const saved = normalizeSession(serializeSession(vm.session.getPersistedState()))
     assert.equal(saved.config.swipeDraftAction, action)
-    assert.equal(normalizePracticeOptions(saved.config, { swipeDraftAction: action === 'save' ? 'confirm' : 'save' }).swipeDraftAction, action)
+    assert.equal(normalizePracticeOptions(saved.config, { swipeDraftAction: action === 'save' ? 'confirm' : 'save' }).swipeDraftAction, action === 'save' ? 'confirm' : 'save')
     vm.persistSession = () => { throw new Error('存储已满') }
     assert.match(vm.goNext(true).command.title, /存储/)
     assert.equal(vm.session.state.currentIndex, 0)
