@@ -253,7 +253,8 @@ page { background: var(--card); }
   color: var(--text-sub);
 }
 
-/* 两张图都按宽度铺满：SVG 的 viewBox 比例固定，宽度交给容器 */
+.heatmap-scroll { width: 100%; }
+.heatmap-content { width: 1040rpx; }
 .heatmap {
   display: block;
   width: 100%;

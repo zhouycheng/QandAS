@@ -19,7 +19,7 @@
     </view>
     <view class="pra-pane pra-stem-pane" hidden="{{fixedLayout && !editLayout && keyboardVisible && !paneHeights.stem}}" style="{{!fixedLayout ? '' : 'height:' + paneHeights.stem + 'px;'}}">
       <scroll-view class="pra-pane-scroll" scroll-y="{{fixedLayout}}" enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{paneScroll.stem}}" data-pane="stem" bindscroll="onPaneScroll">
-        <view class="pra-pane-content" data-pane="stem"><include src="practice-stem.wxml" /></view>
+        <view class="pra-pane-content" data-pane="stem"><include src="./practice-stem.wxml" /></view>
       </scroll-view>
       <text wx:if="{{fixedLayout && !editLayout && paneOverflow.stem}}" class="pra-scroll-hint">区域内滑动阅读</text>
     </view>
@@ -30,7 +30,7 @@
     <view class="pra-pane pra-response-pane" style="{{!fixedLayout ? '' : 'height:' + paneHeights.response + 'px;'}}">
       <scroll-view class="pra-pane-scroll" scroll-y="{{(fixedLayout) && (!currentQuestion.isShortAnswer || isViewMode)}}" enhanced bounces="{{false}}" show-scrollbar="{{false}}" scroll-top="{{paneScroll.response}}" data-pane="response" bindscroll="onPaneScroll">
         <view class="pra-pane-content {{currentQuestion.isShortAnswer ? 'pra-textarea-content' : 'pra-options-content'}}" style="{{fixedLayout && !currentQuestion.isShortAnswer ? 'min-height:' + paneHeights.response + 'px;' : ''}}" data-pane="response">
-<include src="practice-response.wxml" />
+<include src="./practice-response.wxml" />
         </view>
       </scroll-view>
       <text wx:if="{{fixedLayout && !editLayout && !currentQuestion.isShortAnswer && paneOverflow.response}}" class="pra-scroll-hint">区域内滑动作答</text>
@@ -39,7 +39,7 @@
   <view wx:if="{{editLayout || fixedLayout || layoutRanks.tools !== 3}}" id="layout-module-tools" class="pra-module module-tools {{editLayout ? 'layout-module' : ''}} {{dragId === 'tools' ? 'layout-dragging' : ''}}" hidden="{{!editLayout && keyboardCompact}}" style="order: {{layoutRanks.tools}};" data-module="tools">
     <view class="layout-insert" wx:if="{{editLayout && dragTarget === 'tools'}}">松手放在这里</view>
     <view class="layout-drag-surface" wx:if="{{editLayout}}" data-module="tools" aria-label="拖动{{moduleLabels.tools}}调整顺序" catchtouchstart="{{layoutDrag.start}}"></view>
-<include src="practice-tools.wxml" />
+<include src="./practice-tools.wxml" />
   </view>
 </view>
 <view class="pra-body-pad"></view>

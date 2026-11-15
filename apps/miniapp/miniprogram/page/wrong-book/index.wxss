@@ -318,8 +318,11 @@
 }
 
 .subject-option {
-  height: 78rpx;
-  padding: 0 30rpx;
+  display: flex;
+  align-items: center;
+  min-height: 78rpx;
+  box-sizing: border-box;
+  padding: 12rpx 30rpx;
   font-size: var(--font-secondary);
   line-height: var(--leading-secondary);
   font-weight: 500;
@@ -573,4 +576,79 @@
   font-weight: 400;
   color: var(--text-sub);
   text-align: center;
+}
+
+/* 白色内容卡以细边界分层，蓝色承载统计和操作状态。 */
+.wrong-book .stat-card,
+.wrong-book .q-card {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.wrong-book .chip {
+  background: var(--page-bg);
+}
+
+.wrong-book .chip.is-active {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.wrong-book .stat-icon.wrong {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.wrong-book .dist-seg.tone-0,
+.wrong-book .dist-seg.tone-1 {
+  background: var(--brand);
+}
+
+.wrong-book .dist-seg.tone-2,
+.wrong-book .dist-seg.tone-3 {
+  background: var(--brand-soft);
+}
+
+.wrong-book .q-accent {
+  background: transparent;
+}
+
+.wrong-book .q-badge.wrong {
+  padding: 0;
+  background: transparent;
+}
+
+.wrong-book .q-title {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.wrong-book .q-card {
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+}
+
+.wrong-book .q-meta {
+  flex-wrap: wrap;
+  margin-top: 20rpx;
+}
+
+.wrong-book .q-date {
+  flex-basis: 100%;
+  margin-top: 12rpx;
+  margin-left: 0;
+}
+
+.q-chapter {
+  display: block;
+  margin-top: 10rpx;
+  font-size: var(--font-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-sub);
+  overflow-wrap: break-word;
+}
+
+.wrong-book .q-stem {
+  margin-top: 16rpx;
+  color: var(--text-main);
 }

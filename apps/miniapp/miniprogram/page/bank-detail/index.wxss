@@ -133,46 +133,9 @@ page { background: var(--card); }
   color: var(--text-sub);
 }
 
-.bk-filter {
-  flex: none;
-  width: 68rpx;
-  height: 68rpx;
-  margin-left: 16rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--page-bg);
-  transition: background-color 120ms ease;
-}
-
-.bk-filter-icon {
-  width: 30rpx;
-  height: 30rpx;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 100% 100%;
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY3MDg1IiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMyA0aDE4bC03IDh2N2wtNCAydi05TDMgNHoiLz48L3N2Zz4=");
-}
-
-.bk-filter.is-on {
-  background: var(--brand);
-}
-
-.bk-filter.is-on .bk-filter-icon {
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMyA0aDE4bC03IDh2N2wtNCAydi05TDMgNHoiLz48L3N2Zz4=");
-}
-
-.bk-filter.is-off {
-  opacity: 0.45;
-}
-
-/* 只有 icon 的圆形按钮：按压只压透明度，避免整块位移 */
 .bk-icon-hover {
   opacity: 0.72;
 }
-
-.bk-filter.is-off.bk-icon-hover { opacity: 0.45; }
 
 /* ---------- 左栏 + 右栏 ---------- */
 .workbench {
@@ -220,8 +183,8 @@ page { background: var(--card); }
 }
 
 .rail-name {
-  font-size: var(--font-secondary);
-  line-height: var(--leading-secondary);
+  font-size: 11px;
+  line-height: 17px;
   color: var(--text-sub);
 }
 
@@ -545,3 +508,37 @@ page { background: var(--card); }
 .config-preset-row { display: flex; align-items: center; flex-wrap: wrap; }
 .config-preset-row .q-button { width: auto; flex: none; }
 .config-actions .config-btn { flex: none; }
+
+.rail-subject-name {
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 10rpx;
+  padding-bottom: 10rpx;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.rail-subject-name .rail-name,
+.rail-item.is-active .rail-subject-name .rail-name {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 17px;
+  text-align: left;
+}
+
+.rail-version {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 17px;
+  color: var(--text-sub);
+}
+
+.rail-item.is-active .rail-version {
+  color: var(--brand);
+}
+
+.rail-subject-name text {
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: break-word;
+}

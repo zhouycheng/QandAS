@@ -36,9 +36,9 @@ const DEFAULT_PREFERENCES = {
 
 /** 设置页的长期答题习惯。 */
 const PREFERENCE_SWITCHES = [
-  { key: 'autoNextWhenCorrect', heading: '即时答题设置', note: '新练习生效', label: '答对后自动下一题', description: '即时反馈答对后等待 0.8 秒切题' },
+  { key: 'autoNextWhenCorrect', heading: '即时答题设置', label: '答对后自动下一题', description: '返回练习后生效，即时反馈答对后等待 0.8 秒切题' },
   { key: 'swipeDraftAction', label: '左滑时先确认答案', description: '即时反馈的多选、填空先确认答案；关闭时保存草稿并切题' },
-  { key: 'swipeEnabled', heading: '通用设置', label: '左右手势切题', description: '新练习生效：左滑下一题，右滑上一题' },
+  { key: 'swipeEnabled', heading: '通用设置', label: '左右手势切题', description: '左滑下一题，右滑上一题' },
   {
     key: 'optionOutline',
     label: '答题卡选项显示外框',
@@ -122,10 +122,11 @@ function normalizePracticeOptions(raw, preferences) {
   const defaults = normalizePreferences(preferences)
   const options = {}
   for (const key of ['autoOpenAnalysis', 'autoNextWhenCorrect', 'swipeEnabled']) {
-    const value = raw && raw[key]
+    // 自动跳题与手势跟随当前设置，继续练习时也应用；仅序列化时保留传入值。
+    const value = key !== 'autoOpenAnalysis' && preferences ? defaults[key] : raw && raw[key]
     options[key] = value === true || value === '1' ? true : value === false || value === '0' ? false : defaults[key]
   }
-  options.swipeDraftAction = raw && ['save', 'confirm'].includes(raw.swipeDraftAction) ? raw.swipeDraftAction : defaults.swipeDraftAction
+  options.swipeDraftAction = !preferences && raw && ['save', 'confirm'].includes(raw.swipeDraftAction) ? raw.swipeDraftAction : defaults.swipeDraftAction
   return options
 }
 

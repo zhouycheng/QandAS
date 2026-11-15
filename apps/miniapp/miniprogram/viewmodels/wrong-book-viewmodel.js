@@ -44,16 +44,13 @@ function createNullStorage() {
         }
     };
 }
-function pad2(value) {
-    return value < 10 ? `0${value}` : `${value}`;
-}
-function formatMonthDay(timestamp) {
+function formatMonthDay(timestamp, label) {
     const value = Number(timestamp) || 0;
     if (!value) {
         return '';
     }
     const date = new Date(value);
-    return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`;
+    return `${label} ${date.getMonth() + 1}月${date.getDate()}日`;
 }
 function getInitialWrongBookViewData() {
     return {
@@ -111,8 +108,7 @@ class WrongBookViewModel {
         const filter = this.state.subjectFilter;
         return { kind: this.state.type === TYPE_FAVORITE ? 'FAVORITE' : 'WRONG', page: this.state.page,
             chip: this.state.activeChip, sort: this.state.sort,
-            subjectId: filter !== 'all' && filter.indexOf('bank:') !== 0 ? filter : undefined,
-            questionBankId: filter.indexOf('bank:') === 0 ? filter.slice(5) : undefined };
+            subjectId: filter !== 'all' ? filter : undefined };
     }
     refreshRemote(options) {
         const scope = this.remoteOptions();
@@ -154,9 +150,6 @@ class WrongBookViewModel {
             seenFilters.add(facet.subjectId);
             if (facets.includes(facet))
                 distribution.set(facet.subjectId, { subjectName: facet.subjectName, count: ((distribution.get(facet.subjectId) || {}).count || 0) + facet.count });
-            if (!seenFilters.has(facet.questionBankId))
-                subjects.push({ id: 'bank:' + facet.questionBankId, name: `${facet.subjectName} · ${facet.questionBankName}` });
-            seenFilters.add(facet.questionBankId);
         });
         const counts = { all: summary.total, subjective: summary.subjectiveCount, repeat: summary.repeatCount, recent: summary.recentCount, practiced: summary.practicedCount, pending: summary.pendingCount };
         const judged = (summary.rightCount || 0) + (summary.wrongCount || 0);
@@ -164,7 +157,7 @@ class WrongBookViewModel {
             subjectName: item.subjectName, bankName: item.questionBankName, title: `${item.subjectName} · ${item.questionBankName}`,
             stem: item.stem, blankInputs: item.type === 'FILL_BLANK' ? [] : null, contentFormat: item.contentFormat || 'PLAIN_TEXT', typeText: ({ SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题', SHORT_ANSWER: '简答题' })[item.type],
             wrongCount: item.wrongCount || 0, rightCount: item.rightCount || 0, practiced: !!item.practiced, available: item.available,
-            updatedAt: Date.parse(item.lastPracticedAt || item.createdAt) || 0, dateText: formatMonthDay(Date.parse(item.lastPracticedAt || item.createdAt) || 0),
+            updatedAt: Date.parse(item.lastPracticedAt || item.createdAt) || 0, dateText: formatMonthDay(Date.parse(item.lastPracticedAt || item.createdAt) || 0, item.lastPracticedAt ? '最近练习' : '收录于'),
             badgeText: subjective ? '主观待复习 · 不计分' : wrong ? `错 ${item.wrongCount} 次` : item.practiced ? '已练习' : '待练习', badgeTone: wrong ? 'wrong' : item.practiced ? 'done' : 'todo' }));
         const pageCount = Math.max(1, Math.ceil(page.total / PAGE_SIZE));
         return Object.assign(getInitialWrongBookViewData(), {

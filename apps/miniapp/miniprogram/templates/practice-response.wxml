@@ -15,4 +15,4 @@
           </view>
         </view>
 
-<include src="practice-inline-analysis.wxml" />
+<include src="./practice-inline-analysis.wxml" />

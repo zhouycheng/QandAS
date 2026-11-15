@@ -273,10 +273,17 @@ for (const dir of PAGE_DIRS) {
   const setDataLog = []
   const inst = Object.assign(Object.create(null), options, {
     data,
-    setData(patch) {
+    setData(patch, callback) {
       setDataLog.push(Object.keys(patch || {}).join(','))
       Object.assign(data, patch || {})
+      if (callback) callback()
     },
+  })
+
+  if (dir === 'subject-list') inst.createSelectorQuery = () => ({
+    select() { return this },
+    boundingClientRect(callback) { this.callback = callback; return this },
+    exec() { this.callback({ left: 18, top: 112, width: 290, height: 42, bottom: 154 }) }
   })
 
   global.getCurrentPages = () => [inst]

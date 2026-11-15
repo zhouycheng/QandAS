@@ -6,6 +6,26 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 class RefactorPostgresTest : PostgresFixture() {
+    @Test fun `subject search matches partial names and preserves visibility and pagination`() {
+        val f=fixture();val hidden=fixture();val needle="subject-${UUID.randomUUID()}"
+        jdbc.update("UPDATE subject SET name=? WHERE id=?","前缀${needle}后缀",f.subject)
+        jdbc.update("UPDATE subject SET name=? WHERE id=?","隐藏${needle}后缀",hidden.subject)
+        jdbc.update("UPDATE question_bank SET publication_status='UNPUBLISHED' WHERE id=?",hidden.bank)
+        for(kind in listOf("", "&kind=SUBJECT", "&kind=SUBJECT,BANK", "&kind=SUBJECT,QUESTION")) {
+            val result=call("GET","/search?keyword=$needle$kind&pageSize=1",token=null)
+            assertEquals(1,result["total"].asInt())
+            assertEquals(f.subject.toString(),result["items"].single()["id"].asText())
+            assertTrue(result["items"].single()["questionBankId"]?.isNull != false)
+            assertEquals("SUBJECT",result["items"].single()["kind"].asText())
+            val next=call("GET","/search?keyword=$needle$kind&pageSize=1&page=2",token=null)
+            assertEquals(1,next["total"].asInt())
+            assertEquals(0,next["items"].size())
+        }
+        assertEquals(0,call("GET","/search?keyword=$needle&kind=BANK",token=null)["total"].asInt())
+        assertEquals(0,call("GET","/search?keyword=$needle&kind=CHAPTER",token=null)["total"].asInt())
+        assertEquals(0,call("GET","/search?keyword=$needle&kind=QUESTION",token=null)["total"].asInt())
+    }
+
     @Test fun `default twenty questions admit the complete first reading group`() {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "完整题组${UUID.randomUUID()}")))
         val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "长题组","description" to "完整阅读题组选题验证")))

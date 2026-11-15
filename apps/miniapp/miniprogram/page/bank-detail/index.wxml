@@ -23,18 +23,6 @@
           hover-stay-time="80"
         >×</view>
       </view>
-      <view
-        class="bk-filter {{filterToggleEnabled ? 'is-on' : 'is-off'}}"
-        bindtap="handleFilterToggle"
-        aria-role="button"
-        aria-disabled="{{!filterToggleEnabled}}"
-        aria-label="{{filterToggleRestore ? '恢复上次筛选' : '重置筛选'}}"
-        hover-class="bk-icon-hover"
-        hover-start-time="0"
-        hover-stay-time="80"
-      >
-        <view class="bk-filter-icon"></view>
-      </view>
     </view>
     <view class="catalog-filters">
       <picker class="catalog-picker" range="{{filterColleges}}" range-key="name" value="{{filterCollegeIndex}}" bindchange="handleCollegeFilter"><view class="filter-select" aria-label="学院筛选">{{filterColleges[filterCollegeIndex].name || '全部学院'}}</view></picker>
@@ -82,8 +70,9 @@
           hover-stay-time="80"
         >
           <view class="rail-bar"></view>
-          <view class="rail-body">
-            <text class="rail-name">{{item.name}}</text>
+          <view class="rail-body rail-subject-name">
+            <text class="rail-name">{{item.displayName.title}}</text>
+            <text class="rail-version" wx:if="{{item.displayName.version}}">{{item.displayName.version}}</text>
           </view>
         </view>
 

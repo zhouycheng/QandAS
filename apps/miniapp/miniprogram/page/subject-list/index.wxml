@@ -8,25 +8,13 @@
     </view>
 
     <view class="hero-search">
-      <view
-        class="search-box"
-        bindtap="handleOpenSearch"
-        hover-class="search-box-hover"
-        hover-start-time="0"
-        hover-stay-time="80"
-      >
-        <input
-          class="search-input"
-          value="{{searchKeyword}}"
-          placeholder="搜索题库、章节、题目"
-          placeholder-class="search-placeholder"
-          confirm-type="search"
-          bindinput="handleSearchInput"
-          bindconfirm="handleSearchConfirm"
-          bindfocus="handleOpenSearch"
-        />
-        <!-- 输入框里的放大镜只做视觉，热区是整条搜索框 -->
-        <view class="search-icon"></view>
+      <view class="search-box">
+        <root-portal enable="{{searchVisible}}">
+          <view class="portal-theme search-box-surface {{searchVisible ? 'search-box-active' : ''}}" style="{{searchVisible ? searchAnchorStyle : ''}}" bindtap="handleOpenSearch" hover-class="search-item-hover">
+            <input class="search-input" value="{{searchInputValue}}" placeholder="搜索科目、题库、章节、题目" placeholder-class="search-placeholder" confirm-type="search" focus="{{searchVisible}}" bindfocus="handleOpenSearch" bindinput="handleSearchInput" bindconfirm="handleSearchConfirm" />
+            <view class="search-icon" aria-hidden="true"></view>
+          </view>
+        </root-portal>
       </view>
 
       <!-- 有可见公告时，喇叭循环轻抬招呼，标签保持固定。 -->
@@ -132,15 +120,16 @@
 
   <!-- 搜索结果按页读取，遮罩覆盖导航栏。 -->
   <root-portal enable="{{true}}">
-  <view class="portal-theme search-panel portal-theme" wx:if="{{searchVisible}}">
+  <view class="portal-theme search-panel" wx:if="{{searchVisible}}">
     <view class="search-mask" catchtouchmove="noop" catchtap="handleSearchClose"></view>
 
-    <view class="search-panel-body">
+    <view class="search-panel-body" style="top: {{searchResultsTop}}px; max-height: calc(100% - {{searchResultsTop + 16}}px);">
       <view class="search-panel-head">
-        <text class="search-panel-title">搜索题库、章节、题目</text>
-        <text class="search-panel-close" bindtap="handleSearchClose">关闭</text>
+        <view class="search-kinds">
+          <view wx:for="{{searchKinds}}" wx:key="value" class="search-kind {{item.selected ? 'search-kind-active' : ''}}" data-kind="{{item.value}}" bindtap="handleSearchKindChange" aria-role="checkbox" aria-label="{{item.label}}" aria-checked="{{item.selected}}" hover-class="search-item-hover">{{item.label}}</view>
+        </view>
+        <view class="search-panel-close" bindtap="handleSearchClose" aria-role="button" aria-label="关闭搜索" hover-class="search-item-hover"><view class="search-close-icon" aria-hidden="true"></view></view>
       </view>
-
       <scroll-view class="search-list" scroll-y enhanced bounces show-scrollbar="{{false}}">
         <view
           wx:for="{{searchResults}}"
@@ -153,20 +142,15 @@
           hover-stay-time="80"
         >
           <text class="search-item-stem">{{item.stem}}</text>
-          <text class="search-item-meta">{{item.typeText}}<text wx:if="{{item.sourceText}}"> · {{item.sourceText}}</text></text>
+          <text class="search-item-meta">{{item.typeText}}<text wx:if="{{item.sourceText && item.sourceText !== item.stem}}"> · {{item.sourceText}}</text></text>
         </view>
 
         <view wx:if="{{searchLoading}}" class="search-empty"><text>正在搜索…</text></view>
         <view wx:if="{{searchHasMore && !searchLoading}}" class="search-item" bindtap="handleSearchMore" hover-class="search-item-hover" hover-start-time="0" hover-stay-time="80"><text>加载更多</text></view>
 
-        <view class="search-empty" wx:if="{{searchSearched && searchResultCount === 0}}">
-          <text class="search-empty-title">没有找到匹配的题目</text>
-          <text class="search-empty-tip">试试更短的关键词，比如题干的头两个字</text>
-        </view>
-
-        <view class="search-empty" wx:if="{{!searchSearched}}">
-          <text class="search-empty-title">输入关键词开始搜索</text>
-          <text class="search-empty-tip">{{searchTotalText}}</text>
+        <view class="search-empty" wx:if="{{searchSearched && searchResultCount === 0 && !searchLoading}}">
+          <text class="search-empty-title">没有找到匹配的内容</text>
+          <text class="search-empty-tip">试试更短的关键词，比如名称或题干中的词语</text>
         </view>
       </scroll-view>
     </view>

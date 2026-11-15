@@ -36,10 +36,16 @@
   align-items: center;
 }
 
-/* 白色搜索条：只有输入区可点，点空白处也算点输入框 */
+/* 搜索展开后，同一个输入框在 portal 中保持首页位置。 */
 .search-box {
   flex: 1;
   min-width: 0;
+  height: 84rpx;
+}
+
+.search-box-surface {
+  box-sizing: border-box;
+  width: 100%;
   height: 84rpx;
   display: flex;
   align-items: center;
@@ -48,8 +54,9 @@
   background: var(--card);
 }
 
-.search-box-hover {
-  opacity: 0.82;
+.search-box-active {
+  position: fixed;
+  z-index: 10001;
 }
 
 .search-input {
@@ -393,12 +400,11 @@
   background: rgba(15, 23, 36, 0.35);
 }
 
-/* 面板从顶部弹出：搜索框在头部，结果贴着它出现比从底部滑上来更自然 */
+/* 结果浮层紧接首页搜索框下方。 */
 .search-panel-body {
   position: absolute;
   left: 24rpx;
   right: 24rpx;
-  top: 300rpx;
   max-height: 62vh;
   display: flex;
   flex-direction: column;
@@ -410,31 +416,76 @@
 
 .search-panel-head {
   flex: none;
-  padding: 26rpx 28rpx 18rpx;
+  padding: 0 12rpx 0 20rpx;
   display: flex;
   align-items: center;
   border-bottom: 1rpx solid var(--line);
 }
 
-.search-panel-title {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-body);
-  font-weight: 600;
-  color: var(--text-main);
-}
-
 .search-panel-close {
   flex: none;
-  padding: 8rpx 4rpx 8rpx 20rpx;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-close-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.search-close-icon::before,
+.search-close-icon::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 0;
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: var(--text-sub);
+  transform: rotate(45deg);
+}
+
+.search-close-icon::after {
+  transform: rotate(-45deg);
+}
+
+.search-kinds {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 8rpx;
+  padding: 12rpx 0;
+}
+
+.search-kind {
+  box-sizing: border-box;
+  min-width: 56px;
+  padding: 12rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
   font-size: var(--font-secondary);
+  color: var(--text-sub);
+  background: var(--page-bg);
+}
+
+.search-kind-active {
   color: var(--brand);
+  background: var(--brand-soft);
+  font-weight: 600;
 }
 
 .search-list {
   flex: 1;
-  min-height: 200rpx;
-  max-height: 52vh;
+  min-height: 120rpx;
+  max-height: 48vh;
 }
 
 .search-item {

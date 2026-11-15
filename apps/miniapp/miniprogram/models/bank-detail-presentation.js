@@ -1,4 +1,8 @@
 const { summarizeBankProgress } = require('../utils/practice-progress.js');
+function splitSubjectName(name) {
+    const match = name.match(/^(.*?)\s*(（[^（）]*）|\([^()]*\))$/);
+    return match && match[1].trim() ? { title: match[1].trim(), version: match[2] } : { title: name, version: '' };
+}
 function chapterMetaText(stats, hasProgress) {
     if (!stats) {
         return '';
@@ -13,6 +17,7 @@ function buildBankView(subjects, detail, { subjectStats, rows, recent, railMode,
         subjects: subjects.map((subject) => ({
             id: subject.id,
             name: subject.name,
+            displayName: splitSubjectName(subject.name),
             theme: subject.theme,
             active: railMode === 'subject' && subject.id === detail.id,
             recentActive: railMode === 'recent'
@@ -67,4 +72,4 @@ function subjectNameOf(subjects, subjectId) {
     const matched = (subjects || []).find((subject) => subject.id === subjectId);
     return matched ? matched.name : '';
 }
-module.exports = { buildBankView, buildChapterRows, groupChapterRows, chapterMetaText };
+module.exports = { splitSubjectName, buildBankView, buildChapterRows, groupChapterRows, chapterMetaText };
