@@ -101,12 +101,17 @@ class OnlinePractice {
   }
   archiveDraft(id) {
     const snapshot = this.get(id), draft = this.queue.get(id)
-    if (draft && !this.queue.isIdle(id)) {
+    const pendingResult = snapshot && snapshot.localResult && !snapshot.cloudConfirmed
+    if (pendingResult || draft && !this.queue.isIdle(id)) {
       const key = `${this.key(id)}:detached`
       this.storage.set(key, { snapshot: vault.strip(snapshot), draft, savedAt: new Date().toISOString() })
     }
     this.queue.detach(id)
-    if (snapshot) { snapshot.released = true; delete snapshot.releaseCommand; this.put(id, snapshot) }
+    if (pendingResult) {
+      this.storage.remove(this.key(id))
+      const key = `qandaPracticeRecords:${this.userId}`, entries = this.storage.get(key) || {}
+      delete entries[id]; this.storage.set(key, entries)
+    } else if (snapshot) { snapshot.released = true; delete snapshot.releaseCommand; this.put(id, snapshot) }
   }
   detachedSnapshot(id) {
     const saved = this.storage.get(`${this.key(id)}:detached`)
@@ -117,8 +122,17 @@ class OnlinePractice {
     const userId = this.identity().userId
     const id = options.sessionId || (options.resume === '1' ? this.storage.get(`qandaOnlineLast:${userId}`) : '')
     if (!id) return this.createPractice(options)
-    const cached = this.get(id)
-    if (cached && cached.localResult && !cached.cloudConfirmed) return cached
+    let cached = this.get(id)
+    if (cached && cached.localResult && !cached.cloudConfirmed) {
+      let ownership
+      try { ownership = await this.writerState(id) }
+      catch (error) {
+        if (this.identity().userId !== userId || error.statusCode && error.statusCode < 500 && ![408, 429].includes(error.statusCode)) throw error
+        return cached
+      }
+      if (cached.writer && ownership.writer.epoch === cached.writer.epoch) return cached
+      this.archiveDraft(id); cached = null
+    }
     if (cached && cached.status === 'SUBMITTED') {
       try {
         const remote = await this.required('GET', `/practice/sessions/${id}`)
@@ -159,8 +173,15 @@ class OnlinePractice {
     const snapshot = await vault.seal(this.storage, complete)
     if (cached && cached.writer && cached.writer.epoch === writer.epoch) snapshot.route = cached.route
     if (this.identity().userId !== owner) throw new Error('账号已切换，请重新打开练习')
-    this.queue.seed(id, writer.acknowledgedSequence)
-    return this.remember(snapshot)
+    const latest = this.get(id)
+    if (latest && latest.writer && (latest.writer.epoch > writer.epoch || latest.writer.epoch === writer.epoch && latest.version > remote.version)) { vault.discard(snapshot, this.storage); return latest }
+    try {
+      this.queue.seed(id, writer.acknowledgedSequence)
+      const saved = this.remember(snapshot), key = `qandaWriterClaim:${owner}:${id}`, intent = this.storage.get(key)
+      if (intent && intent.body && writer.epoch > intent.body.expectedEpoch) this.storage.remove(key)
+      return saved
+    }
+    catch (error) { vault.discard(snapshot, this.storage); throw error }
   }
   async claimWriter(id, state, connect) {
     const userId = this.identity().userId, key = `qandaWriterClaim:${userId}:${id}`
@@ -170,6 +191,7 @@ class OnlinePractice {
       intent = { key: http.uuid(), body: { expectedEpoch: state.writer.epoch, deviceId: this.deviceId() } }
       this.storage.set(key, intent)
     }
+    const clearIntent = () => { const current = this.storage.get(key); if (current && current.key === intent.key) this.storage.remove(key) }
     try {
       if (connect) watcher = this.watchWriter(id, connect, () => { if (wake) wake() }, () => ({}))
       await this.required('POST', `/practice/sessions/${id}/claim-writer`, intent.body, { idempotencyKey: intent.key })
@@ -179,20 +201,20 @@ class OnlinePractice {
         if (state.writer.deviceId === this.deviceId() && state.transfer && state.transfer.requestId === intent.key && state.transfer.state === 'READY') {
           if (!this.queue.isIdle(id)) this.archiveDraft(id)
           const snapshot = await this.fetchWriterSnapshot(id, state.writer)
-          this.storage.remove(key)
+          clearIntent()
           require('./remote-data-repository.js').invalidateLearning()
           return snapshot
         }
         if (state.status !== 'IN_PROGRESS' || !state.transfer || state.transfer.requestId !== intent.key || state.transfer.state !== 'WAITING') {
-          this.storage.remove(key)
+          clearIntent()
           throw new Error(state.status !== 'IN_PROGRESS' ? '练习已结束，请返回记录查看' : '本次接续已结束，请重新打开练习')
         }
         await new Promise(resolve => { const timer = setTimeout(() => { wake = null; resolve() }, 2000); wake = () => { clearTimeout(timer); wake = null; resolve() } })
       }
-      this.storage.remove(key)
+      clearIntent()
       throw new Error('进度仍在保存，请稍后重新继续答题')
     } catch (error) {
-      if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500 && ![408, 429].includes(error.statusCode)) this.storage.remove(key)
+      if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500 && ![408, 429].includes(error.statusCode)) clearIntent()
       throw error
     } finally { if (watcher) watcher.stop() }
   }
@@ -216,6 +238,7 @@ class OnlinePractice {
     const command = snapshot.releaseCommand
     const response = await this.required('POST', `/practice/sessions/${id}/release-writer`, command.body, { idempotencyKey: command.key })
     snapshot = this.get(id)
+    if (!snapshot || !snapshot.writer || snapshot.writer.writerToken !== command.body.writerToken || !snapshot.releaseCommand || snapshot.releaseCommand.key !== command.key) return snapshot
     snapshot.version = response.version; snapshot.released = true; snapshot.writer = { ...snapshot.writer, deviceId: null, writerToken: null, version: response.version }
     delete snapshot.releaseCommand
     this.put(id, snapshot)

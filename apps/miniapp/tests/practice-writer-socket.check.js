@@ -45,6 +45,13 @@ async function main() {
   vm.detachedReview = true
   vm.online.assess = () => { throw new Error('草稿查看不应发送自评') }
   assert.equal(await vm.assessResult('question', 'CORRECT'), null)
+  vm.detachedReview = false; vm.readOnlyReview = false
+  vm.releaseWriter = async () => ({ released: true })
+  vm.online.writerState = async () => ({ writer: { deviceId: null } })
+  vm.checkWriter = async () => ({ data: { editingLocked: true } })
+  const expired = await vm.writerEvent({ type: 'DRAIN_WRITER' })
+  assert.equal(expired.watchWriter, true, '已超时的接续恢复原端授权')
+  assert.equal(expired.command, undefined, '无人接续时不显示已在其他设备继续')
   const values = new Map(), storage = { get: key => values.get(key), set: (key, value) => values.set(key, value), remove: key => values.delete(key), keys: () => [...values.keys()] }
   let respond
   const queue = require('../miniprogram/repositories/practice-sync-queue.js').createSyncQueue({ storage, userId: 'owner', setTimer: () => 1, clearTimer() {}, send: () => new Promise(resolve => { respond = resolve }) })
@@ -54,6 +61,21 @@ async function main() {
   queue.seed('practice', 8); respond({ ok: true }); await late
   assert.equal(queue.get('practice').acknowledgedSequence, 8, '旧代次迟到回执不能改写新同步序号')
   queue.stop()
+  let releaseResponse, current = { status: 'IN_PROGRESS', writer: { writerToken: 'old' }, releaseCommand: { key: 'release', body: { writerToken: 'old' } } }
+  const releasing = require('../miniprogram/repositories/online-practice.js').OnlinePractice.prototype.releaseWriter.call({
+    get: () => current, required: () => new Promise(resolve => { releaseResponse = resolve }), put: () => assert.fail('旧释放响应不能写入新快照')
+  }, null, 'practice')
+  current = { status: 'IN_PROGRESS', version: 9, writer: { writerToken: 'new', epoch: 4 } }
+  releaseResponse({ version: 3 }); await releasing
+  assert.equal(current.writer.writerToken, 'new'); assert.equal(current.version, 9, '迟到的释放响应不撤销重新接续后的授权')
+  const claimValues = new Map([['qandaWriterClaim:owner:practice', { key: 'old-claim', body: { expectedEpoch: 1, deviceId: 'phone' } }]])
+  const claimStorage = { get: key => claimValues.get(key), set: (key, value) => claimValues.set(key, value), remove: key => claimValues.delete(key) }
+  await require('../miniprogram/repositories/online-practice.js').OnlinePractice.prototype.claimWriter.call({
+    identity: () => ({ userId: 'owner' }), deviceId: () => 'phone', storage: claimStorage, required: async () => ({}), queue: { isIdle: () => true },
+    writerState: async () => ({ status: 'IN_PROGRESS', writer: { deviceId: 'phone' }, transfer: { requestId: 'old-claim', state: 'READY' } }),
+    fetchWriterSnapshot: async () => { claimStorage.set('qandaWriterClaim:owner:practice', { key: 'new-claim', body: { expectedEpoch: 3 } }); return {} }
+  }, 'practice')
+  assert.equal(claimStorage.get('qandaWriterClaim:owner:practice').key, 'new-claim', '旧申请的迟到结束不能清除下一次接续意图')
   console.log('答题连接超时、旧回调隔离、暂停计时与接管退出检查通过')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

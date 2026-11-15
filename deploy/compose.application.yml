@@ -28,6 +28,7 @@ x-backend: &backend
 services:
   api:
     <<: *backend
+    mem_limit: 576m
     networks:
       data:
         aliases: [qanda-api]

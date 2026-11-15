@@ -25,6 +25,10 @@ location = /api/v1/practice/writer-socket {
     proxy_pass $api$request_uri;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $qanda_client_address;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Qanda-Gateway-Key '';
     proxy_buffering off;
     proxy_read_timeout 75s;
     proxy_send_timeout 10s;

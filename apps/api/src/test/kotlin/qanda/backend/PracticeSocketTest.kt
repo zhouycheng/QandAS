@@ -17,7 +17,9 @@ class PracticeSocketTest {
     @Test fun `bind response precedes concurrent drain notification and binding is not repeated`() {
         val practice=mock(PracticeService::class.java);val presence=mock(WriterPresence::class.java)
         val json=jacksonObjectMapper();val socket=PracticeSocket(practice,presence,mock(Sessions::class.java),json,Clock.systemUTC(),io.micrometer.core.instrument.simple.SimpleMeterRegistry())
-        val session=mock(WebSocketSession::class.java);val id=UUID.randomUUID();val device=UUID.randomUUID();val token=UUID.randomUUID()
+        val session=mock(org.springframework.web.socket.adapter.standard.StandardWebSocketSession::class.java);val native=mock(jakarta.websocket.Session::class.java)
+        val properties=mutableMapOf<String,Any>();`when`(session.getNativeSession(jakarta.websocket.Session::class.java)).thenReturn(native);`when`(native.userProperties).thenReturn(properties)
+        val id=UUID.randomUUID();val device=UUID.randomUUID();val token=UUID.randomUUID()
         val actor=Actor(UUID.randomUUID(),UUID.randomUUID(),"USER","MINI_PROGRAM")
         `when`(session.id).thenReturn("connection");`when`(session.isOpen).thenReturn(true)
         `when`(session.attributes).thenReturn(mutableMapOf("actor" to actor,"practice" to id,"device" to device))
@@ -25,6 +27,7 @@ class PracticeSocketTest {
         `when`(practice.connectWriter(actor,id,device,token,1)).thenAnswer { entered.countDown();check(finish.await(5,TimeUnit.SECONDS));WriterStatusView("IN_PROGRESS",WriterView(device,token,1,0,1),null) }
         doAnswer { call -> messages.add(json.readTree((call.arguments[0] as TextMessage).payload)["type"].asText());null }.`when`(session).sendMessage(any(WebSocketMessage::class.java))
         socket.afterConnectionEstablished(session)
+        assertEquals(2000L,properties["org.apache.tomcat.websocket.BLOCKING_SEND_TIMEOUT"],"阻塞写入也遵守发送时限")
         val pool=Executors.newFixedThreadPool(2)
         try {
             val bind=TextMessage("""{"type":"BIND","epoch":1,"writerToken":"$token"}""")

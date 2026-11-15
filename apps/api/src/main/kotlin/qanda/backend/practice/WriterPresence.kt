@@ -36,7 +36,7 @@ class WriterPresence(private val clock: Clock,private val events: ApplicationEve
         return if(lease==null) clock.instant().isBefore(restartUntil) else lease.token==token && clock.instant().isBefore(lease.until)
     }
     fun signal(id: UUID,type: String,epoch: Long) {
-        val publish={ if(type=="WRITER_CHANGED") leases.computeIfPresent(id) { _,lease -> lease.takeIf { it.epoch>=epoch } };meters.counter("qanda.practice.writer.signals","type",type).increment();events.publishEvent(WriterSignal(id,type,epoch)) }
+        val publish={ if(type in setOf("WRITER_CHANGED","WRITER_RELEASED")) leases.computeIfPresent(id) { _,lease -> lease.takeIf { it.epoch>=epoch } };meters.counter("qanda.practice.writer.signals","type",type).increment();events.publishEvent(WriterSignal(id,type,epoch)) }
         if(TransactionSynchronizationManager.isSynchronizationActive()) TransactionSynchronizationManager.registerSynchronization(object: TransactionSynchronization {
             override fun afterCommit() { publish() }
         }) else publish()

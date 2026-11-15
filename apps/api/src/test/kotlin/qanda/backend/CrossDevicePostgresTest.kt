@@ -41,6 +41,8 @@ class CrossDevicePostgresTest : PostgresFixture() {
 
     private class SocketMessages: java.net.http.WebSocket.Listener {
         val received=java.util.concurrent.LinkedBlockingQueue<String>()
+        val closed=java.util.concurrent.LinkedBlockingQueue<Int>()
+        override fun onClose(socket: java.net.http.WebSocket,statusCode: Int,reason: String): java.util.concurrent.CompletionStage<*>? { closed.add(statusCode);return null }
         private val partial=StringBuilder()
         override fun onOpen(socket: java.net.http.WebSocket) { socket.request(1) }
         override fun onText(socket: java.net.http.WebSocket,data: CharSequence,last: Boolean): java.util.concurrent.CompletionStage<*>? {
@@ -86,6 +88,17 @@ class CrossDevicePostgresTest : PostgresFixture() {
             val finish=progress("$root/sync-commands",progressBody(claimed)+mapOf("clientSequence" to 2,"kind" to "FINISH","durationSeconds" to 4),otherToken)
             assertEquals(2,finish["acknowledgedSequence"].asInt())
             assertEquals(4,call("GET","$root/result",token=owner.token)["durationSeconds"].asInt())
+        } finally { socket.abort() }
+    }
+
+    @Test fun `socket container bounds incoming messages before buffering`() {
+        val owner=student();val session=createPractice(owner,fixture());val sid=id(session)
+        val device=session["writer"]["deviceId"].asText();val listener=SocketMessages()
+        val socket=http.newWebSocketBuilder().header("Authorization","Bearer ${owner.token}")
+            .buildAsync(java.net.URI("ws://127.0.0.1:$port/api/v1/practice/writer-socket?sessionId=$sid&deviceId=$device"),listener).join()
+        try {
+            socket.sendText("x".repeat(3000),true).join()
+            assertEquals(1009,listener.closed.poll(5,java.util.concurrent.TimeUnit.SECONDS))
         } finally { socket.abort() }
     }
 

@@ -108,6 +108,7 @@ if test "$qanda_node_role" = backend; then
   install -d -o root -g root -m 0700 /srv/qanda/private
   install -d -o root -g root -m 0755 /srv/qanda/private/public-tls
   install -m 0644 "$qanda_source_dir/public-gateway.conf" /srv/qanda/public-gateway/default.conf.template
+  install -m 0644 "$qanda_source_dir/public-gateway-nginx.conf" /srv/qanda/public-gateway/nginx.conf
   install -m 0644 "$qanda_source_dir/public-gateway-routes.inc" /srv/qanda/public-gateway/gateway-routes.inc.template
   install -m 0644 "$qanda_source_dir/public-gateway-https.conf" /srv/qanda/public-gateway/https.conf.disabled
   python3 - <<'PY'

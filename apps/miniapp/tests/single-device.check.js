@@ -12,8 +12,8 @@ async function main() {
   const runtime = new OnlinePractice(storage)
   runtime.identity()
   const snapshot = { id: 's1', questionBankId: 'b1', status: 'IN_PROGRESS', version: 1, currentIndex: 0, durationSeconds: 0,
-    route: { bankId: 'b1', mode: 'practice' }, writer: { deviceId: 'device1', writerToken: 'fixed-token', epoch: 1, acknowledgedSequence: 0 },
-    items: [{ itemId: 'i1', position: 0, question: { id: 'q1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '甲' }, { key: 'B', content: '乙' }] } }],
+    route: { bankId: 'b1', mode: 'practice' }, writer: { deviceId: 'device1', writerToken: 'fixed-token', epoch: 2, acknowledgedSequence: 0 },
+    items: [{ itemId: 'i1', position: 0, question: { id: 'q1', revisionId: 'q1-r1', type: 'SINGLE_CHOICE', stem: '题目', options: [{ key: 'A', content: '甲' }, { key: 'B', content: '乙' }] } }],
     offlineGrading: [{ itemId: 'i1', correctAnswer: ['A'], explanation: '解析' }] }
   runtime.put('s1', snapshot)
   const session = new PracticeSession({ quiz: runtime.quiz(snapshot), restored: runtime.restored(snapshot), mode: 'practice' })
@@ -49,6 +49,21 @@ async function main() {
   let complete
   assets.completeSnapshot = () => new Promise(resolve => { complete = resolve })
   restarted.queue.detach('s1')
+  storage.set('qandaWriterClaim:u1:s1', { key: '00000000-0000-4000-8000-000000000009', body: { expectedEpoch: 1, deviceId: 'device1' } })
+  const recoveredClaim = restarted.fetchWriterSnapshot('s1', snapshot.writer)
+  while (!complete) await new Promise(resolve => setImmediate(resolve))
+  complete(copy(snapshot)); await recoveredClaim
+  assert.equal(storage.get('qandaWriterClaim:u1:s1'), undefined, '响应丢失后直接恢复成功也清除已完成的接续意图')
+  complete = null
+  const lateSnapshot = restarted.fetchWriterSnapshot('s1', snapshot.writer)
+  while (!complete) await new Promise(resolve => setImmediate(resolve))
+  restarted.put('s1', { ...copy(snapshot), version: 8, writer: { ...snapshot.writer, writerToken: 'new-writer', epoch: 4, acknowledgedSequence: 6 } })
+  restarted.queue.seed('s1', 6)
+  complete(copy(snapshot))
+  assert.equal((await lateSnapshot).version, 8, '迟到的快照不回写更新的答题代次')
+  assert.equal(restarted.get('s1').writer.writerToken, 'new-writer')
+  assert.equal(restarted.queue.get('s1').acknowledgedSequence, 6, '迟到快照不重置新代次的确认序号')
+  restarted.put('s1', copy(snapshot)); restarted.queue.detach('s1'); complete = null
   const restoring = restarted.prepare({ sessionId: 's1' })
   while (!complete) await new Promise(resolve => setImmediate(resolve))
   storage.set('qandaAuth', { provider: 'email', userId: 'u2', token: 'token2' })

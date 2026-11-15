@@ -25,6 +25,10 @@ async function main() {
   const unsent = records([], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false, canRetrySync: true, syncError: '网络暂不可用' }])[0]
   assert.equal(unsent.statusText, '已完成 · 待同步'); assert.equal(unsent.canRetrySync, true)
   assert.equal(records([{ id: 'unsent', status: 'SUBMITTED' }], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false }])[0].statusText, '已完成')
+  const continued = records([{ id: 'unsent', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'unsent', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: false, syncError: '授权已失效', canRetrySync: true }])[0]
+  assert.equal(continued.status, 'IN_PROGRESS', '另一端已接续时，本机未上传的交卷不能遮住最新记录')
+  assert.equal(continued.syncError, ''); assert.equal(continued.canRetrySync, false)
+  assert.equal(records([{ id: 'done', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'done', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: true }])[0].status, 'SUBMITTED')
   const foreign = records([{ id: 'foreign', status: 'IN_PROGRESS', deviceId: 'phone' }], [], 'computer')[0]
   assert.equal(foreign.statusText, '进行中'); assert.equal(openRecord(foreign).type, 'navigate')
   assert.equal(records([{ id: 'released', status: 'IN_PROGRESS', deviceId: null }], [], 'computer')[0].actionText, '继续答题')

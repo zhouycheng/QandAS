@@ -162,7 +162,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         if(claimed) ownership.transfer(id).expiresAt?.let { presence.completed(it) }
         row.writerDeviceId=deviceId;row.writerToken=deviceId?.let { UUID.randomUUID() };row.version++;row.updatedAt=clock.instant()
         ownership.save(id,writeState(row));ownership.rotate(id,claimed);rows.updateById(row)
-        presence.signal(id,"WRITER_CHANGED",ownership.transfer(id).epoch)
+        presence.signal(id,if(deviceId==null) "WRITER_RELEASED" else "WRITER_CHANGED",ownership.transfer(id).epoch)
     }
     fun claimWriter(actor: Actor,id: UUID,input: ClaimWriterInput,key: UUID): WriterClaimView {
         val row=owned(actor.id,id,true)
@@ -197,7 +197,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         return WriterStatusView(row.status,writerView(row,deviceId),if(transfer.requestId!=null && transfer.deviceId==deviceId && transfer.state!=null) claimView(row,deviceId) else null,transfer.state=="WAITING")
     }
     fun connectWriter(actor: Actor,id: UUID,deviceId: UUID,token: UUID?,epoch: Long): WriterStatusView {
-        val row=owned(actor.id,id,true);val transfer=ownership.transfer(id)
+        val row=owned(actor.id,id,true)
+        if(ownership.transfer(id).let { it.state=="WAITING" && !it.expiresAt!!.isAfter(clock.instant()) }) ownership.expire(id)
+        val transfer=ownership.transfer(id)
         if(token!=null) {
             writer(row,token)
             if(row.writerDeviceId!=deviceId || transfer.epoch!=epoch || transfer.sealed || row.status!="IN_PROGRESS") conflict("WRITER_REVOKED","本次练习已在其他设备继续")

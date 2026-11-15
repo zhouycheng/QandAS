@@ -15,7 +15,10 @@ function merge(remoteItems, localItems) {
   localItems.forEach(item => {
     const local = summarize(item), server = byId.get(local.id)
     const merged = Object.assign({}, server, local)
-    if (server && server.status === 'CANCELLED') merged.status = 'CANCELLED'
+    if (server && server.status === 'IN_PROGRESS' && server.version > local.version && server.deviceId !== local.deviceId && local.status === 'SUBMITTED' && !local.cloudConfirmed) {
+      merged.status = 'IN_PROGRESS'; merged.syncError = ''; merged.canRetrySync = false
+    }
+    else if (server && server.status === 'CANCELLED') merged.status = 'CANCELLED'
     else if ((server && server.status === 'SUBMITTED') || local.status === 'SUBMITTED') merged.status = 'SUBMITTED'
     else if ((server && server.status === 'WAITING') || local.status === 'WAITING') merged.status = 'WAITING'
     if (!merged.title && server) merged.title = server.title

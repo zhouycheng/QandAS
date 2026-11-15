@@ -14,6 +14,29 @@ import qanda.backend.platform.http.*
 import qanda.backend.platform.security.AuditFailures
 
 class SyncAdmissionTest {
+    @Test fun `short sync bursts wait in bounded slots without increasing active database work`() {
+        val meters=SimpleMeterRegistry();val audit=mock(AuditFailures::class.java)
+        val filter=SyncAdmission(ErrorWriter(jacksonObjectMapper(),StaticListableBeanFactory(mapOf("audit" to audit)).getBeanProvider(AuditFailures::class.java)),
+            MockEnvironment().withProperty("spring.datasource.hikari.maximum-pool-size","2").withProperty("qanda.backend.request-queue-wait-ms","1000"),meters)
+        fun request()=MockHttpServletRequest("GET","/api/v1/practice/sessions/session/sync-commands/command")
+        val pool=java.util.concurrent.Executors.newFixedThreadPool(3);val entered=java.util.concurrent.CountDownLatch(1);val release=java.util.concurrent.CountDownLatch(1)
+        val first=pool.submit { filter.doFilter(request(),MockHttpServletResponse(),FilterChain { _,_ -> entered.countDown();check(release.await(5,java.util.concurrent.TimeUnit.SECONDS)) }) }
+        try {
+            assertTrue(entered.await(5,java.util.concurrent.TimeUnit.SECONDS))
+            val responses=List(2) { MockHttpServletResponse() }
+            val queued=responses.map { response -> pool.submit { filter.doFilter(request(),response,FilterChain { _,_ -> }) } }
+            val end=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2)
+            while(meters.get("qanda.sync.http.queued").tag("operation","query").gauge().value()<2.0 && System.nanoTime()<end) Thread.yield()
+            assertEquals(2.0,meters.get("qanda.sync.http.queued").tag("operation","query").gauge().value())
+            assertEquals(1.0,meters.get("qanda.sync.http.inflight").tag("operation","query").gauge().value())
+            val excess=MockHttpServletResponse();filter.doFilter(request(),excess,FilterChain { _,_ -> fail<Unit>("Queue exceeded") });assertEquals(503,excess.status)
+            release.countDown();first.get(5,java.util.concurrent.TimeUnit.SECONDS);queued.forEach { it.get(5,java.util.concurrent.TimeUnit.SECONDS) }
+            assertTrue(responses.all { it.status==200 })
+            assertEquals(0.0,meters.get("qanda.sync.http.queued").tag("operation","query").gauge().value())
+            assertEquals(0.0,meters.get("qanda.sync.http.inflight").tag("operation","query").gauge().value());verifyNoInteractions(audit)
+        } finally { release.countDown();pool.shutdownNow() }
+    }
+
     @Test fun `submit and both recovery queries have independent reusable budgets`() {
         val audit=mock(AuditFailures::class.java);val meters=SimpleMeterRegistry()
         val filter=SyncAdmission(ErrorWriter(jacksonObjectMapper(),StaticListableBeanFactory(mapOf("audit" to audit)).getBeanProvider(AuditFailures::class.java)),

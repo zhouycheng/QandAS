@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE+3)
@@ -19,10 +20,13 @@ import java.util.concurrent.Semaphore
 class SyncAdmission(private val errors: ErrorWriter,environment: Environment,registry: MeterRegistry): OncePerRequestFilter() {
     private val pool=environment.getProperty("spring.datasource.hikari.maximum-pool-size",Int::class.java,8)
     private val budgets=mapOf("submit" to (pool/2).coerceAtLeast(1),"query" to (pool/4).coerceAtLeast(1))
-    private val permits=budgets.mapValues { Semaphore(it.value) }
+    private val permits=budgets.mapValues { Semaphore(it.value,true) }
+    private val waiting=budgets.mapValues { Semaphore(pool.coerceAtLeast(1)) }
+    private val waitMillis=environment.getProperty("qanda.backend.request-queue-wait-ms",Long::class.java,100L).also { require(it in 0..1000) }
     private val rejected=budgets.mapValues { registry.counter("qanda.sync.concurrent.rejections","operation",it.key) }
     init {
         permits.forEach { (operation,semaphore) ->
+            registry.gauge("qanda.sync.http.queued",listOf(io.micrometer.core.instrument.Tag.of("operation",operation)),waiting.getValue(operation)) { (pool-it.availablePermits()).toDouble() }
             registry.gauge("qanda.sync.http.inflight",listOf(io.micrometer.core.instrument.Tag.of("operation",operation)),semaphore) {
                 (budgets.getValue(operation)-it.availablePermits()).toDouble()
             }
@@ -33,7 +37,12 @@ class SyncAdmission(private val errors: ErrorWriter,environment: Environment,reg
     override fun doFilterInternal(request: HttpServletRequest,response: HttpServletResponse,chain: FilterChain) {
         val operation=if(request.method=="POST") "submit" else "query"
         val semaphore=permits.getValue(operation)
-        if(!semaphore.tryAcquire()) {
+        val admitted=try {
+            if(semaphore.tryAcquire(0,TimeUnit.MILLISECONDS)) true
+            else if(waitMillis==0L || !waiting.getValue(operation).tryAcquire()) false
+            else try { semaphore.tryAcquire(waitMillis,TimeUnit.MILLISECONDS) } finally { waiting.getValue(operation).release() }
+        } catch(_: InterruptedException) { Thread.currentThread().interrupt();false }
+        if(!admitted) {
             rejected.getValue(operation).increment()
             errors.write(request,response,ApiException(HttpStatus.SERVICE_UNAVAILABLE,"SYNC_BUSY","已保存在本机，可继续练习",details=ErrorDetails(retryAfterSeconds=10)),recordFailure=false)
             return

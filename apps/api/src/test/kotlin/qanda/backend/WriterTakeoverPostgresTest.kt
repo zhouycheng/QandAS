@@ -22,6 +22,7 @@ class WriterTakeoverPostgresTest: PostgresFixture() {
     }
     @TestConfiguration class TimeConfiguration { @Bean @Primary fun writerTime()=Time() }
     @Autowired lateinit var time: Time
+    @Autowired lateinit var practice: qanda.backend.practice.PracticeService
     @Autowired lateinit var presence: WriterPresence
     @Autowired lateinit var capacity: qanda.backend.sync.api.SyncCapacity
     @org.junit.jupiter.api.BeforeEach fun refreshBudget() { capacity.refresh() }
@@ -60,6 +61,9 @@ class WriterTakeoverPostgresTest: PostgresFixture() {
         call("POST","$root/claim-writer",mapOf("expectedEpoch" to 1,"deviceId" to device),nextToken)
         time.now=time.now.plusSeconds(61)
         capacity.refresh()
+        val ownerDevice=UUID.fromString(session["writer"]["deviceId"].asText())
+        val resumed=practice.connectWriter(sessionService.authenticate(owner.token),sid,ownerDevice,writer,1)
+        assertFalse(resumed.draining,"原端重连时先处理已超时的接续申请")
         val expired=call("GET","$root/writer-state?deviceId=$device",token=nextToken)
         assertEquals("EXPIRED",expired["transfer"]["state"].asText());assertEquals(1,expired["writer"]["epoch"].asInt())
         assertFalse(jdbc.queryForObject("SELECT writer_sealed FROM practice_sync_state WHERE session_id=?",Boolean::class.java,sid)!!)

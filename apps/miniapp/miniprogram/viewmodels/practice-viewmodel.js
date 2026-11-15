@@ -109,7 +109,11 @@ class PracticeViewModel {
             this.pauseWriter();
             const result = await this.releaseWriter();
             if (result && !result.released && this.writerSocket) this.writerSocket.reconnect();
-            return result && result.released ? this.lostWriter() : result;
+            if (!result || !result.released) return result;
+            this.stopWriter();
+            const state = await this.online.writerState(this.session.meta.sessionId);
+            if (state.writer.deviceId && state.writer.deviceId !== this.online.deviceId()) return this.lostWriter();
+            return { ...await this.checkWriter(), watchWriter: true };
         }
         if (event.type === 'BOUND') {
             if (event.state.status !== 'IN_PROGRESS' || event.state.writer.deviceId !== this.online.deviceId()) return this.lostWriter();
@@ -124,11 +128,14 @@ class PracticeViewModel {
             this.stopWriter(); this.editingLocked = true; this.session = null;
             return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
         }
-        if (!this.session || this.session.state.isCompleted || this.readOnlyReview) return null;
+        if (!this.session || this.readOnlyReview) return null;
+        const pendingResult = this.session.state.isCompleted && this.answerSnapshot && this.answerSnapshot.localResult && !this.answerSnapshot.cloudConfirmed;
+        if (this.session.state.isCompleted && !pendingResult) return null;
         const locked = this.pauseWriter();
         try {
             if (this.suspending) await this.suspending;
             const id = this.session.meta.sessionId;
+            if (pendingResult) return await this.loadOnline(Object.assign({}, this.routeOptions, { sessionId: id, passive: '1' }));
             const state = await this.online.writerState(id);
             if (state.status !== 'IN_PROGRESS' || state.writer.deviceId && state.writer.deviceId !== this.online.deviceId()) return this.lostWriter();
             const result = await this.loadOnline(Object.assign({}, this.routeOptions, { sessionId: id, passive: '1' }));
@@ -152,7 +159,6 @@ class PracticeViewModel {
             await this.online.releaseWriter(this.session);
             return { released: true, data: { editingLocked: true, writerMessage: '' }, stopTimer: true };
         } catch (error) {
-            const snapshot = this.online.get(this.session.meta.sessionId);
             this.editingLocked = true;
             return { data: { editingLocked: this.editingLocked, writerMessage: '进度已保存在本机，等待恢复连接' }, startTimer: !this.editingLocked && this.session.state.isTimed, command: { type: 'toast', title: error.message } };
         } finally { this.releasingWriter = false; }

@@ -16,7 +16,6 @@ function records(remoteItems, localItems, deviceId) {
     const bank = remote.getBankMeta(item.questionBankId)
     const state = item.status === 'SUBMITTED' ? 'ended' : item.status === 'WAITING' ? 'waiting' : 'active'
     const otherDevice = state === 'active' && !!item.deviceId && !!deviceId && item.deviceId !== deviceId
-    const released = state === 'active' && item.deviceId === null
     return { id: item.id, status: item.status, feedback: item.feedback, title: item.title || bank && bank.name || '题库练习', state,
       otherDevice, syncError: item.syncError, canRetrySync: item.canRetrySync,
       statusText: state === 'ended' && !item.cloudConfirmed ? '已完成 · 待同步' : { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',

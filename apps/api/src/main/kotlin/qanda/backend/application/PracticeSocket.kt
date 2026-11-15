@@ -3,6 +3,7 @@ package qanda.backend.application
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Bean
 import org.springframework.context.event.EventListener
 import org.springframework.http.server.ServerHttpRequest
 import org.springframework.http.server.ServerHttpResponse
@@ -13,6 +14,7 @@ import org.springframework.web.socket.config.annotation.*
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator
 import org.springframework.web.socket.handler.TextWebSocketHandler
 import org.springframework.web.socket.server.HandshakeInterceptor
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean
 import org.springframework.web.util.UriComponentsBuilder
 import io.micrometer.core.instrument.MeterRegistry
 import qanda.backend.identity.Sessions
@@ -28,6 +30,9 @@ import java.util.concurrent.ConcurrentHashMap
 @EnableWebSocket
 @ConditionalOnWebApplication(type=ConditionalOnWebApplication.Type.SERVLET)
 class PracticeSocketConfiguration(private val socket: PracticeSocket,private val sessions: Sessions): WebSocketConfigurer {
+    @Bean fun writerSocketContainer()=ServletServerContainerFactoryBean().apply {
+        setMaxTextMessageBufferSize(2048);setMaxBinaryMessageBufferSize(1024);setAsyncSendTimeout(2000);setMaxSessionIdleTimeout(45000)
+    }
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
         registry.addHandler(socket,"/api/v1/practice/writer-socket").setAllowedOriginPatterns("https://servicewechat.com","https://*.servicewechat.com","https://developers.weixin.qq.com")
             .addInterceptors(object: HandshakeInterceptor {
@@ -56,6 +61,8 @@ class PracticeSocket(private val practice: PracticeService,private val presence:
     fun hasRoom(actor: Actor)=clients.size<2400 && clients.values.count { it.actor.sessionId==actor.sessionId }<2
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val actor=session.attributes["actor"] as Actor
+        (session as? org.springframework.web.socket.adapter.NativeWebSocketSession)?.getNativeSession(jakarta.websocket.Session::class.java)
+            ?.userProperties?.set("org.apache.tomcat.websocket.BLOCKING_SEND_TIMEOUT",2000L)
         if(!hasRoom(actor)) { session.close(CloseStatus(1013,"Connection capacity reached"));return }
         val client=Client(ConcurrentWebSocketSessionDecorator(session,2000,16384),actor,session.attributes["practice"] as UUID,session.attributes["device"] as UUID,lastSeen=clock.millis())
         clients[session.id]=client

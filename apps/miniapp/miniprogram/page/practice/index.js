@@ -774,6 +774,7 @@ Page(withPageLifecycle({
 
   applyViewModelEffects(result) {
     if (this.data.isCompleted && this.viewModel) this.viewModel.stopWriter()
+    if (result.watchWriter) this.watchWriter()
     if (this.data.isCompleted || this.data.editingLocked || this.data.isTimed) this.stopElapsedTimer()
     else this.startElapsedTimer()
     if (result.autoAdvance) this.scheduleAutoAdvance()
