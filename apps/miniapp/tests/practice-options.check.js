@@ -124,9 +124,12 @@ async function main() {
   let id = 0
   http.request = async (method, path, body) => {
     if (path === '/question-banks/bank') return { ok: true, data: { id: 'bank', name: '题库', contentVersion: 1, questionCount: 2 } }
+    const cachedId = path.split('/')[3]
+    if (path.includes('/writer-state?')) { const snapshot = runtime.get(cachedId); return { ok: true, data: { status: 'IN_PROGRESS', writer: snapshot.writer } } }
+    if (path.includes('/snapshot?')) return { ok: true, data: runtime.get(cachedId) }
     assert(['/practice/sessions', '/practice/trial-snapshots'].includes(path), path)
     assert.equal(body.timeLimitSeconds, null, '模拟考不限时不能回落为十分钟')
-    return { ok: true, data: { id: 's' + ++id, questionBankId: 'bank', version: 1, status: 'IN_PROGRESS', feedback: body.feedback, configuration: { mode: body.mode, timeLimitSeconds: body.timeLimitSeconds }, writer: { deviceId: body.deviceId, writerToken: 'test' }, currentIndex: 0, durationSeconds: 0,
+    return { ok: true, data: { id: 's' + ++id, questionBankId: 'bank', version: 1, status: 'IN_PROGRESS', feedback: body.feedback, configuration: { mode: body.mode, timeLimitSeconds: body.timeLimitSeconds }, writer: { deviceId: body.deviceId, writerToken: 'test', epoch: 1, acknowledgedSequence: 0 }, currentIndex: 0, durationSeconds: 0,
       items: [0, 1].map(i => ({ itemId: 'i' + i, question: { id: 'q' + i, revisionId: 'r' + i, type: 'SINGLE_CHOICE', stem: '题干', options: [{ key: 'A', content: '甲' }], assetIds: [] } })), offlineGrading: [0, 1].map(i => ({ itemId: 'i' + i, correctAnswer: ['A'], explanation: '解析' })) } }
   }
   auth.saveAuth(store, { userId: 'student', provider: 'email', token: 'example' })

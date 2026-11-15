@@ -132,6 +132,12 @@ function createSyncQueue(options) {
     cancel(id)
     persist(id, { userId, sessionId: id, revision: 0, acknowledgedRevision: 0, sequence, acknowledgedSequence: sequence, acceptedSequence: sequence, pending: null, payload: {}, failures: 0 })
   }
-  return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, seed, isIdle: id => idle(get(id)), resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
+  function detach(id) {
+    cancel(id)
+    const draft = get(id)
+    storage.remove(key(id)); storage.set(indexKey, ids().filter(value => value !== id))
+    return draft
+  }
+  return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, seed, detach, isIdle: id => idle(get(id)), resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
 }
 module.exports = { createSyncQueue }

@@ -55,7 +55,7 @@ module.exports.getResumableSession = function (storage) {
     : remoteData.getRecent(storage)
   const recent = recentItems.find(item => {
     const local = storage.get(`qandaOnline:${auth.userId}:${item.id}`)
-    return (item.deviceId === storage.get('qandaDeviceId') || item.deviceId === null) && item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
+    return item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
   })
   return recent ? { sessionId: recent.id, config: { bankId: recent.questionBankId, title: recent.title } } : null
 }

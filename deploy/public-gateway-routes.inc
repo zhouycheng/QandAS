@@ -20,6 +20,15 @@ location = /api/v1/health {
     proxy_set_header X-Forwarded-Proto https;
     proxy_read_timeout 15s;
 }
+location = /api/v1/practice/writer-socket {
+    if ($scheme = http) { return 503; }
+    proxy_pass $api$request_uri;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_buffering off;
+    proxy_read_timeout 75s;
+    proxy_send_timeout 10s;
+}
 location ~ ^/api/v1/admin/(monitoring/|statistics/(activity|rankings|online-users)$) {
     allow ${QANDA_GATEWAY_ALLOWED_CLIENT};
     deny all;

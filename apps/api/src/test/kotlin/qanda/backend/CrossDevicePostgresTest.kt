@@ -39,34 +39,54 @@ class CrossDevicePostgresTest : PostgresFixture() {
         for(table in listOf("user_settings","user_exam_countdown","user_practice_preset")) assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM $table WHERE user_id=?",Int::class.java,owner.id))
     }
 
-    @Test fun `online release and exclusive claim retain revisions answers timing and sequence through finish`() {
-        val owner=student();val session=createPractice(owner,fixture());val sid=id(session)
-        val otherDevice=UUID.randomUUID();val root="/practice/sessions/$sid"
-        val recent=call("GET","/me/recent-learning?deviceId=$otherDevice",token=owner.token)
-        assertTrue(recent["items"].any { it["id"].asText()==sid.toString() })
-        call("POST","$root/claim-writer",mapOf("expectedVersion" to 1,"deviceId" to otherDevice),owner.token,409)
-        val saved=progress("$root/sync-commands",progressBody(session)+mapOf("durationSeconds" to 3,"currentIndex" to 2),owner.token)
-        val release=mapOf("expectedVersion" to saved["version"].asLong(),"writerToken" to saved["writer"]["writerToken"].asText())
-        val releaseKey=UUID.randomUUID();val released=call("POST","$root/release-writer",release,owner.token,key=releaseKey)
-        assertEquals(released,call("POST","$root/release-writer",release,owner.token,key=releaseKey))
-        assertTrue(call("GET",root,token=owner.token)["writer"]["deviceId"].isNull)
-        call("POST","$root/claim-writer",mapOf("expectedVersion" to released["version"].asLong(),"deviceId" to otherDevice),student().token,404)
-        val pool=Executors.newFixedThreadPool(2)
-        val attempts=listOf(UUID.randomUUID(),UUID.randomUUID()).map { device -> Triple(device,UUID.randomUUID(),mapOf("expectedVersion" to released["version"].asLong(),"deviceId" to device)) }
-        val responses=try { attempts.map { (_,key,body) -> pool.submit<java.net.http.HttpResponse<String>> { raw("POST","$root/claim-writer",body,owner.token,key) } }.map { it.get() } } finally { pool.shutdownNow() }
-        assertEquals(1,responses.count { it.statusCode()==200 });assertEquals(1,responses.count { it.statusCode()==409 })
-        val winner=responses.indexOfFirst { it.statusCode()==200 };val claimed=json.readTree(responses[winner].body())
-        assertEquals(claimed,call("POST","$root/claim-writer",attempts[winner].third,owner.token,key=attempts[winner].second))
-        assertNotEquals(session["writer"]["writerToken"],claimed["writer"]["writerToken"])
-        assertEquals(1,claimed["writer"]["acknowledgedSequence"].asInt());assertEquals(3,claimed["durationSeconds"].asInt());assertEquals(2,claimed["currentIndex"].asInt())
-        assertEquals(session["configuration"],claimed["configuration"])
-        assertEquals(session["items"].map { it["question"]["revisionId"] },claimed["items"].map { it["question"]["revisionId"] })
-        assertTrue(claimed["items"].all { it["confirmed"].asBoolean() && it["marked"].asBoolean() && !it["answer"].isNull })
-        call("POST","$root/sync-commands",progressBody(session)+mapOf("clientSequence" to 2),owner.token,409)
-        val finish=progress("$root/sync-commands",progressBody(claimed)+mapOf("clientSequence" to 2,"kind" to "FINISH","durationSeconds" to 4),owner.token)
-        assertEquals(2,finish["acknowledgedSequence"].asInt())
-        assertEquals("SUBMITTED",call("GET","/me/recent-learning?deviceId=$otherDevice",token=owner.token)["items"].first { it["id"].asText()==sid.toString() }["status"].asText())
-        assertEquals(4,call("GET","$root/result",token=owner.token)["durationSeconds"].asInt())
+    private class SocketMessages: java.net.http.WebSocket.Listener {
+        val received=java.util.concurrent.LinkedBlockingQueue<String>()
+        private val partial=StringBuilder()
+        override fun onOpen(socket: java.net.http.WebSocket) { socket.request(1) }
+        override fun onText(socket: java.net.http.WebSocket,data: CharSequence,last: Boolean): java.util.concurrent.CompletionStage<*>? {
+            partial.append(data);if(last) { received.add(partial.toString());partial.setLength(0) };socket.request(1);return null
+        }
+    }
+    @Test fun `socket takeover drains acknowledged work and only one device claims the unchanged snapshot`() {
+        val owner=student();val session=createPractice(owner,fixture());val sid=id(session);val root="/practice/sessions/$sid"
+        val device=UUID.fromString(session["writer"]["deviceId"].asText())
+        val listener=SocketMessages()
+        val socket=http.newWebSocketBuilder().header("Authorization","Bearer ${owner.token}")
+            .buildAsync(java.net.URI("ws://127.0.0.1:$port/api/v1/practice/writer-socket?sessionId=$sid&deviceId=$device"),listener).join()
+        try {
+            socket.sendText(json.writeValueAsString(mapOf("type" to "BIND","epoch" to 1,"writerToken" to session["writer"]["writerToken"].asText())),true).join()
+            assertEquals("BOUND",json.readTree(listener.received.poll(5,java.util.concurrent.TimeUnit.SECONDS))["type"].asText())
+            val otherDevice=UUID.randomUUID();val otherToken=loginDevice(owner,otherDevice)
+            val key=UUID.randomUUID();val input=mapOf("expectedEpoch" to 1,"deviceId" to otherDevice)
+            val started=System.nanoTime()
+            val waiting=call("POST","$root/claim-writer",input,otherToken,key=key)
+            assertEquals("WAITING",waiting["state"].asText())
+            assertEquals(waiting,call("POST","$root/claim-writer",input,otherToken,key=key))
+            assertEquals("DRAIN_WRITER",json.readTree(listener.received.poll(2,java.util.concurrent.TimeUnit.SECONDS))["type"].asText())
+            assertTrue((System.nanoTime()-started)/1_000_000<2000)
+            val thirdDevice=UUID.randomUUID();val thirdToken=loginDevice(owner,thirdDevice)
+            call("POST","$root/claim-writer",mapOf("expectedEpoch" to 1,"deviceId" to thirdDevice),thirdToken,409)
+            val saved=progress("$root/sync-commands",progressBody(session)+mapOf("durationSeconds" to 3,"currentIndex" to 2),owner.token)
+            val release=mapOf("expectedVersion" to saved["version"].asLong(),"writerToken" to saved["writer"]["writerToken"].asText())
+            val releaseKey=UUID.randomUUID();val released=call("POST","$root/release-writer",release,owner.token,key=releaseKey)
+            assertEquals(released,call("POST","$root/release-writer",release,owner.token,key=releaseKey))
+            val state=call("GET","$root/writer-state?deviceId=$otherDevice",token=otherToken)
+            assertEquals("READY",state["transfer"]["state"].asText())
+            val snapshotResponse=raw("GET","$root/snapshot?deviceId=$otherDevice",token=otherToken,extraHeaders=mapOf("X-Practice-Writer" to state["writer"]["writerToken"].asText()))
+            assertEquals(200,snapshotResponse.statusCode());val claimed=json.readTree(snapshotResponse.body())
+            assertNotEquals(session["writer"]["writerToken"],claimed["writer"]["writerToken"])
+            assertEquals(1,claimed["writer"]["acknowledgedSequence"].asInt());assertEquals(3,claimed["durationSeconds"].asInt());assertEquals(2,claimed["currentIndex"].asInt())
+            assertEquals(session["configuration"],claimed["configuration"])
+            assertEquals(session["items"].map { it["question"]["revisionId"] },claimed["items"].map { it["question"]["revisionId"] })
+            assertTrue(claimed["items"].all { it["confirmed"].asBoolean() && it["marked"].asBoolean() && !it["answer"].isNull })
+            call("POST","$root/sync-commands",progressBody(session)+mapOf("clientSequence" to 2),owner.token,409)
+            call("GET","$root/writer-state?deviceId=$otherDevice",token=owner.token,status=403)
+            val stranger=student();val strangerDevice=jdbc.queryForObject("SELECT device_id FROM user_session WHERE id=?",UUID::class.java,sessionService.authenticate(stranger.token).sessionId)
+            call("GET","$root/writer-state?deviceId=$strangerDevice",token=stranger.token,status=404)
+            val finish=progress("$root/sync-commands",progressBody(claimed)+mapOf("clientSequence" to 2,"kind" to "FINISH","durationSeconds" to 4),otherToken)
+            assertEquals(2,finish["acknowledgedSequence"].asInt())
+            assertEquals(4,call("GET","$root/result",token=owner.token)["durationSeconds"].asInt())
+        } finally { socket.abort() }
     }
 
     @Test fun `release refuses pending rejected and finish commands`() {

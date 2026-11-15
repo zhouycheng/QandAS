@@ -128,6 +128,8 @@ services:
     volumes:
       - backend_pg:/var/lib/postgresql/data
       - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./src/main/resources/db/user-settings.sql:/docker-entrypoint-initdb.d/002-user-settings.sql:ro
+      - ./src/main/resources/db/practice-writer.sql:/docker-entrypoint-initdb.d/003-practice-writer.sql:ro
       - ./src/main/resources/db/monitoring-permissions.sql:/docker-entrypoint-initdb.d/002-monitoring-permissions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qanda_backend -d qanda_backend"]

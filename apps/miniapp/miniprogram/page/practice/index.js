@@ -42,12 +42,16 @@ Page(withPageLifecycle({
   onLoad(options) {
     this.updateWindowHeight()
     this.viewModel = new PracticeViewModel({
-      storage: createWxStorageAdapter()
+      storage: createWxStorageAdapter(),
+      connectSocket: options => wx.connectSocket(options)
     })
     this.routeOptions = options || {}
-    this.practiceNetworkHandler = event => { if (event.isConnected) { this.checkContentUpdates(); this.viewModel.checkWriter().then(result => this.applyViewModelResult(result)) } }
+    this.practiceNetworkHandler = event => {
+      if (event.isConnected) { this.checkContentUpdates(); this.refreshWriter() }
+      else { this.applyViewModelResult(this.viewModel.pauseWriter('连接中断，已暂停答题')); this.viewModel.stopWriter() }
+    }
     if (wx.onNetworkStatusChange) wx.onNetworkStatusChange(this.practiceNetworkHandler)
-    Promise.resolve(this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')).then(() => { this.checkContentUpdates(); return this.viewModel.checkWriter() }).then(result => this.applyViewModelResult(result))
+    Promise.resolve(this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')).then(() => { this.checkContentUpdates(); this.watchWriter() })
   },
 
   handleViewLatest(event) { this.applyViewModelResult(this.viewModel.viewLatestQuestion(event.currentTarget.dataset.id)) },
@@ -219,12 +223,11 @@ Page(withPageLifecycle({
     this.checkContentUpdates()
     this.setData({ analysisSuspended: false, readingSuspended: false })
     this.textSelectionActive = false
-    this.startElapsedTimer()
     this.observeSaveStatus()
     if (this.viewModel && this.viewModel.online) this.viewModel.online.activeId = (this.viewModel.session && this.viewModel.session.meta.sessionId) || ''
     if (this.viewModel) {
-      this.applyViewModelResult(this.viewModel.resumeStudy())
-        this.viewModel.checkWriter().then(result => this.applyViewModelResult(result)).catch(error => this.showSaveError(error))
+      if (this.viewModel.online) this.refreshWriter()
+      else this.applyViewModelResult(this.viewModel.resumeStudy())
     }
   },
 
@@ -234,6 +237,7 @@ Page(withPageLifecycle({
     this.setData({ readingSuspended: true })
     this.setData({ analysisSuspended: true, analysisSheetOpen: false, analysisDragging: false, analysisSheetOffset: -this.data.analysisSheetHeight, analysisSheetVersion: this.data.analysisSheetVersion + 1 })
     this.stopElapsedTimer()
+    this.stopTestTimer()
     clearTimeout(this.measureTimer)
     if (this.keyboardVisible) this.keyboardScrollRestore = this.keyboardPanePositions
     this.keyboardVisible = false
@@ -260,6 +264,7 @@ Page(withPageLifecycle({
   onUnload() {
     if (wx.offNetworkStatusChange && this.practiceNetworkHandler) wx.offNetworkStatusChange(this.practiceNetworkHandler)
     this.stopElapsedTimer()
+    this.stopTestTimer()
     clearTimeout(this.measureTimer)
     this.pageVisible = false
     this.clearAutoAdvance()
@@ -280,8 +285,29 @@ Page(withPageLifecycle({
 
   saveAndFlush() {
     try {
-      Promise.resolve(this.viewModel.saveSessionNow()).catch(error => this.showSaveError(error))
+      if (this.viewModel.online) this.viewModel.suspendWriter().catch(() => {})
+      else Promise.resolve(this.viewModel.saveSessionNow()).catch(error => this.showSaveError(error))
     } catch (error) { this.showSaveError(error) }
+  },
+  watchWriter() {
+    if (this._pageUnloaded || this.pageVisible === false || !this.viewModel) return
+    this.viewModel.startWriter(event => {
+      if (this._pageUnloaded || this.pageVisible === false) return
+      const result = this.viewModel.writerEvent(event)
+      this.applyViewModelResult(result)
+    })
+  },
+  async refreshWriter() {
+    if (this.refreshingWriter || !this.viewModel || !this.viewModel.session || this.pageVisible === false) return
+    this.refreshingWriter = true
+    this.viewModel.stopWriter()
+    this.applyViewModelResult(this.viewModel.pauseWriter())
+    try {
+      const result = await this.viewModel.checkWriter()
+      if (this._pageUnloaded || this.pageVisible === false) return
+      this.applyViewModelResult(result)
+      if (!result || !result.command) this.watchWriter()
+    } finally { this.refreshingWriter = false }
   },
 
   observeSaveStatus() {
@@ -292,22 +318,6 @@ Page(withPageLifecycle({
     })
   },
   retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
-  handleReleaseWriter() {
-    if (this.releasingWriter) return
-    wx.showModal({ title: '切换答题设备', content: '联网保存全部作答后暂停本机答题，再到其他设备的练习记录中接续。', success: async result => {
-      if (!result.confirm || this.releasingWriter) return
-      this.releasingWriter = true
-      this.clearAutoAdvance(); this.stopElapsedTimer(); this.stopTestTimer()
-      this.setData({ editingLocked: true, releasingWriter: true })
-      try {
-        const outcome = await this.viewModel.releaseWriter()
-        if (this._pageUnloaded) return
-        this.applyViewModelResult(outcome)
-        if (outcome && outcome.released) wx.redirectTo({ url: '/page/practice-records/index' })
-      } finally { this.releasingWriter = false; if (!this._pageUnloaded) this.setData({ releasingWriter: false }) }
-    } })
-  },
-
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
   },
@@ -763,6 +773,7 @@ Page(withPageLifecycle({
   },
 
   applyViewModelEffects(result) {
+    if (this.data.isCompleted && this.viewModel) this.viewModel.stopWriter()
     if (this.data.isCompleted || this.data.editingLocked || this.data.isTimed) this.stopElapsedTimer()
     else this.startElapsedTimer()
     if (result.autoAdvance) this.scheduleAutoAdvance()
@@ -791,12 +802,17 @@ Page(withPageLifecycle({
       this.handleViewModelCommand(result.command)
     }
 
-    if (result.startTimer) {
+    if (result.startTimer && this.pageVisible !== false && !this._pageUnloaded && !this.data.editingLocked) {
       this.startTestTimer()
     }
   },
 
   handleViewModelCommand(command) {
+    if (command.type === 'writerTakenOver') {
+      if (this.writerTakenOver || this._pageUnloaded || this.pageVisible === false) return
+      this.writerTakenOver = true
+      wx.redirectTo({ url: '/page/practice-records/index', success: () => wx.showModal({ title: '答题设备已切换', content: '本次练习已在其他设备继续，只能在一台设备上答题。', showCancel: false }) })
+    }
     if (command.type === 'toast') wx.showToast({ title: command.title, icon: 'none' })
     if (command.type === 'trialLogin') {
       wx.showModal({ title: '登录后继续练习', content: '本机的两次试答已使用。登录后返回题库配置，再开始正式练习。', confirmText: '去登录', cancelText: '继续浏览', success: result => {

@@ -21,7 +21,10 @@ class PracticeController(private val service: PracticeService,private val sessio
     @PostMapping("/practice/sessions/{id}/release-writer") fun releaseWriter(@PathVariable id: UUID,@RequestBody input: ExpectedVersionInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): MutationResult {
         val a=sessions.student();return commands.run(a,key,"RELEASE_WRITER:$id",input,MutationResult::class.java,r.requestId()) { service.releaseWriter(a,id,input) }
     }
-    @PostMapping("/practice/sessions/{id}/claim-writer") fun claimWriter(@PathVariable id: UUID,@RequestBody input: ClaimWriterInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): PracticeView {
-        val a=sessions.student();return commands.run(a,key,"CLAIM_WRITER:$id",input,PracticeView::class.java,r.requestId()) { service.claimWriter(a,id,input) }
+    @GetMapping("/practice/sessions/{id}/writer-state") fun writerState(@PathVariable id: UUID,@RequestParam deviceId: UUID): WriterStatusView {
+        val actor=sessions.student();sessions.requireDevice(actor,deviceId);return service.writerStatus(actor,id,deviceId)
+    }
+    @PostMapping("/practice/sessions/{id}/claim-writer") fun claimWriter(@PathVariable id: UUID,@RequestBody input: ClaimWriterInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): WriterClaimView {
+        val a=sessions.student();sessions.requireDevice(a,input.deviceId);return commands.run(a,key,"CLAIM_WRITER:$id",input,WriterClaimView::class.java,r.requestId()) { service.claimWriter(a,id,input,key) }
     }
 }

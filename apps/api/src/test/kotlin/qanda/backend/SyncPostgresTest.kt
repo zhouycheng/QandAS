@@ -355,7 +355,9 @@ class SyncPostgresTest : PostgresFixture() {
         val s=student();val f=fixture()
         val report=evidenceDir.resolve("miniapp-live.json");Files.createDirectories(report.parent)
         val builder=ProcessBuilder("node","../miniapp/tests/live-backend.cjs").redirectErrorStream(true).redirectOutput(report.toFile())
-        builder.environment().putAll(mapOf("QANDA_TEST_URL" to "http://127.0.0.1:$port","QANDA_TEST_TOKEN" to s.token,"QANDA_TEST_BANK_ID" to f.bank.toString(),"QANDA_TEST_USER_ID" to s.id.toString()))
+        val originalDevice=jdbc.queryForObject("SELECT device_id FROM user_session WHERE id=?",UUID::class.java,sessionService.authenticate(s.token).sessionId)!!
+        val newDevice=UUID.randomUUID();val newToken=loginDevice(s,newDevice)
+        builder.environment().putAll(mapOf("QANDA_TEST_DEVICE_ID" to originalDevice.toString(),"QANDA_TEST_OTHER_DEVICE_ID" to newDevice.toString(),"QANDA_TEST_OTHER_TOKEN" to newToken,"QANDA_TEST_URL" to "http://127.0.0.1:$port","QANDA_TEST_TOKEN" to s.token,"QANDA_TEST_BANK_ID" to f.bank.toString(),"QANDA_TEST_USER_ID" to s.id.toString()))
         val process=builder.start()
         if(!process.waitFor(90,java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly();fail<Unit>("小程序真实HTTP验收超时") }
         assertEquals(0,process.exitValue(),Files.readString(report));assertTrue(json.readTree(Files.readString(report))["passed"].asBoolean())

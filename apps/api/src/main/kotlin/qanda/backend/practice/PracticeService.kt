@@ -23,7 +23,7 @@ import java.util.UUID
 class PracticeService(private val rows: PracticeSessionMapper,private val results: PracticeResultMapper,
                       private val content: ContentLibrary,
                       private val sql: PracticeQueries,private val system: TransactionLocks,private val clock: Clock,private val json: ObjectMapper,
-                      private val clientResults: ClientPracticeResults,private val ownership: WriteOwnership,private val activity: ActivityEvents,private val selections: PracticeSelections) {
+                      private val clientResults: ClientPracticeResults,private val ownership: WriteOwnership,private val activity: ActivityEvents,private val selections: PracticeSelections,private val presence: WriterPresence) {
     private fun validateScope(actor: Actor?,scope: ScopeInput): List<BankReference> {
         if(scope.count !in 1..1000 || scope.order !in setOf("SEQUENTIAL","RANDOM") || scope.selectionKind !in setOf("NORMAL","WRONG","FAVORITE")) invalid("/scope")
         if(actor==null && scope.selectionKind!="NORMAL") forbidden()
@@ -110,6 +110,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     private fun writeState(row: PracticeSession)=WriteState(row.writerDeviceId,row.writerToken,row.acknowledgedSequence)
     fun admitProgress(actor: Actor,id: UUID,input: ProgressInput): Long {
         val row=owned(actor.id,id,true);writer(row,input.writerToken)
+        if(ownership.transfer(id).sealed) conflict("WRITER_REVOKED","本次练习已在其他设备继续")
         if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
         if(input.kind !in setOf("SAVE","FINISH") || input.clientSequence<=0 || input.durationSeconds<0) invalid("/command")
         if(input.items.size>1000 || input.items.map { it.itemId }.distinct().size!=input.items.size) invalid("/items")
@@ -129,7 +130,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         }
     }
     private fun writerView(row: PracticeSession,deviceId: UUID?): WriterView = WriterView(
-        row.writerDeviceId,row.writerToken.takeIf { deviceId!=null && row.writerDeviceId==deviceId },row.version,row.acknowledgedSequence)
+        row.writerDeviceId,row.writerToken.takeIf { deviceId!=null && row.writerDeviceId==deviceId },row.version,row.acknowledgedSequence,ownership.transfer(row.id!!).epoch)
     private fun view(row: PracticeSession,deviceId: UUID?=null,offline: Boolean=false,issued: List<PracticeItem> = sql.items(row.id!!),
                      full: List<QuestionView> = content.revisions(issued.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)): PracticeView {
         val grading=if(offline) issued.zip(full).map { (item,q) -> grading(item.id!!,q) } else null
@@ -151,17 +152,58 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     fun releaseWriter(actor: Actor,id: UUID,input: ExpectedVersionInput): MutationResult {
         val row=owned(actor.id,id,true);writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version)
         requireTransferReady(row)
-        row.writerDeviceId=null;row.writerToken=null;row.version++;row.updatedAt=clock.instant()
-        ownership.save(id,writeState(row));rows.updateById(row)
+        val transfer=ownership.transfer(id)
+        if(transfer.state=="WAITING" && transfer.expiresAt!!.isAfter(clock.instant())) assignWriter(row,transfer.deviceId,true)
+        else assignWriter(row,null,false)
         return MutationResult(id,row.version)
     }
-    fun claimWriter(actor: Actor,id: UUID,input: ClaimWriterInput): PracticeView {
-        val row=owned(actor.id,id,true);requireVersion(input.expectedVersion,row.version)
-        requireTransferReady(row)
-        if(row.writerToken!=null) conflict("WRITER_REQUIRED","请先在原设备选择切换答题设备")
-        row.writerDeviceId=input.deviceId;row.writerToken=UUID.randomUUID();row.version++;row.updatedAt=clock.instant()
-        ownership.save(id,writeState(row));rows.updateById(row)
-        return view(row,input.deviceId,true)
+    private fun assignWriter(row: PracticeSession,deviceId: UUID?,claimed: Boolean) {
+        val id=row.id!!
+        if(claimed) ownership.transfer(id).expiresAt?.let { presence.completed(it) }
+        row.writerDeviceId=deviceId;row.writerToken=deviceId?.let { UUID.randomUUID() };row.version++;row.updatedAt=clock.instant()
+        ownership.save(id,writeState(row));ownership.rotate(id,claimed);rows.updateById(row)
+        presence.signal(id,"WRITER_CHANGED",ownership.transfer(id).epoch)
+    }
+    fun claimWriter(actor: Actor,id: UUID,input: ClaimWriterInput,key: UUID): WriterClaimView {
+        val row=owned(actor.id,id,true)
+        if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
+        val transfer=ownership.transfer(id)
+        if(transfer.epoch!=input.expectedEpoch) conflict("WRITER_CHANGED","答题设备状态已更新，请重新打开练习")
+        if(transfer.state=="WAITING" && transfer.expiresAt!!.isAfter(clock.instant())) conflict("TAKEOVER_PENDING","另一台设备正在接续，请稍后重试")
+        if(ownership.finishing(id)) conflict("SESSION_CLOSED","练习正在交卷")
+        ownership.request(id,key,input.deviceId,clock.instant().plusSeconds(60))
+        presence.signal(id,"DRAIN_WRITER",transfer.epoch)
+        advanceWriter(row)
+        return claimView(row,input.deviceId)
+    }
+    private fun advanceWriter(row: PracticeSession) {
+        val id=row.id!!;val transfer=ownership.transfer(id)
+        if(transfer.state!="WAITING") return
+        if(!transfer.expiresAt!!.isAfter(clock.instant()) || row.status!="IN_PROGRESS") { ownership.expire(id);return }
+        if(presence.active(id,row.writerToken)) return
+        ownership.seal(id)
+        if(ownership.transferReady(id)) {
+            ownership.requireDrained(id)
+            assignWriter(row,transfer.deviceId,true)
+        }
+    }
+    private fun claimView(row: PracticeSession,deviceId: UUID): WriterClaimView {
+        val transfer=ownership.transfer(row.id!!)
+        return WriterClaimView(transfer.requestId!!,transfer.state!!,writerView(row,deviceId),transfer.expiresAt)
+    }
+    fun writerStatus(actor: Actor,id: UUID,deviceId: UUID): WriterStatusView {
+        val row=owned(actor.id,id,true);advanceWriter(row)
+        val transfer=ownership.transfer(id)
+        return WriterStatusView(row.status,writerView(row,deviceId),if(transfer.requestId!=null && transfer.deviceId==deviceId && transfer.state!=null) claimView(row,deviceId) else null,transfer.state=="WAITING")
+    }
+    fun connectWriter(actor: Actor,id: UUID,deviceId: UUID,token: UUID?,epoch: Long): WriterStatusView {
+        val row=owned(actor.id,id,true);val transfer=ownership.transfer(id)
+        if(token!=null) {
+            writer(row,token)
+            if(row.writerDeviceId!=deviceId || transfer.epoch!=epoch || transfer.sealed || row.status!="IN_PROGRESS") conflict("WRITER_REVOKED","本次练习已在其他设备继续")
+            presence.open(id,token,epoch)
+        }
+        return WriterStatusView(row.status,writerView(row,deviceId),if(transfer.requestId!=null && transfer.deviceId==deviceId && transfer.state!=null) claimView(row,deviceId) else null,transfer.state=="WAITING")
     }
     fun snapshot(actor: Actor,id: UUID,deviceId: UUID,token: UUID): PracticeView {
         val row=owned(actor.id,id);writer(row,token)

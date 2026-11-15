@@ -17,6 +17,12 @@ class Sessions(private val sql: IdentityMapper, private val admins: AdminAccount
     fun optional(): Actor? = SecurityContextHolder.getContext().authentication?.principal as? Actor
     fun current(): Actor = optional() ?: unauthenticated()
     fun student(): Actor = current().also { if(it.kind!="USER") forbidden() }
+    @Transactional(readOnly=true)
+    fun requireDevice(actor: Actor,deviceId: UUID) {
+        if(actor.kind!="USER" || sql.userSessionDevice(actor.sessionId)!=deviceId) forbidden()
+    }
+    @Transactional(readOnly=true)
+    fun activeStudents(ids: List<UUID>): Set<UUID> = if(ids.isEmpty()) emptySet() else sql.activeStudentSessions(ids).toSet()
     fun studentOrGuest(): Actor? = optional()?.also { if(it.kind!="USER") forbidden() }
     fun admin(): Actor = current().also { if(it.kind!="ADMIN" || it.role!="SUPER_ADMIN") forbidden() }
 

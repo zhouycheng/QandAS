@@ -27,16 +27,17 @@ class PracticeViewModel {
         this.session = null;
         // 落盘去重用：游标不变就不重复写 storage（多选题连点会触发大量无意义写入）
         this.persistCursor = null;
+        this.connectSocket = normalizedOptions.connectSocket;
     }
     static getInitialData() {
-        return Object.assign(getInitialPracticeViewData(), { canReleaseWriter: false, writerMessage: '' });
+        return Object.assign(getInitialPracticeViewData(), { writerMessage: '' });
     }
     async loadOnline(options) {
         this.trial = false;
         this.online = onlinePractice.current();
         this.ownerId = this.online.identity().userId;
         this.routeOptions = options || {};
-        const snapshot = await this.online.prepare(this.routeOptions);
+        const snapshot = options.detached === '1' ? this.online.detachedSnapshot(options.sessionId) : await this.online.prepare(this.routeOptions, this.connectSocket);
         this.routeOptions = Object.assign({}, this.routeOptions, snapshot.route || {});
         this.online.activeId = snapshot.id;
         this.answerSnapshot = snapshot;
@@ -50,16 +51,17 @@ class PracticeViewModel {
         this.session.reset();
         this.session.restore(restored);
         this.editingLocked = false;
-        if (options.review === '1' || snapshot.finishIntent && !snapshot.localResult) {
+        if (options.review === '1' || options.detached === '1' || snapshot.finishIntent && !snapshot.localResult) {
             this.readOnlyReview = true;
+            this.detachedReview = options.detached === '1';
             this.session.state.isViewMode = true;
             this.session.state.review = true;
             this.session.state.reviewPending = !snapshot.localResult && !snapshot.result && snapshot.feedback !== 'IMMEDIATE';
-            this.session.state.awaitingResult = !snapshot.localResult && !snapshot.result;
+            this.session.state.awaitingResult = !this.detachedReview && !snapshot.localResult && !snapshot.result;
             this.session.state.isCompleted = false;
             this.session.state.isTimed = false;
             this.session.showQuestionAtIndex(this.session.state.currentIndex || 0);
-            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: !snapshot.localResult && !snapshot.result, reviewPending: this.session.state.reviewPending, loadError: '' }), startTimer: false, stopTimer: true };
+            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: this.session.state.awaitingResult, reviewPending: this.session.state.reviewPending, loadError: '', writerMessage: this.detachedReview ? '本机未同步草稿，仅供查看' : '' }), startTimer: false, stopTimer: true };
         }
         if (restored.status === SESSION_STATUS.SUBMITTED) {
             this.session.state.isCompleted = true;
@@ -75,39 +77,84 @@ class PracticeViewModel {
                 });
             }
         }
-        this.editingLocked = !!snapshot.releaseCommand;
-        return { data: Object.assign(this.session.getViewData(), { editingLocked: this.editingLocked, canReleaseWriter: !this.session.state.isCompleted && !this.readOnlyReview, loadError: '', writerMessage: snapshot.releaseCommand ? '设备交接尚未确认，请重试切换设备' : '' }), startTimer: this.session.state.isTimed && !this.editingLocked };
+        this.editingLocked = !this.session.state.isCompleted && (!!this.connectSocket || !!snapshot.releaseCommand);
+        if (this.editingLocked) this.session.pauseStudy();
+        return { data: Object.assign(this.session.getViewData(), { editingLocked: this.editingLocked, loadError: '', writerMessage: '' }), startTimer: this.session.state.isTimed && !this.editingLocked };
+    }
+    pauseWriter(message = '') {
+        if (!this.session || this.session.state.isCompleted || this.readOnlyReview || !this.online) return null;
+        this.session.pauseStudy();
+        if (this.ownerId && this.repository.getAuth(this.storage).userId !== this.ownerId) { this.editingLocked = true; this.stopWriter(); return { data: { editingLocked: true }, stopTimer: true }; }
+        if (!this.editingLocked) this.persistSession(true);
+        this.editingLocked = true;
+        return { data: { editingLocked: true, writerMessage: message }, stopTimer: true };
+    }
+    lostWriter() {
+        this.pauseWriter();
+        this.stopWriter();
+        if (this.online && this.session) this.online.archiveDraft(this.session.meta.sessionId);
+        return { data: { editingLocked: true, writerMessage: '' }, stopTimer: true, command: { type: 'writerTakenOver' } };
+    }
+    stopWriter() { if (this.writerSocket) this.writerSocket.stop(); this.writerSocket = null; }
+    startWriter(onEvent) {
+        if (!this.connectSocket || !this.online || !this.session || this.session.state.isCompleted || this.readOnlyReview || this.writerSocket) return;
+        this.writerSocket = this.online.watchWriter(this.session.meta.sessionId, this.connectSocket, onEvent);
+    }
+    async writerEvent(event) {
+        if (!this.session || this.readOnlyReview || this.session.state.isCompleted) return null;
+        if (event.type === 'WRITER_CHANGED' && event.epoch && this.answerSnapshot && event.epoch <= this.answerSnapshot.writer.epoch) return null;
+        if (event.type === 'DISCONNECTED') return this.pauseWriter('连接中断，已暂停答题');
+        if (event.type === 'ERROR' && ['WRITER_REVOKED', 'WRITER_REQUIRED'].includes(event.code) || event.type === 'WRITER_CHANGED') return this.lostWriter();
+        if (event.type === 'DRAIN_WRITER' || event.type === 'BOUND' && event.state.draining) {
+            this.pauseWriter();
+            const result = await this.releaseWriter();
+            if (result && !result.released && this.writerSocket) this.writerSocket.reconnect();
+            return result && result.released ? this.lostWriter() : result;
+        }
+        if (event.type === 'BOUND') {
+            if (event.state.status !== 'IN_PROGRESS' || event.state.writer.deviceId !== this.online.deviceId()) return this.lostWriter();
+            this.editingLocked = false; this.session.resumeStudy();
+            return { data: { editingLocked: false, writerMessage: '' }, startTimer: this.session.state.isTimed };
+        }
+        return null;
     }
     async checkWriter() {
         if (!this.online) return null;
         if (this.repository.getAuth(this.storage).userId !== this.ownerId) {
-            this.editingLocked = true; this.session = null;
+            this.stopWriter(); this.editingLocked = true; this.session = null;
             return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
         }
         if (!this.session || this.session.state.isCompleted || this.readOnlyReview) return null;
-        const id = this.session.meta.sessionId;
-        if (this.online.get(id).releaseCommand) return null;
+        const locked = this.pauseWriter();
         try {
-            const remote = await this.online.required('GET', `/practice/sessions/${id}`);
-            if (!this.session || this.session.meta.sessionId !== id) return null;
-            if (remote.status !== 'IN_PROGRESS' || remote.writer.deviceId !== this.online.deviceId()) {
-                this.editingLocked = true; this.session.pauseStudy();
-                return { data: { editingLocked: true, canReleaseWriter: false, writerMessage: '答题设备已切换，请返回练习记录' }, stopTimer: true };
-            }
-        } catch (_) { /* 保留原设备的离线作答能力。 */ }
-        return null;
+            if (this.suspending) await this.suspending;
+            const id = this.session.meta.sessionId;
+            const state = await this.online.writerState(id);
+            if (state.status !== 'IN_PROGRESS' || state.writer.deviceId && state.writer.deviceId !== this.online.deviceId()) return this.lostWriter();
+            const result = await this.loadOnline(Object.assign({}, this.routeOptions, { sessionId: id, passive: '1' }));
+            return result;
+        } catch (error) {
+            if (error.code === 'WRITER_CHANGED' || error.code === 'WRITER_REVOKED') return this.lostWriter();
+            return { ...locked, data: { editingLocked: true, writerMessage: error.message || '连接中断，已暂停答题' }, stopTimer: true };
+        }
+    }
+    suspendWriter() {
+        if (this.suspending) return this.suspending;
+        if (!this.online || !this.session || this.session.state.isCompleted || this.readOnlyReview) { this.stopWriter(); return Promise.resolve(); }
+        this.pauseWriter();
+        this.suspending = this.releaseWriter().finally(() => { this.stopWriter(); this.suspending = null; });
+        return this.suspending;
     }
     async releaseWriter() {
         if (!this.online || !this.session || this.releasingWriter) return null;
         this.releasingWriter = true; this.editingLocked = true; this.session.pauseStudy();
         try {
             await this.online.releaseWriter(this.session);
-            return { released: true, data: { editingLocked: true, canReleaseWriter: false, writerMessage: '已完成交接，可在其他设备继续答题' }, stopTimer: true };
+            return { released: true, data: { editingLocked: true, writerMessage: '' }, stopTimer: true };
         } catch (error) {
             const snapshot = this.online.get(this.session.meta.sessionId);
-            this.editingLocked = !!(snapshot && snapshot.releaseCommand);
-            if (!this.editingLocked) this.session.resumeStudy();
-            return { data: { editingLocked: this.editingLocked, canReleaseWriter: true, writerMessage: this.editingLocked ? '设备交接尚未确认，请重试切换设备' : '' }, startTimer: !this.editingLocked && this.session.state.isTimed, command: { type: 'toast', title: error.message } };
+            this.editingLocked = true;
+            return { data: { editingLocked: this.editingLocked, writerMessage: '进度已保存在本机，等待恢复连接' }, startTimer: !this.editingLocked && this.session.state.isTimed, command: { type: 'toast', title: error.message } };
         } finally { this.releasingWriter = false; }
     }
     async checkContentUpdates() {
@@ -341,6 +388,7 @@ class PracticeViewModel {
         return result;
     }
     async assessResult(questionId, value) {
+        if (this.detachedReview) return null;
         if ((this.trial || !this.online) && this.session && this.session.state.isCompleted) {
             if (!['CORRECT', 'WRONG'].includes(value))
                 return null;

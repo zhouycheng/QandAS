@@ -21,6 +21,7 @@ object ProductionSchema {
                             check(payload.next() && payload.getBoolean(1)) { "数据库结构未就绪，请使用当前空库初始化流程" }
                         }
                         statement.execute(org.springframework.core.io.ClassPathResource("db/user-settings.sql").getContentAsString(Charsets.UTF_8))
+                        statement.execute(org.springframework.core.io.ClassPathResource("db/practice-writer.sql").getContentAsString(Charsets.UTF_8))
                         return
                     }
                 }

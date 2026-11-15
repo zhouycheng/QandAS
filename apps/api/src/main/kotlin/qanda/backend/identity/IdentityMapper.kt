@@ -20,6 +20,8 @@ class UserSessionAccess {
     fun lockUser(@Param("id") id: UUID): UserAccount?
     fun lockAdmin(@Param("id") id: UUID): AdminAccount?
     fun userSessionAccess(@Param("digest") digest: ByteArray): UserSessionAccess?
+    fun userSessionDevice(@Param("id") id: UUID): UUID?
+    fun activeStudentSessions(@Param("ids") ids: List<UUID>): List<UUID>
     fun adminSession(@Param("digest") digest: ByteArray): AdminSession?
     fun lockUserSession(@Param("id") id: UUID): UserSession?
     fun lockAdminSession(@Param("id") id: UUID): AdminSession?

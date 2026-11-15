@@ -211,3 +211,7 @@ sudo docker exec qanda-public-gateway sh -ec '
 应用和 API 使用当前合同及结构校验。已有数据库结构不一致时停止启动，保留生产数据并核实迁移方案；API、worker、monitor、小程序和管理端使用配套源码验收。部署前核实备份、恢复和队列处理条件。
 
 官方内容检测使用仓库外私有配置，参数和回调要求见[内容安全接入](content-safety.md)。公网网关对专用取件和平台回调关闭访问日志，应用不记录媒体取件令牌。平台登记、实际权限、真机分享、备案、合法域名和隐私指引分别核验后记录证据。
+
+### 小程序答题长连接
+
+微信后台的 socket 合法域名配置为 `wss://qanda.api.zhoust.cn`。公网网关对 `/api/v1/practice/writer-socket` 单独转发 `Upgrade` 与 `Connection: upgrade`，关闭缓冲，读取超时七十五秒；原有认证、来源保护与 TLS 继续生效。部署后通过公网实际 WebSocket 握手和手机微信校验，开发者工具关闭域名校验不能作为手机验收依据。公网网关模板独立安装，首次启用本功能时同步更新 `deploy/public-gateway-routes.inc` 对应的服务器模板，先执行 `nginx -t`，再重建网关并核验健康与 HTTPS 接口。

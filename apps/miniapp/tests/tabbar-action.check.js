@@ -68,13 +68,13 @@ async function main() {
   recent = { id: 'other-device-session', questionBankId: 'bank', status: 'IN_PROGRESS', deviceId: 'other-device' }
   recentList = []
   await remote.refreshOverview(storage, { force: true })
-  assert.equal(repository.getResumableSession(storage), null, '其他设备练习不能续写')
+  assert.equal(repository.getResumableSession(storage).sessionId, 'other-device-session', '其他设备练习可通过继续答题自动接续')
   storage.set('qandaOnlineLast:student', 'local')
   storage.set('qandaOnline:student:local', { id: 'local', status: 'IN_PROGRESS', title: '课程练习', route: { bankId: 'bank' } })
   assert.equal(repository.getResumableSession(storage).sessionId, 'local', '离线草稿可恢复')
   assert.equal(repository.getResumableSession(storage).config.title, '课程练习', '续答入口保留快照标题')
   storage.set('qandaOnline:student:local', { id: 'local', status: 'SUBMITTED' })
-  assert.equal(repository.getResumableSession(storage), null, '已交卷草稿不能续答')
+  assert.equal(repository.getResumableSession(storage).sessionId, 'other-device-session', '本机已交卷时继续云端未完成练习')
   auth.saveAuth(storage, { provider: 'email', userId: 'other', token: 'other-token' })
   assert.equal(repository.getResumableSession(storage), null, '切换账号不读取旧草稿')
   remote.enable(false)

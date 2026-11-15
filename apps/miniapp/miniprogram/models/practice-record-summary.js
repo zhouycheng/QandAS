@@ -27,7 +27,6 @@ function merge(remoteItems, localItems) {
   return Array.from(byId.values()).filter(item => item.status !== 'CANCELLED').sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
 }
 function openRecord(item) {
-  if (item.otherDevice) return { type: 'toast', title: '请先在原设备的答题卡中选择“切换设备”' }
   if (item.status === 'WAITING') return { type: 'toast', title: '练习记录已保存在本机，正在恢复' }
   return { type: 'navigate', url: `/page/practice/index?sessionId=${encodeURIComponent(item.id)}${item.status === 'IN_PROGRESS' ? '' : '&review=1'}` }
 }

@@ -6,6 +6,7 @@
     <view class="tags"><text class="mode">{{item.modeText}}</text><text wx:if="{{item.feedbackText}}" class="feedback">{{item.feedbackText}}</text><text class="count">{{item.countText}}</text></view>
     <view class="record-foot"><text class="time">{{item.timeText}}</text><view class="action"><text>{{item.actionText}}</text><text class="arrow">›</text></view></view>
     <view wx:if="{{item.syncError}}" class="hint">{{item.syncError}}<text wx:if="{{item.canRetrySync}}" data-id="{{item.id}}" catchtap="handleRetryRecord" aria-role="button" hover-class="pressed"> · 重试同步</text></view>
+    <view wx:if="{{item.detached}}" class="hint" data-id="{{item.id}}" catchtap="handleDetached" aria-role="button" hover-class="pressed">查看本机未同步草稿</view>
   </view>
   <view wx:if="{{loading}}" class="hint">正在读取练习记录…</view>
   <view wx:elif="{{!items.length && !error}}" class="hint">还没有练习记录</view>
