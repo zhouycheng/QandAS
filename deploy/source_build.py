@@ -44,8 +44,11 @@ def command(*args, env=None):
 
 def resources():
     memory = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
-    if int(memory['MemAvailable'].split()[0]) < 1536 * 1024:
-        raise RuntimeError('Source build requires 1.5 GiB available RAM')
+    available_kib = int(memory['MemAvailable'].split()[0])
+    # The old release stays online: reserve the 1 GiB build limit plus 256 MiB of host headroom.
+    if available_kib < 1280 * 1024:
+        raise RuntimeError('Source build requires 1280 MiB available RAM '
+                           f'(1024 MiB build + 256 MiB headroom); available: {available_kib // 1024} MiB')
     if shutil.disk_usage(BUILD_ROOT).free < 5 * 1024**3:
         raise RuntimeError('Source build requires 5 GiB free disk')
 

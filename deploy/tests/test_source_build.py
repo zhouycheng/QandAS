@@ -261,6 +261,24 @@ except TimeoutError: sys.exit(7)
                 self.assertIn('--property=RuntimeMaxSec=3600', run.call_args.args)
                 self.assertFalse((root / 'request.json').exists())
 
+    def test_resource_budget_accepts_boundary_and_rejects_one_kib_below(self):
+        with patch.object(build.shutil, 'disk_usage') as disk:
+            disk.return_value.free = 5 * 1024**3
+            for available_kib in (1280 * 1024, 1471008):
+                with self.subTest(available_kib=available_kib), \
+                        patch.object(build.Path, 'read_text', return_value=f'MemAvailable: {available_kib} kB\n'):
+                    build.resources()
+            with patch.object(build.Path, 'read_text', return_value=f'MemAvailable: {1280 * 1024 - 1} kB\n'):
+                with self.assertRaisesRegex(RuntimeError, r'1024 MiB build \+ 256 MiB headroom.*available: 1279 MiB'):
+                    build.resources()
+
+    def test_resource_budget_still_requires_free_disk(self):
+        with patch.object(build.Path, 'read_text', return_value=f'MemAvailable: {1280 * 1024} kB\n'), \
+                patch.object(build.shutil, 'disk_usage') as disk:
+            disk.return_value.free = 5 * 1024**3 - 1
+            with self.assertRaisesRegex(RuntimeError, '5 GiB free disk'):
+                build.resources()
+
     def test_resource_failure_stops_before_fetch(self):
         with patch.object(build.Path, 'read_text', return_value='MemAvailable: 100 kB\n'):
             with self.assertRaisesRegex(RuntimeError, 'RAM'):
