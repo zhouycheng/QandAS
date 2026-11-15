@@ -1,6 +1,7 @@
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
 <view class="page practice-page {{editLayout ? 'layout-editor' : 'layout-preview pra-viewport'}} {{fixedLayout ? 'pra-fixed' : 'pra-flow'}} settings-detail font-{{preferences.fontSize}}" drag-scroll="{{dragScroll}}" change:drag-scroll="{{layoutDrag.scroll}}" drag-reset="{{dragReset}}" change:drag-reset="{{layoutDrag.clear}}" capture-bind:touchmove="{{layoutDrag.move}}" capture-bind:touchend="{{layoutDrag.end}}" capture-bind:touchcancel="{{layoutDrag.cancel}}">
   <page-header title="{{editLayout ? '自定义布局' : '布局预览'}}" />
+<preference-sync bind:updated="handlePreferencesUpdated" />
   <scroll-view id="layout-scroll" class="pra-body" scroll-y="{{editLayout || !fixedLayout}}" scroll-top="{{scrollTop}}" bindscroll="handleScroll" bind:contentready="measure" enhanced bounces="{{false}}" show-scrollbar="{{false}}">
     <include src="../../templates/practice-content.wxml" />
     <view class="layout-end" wx:if="{{dragTarget === 'end'}}">松手放在这里</view>

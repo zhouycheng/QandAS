@@ -25,4 +25,5 @@ class WriteOwnership(private val jdbc: JdbcTemplate) {
         if(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM sync_command WHERE session_id=? AND state IN ('QUEUED','RETRYING','DEAD_LETTER') AND client_sequence<?)",Boolean::class.java,id,before)==true)
             conflict("SYNC_PENDING","答题进度正在保存，请等待完成后重试")
     }
+    fun transferReady(id: UUID): Boolean = jdbc.queryForObject("SELECT accepted_sequence=acknowledged_sequence AND finish_sequence IS NULL AND NOT EXISTS(SELECT 1 FROM sync_command WHERE session_id=? AND state='REJECTED') FROM practice_sync_state WHERE session_id=?",Boolean::class.java,id,id)==true
 }

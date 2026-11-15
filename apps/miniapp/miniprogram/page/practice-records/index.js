@@ -20,6 +20,8 @@ Page(withPageLifecycle({
     return this.viewModel.load(reset).then(data => { if (!this._pageUnloaded) this.setData(data) }).finally(() => { if (!this._pageUnloaded) this.setData({ loading: false }) })
   },
   handleRetry() { return this.refresh(true) },
+  onPullDownRefresh() { return this.refresh(true) },
+  handleRetryRecord(event) { return this.viewModel.retry(event.currentTarget.dataset.id).then(data => { if (!this._pageUnloaded) this.setData(data) }) },
   onReachBottom() { if (this.data.hasMore) return this.refresh(false) },
   handleOpen(event) {
     const item = this.data.items.find(value => value.id === event.currentTarget.dataset.id)

@@ -18,4 +18,10 @@ class PracticeController(private val service: PracticeService,private val sessio
     @PutMapping("/practice/sessions/{id}/items/{itemId}/self-assessment") fun assess(@PathVariable id: UUID,@PathVariable itemId: UUID,@RequestBody input: SelfAssessmentInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): ResultView { val a=sessions.student();return commands.run(a,key,"SELF_ASSESSMENT:$id:$itemId",input,ResultView::class.java,r.requestId()) { service.assess(a,id,itemId,input) } }
     @PostMapping("/practice/sessions/{id}/cancel") fun cancel(@PathVariable id: UUID,@RequestBody input: ExpectedVersionInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): MutationResult { val a=sessions.student();return commands.run(a,key,"CANCEL_PRACTICE:$id",input,MutationResult::class.java,r.requestId()) { service.cancel(a,id,input) } }
     @GetMapping("/practice/sessions/{id}/snapshot") fun snapshot(@PathVariable id: UUID,@RequestParam deviceId: UUID,@RequestHeader("X-Practice-Writer") writerToken: UUID): PracticeView = service.snapshot(sessions.student(),id,deviceId,writerToken)
+    @PostMapping("/practice/sessions/{id}/release-writer") fun releaseWriter(@PathVariable id: UUID,@RequestBody input: ExpectedVersionInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): MutationResult {
+        val a=sessions.student();return commands.run(a,key,"RELEASE_WRITER:$id",input,MutationResult::class.java,r.requestId()) { service.releaseWriter(a,id,input) }
+    }
+    @PostMapping("/practice/sessions/{id}/claim-writer") fun claimWriter(@PathVariable id: UUID,@RequestBody input: ClaimWriterInput,@RequestHeader("Idempotency-Key") key: UUID,r: HttpServletRequest): PracticeView {
+        val a=sessions.student();return commands.run(a,key,"CLAIM_WRITER:$id",input,PracticeView::class.java,r.requestId()) { service.claimWriter(a,id,input) }
+    }
 }

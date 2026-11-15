@@ -1,0 +1,6 @@
+@import "../../styles/controls.wxss";
+.sync-note { margin: 16rpx 32rpx; padding: 20rpx; background: var(--page-bg); color: var(--text-sub); font-size: var(--font-secondary); border-radius: var(--radius-card); }
+.sync-actions { display: flex; flex-wrap: wrap; gap: 16rpx; }
+button { margin: 12rpx 0 0; padding: 0 16rpx; min-height: 44px; line-height: 44px; font-size: var(--font-secondary); color: var(--brand); background: var(--card); }
+button::after { border: none; }
+.pressed { opacity: .7; }

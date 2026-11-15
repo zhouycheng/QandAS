@@ -14,6 +14,7 @@ Page(withPageLifecycle({
     this.viewModel = new PracticeLayoutViewModel({ storage: createWxStorageAdapter() })
     this.applyViewModelResult(this.viewModel.load())
   },
+  handlePreferencesUpdated() { if (this.viewModel && !this.viewModel.getLayoutData().layoutDirty && !this.viewModel.previewing) this.applyViewModelResult(this.viewModel.load()) },
   onShow() { this.pageVisible = true; this.measure() },
   onReady() { this.measure() },
   onResize() { this.ratioAdjusting = false; this.cancelDrag(); this.measure() },

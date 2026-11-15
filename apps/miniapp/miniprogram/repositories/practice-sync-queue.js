@@ -127,6 +127,11 @@ function createSyncQueue(options) {
     cancel(id); storage.remove(key(id)); storage.set(indexKey, ids().filter(value => value !== id)); return true
   }
   const flushAll = () => Promise.all(ids().map(id => flush(id, false)))
-  return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
+  function seed(id, sequence) {
+    if (!Number.isInteger(sequence) || sequence < 0 || !idle(get(id))) throw new Error('本机仍有未同步作答，请在原设备完成同步')
+    cancel(id)
+    persist(id, { userId, sessionId: id, revision: 0, acknowledgedRevision: 0, sequence, acknowledgedSequence: sequence, acceptedSequence: sequence, pending: null, payload: {}, failures: 0 })
+  }
+  return { save, finish: (id, payload) => save(id, payload, true), get, flush, flushAll, resume, seed, isIdle: id => idle(get(id)), resumeAuthOnly: () => Promise.all(ids().filter(id => { const d = get(id); return d && d.paused && [401, 403].includes(d.lastStatusCode) }).map(resume)), removeConfirmed, sessionIds: ids, stop() { stopped = true; Object.keys(timers).forEach(cancel) } }
 }
 module.exports = { createSyncQueue }

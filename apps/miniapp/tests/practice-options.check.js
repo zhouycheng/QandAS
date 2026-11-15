@@ -130,6 +130,7 @@ async function main() {
       items: [0, 1].map(i => ({ itemId: 'i' + i, question: { id: 'q' + i, revisionId: 'r' + i, type: 'SINGLE_CHOICE', stem: '题干', options: [{ key: 'A', content: '甲' }], assetIds: [] } })), offlineGrading: [0, 1].map(i => ({ itemId: 'i' + i, correctAnswer: ['A'], explanation: '解析' })) } }
   }
   auth.saveAuth(store, { userId: 'student', provider: 'email', token: 'example' })
+  preferences.savePreferences(store, { autoOpenAnalysis: false, autoNextWhenCorrect: true })
   const runtime = online.enable(store)
   const first = await runtime.prepare({ bankId: 'bank', mode: 'test', duration: '0' })
   const vm = new PracticeViewModel({ storage: store })

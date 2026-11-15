@@ -4,6 +4,7 @@ const { PracticePresetsViewModel } = require('../../viewmodels/practice-presets-
 Page(withPageLifecycle({
   data: PracticePresetsViewModel.getInitialData(),
   onLoad() { this.viewModel = new PracticePresetsViewModel({ storage: createWxStorageAdapter() }) },
+  handlePreferencesUpdated() { if (this.viewModel) this.applyViewModelResult(this.viewModel.load()) },
   onShow() { this.applyViewModelResult(this.viewModel.load()) },
   onHide() { this.applyViewModelResult(this.viewModel.cancel()) },
   handleEdit(e) { this.applyViewModelResult(this.viewModel.edit(e.currentTarget.dataset.id)) },

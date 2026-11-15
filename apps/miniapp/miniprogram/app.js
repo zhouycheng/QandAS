@@ -4,6 +4,7 @@ const authRepository = require('./repositories/auth-repository.js')
 const http = require('./repositories/http-gateway.js')
 const onlinePractice = require('./repositories/online-practice.js')
 const remoteData = require('./repositories/remote-data-repository.js')
+const preferences = require('./repositories/preference-repository.js')
 const localConfig = require('./runtime.local.js')
 const { createHeartbeat } = require('./repositories/activity-heartbeat.js')
 
@@ -32,9 +33,11 @@ App({
     })
     remoteData.enable(true)
     remoteData.bind(storage)
+    preferences.enable(storage)
     onlinePractice.enable(storage)
     if (typeof wx.onNetworkStatusChange === 'function') wx.onNetworkStatusChange(event => {
       if (!event.isConnected) return
+      preferences.refreshPreferences(storage)
       const runtime = onlinePractice.current()
       try { runtime.identity(); runtime.queue.flushAll().catch(() => {}); runtime.resumeAssessments().catch(() => {}) } catch (_) { /* 原账号登录后继续同步。 */ }
     })
@@ -48,6 +51,7 @@ App({
 
   onShow() {
     this.appVisible = true
+    remoteData.invalidateLearning()
     this.syncActivityHeartbeat()
     this.lifecycleEpoch = (this.lifecycleEpoch || 0) + 1
     const runtime = onlinePractice.current()
@@ -74,6 +78,7 @@ App({
     if (this.appVisible && this.activityHeartbeat) this.activityHeartbeat.start()
     const storage = createWxStorageAdapter()
     remoteData.bind(storage)
+    if (this.appVisible) preferences.refreshPreferences(storage)
     if (this.appVisible) remoteData.refreshFeedbackSummary(storage).catch(() => {})
   },
 

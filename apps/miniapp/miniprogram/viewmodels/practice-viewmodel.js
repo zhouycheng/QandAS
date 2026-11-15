@@ -29,7 +29,7 @@ class PracticeViewModel {
         this.persistCursor = null;
     }
     static getInitialData() {
-        return getInitialPracticeViewData();
+        return Object.assign(getInitialPracticeViewData(), { canReleaseWriter: false, writerMessage: '' });
     }
     async loadOnline(options) {
         this.trial = false;
@@ -75,14 +75,40 @@ class PracticeViewModel {
                 });
             }
         }
-        return { data: Object.assign(this.session.getViewData(), { editingLocked: false, loadError: '' }), startTimer: this.session.state.isTimed };
+        this.editingLocked = !!snapshot.releaseCommand;
+        return { data: Object.assign(this.session.getViewData(), { editingLocked: this.editingLocked, canReleaseWriter: !this.session.state.isCompleted && !this.readOnlyReview, loadError: '', writerMessage: snapshot.releaseCommand ? '设备交接尚未确认，请重试切换设备' : '' }), startTimer: this.session.state.isTimed && !this.editingLocked };
     }
     async checkWriter() {
-        if (!this.online || this.repository.getAuth(this.storage).userId === this.ownerId)
-            return null;
-        this.editingLocked = true;
-        this.session = null;
-        return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
+        if (!this.online) return null;
+        if (this.repository.getAuth(this.storage).userId !== this.ownerId) {
+            this.editingLocked = true; this.session = null;
+            return { data: PracticeViewModel.getInitialData(), command: { type: 'navigate', url: '/page/login/index' } };
+        }
+        if (!this.session || this.session.state.isCompleted || this.readOnlyReview) return null;
+        const id = this.session.meta.sessionId;
+        if (this.online.get(id).releaseCommand) return null;
+        try {
+            const remote = await this.online.required('GET', `/practice/sessions/${id}`);
+            if (!this.session || this.session.meta.sessionId !== id) return null;
+            if (remote.status !== 'IN_PROGRESS' || remote.writer.deviceId !== this.online.deviceId()) {
+                this.editingLocked = true; this.session.pauseStudy();
+                return { data: { editingLocked: true, canReleaseWriter: false, writerMessage: '答题设备已切换，请返回练习记录' }, stopTimer: true };
+            }
+        } catch (_) { /* 保留原设备的离线作答能力。 */ }
+        return null;
+    }
+    async releaseWriter() {
+        if (!this.online || !this.session || this.releasingWriter) return null;
+        this.releasingWriter = true; this.editingLocked = true; this.session.pauseStudy();
+        try {
+            await this.online.releaseWriter(this.session);
+            return { released: true, data: { editingLocked: true, canReleaseWriter: false, writerMessage: '已完成交接，可在其他设备继续答题' }, stopTimer: true };
+        } catch (error) {
+            const snapshot = this.online.get(this.session.meta.sessionId);
+            this.editingLocked = !!(snapshot && snapshot.releaseCommand);
+            if (!this.editingLocked) this.session.resumeStudy();
+            return { data: { editingLocked: this.editingLocked, canReleaseWriter: true, writerMessage: this.editingLocked ? '设备交接尚未确认，请重试切换设备' : '' }, startTimer: !this.editingLocked && this.session.state.isTimed, command: { type: 'toast', title: error.message } };
+        } finally { this.releasingWriter = false; }
     }
     async checkContentUpdates() {
         if (!this.answerSnapshot || !this.session) return null;
@@ -622,6 +648,7 @@ class PracticeViewModel {
         if (!this.session) {
             return null;
         }
+        if (this.editingLocked) return { data: { editingLocked: true }, stopTimer: true };
         const preferences = this.repository.getPreferences(this.storage);
         Object.assign(preferences, normalizePracticeOptions(this.session.meta.config, preferences));
         this.session.preferences = preferences;

@@ -14,6 +14,13 @@ async function main() {
   assert.strictEqual(openRecord({ id: 'active', status: 'IN_PROGRESS' }).url, '/page/practice/index?sessionId=active')
   assert.strictEqual(summarize({ id: 'local', status: 'IN_PROGRESS', localState: { status: 'SUBMITTED' } }).status, 'WAITING')
   assert.strictEqual(records([{ id: 'done', status: 'SUBMITTED' }], [{ id: 'done', status: 'IN_PROGRESS' }])[0].status, 'SUBMITTED')
+  const unsent = records([], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false, canRetrySync: true, syncError: '网络暂不可用' }])[0]
+  assert.equal(unsent.statusText, '已完成 · 待同步'); assert.equal(unsent.canRetrySync, true)
+  assert.equal(records([{ id: 'unsent', status: 'SUBMITTED' }], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false }])[0].statusText, '已完成')
+  const foreign = records([{ id: 'foreign', status: 'IN_PROGRESS', deviceId: 'phone' }], [], 'computer')[0]
+  assert.equal(foreign.statusText, '其他设备作答'); assert.equal(openRecord(foreign).type, 'toast')
+  assert.equal(records([{ id: 'released', status: 'IN_PROGRESS', deviceId: null }], [], 'computer')[0].actionText, '在此设备继续')
+  assert.equal(summarize({ id: 'saving' }, { reason: '已保存在本机，可继续练习', failures: 0 }).syncError, '', '正常同步不增加提示')
   const largeSnapshots = Array.from({ length: 20 }, (_, i) => ({ id: String(i), status: 'SUBMITTED', items: Array(1000).fill({ question: { stem: 'question' }, answer: ['B'] }) }))
   const smallCards = records([], largeSnapshots)
   assert(JSON.stringify(smallCards).length < 16000, '列表只传递卡片摘要')
@@ -27,6 +34,10 @@ async function main() {
     return ++attempts <= 12 ? { ok: false, statusCode: 503 } : { ok: true }
   } }
   let queue = createSyncQueue(settings)
+  queue.seed('claimed', 12)
+  assert.equal(queue.save('claimed', { progress: { currentIndex: 1 } }).ok, true, '接续队列可以保存第一份草稿')
+  assert.equal(queue.get('claimed').sequence, 12)
+  assert.throws(() => queue.seed('claimed', 12), /未同步/)
   assert(queue.finish('session', { progress: { items: [{ answer: 'final' }] } }).ok)
   for (let i = 0; i < 13; i++) {
     now += 300001
@@ -55,6 +66,21 @@ async function main() {
     assert(pages.at(-1).includes('page=1&'))
     assert.strictEqual(vm.page, 1)
   } finally { http.request = request }
+  const previousPage = global.Page, previousWx = global.wx
+  let pageDefinition, confirmTransfer, releaseTransfer, redirects = 0, updates = 0
+  global.Page = definition => { pageDefinition = definition }
+  global.wx = { showModal: options => { confirmTransfer = options.success }, redirectTo() { redirects++ } }
+  try {
+    require('../miniprogram/page/practice/index.js')
+    const transfer = new Promise(resolve => { releaseTransfer = resolve })
+    const page = { viewModel: { releaseWriter: () => transfer }, clearAutoAdvance() {}, stopElapsedTimer() {}, stopTestTimer() {}, setData() {}, applyViewModelResult() { updates++ } }
+    pageDefinition.handleReleaseWriter.call(page)
+    const completing = confirmTransfer({ confirm: true })
+    page._pageUnloaded = true
+    releaseTransfer({ released: true }); await completing
+    assert.equal(redirects, 0, '退出答题页后的交接回执不改变当前路由')
+    assert.equal(updates, 0, '退出后不更新页面')
+  } finally { global.Page = previousPage; global.wx = previousWx }
   console.log('practice records and durable finalization survive twelve transient failures and restarts')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

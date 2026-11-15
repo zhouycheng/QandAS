@@ -144,6 +144,7 @@ class OpenApiConfiguration {
                 }
             }
             if(clazz.simpleName=="BlankInput") schema.properties["answers"]?.let { it.minItems=1;it.maxItems=20;it.items?.maxLength=500 }
+            if(clazz.simpleName=="PracticePreset") schema.properties["count"]=ComposedSchema().oneOf(listOf(IntegerSchema().minimum(java.math.BigDecimal.ONE).maximum(java.math.BigDecimal(1000)),StringSchema()._enum(listOf("ALL"))))
             if(clazz.simpleName=="ImportInput") schema.properties["questions"]?.let { it.minItems=1;it.maxItems=3000;it.description="每批最多 3000 道实际作答题，阅读题按小题计数；整个 JSON 请求最多 8 MiB" }
         }
     }

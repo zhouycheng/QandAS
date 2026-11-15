@@ -178,7 +178,7 @@ function checkCrossPage() {
 
   // 只有日期没有名称时，首页不能显示一个没有名字的倒计时
   const dateOnlyStorage = createMemoryStorage({
-    qandaPreferences: { examName: '', examDate: '2026-12-15' }
+    'qandaPreferences:guest': { examName: '', examDate: '2026-12-15' }
   })
   const dateOnlyHome = createHomeViewModel(dateOnlyStorage).load().data.exam
 
@@ -196,12 +196,12 @@ function checkCrossPage() {
 }
 
 function checkSavedSelection() {
-  const storage = createMemoryStorage({ qandaPreferences: { examCountdowns: [{ id: 'saved', examName: '已存考试', examDate: '2026-12-20' }], fontSize: 'large' } })
+  const storage = createMemoryStorage({ 'qandaPreferences:guest': { examCountdowns: [{ id: 'saved', examName: '已存考试', examDate: '2026-12-20' }], fontSize: 'large' } })
   const vm = createViewModel(storage)
   let exams = vm.load().data.exams
   assert('列表 - 读取已存考试', exams.length === 1 && exams[0].examName === '已存考试')
   vm.openEditor(exams[0].id); vm.setDraftName('考试更新'); vm.saveExam()
-  assert('列表 - 编辑后保留其它偏好', storage.raw.qandaPreferences.fontSize === 'large')
+  assert('列表 - 编辑后保留其它偏好', storage.raw['qandaPreferences:guest'].fontSize === 'large')
   assert('列表 - 删除后保持空列表', vm.deleteExam(exams[0].id).data.exams.length === 0 && new ExamCountdownViewModel({ storage }).load().data.exams.length === 0)
 
   const list = [{ id: 'past', examName: '已考', examDate: '2026-11-30' }, { id: 'later', examName: '晚一些', examDate: '2026-12-20' }, { id: 'today', examName: '今天', examDate: '2026-12-01' }]
@@ -211,7 +211,7 @@ function checkSavedSelection() {
   const dirty = examCountdown.normalizeExamList([null, { examName: 123, examDate: '2026-12-01' }, ...list, { ...list[0], examName: '重复标识' }])
   assert('列表 - 过滤无效记录且标识唯一', dirty.length === 4 && new Set(dirty.map(item => item.id)).size === dirty.length)
 
-  const past = createMemoryStorage({ qandaPreferences: { examCountdowns: [list[0]] } })
+  const past = createMemoryStorage({ 'qandaPreferences:guest': { examCountdowns: [list[0]] } })
   const pastVm = createViewModel(past)
   pastVm.openEditor('past'); pastVm.setDraftName('已结束考试新名称')
   assert('编辑 - 已结束考试可以只改名称', pastVm.saveExam().data.exams[0].examName === '已结束考试新名称')
@@ -228,7 +228,7 @@ function checkDirtyData() {
   ]
 
   cases.forEach((item) => {
-    const storage = createMemoryStorage({ qandaPreferences: item.value })
+    const storage = createMemoryStorage({ 'qandaPreferences:guest': item.value })
     let data = null
     let threw = false
 
@@ -245,7 +245,7 @@ function checkDirtyData() {
 
   // 过去日期：显示「已结束」而不是负数天
   const pastStorage = createMemoryStorage({
-    qandaPreferences: { examCountdowns: [{ id: 'past', examName: 'A', examDate: '2020-01-01' }] }
+    'qandaPreferences:guest': { examCountdowns: [{ id: 'past', examName: 'A', examDate: '2020-01-01' }] }
   })
   const pastExam = createHomeViewModel(pastStorage).load().data.exam
 

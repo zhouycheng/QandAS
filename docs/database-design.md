@@ -1,10 +1,23 @@
 # 数据库设计
 
-当前结构由 `apps/api/src/main/resources/db/schema.sql` 定义；监控权限由同目录 `monitoring-permissions.sql` 定义。空库直接初始化，启动时检查结构。结构不一致时重建明确指定的项目数据库及关联队列，再启动相同代码。下表按隔离 PostgreSQL 初始化后的结构整理。
+当前结构由 `apps/api/src/main/resources/db/schema.sql` 和同目录 `user-settings.sql` 定义；监控权限由 `monitoring-permissions.sql` 定义。空库直接初始化，启动时检查结构。账号设置安装只创建自己的父子表，题库数据沿用原结构。下表按隔离 PostgreSQL 初始化后的结构整理。
 
 普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。批量查询通过 `visible_question_bank` 与 `active_question` 视图计算可见性和可用题目；`bank_visible`、`question_active` 提供同一规则的单项判断，分类列表使用 `bank_matches_category`。
 
 题目稳定身份与不可变修订分离，练习固定题目和材料修订。历史结果、同步序号与交卷屏障沿用数据库约束。成功同步任务正文保留三十天后可为空，`payload_bytes` 随之为零；其他状态必须保留完整正文。摘要、序号与回执继续用于幂等对账。内容检测上下文、请求、媒体和回调持久化；注销证明完成后与账号及会话外键解耦，保留限时幂等回执。个人头像和待检测媒体随对应账号／任务清理。具体事务与访问规则见[产品规则](product-rules.md)、[内容安全](content-safety.md)及[同步监控](sync-monitoring.md)。
+
+## 账号设置父子关系
+
+`user_account` 的一对一子表 `user_settings` 以 `user_id` 为主键和外键，保存 `version`、答题开关、字号、模块顺序、布局模式、题干比例、手势设置。`user_exam_countdown` 与 `user_practice_preset` 均通过 `user_id` 外键归属 `user_settings`；账号删除级联清理整个设置树。
+
+| 子表 | 主要字段 | 约束 |
+| --- | --- | --- |
+| `user_exam_countdown` | `user_id`、`id`、`exam_name`、`exam_date`、`position` | 账号内 ID 为联合主键，账号内位置唯一 |
+| `user_practice_preset` | `user_id`、`id`、`name`、`mode`、`feedback`、`question_order`、`question_count`、`duration`、`is_default`、`position` | 账号内 ID 为联合主键，账号内位置唯一；部分唯一索引限制一个默认项；`question_count` 为空表示全部 |
+
+设置主表、两类子项与默认项统一在事务内保存；服务端验证默认项存在、枚举、题量、时长、布局范围和 ID 唯一性。设置业务版本用于并发冲突检查，不承担历史格式转换。
+
+练习继续以 `practice_session` 为父表。`practice_sync_state.session_id` 为一对一主键外键，`sync_command(session_id,user_id)` 为账号一致的复合外键；写入设备及凭证同时为空表示已释放，可由新设备领取。交接继续使用原场次和连续同步序号。
 
 ## 表与字段
 

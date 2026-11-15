@@ -152,6 +152,9 @@ async function main() {
   assert(storage.get('qandaSyncCooldown:v1:u1').until > Date.now(), '冲突回读遇到暂时错误时安排退避重试')
   assert(recovered.assessmentTimer, '冲突回读遇到暂时错误时创建重试定时器')
   clearTimeout(recovered.assessmentTimer); recovered.assessmentTimer = null; http.request = regularRequest
+  offline = true
+  assert((await recovered.prepare({ sessionId: 's1', review: '1' })).localResult, '回读云端失败时仍可离线查看已保存结果')
+  offline = false
   const completed = ['recent-1', 'recent-2', 'recent-3', 'recent-4', 'recent-5', 'old', 'pending']
   data['qandaOnlineCompleted:u1'] = completed
   completed.forEach((id, i) => { data[`qandaOnline:u1:${id}`] = { id, status: 'SUBMITTED', cloudConfirmed: id !== 'pending', resultId: id, items: [], localResult: { items: [] }, assessmentCommands: {} } })

@@ -21,7 +21,7 @@ The build uses the official WeChat npm builder. `tests/compile.check.js` locates
 - Pages own wx APIs, focus, gestures, animation and navigation. ViewModels return data and commands; Models and utils own pure rules; Repositories own HTTP, snapshots, caches and durable drafts.
 - Use flat CommonJS files with explicit require paths. Runtime JavaScript remains native. Keep exact npm versions and a lockfile.
 - Content comes from the API. Test fixtures stay outside `miniprogram`. Guest snapshots and layout examples are current product behavior.
-- Practice sessions keep a fixed device credential, immutable revisions and durable asynchronous progress. Preserve idempotency, acknowledgement sequences, retries, dead letters and the finish barrier.
+- Practice sessions keep one active device credential, immutable revisions and durable asynchronous progress. Online handoff must drain all commands before release; only a released practice can be claimed, and the next device continues the acknowledged sequence. Preserve idempotency, acknowledgement sequences, retries, dead letters and the finish barrier.
 - Keep grading fields out of the page before their configured reveal point. Submission confirms all nonempty drafts, including other questions.
 - Never persist passwords or verification codes. Account changes reject stale callbacks and responses. Catalog filter changes invalidate discovery caches without changing private learning history.
 

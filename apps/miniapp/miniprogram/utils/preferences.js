@@ -6,7 +6,7 @@
 
 const { normalizePresets } = require('./practice-presets.js')
 
-const PREFERENCE_STORAGE_KEY = 'qandaPreferences'
+const PREFERENCE_STORAGE_KEY = 'qandaPreferences:guest'
 const { DEFAULT_ORDER, normalizeOrder, normalizeStemPercent } = require('./practice-layout.js')
 const { normalizeExamList } = require('./exam-countdown.js')
 

@@ -5,6 +5,7 @@
 <view class="page practice-page pra-viewport {{fixedLayout ? 'pra-fixed' : 'pra-flow'}} {{keyboardVisible ? 'pra-keyboard-open' : ''}} font-{{preferences.fontSize}}" style="{{practiceWindowHeight ? 'height:' + practiceWindowHeight + 'px;min-height:0;' : ''}}">
   <light-toast id="practice-hint" />
   <include src="../../templates/practice-head.wxml" />
+  <view wx:if="{{writerMessage}}" class="load-note" role="alert">{{writerMessage}}</view>
   <view wx:if="{{contentUpdateText}}" class="practice-content-update">{{contentUpdateText}}<button wx:if="{{canViewLatest}}" class="practice-latest-link" catchtap="handleViewLatest" aria-label="查看新版题目与答案" hover-class="text-hover">查看新版</button></view>
   <view wx:if="{{trialNotice}}" class="load-note">{{trialNotice}}</view>
   <view wx:if="{{loadingPractice}}" class="load-note">正在读取本次练习…</view>
@@ -71,6 +72,9 @@
       total="{{total}}"
       show-status="{{!isViewMode}}"
       can-submit="{{!isViewMode}}"
+      can-transfer="{{canReleaseWriter}}"
+      transferring="{{releasingWriter}}"
+      bind:transfer="handleReleaseWriter"
       bind:close="closeOverview"
       bind:jump="jumpToQuestion"
       bind:submit="handleOverviewSubmit"
