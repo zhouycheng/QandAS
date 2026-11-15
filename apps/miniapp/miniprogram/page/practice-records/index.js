@@ -20,6 +20,7 @@ Page(withPageLifecycle({
     return this.viewModel.load(reset).then(data => { if (!this._pageUnloaded) this.setData(data) }).finally(() => { if (!this._pageUnloaded) this.setData({ loading: false }) })
   },
   handleRetry() { return this.refresh(true) },
+  handleDetached(event) { wx.navigateTo({ url: `/page/practice/index?sessionId=${encodeURIComponent(event.currentTarget.dataset.id)}&detached=1` }) },
   onPullDownRefresh() { return this.refresh(true) },
   handleRetryRecord(event) { return this.viewModel.retry(event.currentTarget.dataset.id).then(data => { if (!this._pageUnloaded) this.setData(data) }) },
   onReachBottom() { if (this.data.hasMore) return this.refresh(false) },

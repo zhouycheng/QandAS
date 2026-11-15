@@ -47,6 +47,7 @@ abstract class PostgresFixture {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/user-settings.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-user-settings.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/practice-writer.sql",0b110_100_100),"/docker-entrypoint-initdb.d/003-practice-writer.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }
@@ -263,6 +264,11 @@ abstract class PostgresFixture {
         val token=login["accessToken"].asText()
         return Student(id(call("GET","/me",token=token)),email,token)
     }
+    protected fun loginDevice(owner: Student,device: UUID): String {
+        jdbc.update("UPDATE email_challenge SET created_at=created_at-interval '61 seconds' WHERE email_key=?",owner.email)
+        val challenge=call("POST","/auth/email-challenges",mapOf("purpose" to "LOGIN","email" to owner.email),null,201)
+        return call("POST","/auth/email-code-sessions",mapOf("challengeId" to id(challenge),"code" to code(id(challenge)),"deviceId" to device),null)["accessToken"].asText()
+    }
     protected fun question(bank: UUID,type: String): Map<String,Any?> = mapOf("questionBankId" to bank,"type" to type,"stem" to "原题$type","explanation" to "原解析",
         "options" to if(type.endsWith("CHOICE")) listOf(mapOf("key" to "A","content" to "甲"),mapOf("key" to "B","content" to "乙"),mapOf("key" to "C","content" to "丙")) else emptyList<Any>(),
         "correctAnswer" to when(type) { "SINGLE_CHOICE" -> listOf("A");"MULTIPLE_CHOICE" -> listOf("A","B");else -> emptyList<String>() },
@@ -277,7 +283,7 @@ abstract class PostgresFixture {
     }
     protected fun createPractice(s: Student,f: Fixture,feedback: String="AFTER_FINISH"): JsonNode {
         val bank=call("GET","/question-banks/${f.bank}",token=s.token)
-        return call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 4,"order" to "RANDOM"),"expectedContentVersion" to bank["contentVersion"].asLong(),"feedback" to feedback,"deviceId" to UUID.randomUUID()),s.token)
+        return call("POST","/practice/sessions",mapOf("scope" to mapOf("questionBankId" to f.bank,"count" to 4,"order" to "RANDOM"),"expectedContentVersion" to bank["contentVersion"].asLong(),"feedback" to feedback,"deviceId" to jdbc.queryForObject("SELECT device_id FROM user_session WHERE id=?",UUID::class.java,sessionService.authenticate(s.token).sessionId)),s.token)
     }
     protected fun answers(session: JsonNode): List<Map<String,Any>> = session["items"].map { item ->
         val answer=when(item["question"]["type"].asText()) { "SINGLE_CHOICE" -> mapOf("optionKeys" to listOf("A"));"MULTIPLE_CHOICE" -> mapOf("optionKeys" to listOf("B","A"));"TRUE_FALSE" -> mapOf("value" to false);else -> mapOf("text" to "学生作答") }

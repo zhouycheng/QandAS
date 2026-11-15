@@ -41,6 +41,8 @@ jobs:
           python3 -m unittest discover -s apps/api/scripts -p '*_test.py' -v
           python3 -m unittest discover -s tests/capacity -p 'test_*.py' -v
           node --check tests/capacity/load.js
+          node --check tests/capacity/writer-sockets.js
+          python3 -m py_compile tests/capacity/writer-local.py tests/capacity/tunnel.py
       - name: Verify shared content and admin
         if: inputs.scope != 'backend'
         run: |

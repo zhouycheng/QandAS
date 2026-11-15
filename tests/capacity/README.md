@@ -93,3 +93,19 @@ HTTP 吞吐与业务操作速率分别统计。交卷吞吐场景包含创建练
 "$CAPACITY_PYTHON" -m unittest discover -s tests/capacity -p 'test_*.py' -v
 node --check tests/capacity/load.js
 ```
+
+## 答题连接对照
+
+已完成的 [1800／2000 人 HTTPS/WSS 对照](results/20261116-writer/report.md)核对了 15,200 条命令全部提交，两档接管通知 P95 分别为 234.85／90.10 毫秒。报告同时保留重试次数、资源趋势和场景边界。
+
+`writer-local.py` 在本机 Colima 创建独立 Docker 网络、临时数据库及合成账号，以 API 576 MiB／256 MiB 堆、worker 384 MiB／192 MiB 堆、PostgreSQL 256 MiB、RabbitMQ 384 MiB、公网网关 256 MiB 配额运行。Docker 虚拟机至少四核、足够容纳这些配额；客户端 k6 在宿主机发压，经独立 AsyncSSH 连接转发到虚拟机的真实 HTTPS/WSS 网关，沿用已核验的文件句柄配置。每档分别执行无连接基线与 WebSocket，覆盖 200、1800、2000 人；45 秒升压、180 秒保持、5 秒退场。
+
+`writer-sockets.js` 通过异步 HTTP 和串行保存实现每用户两次稀疏保存并查询持久回执，等待回执时保持心跳运行，普通保存保留原幂等键并观察最长两分钟的重试收敛；连接模式额外维持三十秒心跳，并让前二十个连接在两次保存确认后发起接管，核对通知及自动释放。结束核对登记与提交数量、剩余任务，采集容器 CPU／内存及心跳和通知延迟。此场景衡量长连接与稀疏保存的新增开销，完整题库浏览、集中交卷和三十分钟稳定容量仍使用原套件。
+
+```sh
+"$CAPACITY_PYTHON" tests/capacity/writer-local.py --image <待测本机后端镜像> \
+  --k6 <已核验的k6路径> \
+  --state "$HOME/.local/state/qanda-writer-capacity/<运行编号>"
+```
+
+运行目录必须不存在，账号令牌与应用环境文件权限为 600，一次性 TLS 私钥只在权限为 700 的运行目录和只读测试挂载中使用。使用该私有目录内的一次性 TLS 证书；Python 就绪检查信任这张证书，k6 仅在该回环测试入口跳过证书链校验。原始证据留在私有目录，生产 TLS 验证另行执行。结束清理本次创建的容器、网络和临时卷，保留私有运行证据；正式报告只导出匿名聚合指标。不同 CPU 架构及本机网络结果不能直接当作生产公网容量。

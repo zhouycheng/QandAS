@@ -15,7 +15,10 @@ function merge(remoteItems, localItems) {
   localItems.forEach(item => {
     const local = summarize(item), server = byId.get(local.id)
     const merged = Object.assign({}, server, local)
-    if (server && server.status === 'CANCELLED') merged.status = 'CANCELLED'
+    if (server && server.status === 'IN_PROGRESS' && server.version > local.version && server.deviceId !== local.deviceId && local.status === 'SUBMITTED' && !local.cloudConfirmed) {
+      merged.status = 'IN_PROGRESS'; merged.syncError = ''; merged.canRetrySync = false
+    }
+    else if (server && server.status === 'CANCELLED') merged.status = 'CANCELLED'
     else if ((server && server.status === 'SUBMITTED') || local.status === 'SUBMITTED') merged.status = 'SUBMITTED'
     else if ((server && server.status === 'WAITING') || local.status === 'WAITING') merged.status = 'WAITING'
     if (!merged.title && server) merged.title = server.title
@@ -27,7 +30,6 @@ function merge(remoteItems, localItems) {
   return Array.from(byId.values()).filter(item => item.status !== 'CANCELLED').sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
 }
 function openRecord(item) {
-  if (item.otherDevice) return { type: 'toast', title: '请先在原设备的答题卡中选择“切换设备”' }
   if (item.status === 'WAITING') return { type: 'toast', title: '练习记录已保存在本机，正在恢复' }
   return { type: 'navigate', url: `/page/practice/index?sessionId=${encodeURIComponent(item.id)}${item.status === 'IN_PROGRESS' ? '' : '&review=1'}` }
 }

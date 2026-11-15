@@ -11,6 +11,13 @@
     FROM user_session s JOIN user_account u ON u.id=s.user_id LEFT JOIN test_account t ON t.user_id=u.id WHERE s.token_digest=#{digest}
   </select>
   <select id="adminSession" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE token_digest=#{digest}</select>
+  <select id="userSessionDevice" resultType="java.util.UUID">SELECT device_id FROM user_session WHERE id=#{id} AND revoked_at IS NULL AND expires_at>now()</select>
+  <select id="activeStudentSessions" resultType="java.util.UUID">
+    SELECT s.id FROM user_session s JOIN user_account u ON u.id=s.user_id LEFT JOIN test_account t ON t.user_id=u.id
+    WHERE s.id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='ACTIVE' AND s.credential_version=u.credential_version
+    AND (t.user_id IS NULL OR (t.disabled_at IS NULL AND t.expires_at>now()))
+  </select>
   <select id="lockUserSession" resultType="qanda.backend.identity.UserSession">SELECT * FROM user_session WHERE id=#{id} FOR UPDATE</select>
   <select id="lockAdminSession" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE id=#{id} FOR UPDATE</select>
   <select id="adminSessionById" resultType="qanda.backend.admin.AdminSession">SELECT * FROM admin_session WHERE id=#{id}</select>

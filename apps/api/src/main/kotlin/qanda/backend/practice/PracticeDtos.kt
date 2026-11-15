@@ -14,7 +14,9 @@ data class AnswerInput(val optionKeys: List<String>?=null,val value: Boolean?=nu
 data class ItemProgress(val itemId: UUID,val revisionId: UUID,val answer: AnswerInput?=null,val confirmed: Boolean=false,val marked: Boolean=false,@field:Schema(allowableValues=["CORRECT","WRONG","UNANSWERED","SELF_RATED"]) val outcome: String?=null,val materialRevisionId: UUID?=null,val selfAssessment: String?=null)
 data class ProgressInput(val expectedVersion: Long,val currentIndex: Int,val durationSeconds: Int,val writerToken: UUID,val clientSequence: Long,val items: List<ItemProgress> = emptyList(),@field:Schema(allowableValues=["SAVE","FINISH"]) val kind: String="SAVE",val autoAddWrongBook: Boolean=true,val clientResult: ClientResultInput?=null,val submittedAt: Instant?=null)
 data class ExpectedVersionInput(val expectedVersion: Long,val writerToken: UUID)
-data class ClaimWriterInput(val expectedVersion: Long,val deviceId: UUID)
+data class ClaimWriterInput(@field:Schema(minimum="1") val expectedEpoch: Long,val deviceId: UUID)
+data class WriterClaimView(val requestId: UUID,@field:Schema(allowableValues=["WAITING","READY","EXPIRED"]) val state: String,val writer: WriterView,val expiresAt: Instant?=null)
+data class WriterStatusView(val status: String,val writer: WriterView,val transfer: WriterClaimView?,val draining: Boolean=false)
 data class SelfAssessmentInput(val expectedVersion: Long,@field:Schema(allowableValues=["CORRECT","WRONG"]) val assessment: String)
 data class PracticeItemView(val itemId: UUID,val position: Int,val question: QuestionView,val answer: AnswerInput?,val confirmed: Boolean,val marked: Boolean,val outcome: String?,val selfAssessment: String?)
 data class PracticeView(val id: UUID,val questionBankId: UUID,val status: String,val version: Long,val currentIndex: Int,val durationSeconds: Int,val feedback: String,val items: List<PracticeItemView>,val createdAt: Instant,val configuration: PracticeConfiguration,val offlineGrading: List<OfflineGrading>?,val writer: WriterView,val favoriteQuestionIds: List<UUID> = emptyList())
@@ -27,7 +29,7 @@ data class PracticeSummary(val id: UUID,val questionBankId: UUID,val status: Str
 data class PracticeConfiguration(val chapterIds: List<UUID>,val count: Int,val order: String,val selectionKind: String,val feedback: String,val contentVersion: Long,val questionIds: List<UUID> = emptyList(),val collectionChip: String="all",@field:Schema(allowableValues=["order","practice","test","view"]) val mode: String?=null,@field:Schema(minimum="1",maximum="86400") val timeLimitSeconds: Int?=null,val questionBankIds: List<UUID> = emptyList(),val contentVersions: Map<UUID,Long> = emptyMap())
 data class OfflineGrading(val itemId: UUID,val correctAnswer: List<String>?,val correctValue: Boolean?,val referenceAnswer: String?,val explanation: String?,
     val blanks: List<qanda.backend.content.BlankInput>?=null,val blankMatch: qanda.backend.content.BlankMatch?=null,val scoringPoints: List<String>?=null,val questionId: UUID?=null,val revisionId: UUID?=null,val materialRevisionId: UUID?=null)
-data class WriterView(val deviceId: UUID?,val writerToken: UUID?,val version: Long,val acknowledgedSequence: Long)
+data class WriterView(val deviceId: UUID?,val writerToken: UUID?,val version: Long,val acknowledgedSequence: Long,val epoch: Long=1)
 data class ProgressAck(val id: UUID,val version: Long,val acknowledgedSequence: Long,val writer: WriterView)
 
 internal fun objectiveMetrics(count: Int,correct: Int,wrong: Int): ObjectiveMetrics {

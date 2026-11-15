@@ -113,6 +113,9 @@ def main():
                 if ($http_authorization != 'Bearer fixture') { return 401; }
                 return 200 "USER:$http_x_forwarded_for:$http_x_qanda_gateway_key";
             }
+            location = /api/v1/practice/writer-socket {
+                return 200 "SOCKET:$http_upgrade:$http_connection:$http_authorization:$http_x_forwarded_for:$http_x_forwarded_proto:$http_x_qanda_gateway_key";
+            }
             location / { return 200 "API:$http_x_forwarded_for:$http_x_qanda_gateway_key"; }
         }'''
         event_requests = []
@@ -161,7 +164,8 @@ def main():
             'QANDA_GATEWAY_ALLOWED_CLIENT': ip(10), 'QANDA_GATEWAY_KEY': gateway_key,
         }, hardened=True, alias='backend.test', templates={
             'gateway-routes.inc': routes, 'https.conf': (DEPLOY / 'public-gateway-https.conf').read_text(),
-        }, files={certificate: '/etc/qanda/tls/fullchain.pem', key: '/etc/qanda/tls/privkey.pem'})
+        }, files={certificate: '/etc/qanda/tls/fullchain.pem', key: '/etc/qanda/tls/privkey.pem',
+                  DEPLOY / 'public-gateway-nginx.conf': '/etc/nginx/nginx.conf'})
         web_conf = (DEPLOY / 'web.conf').read_text()
         web = start('web', app, web_conf.replace('/etc/ssl/cert.pem', '/fixture/ca.pem'), ip(10), {
             'QANDA_API_UPSTREAM': 'https://backend.test:8443', 'QANDA_MONITOR_UPSTREAM': 'https://backend.test:8443',
@@ -170,7 +174,9 @@ def main():
         client_conf = '''server { listen 8089;
             proxy_ssl_verify on; proxy_ssl_server_name on;
             proxy_ssl_trusted_certificate /fixture/ca.pem;
-            location / { proxy_pass https://backend.test:8443; }
+            location / { proxy_pass https://backend.test:8443;
+                proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection $http_connection;
+            }
         }'''
         start('direct-client', app, client_conf, ip(12), files={certificate: '/fixture/ca.pem'})
         trusted_client = start('trusted-client', 'container:' + web, client_conf, files={certificate: '/fixture/ca.pem'})
@@ -209,6 +215,11 @@ def main():
         ]) == 'API:' + ip(12) + ':', 'Direct clients supplied a trusted address or leaked the gateway key'
         blocked(member, direct_url + '/api/v1/me')
         assert get(member, direct_url + '/api/v1/me', ['Authorization: Bearer fixture']) == 'USER:' + ip(12) + ':'
+        assert get(member, direct_url + '/api/v1/practice/writer-socket', [
+            'Authorization: Bearer fixture', 'Upgrade: websocket', 'Connection: Upgrade',
+            'X-Forwarded-For: 203.0.113.99', 'X-Qanda-Gateway-Key: forged',
+        ]) == 'SOCKET:websocket:upgrade:Bearer fixture:' + ip(12) + ':https:', 'Socket forwarding lost trusted headers'
+        blocked(member, f'http://{ip(21)}:8080/api/v1/practice/writer-socket', ['Authorization: Bearer fixture'])
         for path in ('/api/v1/admin', '/api/v1/admin/auth/me', '/api/v1/%61dmin/auth/me',
                      '/api/v1/admin/statistics/activity', '/api/v1/admin/monitoring/sync/stream'):
             for headers in ([], ['X-Qanda-Gateway-Key: wrong'], ['X-Qanda-Gateway-Key: ' + gateway_key]):

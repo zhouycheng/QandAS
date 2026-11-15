@@ -16,13 +16,16 @@ services:
       QANDA_GATEWAY_ALLOWED_CLIENT: ${PUBLIC_GATEWAY_ALLOWED_CLIENT:?required}
     volumes:
       - /srv/qanda/public-gateway:/etc/nginx/templates:ro
+      - /srv/qanda/public-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
       - /srv/qanda/private/public-tls:/etc/qanda/tls:ro
     ports: ["0.0.0.0:80:8080", "0.0.0.0:443:8443"]
     networks:
       application:
         ipv4_address: 172.29.71.30
     restart: "no"
-    mem_limit: 32m
+    mem_limit: 256m
+    ulimits:
+      nofile: {soft: 32768, hard: 32768}
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8081/healthz]
       interval: 5s

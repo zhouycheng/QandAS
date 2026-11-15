@@ -16,13 +16,12 @@ function records(remoteItems, localItems, deviceId) {
     const bank = remote.getBankMeta(item.questionBankId)
     const state = item.status === 'SUBMITTED' ? 'ended' : item.status === 'WAITING' ? 'waiting' : 'active'
     const otherDevice = state === 'active' && !!item.deviceId && !!deviceId && item.deviceId !== deviceId
-    const released = state === 'active' && item.deviceId === null
     return { id: item.id, status: item.status, feedback: item.feedback, title: item.title || bank && bank.name || '题库练习', state,
       otherDevice, syncError: item.syncError, canRetrySync: item.canRetrySync,
-      statusText: otherDevice ? '其他设备作答' : released ? '可接续' : state === 'ended' && !item.cloudConfirmed ? '已完成 · 待同步' : { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
+      statusText: state === 'ended' && !item.cloudConfirmed ? '已完成 · 待同步' : { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
       countText: `${item.questionCount} 题`, timeText: formatRecordTime(item.createdAt),
       feedbackText: { IMMEDIATE: '即时反馈', AFTER_FINISH: '交卷后反馈' }[item.feedback] || '',
-      actionText: otherDevice ? '查看交接方式' : released ? '在此设备继续' : state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
+      actionText: state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
       modeText: { order: '顺序练习', practice: '随机练习', test: '模拟考试', view: '背题' }[item.mode] || '练习' }
   })
 }
@@ -48,7 +47,7 @@ class PracticeRecordsViewModel {
     }
     return Object.values(entries || {})
   }
-  view() { return records(this.remoteItems, this.local(), auth.deviceId(this.storage)).slice(0, Math.max(1, this.visiblePage) * 20) }
+  view() { return records(this.remoteItems, this.local(), auth.deviceId(this.storage)).slice(0, Math.max(1, this.visiblePage) * 20).map(item => ({ ...item, detached: !!this.storage.get(`qandaOnline:${this.owner}:${item.id}:detached`) })) }
   open(item) { return openRecord(item) }
   async retry(id) { const runtime = online.current(); if (runtime && auth.getAuth(this.storage).userId === this.owner) { runtime.identity(); await runtime.queue.resume(id) } return this.load(true) }
   async load(reset) {

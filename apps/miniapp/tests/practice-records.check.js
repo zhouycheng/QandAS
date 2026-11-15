@@ -25,9 +25,13 @@ async function main() {
   const unsent = records([], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false, canRetrySync: true, syncError: '网络暂不可用' }])[0]
   assert.equal(unsent.statusText, '已完成 · 待同步'); assert.equal(unsent.canRetrySync, true)
   assert.equal(records([{ id: 'unsent', status: 'SUBMITTED' }], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false }])[0].statusText, '已完成')
+  const continued = records([{ id: 'unsent', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'unsent', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: false, syncError: '授权已失效', canRetrySync: true }])[0]
+  assert.equal(continued.status, 'IN_PROGRESS', '另一端已接续时，本机未上传的交卷不能遮住最新记录')
+  assert.equal(continued.syncError, ''); assert.equal(continued.canRetrySync, false)
+  assert.equal(records([{ id: 'done', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'done', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: true }])[0].status, 'SUBMITTED')
   const foreign = records([{ id: 'foreign', status: 'IN_PROGRESS', deviceId: 'phone' }], [], 'computer')[0]
-  assert.equal(foreign.statusText, '其他设备作答'); assert.equal(openRecord(foreign).type, 'toast')
-  assert.equal(records([{ id: 'released', status: 'IN_PROGRESS', deviceId: null }], [], 'computer')[0].actionText, '在此设备继续')
+  assert.equal(foreign.statusText, '进行中'); assert.equal(openRecord(foreign).type, 'navigate')
+  assert.equal(records([{ id: 'released', status: 'IN_PROGRESS', deviceId: null }], [], 'computer')[0].actionText, '继续答题')
   assert.equal(summarize({ id: 'saving' }, { reason: '已保存在本机，可继续练习', failures: 0 }).syncError, '', '正常同步不增加提示')
   const largeSnapshots = Array.from({ length: 20 }, (_, i) => ({ id: String(i), status: 'SUBMITTED', items: Array(1000).fill({ question: { stem: 'question' }, answer: ['B'] }) }))
   const smallCards = records([], largeSnapshots)
@@ -74,21 +78,6 @@ async function main() {
     assert(pages.at(-1).includes('page=1&'))
     assert.strictEqual(vm.page, 1)
   } finally { http.request = request }
-  const previousPage = global.Page, previousWx = global.wx
-  let pageDefinition, confirmTransfer, releaseTransfer, redirects = 0, updates = 0
-  global.Page = definition => { pageDefinition = definition }
-  global.wx = { showModal: options => { confirmTransfer = options.success }, redirectTo() { redirects++ } }
-  try {
-    require('../miniprogram/page/practice/index.js')
-    const transfer = new Promise(resolve => { releaseTransfer = resolve })
-    const page = { viewModel: { releaseWriter: () => transfer }, clearAutoAdvance() {}, stopElapsedTimer() {}, stopTestTimer() {}, setData() {}, applyViewModelResult() { updates++ } }
-    pageDefinition.handleReleaseWriter.call(page)
-    const completing = confirmTransfer({ confirm: true })
-    page._pageUnloaded = true
-    releaseTransfer({ released: true }); await completing
-    assert.equal(redirects, 0, '退出答题页后的交接回执不改变当前路由')
-    assert.equal(updates, 0, '退出后不更新页面')
-  } finally { global.Page = previousPage; global.wx = previousWx }
   console.log('practice records and durable finalization survive twelve transient failures and restarts')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

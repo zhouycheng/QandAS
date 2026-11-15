@@ -17,7 +17,7 @@
 
 设置主表、两类子项与默认项统一在事务内保存；服务端验证默认项存在、枚举、题量、时长、布局范围和 ID 唯一性。设置业务版本用于并发冲突检查，不承担历史格式转换。
 
-练习继续以 `practice_session` 为父表。`practice_sync_state.session_id` 为一对一主键外键，`sync_command(session_id,user_id)` 为账号一致的复合外键；写入设备及凭证同时为空表示已释放，可由新设备领取。交接继续使用原场次和连续同步序号。
+练习继续以 `practice_session` 为父表。`practice_sync_state.session_id` 为一对一主键外键，`sync_command(session_id,user_id)` 为账号一致的复合外键；写入设备及凭证同时为空表示已释放。写入代次、封闭状态和接续申请保存在同一同步状态子记录中，事务切换凭证并沿用原场次和连续同步序号。
 
 ## 表与字段
 
@@ -712,6 +712,12 @@
 | `acknowledged_sequence` | `bigint` | 否 | `0` |
 | `accepted_sequence` | `bigint` | 否 | `0` |
 | `finish_sequence` | `bigint` | 是 | — |
+| `writer_epoch` | `bigint` | 否 | `1` |
+| `writer_sealed` | `boolean` | 否 | `false` |
+| `takeover_id` | `uuid` | 是 | — |
+| `takeover_device_id` | `uuid` | 是 | — |
+| `takeover_expires_at` | `timestamp with time zone` | 是 | — |
+| `takeover_state` | `character varying(8)` | 是 | — |
 
 | 约束 | 定义 |
 | --- | --- |
@@ -720,6 +726,9 @@
 | `practice_sync_state_check1` | `CHECK (((writer_device_id IS NULL) = (writer_token IS NULL)))` |
 | `practice_sync_state_pkey` | `PRIMARY KEY (session_id)` |
 | `practice_sync_state_session_id_fkey` | `FOREIGN KEY (session_id) REFERENCES practice_session(id)` |
+| `practice_sync_state_takeover_state_check` | `CHECK (((takeover_state)::text = ANY ((ARRAY['WAITING'::character varying, 'READY'::character varying, 'EXPIRED'::character varying])::text[])))` |
+| `practice_sync_state_writer_epoch_check` | `CHECK ((writer_epoch > 0))` |
+| `practice_takeover_complete` | `CHECK ((num_nonnulls(takeover_id, takeover_device_id, takeover_expires_at, takeover_state) = ANY (ARRAY[0, 4])))` |
 
 ### `question`
 

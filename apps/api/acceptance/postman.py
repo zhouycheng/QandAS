@@ -53,7 +53,7 @@ def main():
             return {key: template(item, key) for key, item in value.items()}
         if isinstance(value, list):
             return [template(item, field) for item in value]
-        if field.endswith("Id") or field in variables or field in ("expectedVersion", "expectedContentVersion", "clientSequence"):
+        if field.endswith("Id") or field in variables or field in ("expectedVersion", "expectedContentVersion", "expectedEpoch", "clientSequence"):
             variables.setdefault(field, 1 if isinstance(value, int) else "")
             return "{{" + field + "}}"
         return value
@@ -107,7 +107,7 @@ def main():
                 assert not contracts.errors(concrete, schema, owner), operation_id
                 body_sample = template(concrete)
                 raw = json.dumps(body_sample, ensure_ascii=False, indent=2)
-                for field in ("expectedVersion", "expectedContentVersion", "clientSequence", "acknowledgedSequence"):
+                for field in ("expectedVersion", "expectedContentVersion", "expectedEpoch", "clientSequence", "acknowledgedSequence"):
                     raw = raw.replace('"{{' + field + '}}"', '{{' + field + '}}')
                 request["body"] = {"mode": "raw", "raw": raw, "options": {"raw": {"language": "json"}}}
                 headers.append({"key": "Content-Type", "value": "application/json"})
@@ -124,7 +124,7 @@ def main():
         if resource:
             variables.setdefault(resource, "")
             post.append(f"if(b.id)pm.environment.set({json.dumps(resource)},b.id);")
-        post.append("const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}")
+        post.append("const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}")
         post.append("if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}")
         post.append("for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}")
         if "/sync-commands" in route:

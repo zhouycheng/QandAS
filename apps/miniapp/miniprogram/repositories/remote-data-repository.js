@@ -380,7 +380,7 @@ function getProgress(storage) {
   state.banks.forEach(bank => { if (bank.progress) result[bank.id] = Object.assign({ total: questionCount(bank), answers: {}, updatedAt: 0 }, bank.progress) })
   return result
 }
-function getRecent(storage) { bind(storage); return (state.recent.length ? state.recent : state.overview && state.overview.recentSession ? [state.overview.recentSession] : []).filter(item => item.status !== 'IN_PROGRESS' || item.deviceId === storage.get('qandaDeviceId')) }
+function getRecent(storage) { bind(storage); return state.recent.length ? state.recent : state.overview && state.overview.recentSession ? [state.overview.recentSession] : [] }
 function getHistory(storage) { bind(storage); return state.history }
 function getScopeMeta(id) { const b = state.banks.find((b) => b.id === id); const s = getSubjectDetail(b ? b.subjectId : id); if (!s) return null; return { scopeKey: id, subjectId: s.id, bankId: b ? b.id : '', title: b ? b.name : s.name, description: s.name, url: `/page/practice/index?subjectId=${s.id}&bankId=${b ? b.id : (s.banks[0] || {}).id || ''}` } }
 function setQuestionFavorite(storage, id, value) {

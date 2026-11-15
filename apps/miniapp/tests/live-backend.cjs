@@ -28,8 +28,9 @@ global.wx = { request(options) {
     .catch(error => options.fail({ errMsg: error.message }))
 } }
 async function main() {
-  api.configure({ baseUrl: source.QANDA_TEST_URL, tokenProvider: () => source.QANDA_TEST_TOKEN })
+  api.configure({ baseUrl: source.QANDA_TEST_URL, tokenProvider: () => auth.getAuth(storage).token || source.QANDA_TEST_TOKEN })
   auth.saveAuth(storage, { provider: 'email', userId: source.QANDA_TEST_USER_ID, token: source.QANDA_TEST_TOKEN, email: 'fixture@example.test' })
+  storage.set('qandaDeviceId', source.QANDA_TEST_DEVICE_ID)
   remote.enable(true); remote.bind(storage)
   await remote.loadBank(storage, source.QANDA_TEST_BANK_ID)
   const bank = remote.getBankMeta(source.QANDA_TEST_BANK_ID)
@@ -57,7 +58,9 @@ async function main() {
   assert((await vm.releaseWriter()).released, '相同交接请求可恢复')
   runtime.queue.stop()
   storage = makeStorage(new Map())
-  auth.saveAuth(storage, { provider: 'email', userId: source.QANDA_TEST_USER_ID, token: source.QANDA_TEST_TOKEN })
+  auth.saveAuth(storage, { provider: 'email', userId: source.QANDA_TEST_USER_ID, token: source.QANDA_TEST_OTHER_TOKEN })
+  storage.set('qandaDeviceId', source.QANDA_TEST_OTHER_DEVICE_ID)
+  remote.enable(true); remote.bind(storage)
   await preferences.refreshPreferences(storage)
   assert.deepEqual(preferences.getPreferences(storage), configured, '账号设置通过真实 HTTP 在新设备读取')
   runtime = online.enable(storage); vm = new PracticeViewModel({ storage })
@@ -98,7 +101,7 @@ async function main() {
   remote.invalidateLearning()
   await Promise.all([remote.refresh(storage, 'home'), remote.refresh(storage, 'recent')])
   const recent = remote.getRecent(storage)
-  assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'))
+  assert.ok(recent.some(item => item.id === completed.id && item.status === 'SUBMITTED'), JSON.stringify({ recentCount: recent.length, statuses: recent.map(item => item.status), cloudConfirmed: completed.cloudConfirmed }))
   assert.ok(requests.some(item => item.path.endsWith('/sync-commands')))
   assert.ok(requests.every(item => item.path.startsWith('/api/v1/')))
   for (const item of completed.items) {
