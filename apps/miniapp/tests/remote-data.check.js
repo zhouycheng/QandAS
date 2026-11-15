@@ -49,6 +49,12 @@ async function main() {
   await remote.searchQuestions(storage, '题目', 1)
   await remote.loadQuestion(storage, 'q1')
   assert.deepStrictEqual(calls.slice(2).map(call => call[1]), ['/search', '/questions/q1'])
+  assert.strictEqual(calls[2][2].kind, undefined, '全部搜索不传类型')
+  for (const kind of ['SUBJECT', 'BANK', 'CHAPTER', 'QUESTION', 'SUBJECT,BANK']) {
+    await remote.searchQuestions(storage, '内容', 2, kind)
+    assert.strictEqual(calls[calls.length - 1][2].kind, kind)
+    assert.strictEqual(calls[calls.length - 1][2].page, 2)
+  }
   calls.length = 0
   auth.saveAuth(storage, { provider: 'email', userId: 'u1', token: 'token', nickname: '同学' })
   remote.bind(storage)
@@ -132,6 +138,25 @@ async function main() {
   assert.strictEqual((await newSearch).data.searchResults[0].questionId, 'new')
   pendingSearch['旧词']({ total: 1, items: [{ questionId: 'old' }] })
   assert.strictEqual(await oldSearch, null, '迟到搜索响应不得替换新结果')
+  const kindCalls = []
+  const kindVm = new SubjectListViewModel({ storage, repository: { searchRemoteQuestions: (storage, text, page, kind) => new Promise(resolve => kindCalls.push({ text, page, kind, resolve })) } })
+  const bankSearch = kindVm.searchQuestions('相同词', 'BANK')
+  const chapterSearch = kindVm.searchQuestions('相同词', 'CHAPTER')
+  kindCalls[1].resolve({ total: 2, items: [{ id: 'c1' }] })
+  assert.strictEqual((await chapterSearch).data.searchHasMore, true)
+  kindCalls[0].resolve({ total: 1, items: [{ id: 'b1' }] })
+  assert.strictEqual(await bankSearch, null, '切换类型拒收旧类型结果')
+  const more = kindVm.loadMoreSearch()
+  assert.deepStrictEqual([kindCalls[2].page, kindCalls[2].kind], [2, 'CHAPTER'])
+  kindCalls[2].resolve({ total: 2, items: [{ id: 'c2' }] })
+  assert.deepStrictEqual((await more).data.searchResults.map(item => item.id), ['c1', 'c2'])
+  const questionSearch = kindVm.searchQuestions('相同词', 'QUESTION')
+  assert.strictEqual(kindCalls[3].page, 1)
+  kindCalls[3].resolve({ total: 0, items: [] })
+  assert.strictEqual((await questionSearch).data.searchResultCount, 0)
+  assert.strictEqual(kindVm.closeSearch().data.searchKind, '')
+  assert.strictEqual(kindVm.searchKind, '')
+
 
   const historyChoices = await new SubjectListViewModel({ storage, repository: {
     isRemoteEnabled: () => true, refreshRemote: async () => {}, getAuth: () => ({ loggedIn: false }),

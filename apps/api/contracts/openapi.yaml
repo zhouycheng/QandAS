@@ -67628,7 +67628,10 @@
             "format": "uuid"
           },
           "questionBankId": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid"
           },
           "chapterId": {
@@ -67661,7 +67664,6 @@
         "required": [
           "id",
           "kind",
-          "questionBankId",
           "subjectId",
           "summary",
           "title"

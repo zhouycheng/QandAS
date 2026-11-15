@@ -116,9 +116,11 @@ function checkStructure() {
   assert('结构 - 四宫格有计数徽标', homeWxml.indexOf('class="entry-badge"') >= 0)
 
   assert('结构 - 搜索结果面板存在', /class="[^"\n]*\bsearch-panel(?:\s|")/.test(homeWxml))
-  assert('结构 - 搜索空态区分「已搜无果」与「未搜索」',
-    homeWxml.indexOf('searchSearched && searchResultCount === 0') >= 0 &&
-    homeWxml.indexOf('!searchSearched') >= 0)
+  assert('结构 - 首页搜索框在 portal 中保持输入节点',
+    homeWxml.indexOf('<input') < homeWxml.indexOf('class="search-panel-head"') && homeWxml.includes('<root-portal enable="{{searchVisible}}">'))
+  assert('结构 - 搜索只保留一个原生输入框', (homeWxml.match(/<input\b/g) || []).length === 1)
+  assert('结构 - 无结果提示等待搜索完成', homeWxml.includes('searchSearched && searchResultCount === 0 && !searchLoading'))
+  assert('结构 - 图标关闭提供无障碍名称', homeWxml.includes('aria-label="关闭搜索"') && homeWxml.includes('class="search-close-icon"'))
   assert('结构 - 公告复用 bottom-sheet', /<bottom-sheet[\s\S]{0,200}?announcementSheetVisible/.test(homeWxml))
   assert('结构 - 首页直接调用原生路由', !homeWxml.includes('route-loading') && /navigation\.navigateTo/.test(homeJs))
 

@@ -49,7 +49,8 @@ async function main() {
   assert.equal(app.globalData.pendingBankTarget, null, '定位目标只消费一次')
   await page.onShow()
   assert.equal(opened.filter(row => row[0] === 'chapter').length, 1, '返回题库不重复打开章节配置')
-  app.setPendingSubjectId('another')
+  home.data.searchResults = [{ id: 'another', kind: 'SUBJECT', subjectId: 'another', questionBankId: null }]
+  home.handleSearchResultTap({ currentTarget: { dataset: { id: 'another' } } })
   await page.onShow()
   assert.deepEqual(opened.at(-1), ['subject', 'another'])
   assert.equal(page.routeBankId, '', '首页科目定位覆盖之前的分享定位')
@@ -74,18 +75,6 @@ async function main() {
   assert.equal(filters.read(storage).collegeId, 'b', '账号切换保留本机选择')
   await page.handleGradeFilter({ detail: { value: '0' } })
   assert.equal(filters.read(storage).grade, null)
-
-  filters.save(storage, { majorId: 'major-b', grade: 2 })
-  page.data.filterMajors = [{ id: '', name: '全部专业' }, { id: 'major-b', name: '专业乙' }]
-  page.syncFilterToggle()
-  assert.equal(page.data.filterToggleEnabled, true)
-  await page.handleFilterToggle()
-  assert.deepEqual(filters.read(storage), { collegeId: '', majorId: '', grade: null })
-  assert.equal(page.data.filterToggleRestore, true)
-  assert.equal(searched, '原关键词', '重置保留搜索关键词')
-  await page.handleFilterToggle()
-  assert.deepEqual(filters.read(storage), { collegeId: 'b', majorId: 'major-b', grade: 2 })
-  assert.equal(page.data.filterToggleRestore, false)
 
   let finishOld
   api.getAll = path => path === '/colleges' ? Promise.resolve({ ok: true, data: [{ id: 'b', name: '乙' }] })

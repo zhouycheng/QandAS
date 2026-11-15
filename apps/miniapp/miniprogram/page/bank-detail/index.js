@@ -9,8 +9,7 @@ Page(withPageLifecycle({
   customHeader: true,
   data: Object.assign(BankDetailViewModel.getInitialData(), {
     filterColleges: [{ id: '', name: '全部学院' }], filterMajors: [{ id: '', name: '全部专业' }],
-    filterGrades: filters.GRADES, filterCollegeIndex: 0, filterMajorIndex: 0, filterGradeIndex: 0, filterError: '',
-    filterToggleEnabled: false, filterToggleRestore: false
+    filterGrades: filters.GRADES, filterCollegeIndex: 0, filterMajorIndex: 0, filterGradeIndex: 0, filterError: ''
   }),
 
   isOpeningPractice: false,
@@ -41,7 +40,6 @@ Page(withPageLifecycle({
       this.chapterLocated = false
       this.viewModel.directBankId = ''
     }
-    this.syncFilterToggle()
     this.loadFilters()
     return this.refreshCatalog()
   },
@@ -91,11 +89,9 @@ Page(withPageLifecycle({
       if (result.invalid) {
         this.viewModel.beginFilterRefresh()
         remote.setCatalogFilters(this.viewModel.storage, result.value, { clearPrevious: true })
-        this.syncFilterToggle()
         wx.showToast({ title: '已清理失效分类，请重新选择', icon: 'none' })
         return this.routeBankId ? this.refreshCatalog() : this.refreshFilteredCatalog()
       }
-      this.syncFilterToggle()
     } catch (error) {
       if (!this._pageUnloaded && request === this.filterRequest) this.setData({ filterError: error.message })
     }
@@ -106,7 +102,6 @@ Page(withPageLifecycle({
       this.viewModel.beginFilterRefresh()
       const value = remote.setCatalogFilters(this.viewModel.storage, patch)
       this.setData({ filterGradeIndex: value.grade || 0 })
-      this.syncFilterToggle()
       this.loadFilters()
       return this.refreshFilteredCatalog()
     } catch (error) { this.viewModel.cancelFilterRefresh(); wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
@@ -136,14 +131,6 @@ Page(withPageLifecycle({
   handleCollegeFilter(event) { const item = (this.data.filterColleges || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ collegeId: item.id }) },
   handleMajorFilter(event) { const item = (this.data.filterMajors || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ majorId: item.id }) },
   handleGradeFilter(event) { return this.changeFilters({ grade: Number(event.detail.value) || null }) },
-
-  syncFilterToggle() {
-    try {
-      const state = filters.toggleState(this.viewModel.storage)
-      this.setData({ filterToggleEnabled: state.enabled, filterToggleRestore: state.restoring })
-    } catch (error) { this.setData({ filterToggleEnabled: false, filterToggleRestore: false }) }
-  },
-
 
   onShareAppMessage() {
     return this.viewModel.getShareMessage(this.data.subjectId, this.routeBankId)
@@ -235,23 +222,6 @@ Page(withPageLifecycle({
     this.setData({ searchLoading: true })
     return this.applyViewModelResult(this.viewModel.updateSearch(this.viewModel.remoteSearchText, (this.viewModel.remoteSearchPage || 1) + 1))
       .finally(() => this.setData({ searchLoading: false }))
-  },
-
-  handleFilterToggle() {
-    if (!this.data.filterToggleEnabled) return
-    try {
-      this.viewModel.beginFilterRefresh()
-      const value = remote.toggleCatalogFilters(this.viewModel.storage)
-      if (!value) { this.viewModel.cancelFilterRefresh(); return }
-      this.setData({
-        filterCollegeIndex: Math.max(0, this.data.filterColleges.findIndex(item => item.id === value.collegeId)),
-        filterMajorIndex: Math.max(0, this.data.filterMajors.findIndex(item => item.id === value.majorId)),
-        filterGradeIndex: value.grade || 0
-      })
-      this.syncFilterToggle()
-      this.loadFilters()
-      return this.refreshFilteredCatalog()
-    } catch (error) { this.viewModel.cancelFilterRefresh(); wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
   },
 
   async openPracticeTarget(open, configure) {

@@ -22,6 +22,7 @@ Page(withPageLifecycle({
 
   onResize() {
     this.updateHeaderLayout()
+    if (this.data.searchVisible) this.updateSearchAnchor()
   },
 
   updateHeaderLayout() {
@@ -189,16 +190,22 @@ Page(withPageLifecycle({
       return
     }
 
-    this.applyViewModelResult(this.viewModel.openSearch())
+    this.updateSearchAnchor(() => this.applyViewModelResult(this.viewModel.openSearch()))
   },
 
-  /**
-   * 输入即搜。放到 bindinput 而不是 bindconfirm：
-   * 题库只有 200 多题，每次击键全表扫描也就几毫秒，
-   * 但体验上「边打边看到结果」比「打完再按回车」好得多。
-   * （对比：题库导入页的 textarea 必须放 bindblur，那里解析的是整张表。）
-   */
+  updateSearchAnchor(onReady) {
+    const revision = this.searchAnchorRevision = (this.searchAnchorRevision || 0) + 1
+    this.createSelectorQuery().select('.search-box').boundingClientRect(rect => {
+      if (!rect || this._pageUnloaded || revision !== this.searchAnchorRevision) return
+      this.setData({
+        searchAnchorStyle: `left: ${rect.left}px; top: ${rect.top}px; width: ${rect.width}px; height: ${rect.height}px;`,
+        searchResultsTop: rect.bottom + 12
+      }, onReady)
+    }).exec()
+  },
+
   handleSearchInput(e) {
+    this.setData({ searchInputValue: e.detail.value })
     this.runSearch(e.detail.value, 300)
   },
 
@@ -206,14 +213,28 @@ Page(withPageLifecycle({
     this.runSearch(e.detail.value, 0)
   },
 
+  handleSearchKindChange(e) {
+    const kind = e.currentTarget.dataset.kind
+    const selected = new Set((this.data.searchKind || '').split(',').filter(Boolean))
+    if (!kind) selected.clear()
+    else if (selected.has(kind)) selected.delete(kind)
+    else selected.add(kind)
+    const searchKinds = this.data.searchKinds.map(item => Object.assign({}, item, { selected: item.value ? selected.has(item.value) : selected.size === 0 }))
+    const searchKind = searchKinds.filter(item => item.selected && item.value).map(item => item.value).join(',')
+    this.setData({ searchKind, searchKinds, searchResults: [], searchHasMore: false, searchSearched: false, searchResultCount: 0 })
+    this.runSearch(this.searchInputKeyword === undefined ? this.data.searchKeyword : this.searchInputKeyword, 0)
+  },
+
   runSearch(keyword, delay) {
-    if (!this.viewModel.repository.isRemoteEnabled || !this.viewModel.repository.isRemoteEnabled()) return this.applyViewModelResult(this.viewModel.searchQuestions(keyword))
+    this.searchInputKeyword = keyword
+
+    if (!this.viewModel.repository.isRemoteEnabled || !this.viewModel.repository.isRemoteEnabled()) return this.applyViewModelResult(this.viewModel.searchQuestions(keyword, this.data.searchKind))
     if (this.searchTimer) clearTimeout(this.searchTimer)
     const revision = (this.searchRevision || 0) + 1
     this.searchRevision = revision
     const execute = () => {
       this.setData({ searchLoading: true })
-      Promise.resolve(this.viewModel.searchQuestions(keyword)).then((result) => {
+      Promise.resolve(this.viewModel.searchQuestions(keyword, this.data.searchKind)).then((result) => {
         if (this.searchRevision === revision) this.applyViewModelResult(result)
       }).catch((error) => {
         if (this.searchRevision === revision) wx.showToast({ title: error.message, icon: 'none' })
@@ -233,6 +254,9 @@ Page(withPageLifecycle({
   },
 
   handleSearchClose() {
+    this.searchAnchorRevision = (this.searchAnchorRevision || 0) + 1
+    this.searchInputKeyword = ''
+    this.setData({ searchInputValue: '' })
     if (this.searchTimer) clearTimeout(this.searchTimer)
     this.searchRevision = (this.searchRevision || 0) + 1
     this.setData({ searchLoading: false })
@@ -240,6 +264,7 @@ Page(withPageLifecycle({
   },
 
   onHide() {
+    this.handleSearchClose()
     this.announcementRevision = (this.announcementRevision || 0) + 1
     this.setData({ selectedAnnouncement: null, announcementLoading: false })
     this.recentRevision = (this.recentRevision || 0) + 1
@@ -260,8 +285,7 @@ Page(withPageLifecycle({
       return
     }
 
-    // 先进面板再跳转：面板是 fixed 定位，跳页后仍留在这个 tab 的 DOM 里
-    this.applyViewModelResult(this.viewModel.closeSearch())
+    this.handleSearchClose()
     if (item && item.kind !== 'QUESTION') {
       this.handleViewModelCommand({ type: 'switchTab', url: '/page/bank-detail/index', target: {
         subjectId: item.subjectId, bankId: item.questionBankId, chapterId: item.chapterId || ''

@@ -72,6 +72,8 @@ function getInitialSubjectListViewData() {
         announcementSheetVisible: false,
         // 题目搜索
         searchVisible: false,
+        searchKind: '',
+        searchKinds: [{ value: '', label: '全部', selected: true }, { value: 'SUBJECT', label: '科目' }, { value: 'BANK', label: '题库' }, { value: 'CHAPTER', label: '章节' }, { value: 'QUESTION', label: '题目' }],
         searchKeyword: '',
         searchResults: [],
         searchLoading: false,
@@ -92,6 +94,7 @@ class SubjectListViewModel {
         this.storage = normalizedOptions.storage || null;
         this.searchPage = 0;
         this.searchResults = [];
+        this.searchKind = '';
         this.searchText = '';
     }
     refreshRemote(options) {
@@ -412,11 +415,14 @@ class SubjectListViewModel {
         };
     }
     closeSearch() {
+        this.searchKind = '';
         this.searchText = '';
         this.searchRequestRevision = (this.searchRequestRevision || 0) + 1;
         return {
             data: {
                 searchVisible: false,
+                searchKind: '',
+                searchKinds: getInitialSubjectListViewData().searchKinds,
                 searchHasMore: false,
                 searchLoading: false,
                 searchKeyword: '',
@@ -427,7 +433,8 @@ class SubjectListViewModel {
         };
     }
     /** 按关键词分页搜索，并忽略已过期请求。 */
-    searchQuestions(keyword) {
+    searchQuestions(keyword, kind = this.searchKind) {
+        this.searchKind = kind.split(',').every(value => ['', 'SUBJECT', 'BANK', 'CHAPTER', 'QUESTION'].includes(value)) ? kind : '';
         const text = questionSearch.normalizeKeyword(keyword);
         return this.searchRemote(text, 1);
     }
@@ -444,7 +451,7 @@ class SubjectListViewModel {
             this.searchText = text;
             this.searchResults = [];
         }
-        return this.repository.searchRemoteQuestions(this.storage, text, page).then((result) => {
+        return this.repository.searchRemoteQuestions(this.storage, text, page, this.searchKind).then((result) => {
             if (text !== this.searchText || revision !== this.searchRequestRevision)
                 return null;
             this.searchResults = page === 1 ? result.items : this.searchResults.concat(result.items);

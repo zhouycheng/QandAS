@@ -410,16 +410,16 @@ async function clearFavorites(storage) {
     }
   }
 }
-function searchQuestions(storage, keyword, page) {
+function searchQuestions(storage, keyword, page, kind) {
   const user = bind(storage)
   const context = scopeKey(authRepository.getAuth(storage))
   const selection = JSON.stringify(catalogFilters.query(storage))
-  return api.request('GET', '/search', Object.assign({ keyword, page: page || 1, pageSize: 20 }, catalogFilters.query(storage))).then(checked).then((result) => {
+  return api.request('GET', '/search', Object.assign({ keyword, page: page || 1, pageSize: 20 }, kind ? { kind } : {}, catalogFilters.query(storage))).then(checked).then((result) => {
     bind(storage)
     if (owner !== user) throw new Error('账号已切换，请重新搜索')
     if (scopeKey(authRepository.getAuth(storage)) !== context || selection !== JSON.stringify(catalogFilters.query(storage))) throw new Error('筛选已变化，请重新搜索')
     return { total: result.total, page: result.page, items: (result.items || []).map(item => Object.assign({}, item, {
-      questionId: item.id, stem: item.title, typeText: { BANK: '题库', CHAPTER: '章节', QUESTION: '题目' }[item.kind], sourceText: item.summary
+      questionId: item.id, stem: item.title, typeText: { SUBJECT: '科目', BANK: '题库', CHAPTER: '章节', QUESTION: '题目' }[item.kind], sourceText: item.summary
     })) }
   })
 }
