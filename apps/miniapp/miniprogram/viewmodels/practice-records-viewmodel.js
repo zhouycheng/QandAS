@@ -3,15 +3,18 @@ const auth = require('../repositories/auth-repository.js')
 const online = require('../repositories/online-practice.js')
 const remote = require('../repositories/remote-data-repository.js')
 const { merge, summarize, openRecord } = require('../models/practice-record-summary.js')
-function records(remoteItems, localItems) {
+function records(remoteItems, localItems, deviceId) {
   return merge(remoteItems, localItems).map(item => {
     const bank = remote.getBankMeta(item.questionBankId)
     const state = item.status === 'SUBMITTED' ? 'ended' : item.status === 'WAITING' ? 'waiting' : 'active'
+    const otherDevice = state === 'active' && !!item.deviceId && !!deviceId && item.deviceId !== deviceId
+    const released = state === 'active' && item.deviceId === null
     return { id: item.id, status: item.status, feedback: item.feedback, title: item.title || bank && bank.name || '题库练习', state,
-      statusText: { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
+      otherDevice, syncError: item.syncError, canRetrySync: item.canRetrySync,
+      statusText: otherDevice ? '其他设备作答' : released ? '可接续' : state === 'ended' && !item.cloudConfirmed ? '已完成 · 待同步' : { ended: '已完成', waiting: '练习记录恢复中', active: '进行中' }[state], review: state !== 'active',
       countText: `${item.questionCount} 题`, timeText: item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) : '',
       feedbackText: { IMMEDIATE: '即时反馈', AFTER_FINISH: '交卷后反馈' }[item.feedback] || '',
-      actionText: state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
+      actionText: otherDevice ? '查看交接方式' : released ? '在此设备继续' : state === 'active' ? '继续答题' : state === 'ended' || item.feedback === 'IMMEDIATE' ? '回看作答' : '查看记录',
       modeText: { order: '顺序练习', practice: '随机练习', test: '模拟考试', view: '背题' }[item.mode] || '练习' }
   })
 }
@@ -37,8 +40,9 @@ class PracticeRecordsViewModel {
     }
     return Object.values(entries || {})
   }
-  view() { return records(this.remoteItems, this.local()).slice(0, Math.max(1, this.visiblePage) * 20) }
+  view() { return records(this.remoteItems, this.local(), auth.deviceId(this.storage)).slice(0, Math.max(1, this.visiblePage) * 20) }
   open(item) { return openRecord(item) }
+  async retry(id) { const runtime = online.current(); if (runtime && auth.getAuth(this.storage).userId === this.owner) { runtime.identity(); await runtime.queue.resume(id) } return this.load(true) }
   async load(reset) {
     const identity = auth.getAuth(this.storage)
     if (!identity.loggedIn || identity.userId !== this.owner) return { items: [], error: '请登录原账号后查看练习记录', hasMore: false }

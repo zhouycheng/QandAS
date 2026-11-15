@@ -74,7 +74,7 @@ const STORAGE_KEYS = [
   'qandaFavorites',
   'qandaCustomQuiz',
   'qandaStudyTime',
-  'qandaPreferences',
+  'qandaPreferences:guest',
   'qandaDailyLog',
   'qandaBestScore:chinese-ch001:practice:0'
 ]

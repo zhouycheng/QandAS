@@ -5,6 +5,7 @@ const { colors } = require('../../utils/design-tokens.js')
 Page(withPageLifecycle({
   data: ExamCountdownViewModel.getInitialData(),
   onLoad() { this.viewModel = new ExamCountdownViewModel({ storage: createWxStorageAdapter() }) },
+  handlePreferencesUpdated() { if (this.viewModel) this.applyViewModelResult(this.viewModel.load()) },
   onShow() { this.applyViewModelResult(this.viewModel.load()) },
   handleAddExam() { this.applyViewModelResult(this.viewModel.openEditor()) },
   handleEditExam(e) { this.applyViewModelResult(this.viewModel.openEditor(e.currentTarget.dataset.id)) },

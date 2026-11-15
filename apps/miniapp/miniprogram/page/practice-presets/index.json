@@ -1,1 +1,6 @@
-{"usingComponents": {"bottom-sheet": "/components/bottom-sheet/index"}}
+{
+  "usingComponents": {
+    "bottom-sheet": "/components/bottom-sheet/index",
+    "preference-sync": "/components/preference-sync/index"
+  }
+}

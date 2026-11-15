@@ -1,1 +1,8 @@
-{ "navigationBarTitleText": "考试倒计时", "navigationBarBackgroundColor": "#ffffff", "navigationBarTextStyle": "black", "usingComponents": {} }
+{
+  "navigationBarTitleText": "考试倒计时",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "preference-sync": "/components/preference-sync/index"
+  }
+}

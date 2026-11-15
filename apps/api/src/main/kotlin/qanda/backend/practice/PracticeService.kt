@@ -141,7 +141,27 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     fun version(userId: UUID,id: UUID)=owned(userId,id).version
     fun lockSync(userId: UUID,id: UUID) { owned(userId,id,true) }
     private fun writer(row: PracticeSession,token: UUID) {
-        if(row.writerToken!=token) conflict("WRITER_REVOKED","请在创建练习的设备继续作答")
+        if(row.writerToken!=token) conflict("WRITER_REVOKED","答题设备已切换，请从练习记录重新打开")
+    }
+    private fun requireTransferReady(row: PracticeSession) {
+        if(row.status!="IN_PROGRESS") conflict("SESSION_CLOSED","练习已结束")
+        ownership.requireDrained(row.id!!)
+        if(!ownership.transferReady(row.id!!)) conflict("SYNC_PENDING","请先在原设备完成答题同步")
+    }
+    fun releaseWriter(actor: Actor,id: UUID,input: ExpectedVersionInput): MutationResult {
+        val row=owned(actor.id,id,true);writer(row,input.writerToken);requireVersion(input.expectedVersion,row.version)
+        requireTransferReady(row)
+        row.writerDeviceId=null;row.writerToken=null;row.version++;row.updatedAt=clock.instant()
+        ownership.save(id,writeState(row));rows.updateById(row)
+        return MutationResult(id,row.version)
+    }
+    fun claimWriter(actor: Actor,id: UUID,input: ClaimWriterInput): PracticeView {
+        val row=owned(actor.id,id,true);requireVersion(input.expectedVersion,row.version)
+        requireTransferReady(row)
+        if(row.writerToken!=null) conflict("WRITER_REQUIRED","请先在原设备选择切换答题设备")
+        row.writerDeviceId=input.deviceId;row.writerToken=UUID.randomUUID();row.version++;row.updatedAt=clock.instant()
+        ownership.save(id,writeState(row));rows.updateById(row)
+        return view(row,input.deviceId,true)
     }
     fun snapshot(actor: Actor,id: UUID,deviceId: UUID,token: UUID): PracticeView {
         val row=owned(actor.id,id);writer(row,token)

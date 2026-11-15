@@ -8,6 +8,7 @@
 
     <view class="panel-header">
       <text class="panel-title">答题卡</text>
+      <button wx:if="{{canTransfer}}" class="q-button q-button--text" bindtap="handleTransfer" loading="{{transferring}}" disabled="{{transferring}}" hover-class="q-button-hover">切换设备</button>
     </view>
 
     <!-- 统计兼作图例，交卷前只展示作答状态，避免泄露判题结果。 -->

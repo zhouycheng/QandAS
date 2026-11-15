@@ -47,7 +47,7 @@ module.exports.getRemoteRecent = function (storage) {
 module.exports.getResumableSession = function (storage) {
   const auth = authRepository.getAuth(storage)
   const snapshot = !auth.loggedIn ? require('./trial-practice.js').resumable(storage) : storage.get(`qandaOnline:${auth.userId}:${storage.get(`qandaOnlineLast:${auth.userId}`) || ''}`)
-  if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: Object.assign({}, snapshot.route, { title: snapshot.title || (snapshot.route || {}).title || '' }) })
+  if (snapshot && snapshot.status === 'IN_PROGRESS' && !snapshot.viewCompleted && !snapshot.released && !snapshot.releaseCommand) return Object.assign({}, snapshot.localState || {}, { sessionId: snapshot.id, config: Object.assign({}, snapshot.route, { title: snapshot.title || (snapshot.route || {}).title || '' }) })
   if (!auth.loggedIn) return null
   const overview = remoteData.getOverview(storage)
   const recentItems = overview && Object.prototype.hasOwnProperty.call(overview, 'recentSession')
@@ -55,7 +55,7 @@ module.exports.getResumableSession = function (storage) {
     : remoteData.getRecent(storage)
   const recent = recentItems.find(item => {
     const local = storage.get(`qandaOnline:${auth.userId}:${item.id}`)
-    return item.deviceId === storage.get('qandaDeviceId') && item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
+    return (item.deviceId === storage.get('qandaDeviceId') || item.deviceId === null) && item.status === 'IN_PROGRESS' && (!local || local.status === 'IN_PROGRESS' && !local.viewCompleted)
   })
   return recent ? { sessionId: recent.id, config: { bankId: recent.questionBankId, title: recent.title } } : null
 }

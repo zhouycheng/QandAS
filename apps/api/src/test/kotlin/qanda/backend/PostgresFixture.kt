@@ -46,6 +46,7 @@ abstract class PostgresFixture {
         @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/user-settings.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-user-settings.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
         }
         @JvmField val mailpit=GenericContainer<Nothing>("axllent/mailpit:v1.32.0").apply { withExposedPorts(1025,8025) }

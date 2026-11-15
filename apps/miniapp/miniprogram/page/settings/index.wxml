@@ -1,5 +1,6 @@
 <view class="secondary-page">
 <page-header title="答题偏好" />
+<preference-sync bind:updated="handlePreferencesUpdated" />
 <view class="page settings-page settings-detail">
   <view class="menu-row settings-row" bindtap="handlePresets" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80"><view class="menu-main"><text class="menu-title settings-label">默认答题配置</text><text class="menu-desc settings-note">{{presetSummary}}</text></view><image class="menu-arrow" src="/assets/icons/arco-down.svg" mode="aspectFit" aria-hidden="true" /></view>
   <view class="menu settings-group">

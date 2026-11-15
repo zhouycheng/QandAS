@@ -1,0 +1,8 @@
+<view wx:if="{{preferenceSyncMessage}}" class="sync-note" aria-live="polite">
+  <text>{{preferenceSyncMessage}}</text>
+  <view wx:if="{{preferenceConflict}}" class="sync-actions">
+    <button bindtap="useCloud" hover-class="pressed">使用云端设置</button>
+    <button bindtap="useLocal" hover-class="pressed">重新保存本机设置</button>
+  </view>
+  <button wx:elif="{{preferenceCanRetry}}" bindtap="retry" hover-class="pressed">重试同步</button>
+</view>

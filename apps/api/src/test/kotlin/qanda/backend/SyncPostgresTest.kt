@@ -165,15 +165,15 @@ class SyncPostgresTest : PostgresFixture() {
             assertEquals("COMMITTED",call("GET","/practice/sessions/${id(next)}/sync-commands/$rejected",token=token)["state"].asText())
             assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id(next)))
         } finally { consumers.start() }
-    }    @Test fun `practice stays bound to its creating device and never reveals credentials on reads`() {
+    }    @Test fun `practice listing spans devices while writes require the current writer credential`() {
         val owner=student();val session=createPractice(owner,fixture());val sessionId=id(session)
         val writer=session["writer"];val token=writer["writerToken"].asText();val device=writer["deviceId"].asText()
         val other=createPractice(owner,fixture())
         val overview=call("GET","/me/learning-overview?deviceId=$device",token=owner.token)
-        assertEquals(sessionId.toString(),overview["recentSession"]["id"].asText())
+        assertEquals(id(other).toString(),overview["recentSession"]["id"].asText())
         val recent=call("GET","/me/recent-learning?deviceId=$device",token=owner.token)["items"]
         assertTrue(recent.any { it["id"].asText()==sessionId.toString() })
-        assertFalse(recent.any { it["id"].asText()==id(other).toString() })
+        assertTrue(recent.any { it["id"].asText()==id(other).toString() })
         val read=call("GET","/practice/sessions/$sessionId",token=owner.token)
         assertTrue(read["writer"]["writerToken"].isNull)
         val otherDevice=raw("GET","/practice/sessions/$sessionId/snapshot?deviceId=${UUID.randomUUID()}",token=owner.token,

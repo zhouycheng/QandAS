@@ -45,9 +45,9 @@ Page(withPageLifecycle({
       storage: createWxStorageAdapter()
     })
     this.routeOptions = options || {}
-    this.practiceNetworkHandler = event => { if (event.isConnected) this.checkContentUpdates() }
+    this.practiceNetworkHandler = event => { if (event.isConnected) { this.checkContentUpdates(); this.viewModel.checkWriter().then(result => this.applyViewModelResult(result)) } }
     if (wx.onNetworkStatusChange) wx.onNetworkStatusChange(this.practiceNetworkHandler)
-    Promise.resolve(this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')).then(() => this.checkContentUpdates())
+    Promise.resolve(this.applyViewModelResult(this.viewModel.load(options), 'loadingPractice')).then(() => { this.checkContentUpdates(); return this.viewModel.checkWriter() }).then(result => this.applyViewModelResult(result))
   },
 
   handleViewLatest(event) { this.applyViewModelResult(this.viewModel.viewLatestQuestion(event.currentTarget.dataset.id)) },
@@ -292,6 +292,21 @@ Page(withPageLifecycle({
     })
   },
   retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
+  handleReleaseWriter() {
+    if (this.releasingWriter) return
+    wx.showModal({ title: '切换答题设备', content: '联网保存全部作答后暂停本机答题，再到其他设备的练习记录中接续。', success: async result => {
+      if (!result.confirm || this.releasingWriter) return
+      this.releasingWriter = true
+      this.clearAutoAdvance(); this.stopElapsedTimer(); this.stopTestTimer()
+      this.setData({ editingLocked: true, releasingWriter: true })
+      try {
+        const outcome = await this.viewModel.releaseWriter()
+        if (this._pageUnloaded) return
+        this.applyViewModelResult(outcome)
+        if (outcome && outcome.released) wx.redirectTo({ url: '/page/practice-records/index' })
+      } finally { this.releasingWriter = false; if (!this._pageUnloaded) this.setData({ releasingWriter: false }) }
+    } })
+  },
 
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })

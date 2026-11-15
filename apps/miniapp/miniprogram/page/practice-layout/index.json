@@ -5,6 +5,7 @@
   "disableScroll": true,
   "usingComponents": {
     "question-images": "/components/question-images/index",
-    "rich-content": "/components/rich-content/index"
+    "rich-content": "/components/rich-content/index",
+    "preference-sync": "/components/preference-sync/index"
   }
 }

@@ -3,6 +3,9 @@ function summarize(snapshot, task) {
   const done = snapshot.status === 'SUBMITTED' || !!snapshot.localResult || !!snapshot.result
   const waiting = !done && (!!snapshot.finishIntent || !!snapshot.finishCommand || !!(task && task.finish) || snapshot.localState && snapshot.localState.status === 'SUBMITTED')
   return { id: snapshot.id, questionBankId: snapshot.questionBankId, title: snapshot.title || '', createdAt: snapshot.createdAt,
+    version: snapshot.version || 0, deviceId: snapshot.writer ? snapshot.writer.deviceId : snapshot.deviceId,
+    cloudConfirmed: typeof snapshot.cloudConfirmed === 'boolean' ? snapshot.cloudConfirmed : !!snapshot.result || snapshot.status === 'SUBMITTED' && !snapshot.localResult,
+    syncError: task ? (task.failures || task.paused ? task.reason || '' : '') : snapshot.syncError || '', canRetrySync: task ? !!(!task.finished && task.failures && ![400, 409, 422].includes(task.lastStatusCode)) : !!snapshot.canRetrySync,
     status: snapshot.status === 'CANCELLED' ? 'CANCELLED' : done ? 'SUBMITTED' : waiting || snapshot.status === 'WAITING' ? 'WAITING' : 'IN_PROGRESS',
     feedback: snapshot.feedback || config.feedback || '', mode: snapshot.mode || config.mode || '',
     questionCount: snapshot.questionCount || config.count || snapshot.items && snapshot.items.length || 0 }
@@ -17,11 +20,14 @@ function merge(remoteItems, localItems) {
     else if ((server && server.status === 'WAITING') || local.status === 'WAITING') merged.status = 'WAITING'
     if (!merged.title && server) merged.title = server.title
     if (!merged.questionCount && server) merged.questionCount = server.questionCount
+    if (server && server.version >= local.version) { merged.deviceId = server.deviceId; merged.version = server.version }
+    if (server && server.status === 'SUBMITTED') { merged.cloudConfirmed = true; merged.syncError = ''; merged.canRetrySync = false }
     byId.set(local.id, merged)
   })
   return Array.from(byId.values()).filter(item => item.status !== 'CANCELLED').sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
 }
 function openRecord(item) {
+  if (item.otherDevice) return { type: 'toast', title: '请先在原设备的答题卡中选择“切换设备”' }
   if (item.status === 'WAITING') return { type: 'toast', title: '练习记录已保存在本机，正在恢复' }
   return { type: 'navigate', url: `/page/practice/index?sessionId=${encodeURIComponent(item.id)}${item.status === 'IN_PROGRESS' ? '' : '&review=1'}` }
 }

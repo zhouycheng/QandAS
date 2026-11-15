@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "答题偏好",
-  "usingComponents": {}
+  "usingComponents": {
+    "preference-sync": "/components/preference-sync/index"
+  }
 }

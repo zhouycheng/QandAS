@@ -22,7 +22,7 @@
 | 目录筛选 | `catalog-filters.js`、`remote-data-repository.js`：筛选在本机保存，查询时会发送学院、专业和年级参数；不能宣称筛选信息完全不上网 |
 | 学习与本机数据 | `online-practice.js`、`trial-practice.js`、`activity-heartbeat.js`：正式练习按账号同步，游客试答保存在本机；登录后前台发送活跃状态 |
 | 反馈及管理 | `OperationsService.kt` 和管理端账号功能：反馈与账号关联，管理员处理回复；管理端可导入、导出账号资料 |
-| 注销 | `AccountDeletion.kt`、`account-deletion-repository.js`：删除在线私人数据并清理当前设备对应账号；保留本机偏好、游客数据和其他账号数据；审计去除直接账号关联 |
+| 注销 | `AccountDeletion.kt`、`account-deletion-repository.js`：删除在线私人数据并清理当前设备对应账号；清理账号设置，保留游客数据和其他账号数据；审计去除直接账号关联 |
 | 备份 | [部署说明](deployment.md)：备份包含数据库和附件，现有脚本不会自动删除历史备份；注销在线记录不能证明备份已删除 |
 
 Kotlin 文件位于 `apps/api/src/main/kotlin/qanda/backend/` 对应模块，JavaScript 文件位于 `apps/miniapp/miniprogram/repositories/`。该表记录代码依据，不代表已核实生产配置、供应商履约或真机行为。

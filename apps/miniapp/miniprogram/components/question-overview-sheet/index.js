@@ -1,5 +1,7 @@
 Component({
   properties: {
+    canTransfer: { type: Boolean, value: false },
+    transferring: { type: Boolean, value: false },
     visible: {
       type: Boolean,
       value: false
@@ -38,6 +40,7 @@ Component({
   },
 
   methods: {
+    handleTransfer() { this.triggerEvent('transfer') },
     handleMaskTap() {
       this.triggerEvent('close')
     },

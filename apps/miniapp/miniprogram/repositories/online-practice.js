@@ -18,6 +18,7 @@ class OnlinePractice {
   saveStatus(id) {
     if (this.saveErrors[id]) return { saveStatusText: '本次作答未能保存，请释放空间后重试', canRetrySync: true }
     const draft = this.queue && this.queue.get(id)
+    if (draft && draft.paused && draft.lastStatusCode === 409) return { saveStatusText: draft.reason || '答题设备已切换，请从练习记录重新打开', canRetrySync: false }
     if (draft && draft.paused && [401, 403].includes(draft.lastStatusCode)) return { saveStatusText: '请登录原账号，以便在其他设备查看练习记录', canRetrySync: true }
     if (draft && draft.failures) return { saveStatusText: '已保存在本机，可继续练习', canRetrySync: false }
     return { saveStatusText: '', canRetrySync: false }
@@ -39,6 +40,8 @@ class OnlinePractice {
       const queueUserId = this.userId
       this.queue = createSyncQueue({ storage: this.storage, userId: queueUserId, send: (id, command) => this.send(id, command, queueUserId), onChange: (id, draft) => {
         if (draft.lastAcknowledgedKey) this.storage.remove(`qandaOnline:${queueUserId}:${id}:wire:${draft.lastAcknowledgedKey}`)
+        const snapshot = this.storage.get(`qandaOnline:${queueUserId}:${id}`)
+        if (snapshot && this.userId === queueUserId) this.rememberSummary(snapshot, draft)
         if (auth.getAuth(this.storage).userId === queueUserId) this.statusListeners.forEach(listener => { try { listener(id) } catch (_) {} })
       } })
     }
@@ -68,9 +71,9 @@ class OnlinePractice {
     vault.publish(value)
     this.rememberSummary(value)
   }
-  rememberSummary(snapshot) {
+  rememberSummary(snapshot, task) {
     const key = `qandaPracticeRecords:${this.userId}`
-    const entries = this.storage.get(key) || {}, summary = summarize(snapshot, this.queue && this.queue.get(snapshot.id))
+    const entries = this.storage.get(key) || {}, summary = summarize(snapshot, task || this.queue && this.queue.get(snapshot.id))
     if (JSON.stringify(entries[snapshot.id]) !== JSON.stringify(summary)) { entries[snapshot.id] = summary; this.storage.set(key, entries) }
   }
   deviceId() {
@@ -86,14 +89,21 @@ class OnlinePractice {
   }
   async required(method, path, body, options) {
     const response = await this.call(method, path, body, options)
-    if (!response.ok) throw new Error(response.reason || '请求失败，请重试')
+    if (!response.ok) throw Object.assign(new Error(response.reason || '请求失败，请重试'), { statusCode: response.statusCode, code: response.code })
     return response.data
   }
   async prepare(options) {
     const userId = this.identity().userId
     const id = options.sessionId || (options.resume === '1' ? this.storage.get(`qandaOnlineLast:${userId}`) : '')
     if (!id) return this.createPractice(options)
-    const cached = this.get(id)
+    let cached = this.get(id), remote
+    if (cached && (cached.released || options.review === '1' && (!cached.localResult || cached.cloudConfirmed))) {
+      try { remote = await this.required('GET', `/practice/sessions/${id}`) }
+      catch (error) { if (cached.released || error.statusCode && ![408, 429].includes(error.statusCode) && error.statusCode < 500) throw error }
+      if (cached.released && remote && remote.status === 'IN_PROGRESS') return this.claimWriter(id, remote)
+      if (remote && remote.status === 'SUBMITTED' && (cached.released || remote.version > cached.version) && !Object.keys(cached.assessmentCommands || {}).length) cached = null
+      else if (cached.released) throw new Error('这次练习已结束，请返回练习记录')
+    }
     if (cached) {
       if (cached.writer && cached.writer.deviceId !== this.deviceId() && cached.status !== 'SUBMITTED') throw new Error('请在创建练习的设备上继续答题')
       const snapshot = await assets.completeSnapshot(this.storage, cached)
@@ -108,12 +118,63 @@ class OnlinePractice {
       if (snapshot.status === 'IN_PROGRESS' && !snapshot.finishIntent) this.storage.set(`qandaOnlineLast:${userId}`, id)
       return snapshot
     }
-    const remote = await this.required('GET', `/practice/sessions/${id}`)
-    if (remote.status !== 'SUBMITTED') throw new Error('未找到本机的练习记录，请返回题库重新开始')
+    remote = remote || await this.required('GET', `/practice/sessions/${id}`)
+    if (remote.status === 'IN_PROGRESS') return this.claimWriter(id, remote)
+    if (remote.status !== 'SUBMITTED') throw new Error('这次练习已结束，请返回练习记录')
     remote.result = await this.required('GET', `/practice/sessions/${id}/result`)
     remote.items = remote.result.items
     remote.cloudConfirmed = true
     return this.remember(await vault.seal(this.storage, await assets.completeSnapshot(this.storage, remote)), options)
+  }
+  async claimWriter(id, remote) {
+    const userId = this.identity().userId
+    const key = `qandaWriterClaim:${userId}:${id}`
+    let intent = this.storage.get(key)
+    if (!intent) {
+      remote = remote || await this.required('GET', `/practice/sessions/${id}`)
+      if (remote.status !== 'IN_PROGRESS') throw new Error('这次练习已结束，请重新打开记录')
+      if (remote.writer.deviceId) throw new Error('请先在原设备选择“切换答题设备”，完成联网交接')
+      if (!this.queue.isIdle(id)) throw new Error('本机仍有未同步作答，请先恢复同步')
+      intent = { key: http.uuid(), body: { expectedVersion: remote.version, deviceId: this.deviceId() } }
+      this.storage.set(key, intent)
+    }
+    let snapshot
+    try { snapshot = await this.required('POST', `/practice/sessions/${id}/claim-writer`, intent.body, { idempotencyKey: intent.key }) }
+    catch (error) { if (error.statusCode >= 400 && error.statusCode < 500 && ![408, 429].includes(error.statusCode)) this.storage.remove(key); throw error }
+    snapshot = await vault.seal(this.storage, await assets.completeSnapshot(this.storage, snapshot))
+    if (this.identity().userId !== userId) throw new Error('账号已切换，请重新打开练习')
+    this.queue.seed(id, snapshot.writer.acknowledgedSequence)
+    const result = this.remember(snapshot)
+    this.storage.remove(key)
+    require('./remote-data-repository.js').invalidateLearning()
+    return result
+  }
+  async releaseWriter(session) {
+    const id = session.meta.sessionId
+    let snapshot = this.get(id)
+    if (!snapshot || snapshot.finishIntent || snapshot.localResult || snapshot.status !== 'IN_PROGRESS') throw new Error('当前练习不能切换设备')
+    if (!snapshot.releaseCommand) {
+      this.save(session)
+      const deadline = Date.now() + 12000
+      while (!this.queue.isIdle(id)) {
+        const response = await this.queue.flush(id)
+        if (this.queue.isIdle(id)) break
+        if (response.paused || response.storageError || !response.ok && !response.pending && !response.deferred || Date.now() >= deadline) throw new Error(response.reason || '作答还在同步，请联网后重试切换设备')
+        await new Promise(resolve => setTimeout(resolve, Math.min(1000, response.retryAfter || 1000)))
+      }
+      snapshot = this.get(id)
+      snapshot.releaseCommand = { key: http.uuid(), body: { expectedVersion: snapshot.version, writerToken: snapshot.writer.writerToken } }
+      this.put(id, snapshot)
+    }
+    const command = snapshot.releaseCommand
+    const response = await this.required('POST', `/practice/sessions/${id}/release-writer`, command.body, { idempotencyKey: command.key })
+    snapshot = this.get(id)
+    snapshot.version = response.version; snapshot.released = true; snapshot.writer = { ...snapshot.writer, deviceId: null, writerToken: null, version: response.version }
+    delete snapshot.releaseCommand
+    this.put(id, snapshot)
+    if (this.storage.get(`qandaOnlineLast:${this.userId}`) === id) this.storage.remove(`qandaOnlineLast:${this.userId}`)
+    require('./remote-data-repository.js').invalidateLearning()
+    return snapshot
   }
   createPractice(options) {
     const userId = this.identity().userId
@@ -263,6 +324,7 @@ class OnlinePractice {
     }
     const snapshot = this.get(state.sessionId)
     if (!snapshot) throw new Error('未找到这次练习，请返回题库重新打开')
+    if (snapshot.released || snapshot.releaseCommand) throw new Error('本次练习正在切换设备，请从练习记录重新打开')
     snapshot.localState = state
     if ((snapshot.status === 'SUBMITTED' && snapshot.result || snapshot.finishIntent)) { this.put(snapshot.id, snapshot); return { ok: true, unchanged: true } }
     const items = client.progress(session, snapshot)

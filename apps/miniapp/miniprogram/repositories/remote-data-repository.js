@@ -311,9 +311,9 @@ function refresh(storage, kind, options) {
   const user = bind(storage)
   const settings = options || {}
   if (kind === 'catalog') return refreshCatalog(storage, settings)
-  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshHomeAnnouncements(storage, settings)])
+  if (kind === 'home') return Promise.allSettled([refreshOverview(storage, settings), refreshHomeAnnouncements(storage, settings), require('./preference-repository.js').refreshPreferences(storage)])
   if (!user) return Promise.resolve()
-  if (kind === 'profile') return refreshProfile(storage, settings)
+  if (kind === 'profile') return Promise.all([refreshProfile(storage, settings), require('./preference-repository.js').refreshPreferences(storage)])
   if (kind === 'stats') return refreshStatistics(storage, settings)
   if (kind === 'collection') return refreshCollection(storage, settings)
   if (kind === 'recent') return refreshRecent(storage, settings)
