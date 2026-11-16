@@ -6,6 +6,7 @@ const colors = {
   card: '#FFFFFF', 'page-bg': '#F5F7FA', 'disabled-bg': '#E5E7EB',
   success: '#15803D', 'success-soft': '#F0FDF4', warning: '#B45309',
   'warning-soft': '#FFFBEB', danger: '#B91C1C', 'danger-soft': '#FEF2F2',
+  'feedback-dot': '#FF3B30',
   mask: 'rgba(15, 23, 42, 0.45)'
 }
 // Home tiles use the megaphone's yellow, coral and navy with lighter highlights.
