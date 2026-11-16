@@ -9,7 +9,7 @@ Page(withPageLifecycle({
     if (!this.viewModel) return
     const runtime = online.current()
     this.changed = () => { if (!this._pageUnloaded) this.setData({ items: this.viewModel.view() }) }
-    if (runtime) { try { runtime.identity(); runtime.statusListeners.add(this.changed); runtime.queue.flushAll().catch(() => {}) } catch (_) { this.setData({ items: [], error: '请登录原账号后查看练习记录' }); return } }
+    if (runtime) { try { runtime.identity(); runtime.restoreDetached(); runtime.statusListeners.add(this.changed); runtime.queue.flushAll().catch(() => {}) } catch (_) { this.setData({ items: [], error: '请登录原账号后查看练习记录' }); return } }
     this.refresh(true)
   },
   onHide() { const runtime = online.current(); if (runtime) runtime.statusListeners.delete(this.changed) },
@@ -20,9 +20,7 @@ Page(withPageLifecycle({
     return this.viewModel.load(reset).then(data => { if (!this._pageUnloaded) this.setData(data) }).finally(() => { if (!this._pageUnloaded) this.setData({ loading: false }) })
   },
   handleRetry() { return this.refresh(true) },
-  handleDetached(event) { wx.navigateTo({ url: `/page/practice/index?sessionId=${encodeURIComponent(event.currentTarget.dataset.id)}&detached=1` }) },
   onPullDownRefresh() { return this.refresh(true) },
-  handleRetryRecord(event) { return this.viewModel.retry(event.currentTarget.dataset.id).then(data => { if (!this._pageUnloaded) this.setData(data) }) },
   onReachBottom() { if (this.data.hasMore) return this.refresh(false) },
   handleOpen(event) {
     const item = this.data.items.find(value => value.id === event.currentTarget.dataset.id)

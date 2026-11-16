@@ -14,25 +14,24 @@ async function main() {
   } finally { Date.prototype.toLocaleString = localeString }
   const list = records([{ id: 'one', status: 'IN_PROGRESS', createdAt: '2026-11-01' }, { id: 'two', status: 'SUBMITTED', createdAt: '2026-11-02' }], [{ id: 'one', finishIntent: true, createdAt: '2026-11-03', items: [{}, {}] }])
   assert.strictEqual(list.length, 2)
-  assert.strictEqual(list[0].statusText, '练习记录恢复中')
+  assert.strictEqual(list[0].statusText, '已完成')
   assert.strictEqual(list[0].countText, '2 题')
   assert.strictEqual(list[1].statusText, '已完成')
-  assert.deepStrictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'AFTER_FINISH' }), { type: 'toast', title: '练习记录已保存在本机，正在恢复' })
-  assert.strictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'IMMEDIATE' }).type, 'toast')
+  assert.strictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'AFTER_FINISH' }).type, 'navigate')
+  assert.strictEqual(openRecord({ id: 'pending', status: 'WAITING', feedback: 'IMMEDIATE' }).url, '/page/practice/index?sessionId=pending&review=1')
   assert.strictEqual(openRecord({ id: 'active', status: 'IN_PROGRESS' }).url, '/page/practice/index?sessionId=active')
   assert.strictEqual(summarize({ id: 'local', status: 'IN_PROGRESS', localState: { status: 'SUBMITTED' } }).status, 'WAITING')
   assert.strictEqual(records([{ id: 'done', status: 'SUBMITTED' }], [{ id: 'done', status: 'IN_PROGRESS' }])[0].status, 'SUBMITTED')
-  const unsent = records([], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false, canRetrySync: true, syncError: '网络暂不可用' }])[0]
-  assert.equal(unsent.statusText, '已完成 · 待同步'); assert.equal(unsent.canRetrySync, true)
+  const unsent = records([], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false }])[0]
+  assert.equal(unsent.statusText, '已完成')
   assert.equal(records([{ id: 'unsent', status: 'SUBMITTED' }], [{ id: 'unsent', status: 'SUBMITTED', cloudConfirmed: false }])[0].statusText, '已完成')
-  const continued = records([{ id: 'unsent', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'unsent', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: false, syncError: '授权已失效', canRetrySync: true }])[0]
+  const continued = records([{ id: 'unsent', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'unsent', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: false }])[0]
   assert.equal(continued.status, 'IN_PROGRESS', '另一端已接续时，本机未上传的交卷不能遮住最新记录')
-  assert.equal(continued.syncError, ''); assert.equal(continued.canRetrySync, false)
   assert.equal(records([{ id: 'done', status: 'IN_PROGRESS', version: 4, deviceId: 'computer' }], [{ id: 'done', status: 'SUBMITTED', version: 2, deviceId: 'phone', cloudConfirmed: true }])[0].status, 'SUBMITTED')
   const foreign = records([{ id: 'foreign', status: 'IN_PROGRESS', deviceId: 'phone' }], [], 'computer')[0]
   assert.equal(foreign.statusText, '进行中'); assert.equal(openRecord(foreign).type, 'navigate')
   assert.equal(records([{ id: 'released', status: 'IN_PROGRESS', deviceId: null }], [], 'computer')[0].actionText, '继续答题')
-  assert.equal(summarize({ id: 'saving' }, { reason: '已保存在本机，可继续练习', failures: 0 }).syncError, '', '正常同步不增加提示')
+  assert.equal(summarize({ id: 'saving' }, { reason: '已保存在本机，可继续练习', failures: 0 }).status, 'IN_PROGRESS', '正常同步不改变记录状态')
   const largeSnapshots = Array.from({ length: 20 }, (_, i) => ({ id: String(i), status: 'SUBMITTED', items: Array(1000).fill({ question: { stem: 'question' }, answer: ['B'] }) }))
   const smallCards = records([], largeSnapshots)
   assert(JSON.stringify(smallCards).length < 16000, '列表只传递卡片摘要')

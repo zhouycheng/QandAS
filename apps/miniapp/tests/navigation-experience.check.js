@@ -65,24 +65,9 @@ assert.equal(component.data.homeNavigationBarHeight, 48, '窗口变化重新计�
 
 const { OnlinePractice } = require('../miniprogram/repositories/online-practice.js')
 const runtime = new OnlinePractice({})
-let draft
-runtime.queue = { get: () => draft }
-const note = practice.match(/<view\b[^>]*wx:if="{{([^}]+)}}"[^>]*aria-live="polite"/)[1]
-const visible = () => !!script.runInNewContext(note, runtime.saveStatus('session'))
-assert.equal(visible(), false, '已保存不占行')
-draft = { sequence: 1, acknowledgedSequence: 0 }
-assert.equal(visible(), false, '常规排队不占行')
-draft.pending = { serverAccepted: true }
-assert.equal(visible(), false, '服务端处理中不占行')
-draft.failures = 1
-draft.reason = '网络连接失败，请重试'
-assert.equal(visible(), false, '短暂网络故障不打断练习')
-draft.paused = 'auth'; draft.lastStatusCode = 401
-draft.reason = '请先登录'
-assert.equal(visible(), true, '需要登录时保留提示')
-runtime.saveErrors.session = true
-assert.equal(visible(), true, '本机写入失败保留提示')
-assert.match(practice, /bindtap="retrySync"/)
+assert.equal(runtime.saveStatus('session').saveStatusText, '', '同步状态对用户透明')
+assert(!practice.includes('retrySync'), '答题页不再提供手动同步按钮')
+assert(!practice.includes('writerMessage'), '答题页不再展示设备协调提示')
 assert.match(practice, /wx:if="{{submitError}}"/)
 assert.match(practice, /bindtap="retrySubmit"/)
 assert.match(head, /isCompleted \? '练习结果'/)

@@ -66,7 +66,7 @@ async function main() {
   }
   await flush(runtime)
   full = true; assert.throws(() => runtime.save(session), /full/); full = false
-  assert.equal(runtime.saveStatus('s1').saveStatusText, '本次作答未能保存，请释放空间后重试')
+  assert.equal(runtime.saveStatus('s1').saveStatusText, '', '同步状态不再占用答题页提示')
   offline = true; session.finish()
   full = true
   await assert.rejects(runtime.finish(session), /保存失败|空间/)

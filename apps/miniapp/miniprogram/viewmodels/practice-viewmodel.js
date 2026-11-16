@@ -51,7 +51,8 @@ class PracticeViewModel {
         this.session.reset();
         this.session.restore(restored);
         this.editingLocked = false;
-        if (options.review === '1' || options.detached === '1' || snapshot.finishIntent && !snapshot.localResult) {
+        const foreignWriter = snapshot.status === 'IN_PROGRESS' && snapshot.writer && snapshot.writer.deviceId && snapshot.writer.deviceId !== this.online.deviceId();
+        if (options.review === '1' || options.detached === '1' || foreignWriter || snapshot.finishIntent && !snapshot.localResult) {
             this.readOnlyReview = true;
             this.detachedReview = options.detached === '1';
             this.session.state.isViewMode = true;
@@ -61,7 +62,7 @@ class PracticeViewModel {
             this.session.state.isCompleted = false;
             this.session.state.isTimed = false;
             this.session.showQuestionAtIndex(this.session.state.currentIndex || 0);
-            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: this.session.state.awaitingResult, reviewPending: this.session.state.reviewPending, loadError: '', writerMessage: this.detachedReview ? '本机未同步草稿，仅供查看' : '' }), startTimer: false, stopTimer: true };
+            return { data: Object.assign(this.session.getViewData(), { editingLocked: false, awaitingResult: this.session.state.awaitingResult, reviewPending: this.session.state.reviewPending, loadError: '', writerMessage: '' }), startTimer: false, stopTimer: true };
         }
         if (restored.status === SESSION_STATUS.SUBMITTED) {
             this.session.state.isCompleted = true;
@@ -77,7 +78,7 @@ class PracticeViewModel {
                 });
             }
         }
-        this.editingLocked = !this.session.state.isCompleted && (!!this.connectSocket || !!snapshot.releaseCommand);
+        this.editingLocked = !this.session.state.isCompleted && !!snapshot.releaseCommand;
         if (this.editingLocked) this.session.pauseStudy();
         return { data: Object.assign(this.session.getViewData(), { editingLocked: this.editingLocked, loadError: '', writerMessage: '' }), startTimer: this.session.state.isTimed && !this.editingLocked };
     }
@@ -87,7 +88,7 @@ class PracticeViewModel {
         if (this.ownerId && this.repository.getAuth(this.storage).userId !== this.ownerId) { this.editingLocked = true; this.stopWriter(); return { data: { editingLocked: true }, stopTimer: true }; }
         if (!this.editingLocked) this.persistSession(true);
         this.editingLocked = true;
-        return { data: { editingLocked: true, writerMessage: message }, stopTimer: true };
+        return { data: { editingLocked: true, writerMessage: '' }, stopTimer: true };
     }
     lostWriter() {
         this.pauseWriter();
@@ -103,7 +104,8 @@ class PracticeViewModel {
     async writerEvent(event) {
         if (!this.session || this.readOnlyReview || this.session.state.isCompleted) return null;
         if (event.type === 'WRITER_CHANGED' && event.epoch && this.answerSnapshot && event.epoch <= this.answerSnapshot.writer.epoch) return null;
-        if (event.type === 'DISCONNECTED') return this.pauseWriter('连接中断，已暂停答题');
+        // Socket 断开不再暂停答题；本地作答通过 HTTP 同步队列持久化，连接恢复后自动续传。
+        if (event.type === 'DISCONNECTED') return null;
         if (event.type === 'ERROR' && ['WRITER_REVOKED', 'WRITER_REQUIRED'].includes(event.code) || event.type === 'WRITER_CHANGED') return this.lostWriter();
         if (event.type === 'DRAIN_WRITER' || event.type === 'BOUND' && event.state.draining) {
             this.pauseWriter();
@@ -131,7 +133,7 @@ class PracticeViewModel {
         if (!this.session || this.readOnlyReview) return null;
         const pendingResult = this.session.state.isCompleted && this.answerSnapshot && this.answerSnapshot.localResult && !this.answerSnapshot.cloudConfirmed;
         if (this.session.state.isCompleted && !pendingResult) return null;
-        const locked = this.pauseWriter();
+        this.pauseWriter();
         try {
             if (this.suspending) await this.suspending;
             const id = this.session.meta.sessionId;
@@ -142,7 +144,10 @@ class PracticeViewModel {
             return result;
         } catch (error) {
             if (error.code === 'WRITER_CHANGED' || error.code === 'WRITER_REVOKED') return this.lostWriter();
-            return { ...locked, data: { editingLocked: true, writerMessage: error.message || '连接中断，已暂停答题' }, stopTimer: true };
+            // 网络或服务器异常时降级为本地答题，避免因 Socket/状态查询失败而锁定编辑。
+            this.editingLocked = false;
+            this.session.resumeStudy();
+            return { data: { editingLocked: false, writerMessage: '' }, startTimer: this.session.state.isTimed };
         }
     }
     suspendWriter() {
@@ -160,7 +165,7 @@ class PracticeViewModel {
             return { released: true, data: { editingLocked: true, writerMessage: '' }, stopTimer: true };
         } catch (error) {
             this.editingLocked = true;
-            return { data: { editingLocked: this.editingLocked, writerMessage: '进度已保存在本机，等待恢复连接' }, startTimer: !this.editingLocked && this.session.state.isTimed, command: { type: 'toast', title: error.message } };
+            return { data: { editingLocked: this.editingLocked, writerMessage: '' }, startTimer: !this.editingLocked && this.session.state.isTimed };
         } finally { this.releasingWriter = false; }
     }
     async checkContentUpdates() {
@@ -213,18 +218,6 @@ class PracticeViewModel {
             }
             listener(data);
         }) : () => { };
-    }
-    async retrySync() {
-        if (!this.online || !this.session)
-            return null;
-        try {
-            this.online.save(this.session);
-        }
-        catch (error) {
-            return { data: this.online.saveStatus(this.session.meta.sessionId), command: { type: 'toast', title: error.message } };
-        }
-        const result = await this.online.queue.resume(this.session.meta.sessionId);
-        return { data: this.online.saveStatus(this.session.meta.sessionId), command: !result.ok && !result.pending ? { type: 'toast', title: result.reason } : null };
     }
     /** 固定快照恢复作答，题目修订与答案资料保持配套。 */
     load(options) { const route = options || {}; const savedTrial = route.sessionId && trials.get(this.storage, route.sessionId); return savedTrial || !this.repository.getAuth(this.storage).loggedIn ? this.loadTrial(route) : this.loadOnline(route); }
