@@ -97,7 +97,7 @@ sudo journalctl -u qanda-release --no-pager -n 100
 
 ## 备份与隔离恢复
 
-每天 UTC 03:30 及发布前备份 PostgreSQL、附件、运行配置和部署状态，输出到 `/var/backups/qanda`，使用 `/etc/qanda/backup.key` 加密并记录 SHA-256。密钥应单独保管到仓库外；备份不包含解密密钥，不自动删除历史备份。
+每天 UTC 03:30 及发布前备份 PostgreSQL、附件、运行配置和部署状态，输出到 `/var/backups/qanda`，使用 `/etc/qanda/backup.key` 加密并记录 SHA-256。密钥应单独保管到仓库外；备份不包含解密密钥。备份文件及摘要保留三十天，任务在写入新备份后删除超过期限的历史文件，与[用户协议与隐私政策](legal-documents.md)声明的期限一致。
 
 ```sh
 sudo /usr/local/sbin/qanda-backup
