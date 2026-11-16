@@ -2,6 +2,7 @@ const { timeLimitSeconds, feedbackForMode } = require('../utils/practice-presets
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const { createSyncQueue } = require('./practice-sync-queue.js')
+const { createWriterSocket } = require('./practice-writer-socket.js')
 const assets = require('./question-assets.js')
 const { getPreferences } = require('./preference-repository.js')
 const { normalizePracticeOptions } = require('../utils/preferences.js')
@@ -95,7 +96,7 @@ class OnlinePractice {
   writerState(id) { return this.required('GET', `/practice/sessions/${id}/writer-state?deviceId=${this.deviceId()}`) }
   watchWriter(id, connect, onEvent, binding) {
     const identity = this.identity()
-    return require('./practice-writer-socket.js').createWriterSocket({ id, deviceId: this.deviceId(), token: identity.token, connect,
+    return createWriterSocket({ id, deviceId: this.deviceId(), token: identity.token, connect,
       current: () => auth.getAuth(this.storage).token === identity.token,
       binding: binding || (() => (this.get(id) || {}).writer || {}), onEvent })
   }
