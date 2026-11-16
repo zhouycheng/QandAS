@@ -50,6 +50,29 @@ async function main() {
   assert.equal(failed.submitting, false)
   assert.equal(cooldown.remainingSeconds(6000, 1000), 5)
   assert.equal(cooldown.remainingSeconds(1000, 6000), 0)
+  // 浮窗返回：页面被系统回收重建后，倒计时与邮箱从本机恢复，用户不必重新收验证码
+  const store = memory()
+  const sendPage = { data: { cooldown: 0 }, setData(patch) { Object.assign(this.data, patch) } }
+  cooldown.begin(sendPage, 60, { storage: store, purpose: 'login', email: 'kept@example.test' })
+  cooldown.stop(sendPage)
+  const savedCooldown = cooldown.restore({ storage: store, purpose: 'login' })
+  assert.equal(savedCooldown.email, 'kept@example.test')
+  assert(cooldown.remainingSeconds(savedCooldown.endAt) > 0, '结束时刻按绝对时间保存')
+  assert(!JSON.stringify(store.raw).includes('123456'), '不持久化验证码本身')
+  const reborn = { data: { cooldown: 0 }, setData(patch) { Object.assign(this.data, patch) } }
+  cooldown.resume(reborn, { storage: store, purpose: 'login' })
+  assert(reborn.data.cooldown > 0, '页面重建后倒计时自动续上')
+  cooldown.stop(reborn)
+  cooldown.adopt({ storage: store, purpose: 'login' }, 'renamed@example.test')
+  assert.equal(cooldown.restore({ storage: store, purpose: 'login' }).email, 'renamed@example.test', '换邮箱后不把旧地址回填')
+  store.set('qandaCooldown:v1:login', { email: 'old@example.test', endAt: Date.now() - 1000 })
+  assert.equal(cooldown.restore({ storage: store, purpose: 'login' }), null, '过期记录不再恢复')
+  assert.equal(store.get('qandaCooldown:v1:login'), undefined, '过期记录顺手清理')
+  store.set('qandaCooldown:v1:login', { email: 'x@example.test', endAt: Date.now() - 1 })
+  const expiredPage = { data: { cooldown: 3 }, setData(patch) { Object.assign(this.data, patch) }, cooldownEndAt: Date.now() - 1 }
+  cooldown.resume(expiredPage, { storage: store, purpose: 'login' })
+  assert.equal(expiredPage.data.cooldown, 0, '回到前台时已走完的倒计时直接归零')
+  assert.equal(store.get('qandaCooldown:v1:login'), undefined, '归零后清理本机记录')
   let definition, finishSend
   global.Page = value => { definition = value }
   global.wx = { showToast() {} }

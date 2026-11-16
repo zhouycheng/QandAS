@@ -13,15 +13,26 @@ Page(withPageLifecycle({
     const query = options || {}
     let email = ''
     try { email = decodeURIComponent(query.email || '') } catch (error) { email = '' }
+    this.cooldownStore = createWxStorageAdapter()
     this.viewModel = new LoginViewModel({
-      storage: createWxStorageAdapter(), email, returnReason: query.reason
+      storage: this.cooldownStore, email, returnReason: query.reason
     })
 
+    // 浮窗切回时页面可能已被回收重建：倒计时与邮箱从本机恢复，用户不必重新收验证码。
+    const saved = cooldown.restore({ storage: this.cooldownStore, purpose: 'login' })
+    if (saved) {
+      if (!this.viewModel.fields.email && saved.email) this.viewModel.fields.email = saved.email
+      this.cooldownEndAt = saved.endAt
+      this.setData({ codeSent: true })
+    }
+
     this.applyViewModelResult(this.viewModel.load())
+    if (saved) cooldown.resume(this, { storage: this.cooldownStore, purpose: 'login' })
   },
 
   onShow() {
-    cooldown.resume(this)
+    if (!this.cooldownStore) this.cooldownStore = createWxStorageAdapter()
+    cooldown.resume(this, { storage: this.cooldownStore, purpose: 'login' })
     if (this.viewModel) {
       this.applyViewModelResult(this.viewModel.load())
     }
@@ -53,14 +64,18 @@ Page(withPageLifecycle({
     })
   },
   onHide() { cooldown.stop(this) },
-  onUnload() { cooldown.stop(this); this.cooldownEndAt = 0 },
+  onUnload() { cooldown.stop(this) },
   handleEmailInput(e) {
     const previousEmail = this.viewModel.fields.email.trim().toLowerCase()
     const result = this.viewModel.setField('email', e.detail.value)
     this.syncForm(result)
     const changed = this.data.testAccount !== result.data.testAccount
     const patch = { testAccount: result.data.testAccount, codeMode: result.data.codeMode }
-    if (previousEmail !== result.data.email.trim().toLowerCase()) patch.codeSent = false
+    if (previousEmail !== result.data.email.trim().toLowerCase()) {
+      patch.codeSent = false
+      // 倒计时未走完就换邮箱：本机记录同步成新邮箱，页面重建时不会回填旧地址。
+      cooldown.adopt({ storage: this.cooldownStore, purpose: 'login' }, result.data.email)
+    }
     if (changed) Object.assign(patch, { password: '', code: '' })
     this.setData(patch)
   },
@@ -145,7 +160,7 @@ Page(withPageLifecycle({
       return
     }
 
-    if (command.type === 'cooldown') { this.setData({ codeSent: true }); cooldown.begin(this, command.seconds); wx.showToast({ title: command.title, icon: 'none' }); return }
+    if (command.type === 'cooldown') { this.setData({ codeSent: true }); cooldown.begin(this, command.seconds, { storage: this.cooldownStore, purpose: 'login', email: this.viewModel.fields.email }); wx.showToast({ title: command.title, icon: 'none' }); return }
     if (command.type === 'toast') {
       wx.showToast({
         title: command.title || '操作完成',
