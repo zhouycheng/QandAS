@@ -482,11 +482,17 @@
 
 .sheet-text {
   display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   padding: 8rpx 0 24rpx;
   font-size: var(--font-secondary);
   line-height: var(--leading-secondary);
   color: var(--text-sub);
   white-space: pre-wrap;
+  /* 协议正文含长链接，必须允许在任意字符处断行，否则最小内容宽度会撑破容器右边界。 */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .sheet-actions {

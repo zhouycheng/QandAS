@@ -40,7 +40,7 @@ async function main() {
   assert.equal(tasks.size, 2)
   const deadline = [...tasks.values()].find(task => task.delay === 40000)
   deadline.fn()
-  assert.equal(events.at(-1).type, 'DISCONNECTED', '无心跳确认时暂停，而不是继续离线作答')
+  assert.equal(events.at(-1).type, 'DISCONNECTED', '无心跳确认时标记断开，由上层降级为本地作答')
   const retry = [...tasks.values()].find(task => task.delay === 500)
   retry.fn(); assert.equal(sockets.length, 2)
   sockets[0].handlers.message({ data: JSON.stringify({ type: 'BOUND' }) })
@@ -51,8 +51,8 @@ async function main() {
   let saved = 0, paused = 0, resumed = 0, archived = 0, stopped = 0
   vm.online = { deviceId: () => 'phone', archiveDraft() { archived++ }, save() { saved++ }, get: () => ({ status: 'IN_PROGRESS' }) }
   vm.session = { meta: { sessionId: 'practice' }, state: { isTimed: true }, pauseStudy() { paused++ }, resumeStudy() { resumed++ } }
-  const lost = await vm.writerEvent({ type: 'DISCONNECTED' })
-  assert(lost.stopTimer && lost.data.editingLocked); assert.equal(saved, 1); assert.equal(paused, 1)
+  const disconnected = await vm.writerEvent({ type: 'DISCONNECTED' })
+  assert.equal(disconnected, null, 'Socket 断开不再暂停本地答题'); assert.equal(saved, 0); assert.equal(paused, 0)
   await vm.writerEvent({ type: 'PONG' }); assert.equal(resumed, 0, '心跳不越过恢复授权检查')
   const bound = await vm.writerEvent({ type: 'BOUND', state: { status: 'IN_PROGRESS', writer: { deviceId: 'phone' } } })
   assert(bound.startTimer && !bound.data.editingLocked); assert.equal(resumed, 1)

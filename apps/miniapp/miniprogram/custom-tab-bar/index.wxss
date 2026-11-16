@@ -61,7 +61,7 @@
   height: 50rpx;
 }
 .tab-icon-wrap { position: relative; width: 50rpx; height: 50rpx; }
-.feedback-dot { position: absolute; top: -4rpx; right: -6rpx; width: 14rpx; height: 14rpx; border-radius: 50%; background: var(--danger); }
+.feedback-dot { position: absolute; top: -6rpx; right: -8rpx; width: 18rpx; height: 18rpx; border: 3rpx solid var(--card); border-radius: 50%; background: var(--feedback-dot); box-shadow: 0 2rpx 6rpx rgba(255, 59, 48, 0.24); }
 
 .tab-text {
   margin-top: 4rpx;

@@ -68,16 +68,20 @@ class MyViewModel {
         const preferences = normalizePreferences(this.repository.getPreferences(this.storage));
         const auth = this.readAuthView();
         const summary = require('../repositories/remote-data-repository.js').getFeedbackSummary(this.storage);
+        const rows = [
+            { key: 'practice', title: '答题偏好', value: '文字大小：' + describeChoiceLabel(preferences, 'fontSize') },
+            { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
+            { key: 'feedback', title: '反馈与处理结果', value: '', unread: auth.loggedIn && summary.questionUnreadCount + summary.courseRequestUnreadCount > 0 },
+            { key: 'countdown', title: '考试倒计时', value: '' },
+            { key: 'about', title: '关于题小搭', value: '' }
+        ];
+        if (auth.loggedIn) {
+            rows.splice(1, 0, { key: 'security', title: '账号与安全', value: '登录与绑定' });
+        }
         return {
             data: Object.assign(getInitialMyViewData(), {
                 auth,
-                learnRows: [
-                    { key: 'practice', title: '答题偏好', value: '文字大小：' + describeChoiceLabel(preferences, 'fontSize') },
-                    { key: 'layout', title: '自定义布局', value: preferences.moduleOrder.join() === DEFAULT_ORDER.join() ? '默认布局' : '已自定义' },
-                    { key: 'feedback', title: '反馈与处理结果', value: '', unread: auth.loggedIn && summary.questionUnreadCount + summary.courseRequestUnreadCount > 0 },
-                    { key: 'countdown', title: '考试倒计时', value: '' },
-                    { key: 'about', title: '关于题小搭', value: '' }
-                ],
+                learnRows: rows,
                 links: [
                     { key: 'agreement', title: '用户协议' },
                     { key: 'privacy', title: '隐私政策' }
@@ -130,6 +134,14 @@ class MyViewModel {
                 command: {
                     type: 'navigate',
                     url: SETTINGS_URL
+                }
+            };
+        }
+        if (key === 'security') {
+            return {
+                command: {
+                    type: 'navigate',
+                    url: this.readAuthView().loggedIn ? '/page/account-security-hub/index' : LOGIN_URL
                 }
             };
         }

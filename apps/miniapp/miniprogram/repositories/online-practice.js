@@ -16,12 +16,8 @@ function enable(storage) { runtime = new OnlinePractice(storage); return runtime
 function current() { return runtime }
 class OnlinePractice {
   constructor(storage) { this.storage = storage; this.userId = ''; this.token = ''; this.queue = null; this.finishing = {}; this.creating = {}; this.assessing = {}; this.saveErrors = {}; this.statusListeners = new Set(); this.ratingInFlight = false; this.assessmentResumeNeeded = false }
-  saveStatus(id) {
-    if (this.saveErrors[id]) return { saveStatusText: '本次作答未能保存，请释放空间后重试', canRetrySync: true }
-    const draft = this.queue && this.queue.get(id)
-    if (draft && draft.paused && draft.lastStatusCode === 409) return { saveStatusText: draft.reason || '答题设备已切换，请从练习记录重新打开', canRetrySync: false }
-    if (draft && draft.paused && [401, 403].includes(draft.lastStatusCode)) return { saveStatusText: '请登录原账号，以便在其他设备查看练习记录', canRetrySync: true }
-    if (draft && draft.failures) return { saveStatusText: '已保存在本机，可继续练习', canRetrySync: false }
+  saveStatus() {
+    // 同步状态对用户透明；本机存储失败通过保存时的 toast 提示，不占用答题页布局。
     return { saveStatusText: '', canRetrySync: false }
   }
   observeStatus(id, listener) {
@@ -119,6 +115,33 @@ class OnlinePractice {
     if (!saved || !saved.snapshot) throw new Error('没有待查看的本机草稿')
     return vault.restore(saved.snapshot)
   }
+  restoreDetached() {
+    // 设备切换时归档的本机草稿自动恢复到快照与同步队列，由后台续传，不再要求用户手动查看。
+    const owner = this.identity().userId
+    const prefix = `qandaOnline:${owner}:`
+    const keys = this.storage.keysStrict ? this.storage.keysStrict() : this.storage.keys ? this.storage.keys() : []
+    let touched = false
+    for (const key of keys) {
+      if (!key.startsWith(prefix) || !key.endsWith(':detached')) continue
+      const id = key.slice(prefix.length, -':detached'.length)
+      const saved = this.storage.get(key)
+      this.storage.remove(key)
+      if (!saved || !saved.snapshot) continue
+      touched = true
+      if (!this.storage.get(`${prefix}${id}`)) {
+        this.storage.set(`${prefix}${id}`, saved.snapshot)
+        const snapshot = vault.restore(saved.snapshot)
+        if (snapshot) this.rememberSummary(snapshot, saved.draft)
+      }
+      if (saved.draft && !this.storage.get(`qandaSync:v1:${owner}:${id}`)) {
+        this.storage.set(`qandaSync:v1:${owner}:${id}`, saved.draft)
+        const indexKey = `qandaSync:v1:${owner}:index`
+        const index = this.storage.get(indexKey) || []
+        if (!index.includes(id)) this.storage.set(indexKey, index.concat(id))
+      }
+    }
+    return touched
+  }
   async prepare(options, connect) {
     const userId = this.identity().userId
     const id = options.sessionId || (options.resume === '1' ? this.storage.get(`qandaOnlineLast:${userId}`) : '')
@@ -143,24 +166,60 @@ class OnlinePractice {
         return this.remember(await vault.seal(this.storage, await assets.completeSnapshot(this.storage, remote)), options)
       } catch (error) { if (!error.statusCode || [408, 429].includes(error.statusCode) || error.statusCode >= 500) return cached; throw error }
     }
-    const state = await this.writerState(id)
+    let state
+    try {
+      state = await this.writerState(id)
+    } catch (error) {
+      // 账号切换必须中断，不能用旧账号快照兜底。
+      if (this.identity().userId !== userId) throw error
+      // 网络异常时优先使用本机快照，避免阻断用户进入练习。
+      if (cached && (!error.statusCode || [408, 429].includes(error.statusCode) || error.statusCode >= 500)) return cached
+      throw error
+    }
     if (state.status === 'IN_PROGRESS' && options.review !== '1') {
-      if (cached && cached.releaseCommand) await this.releaseWriter(null, id)
-      const current = await this.writerState(id)
+      if (cached && cached.releaseCommand) {
+        try { await this.releaseWriter(null, id) } catch (_) { /* 释放失败时继续使用本机快照 */ }
+      }
+      let current
+      try {
+        current = await this.writerState(id)
+      } catch (error) {
+        if (this.identity().userId !== userId) throw error
+        if (cached && (!error.statusCode || [408, 429].includes(error.statusCode) || error.statusCode >= 500)) return cached
+        throw error
+      }
       if (options.passive === '1' && current.writer.deviceId && current.writer.deviceId !== this.deviceId()) throw Object.assign(new Error('答题设备已切换'), { code: 'WRITER_CHANGED' })
       if (current.writer.deviceId !== this.deviceId()) {
+        const fallback = cached
         if (cached && !cached.released) this.archiveDraft(id)
-        return this.claimWriter(id, current, connect)
+        try {
+          return await this.claimWriter(id, current, connect)
+        } catch (error) {
+          if (this.identity().userId !== userId) throw error
+          // 接续失败时保留本机快照供查看，不再要求用户重新进入。
+          if (fallback) return fallback
+          throw error
+        }
       }
       if (cached && cached.writer && cached.writer.epoch === current.writer.epoch && !this.queue.isIdle(id)) {
         this.storage.set(`qandaOnlineLast:${userId}`, id)
         return cached
       }
+      const fallback = cached
       if (cached && cached.writer && cached.writer.epoch !== current.writer.epoch) this.archiveDraft(id)
-      return this.fetchWriterSnapshot(id, current.writer)
+      try {
+        return await this.fetchWriterSnapshot(id, current.writer)
+      } catch (error) {
+        if (this.identity().userId !== userId) throw error
+        if (fallback) return fallback
+        throw error
+      }
     }
     const remote = await this.required('GET', `/practice/sessions/${id}`)
-    if (remote.status !== 'SUBMITTED') throw new Error('这次练习已结束，请返回练习记录')
+    if (remote.status !== 'SUBMITTED') {
+      if (cached) return cached
+      throw new Error('这次练习已结束，请返回练习记录')
+    }
     remote.result = await this.required('GET', `/practice/sessions/${id}/result`)
     remote.items = remote.result.items; remote.cloudConfirmed = true
     return this.remember(await vault.seal(this.storage, await assets.completeSnapshot(this.storage, remote)), options)
@@ -177,6 +236,10 @@ class OnlinePractice {
     const latest = this.get(id)
     if (latest && latest.writer && (latest.writer.epoch > writer.epoch || latest.writer.epoch === writer.epoch && latest.version > remote.version)) { vault.discard(snapshot, this.storage); return latest }
     try {
+      // 先尝试同步本机未确认草稿，再接续新的 writer 序号，避免直接抛出"未同步"错误。
+      if (!this.queue.isIdle(id)) {
+        try { await this.queue.flush(id) } catch (_) { /* 同步失败时由 seed 统一处理 */ }
+      }
       this.queue.seed(id, writer.acknowledgedSequence)
       const saved = this.remember(snapshot), key = `qandaWriterClaim:${owner}:${id}`, intent = this.storage.get(key)
       if (intent && intent.body && writer.epoch > intent.body.expectedEpoch) this.storage.remove(key)
@@ -395,7 +458,7 @@ class OnlinePractice {
     }
     const snapshot = this.get(state.sessionId)
     if (!snapshot) throw new Error('未找到这次练习，请返回题库重新打开')
-    if (snapshot.released || snapshot.releaseCommand) throw new Error('本次练习正在切换设备，请从练习记录重新打开')
+    // 设备切换或 writer 已释放时仍保存本机草稿，由后台同步队列决定何时续传，不阻断用户作答。
     snapshot.localState = state
     if ((snapshot.status === 'SUBMITTED' && snapshot.result || snapshot.finishIntent)) { this.put(snapshot.id, snapshot); return { ok: true, unchanged: true } }
     const items = client.progress(session, snapshot)

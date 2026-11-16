@@ -177,10 +177,11 @@ function checkHiddenOnOverlay() {
   })
   ;['bottom-sheet', 'question-overview-sheet', 'route-loading'].forEach(name => {
     const source = read(`components/${name}/index.wxml`)
-    assert(`弹层 - ${name} 通过 root-portal 承载`, /<root-portal[^>]*wx:if="\{\{visible\}\}"/.test(source))
+    const state = name === 'bottom-sheet' ? 'rendered' : 'visible'
+    assert(`弹层 - ${name} 通过 root-portal 承载`, new RegExp(`<root-portal[^>]*wx:if="\\{\\{${state}\\}\\}"`).test(source))
   })
   const sheet = read('components/bottom-sheet/index.wxml')
-  assert('弹层 - 遮罩拦截点击与滚动', /class="mask"[^>]*catchtouchmove="noop"[^>]*catchtap="handleMaskTap"/.test(sheet))
+  assert('弹层 - 遮罩拦截点击与滚动', /class="mask[^>]*catchtouchmove="noop"[^>]*catchtap="handleMaskTap"/.test(sheet))
   assert('弹层 - 页面隐藏时统一关闭弹窗', read('utils/page-lifecycle.js').includes('announcementSheetVisible'))
 }
 

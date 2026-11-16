@@ -313,11 +313,9 @@ Page(withPageLifecycle({
   observeSaveStatus() {
     if (this.stopSaveStatus || this.pageVisible === false || !this.viewModel || !this.viewModel.online || !this.viewModel.session) return
     this.stopSaveStatus = this.viewModel.observeSaveStatus(data => {
-      const changed = data.canRetrySync !== this.data.canRetrySync || data.saveStatusText !== this.data.saveStatusText
-      if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data, () => { if (changed) this.scheduleMeasure() })
+      if (this.pageVisible !== false && !this._pageUnloaded) this.setData(data)
     })
   },
-  retrySync() { this.applyViewModelResult(this.viewModel.retrySync()) },
   showSaveError(error) {
     wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
   },
@@ -739,7 +737,7 @@ Page(withPageLifecycle({
       }
 
       if (patch.editingLocked || patch.isCompleted || patch.showQuestionOverview || patch.showSubmitModal) this.clearAutoAdvance()
-      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'loadingPractice', 'preferences', 'trialNotice', 'canRetrySync', 'saveStatusText', 'isCompleted'].some(key => patch[key] !== undefined)
+      const layoutChanged = ['currentQuestion', 'currentIndex', 'shouldRevealAnswer', 'loadingPractice', 'preferences', 'trialNotice', 'isCompleted'].some(key => patch[key] !== undefined)
       if (patch.analysisSheetOpen !== undefined && patch.analysisSheetOpen !== this.data.analysisSheetOpen) patch.analysisSheetVersion = this.data.analysisSheetVersion + 1
       this.setData(viewPatch(this.data, patch), () => { runEffects(); if (layoutChanged) this.scheduleMeasure() })
       return

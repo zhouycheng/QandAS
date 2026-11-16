@@ -18,10 +18,6 @@ Page(withPageLifecycle({
     })
   },
   onShow() { this.applyViewModelResult(this.viewModel.load()) },
-  handleDonationTap(event) {
-    const code = this.data.donationCodes[event.currentTarget.dataset.index]
-    if (code) wx.previewImage({ current: code.image, urls: this.data.donationCodes.map(item => item.image) })
-  },
   applyViewModelResult(result) {
     if (!result) return
     if (result.data) this.setData(result.data)

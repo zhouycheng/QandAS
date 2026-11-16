@@ -32,3 +32,6 @@ tar -C "$qanda_backup_dir" -cf - . | openssl enc -aes-256-cbc -pbkdf2 -iter 2000
   -pass file:/etc/qanda/backup.key -out "${qanda_backup_file}.partial"
 mv "${qanda_backup_file}.partial" "$qanda_backup_file"
 sha256sum "$qanda_backup_file" > "${qanda_backup_file}.sha256"
+# 新备份落盘并记录摘要后，按 30 天期限清理历史文件（隐私政策第六节声明的保留期限）。
+find /var/backups/qanda -maxdepth 1 -type f \
+  \( -name '*.tar.enc' -o -name '*.tar.enc.sha256' \) -mtime +30 -delete

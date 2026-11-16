@@ -1,0 +1,56 @@
+<view class="secondary-page">
+  <page-header title="账号与安全" />
+  <view class="security-hub settings-detail">
+    <view class="security-section">
+      <text class="security-section-title">登录方式</text>
+      <view
+        class="security-row settings-divider"
+        bindtap="handleEmailTap"
+        hover-class="row-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+        aria-role="button"
+        aria-label="邮箱绑定"
+      >
+        <text class="security-row-label">邮箱</text>
+        <view class="security-row-line">
+          <text class="security-row-value {{profile.emailMasked ? '' : 'security-row-value-highlight'}}">{{profile.emailMasked || '未绑定'}}</text>
+          <view class="chevron"></view>
+        </view>
+      </view>
+      <view
+        class="security-row settings-divider"
+        bindtap="handleWechatTap"
+        hover-class="row-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+        aria-role="button"
+        aria-label="微信绑定"
+      >
+        <text class="security-row-label">微信</text>
+        <view class="security-row-line">
+          <text class="security-row-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
+          <text wx:if="{{profile.wechatAction && !profile.isTestAccount}}" class="security-row-action">{{profile.wechatAction}}</text>
+          <view wx:if="{{!profile.wechatBound && !profile.isTestAccount}}" class="chevron"></view>
+        </view>
+      </view>
+      <text class="security-note">{{profile.isTestAccount ? '测试账号使用固定登录码，凭据由管理员管理。' : '邮箱与微信用于登录和验证账号操作。'}}</text>
+    </view>
+
+    <view class="danger-zone">
+      <view
+        class="danger-row"
+        bindtap="handleAccountDeletion"
+        hover-class="row-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+        aria-role="button"
+        aria-label="注销账号"
+      >
+        <text class="danger-label">注销账号</text>
+        <view class="chevron danger-chevron"></view>
+      </view>
+      <text class="danger-note">删除账号及私人学习数据，退出所有设备，完成后无法恢复。</text>
+    </view>
+  </view>
+</view>

@@ -2,3 +2,56 @@
 .deletion-page { display: flex; flex-direction: column; gap: var(--space-md); padding-top: var(--space-md); }
 .deletion-confirm {   width: 100%; }
 .deletion-error { color: var(--danger); font-size: var(--font-secondary); line-height: var(--leading-secondary); }
+.deletion-verified {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
+}
+.deletion-verified-title { font-size: var(--font-body); line-height: var(--leading-body); font-weight: 600; color: var(--brand); }
+.deletion-verified-copy { font-size: var(--font-secondary); line-height: var(--leading-secondary); color: var(--text-sub); }
+.ack-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 48px;
+  padding: 8px 0;
+  transition: opacity 100ms ease;
+}
+.ack-row-hover { opacity: .78; }
+.ack-box {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-tag);
+  background: var(--card);
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.ack-box-checked { border-color: var(--danger); background: var(--danger); }
+.ack-check {
+  width: 5px;
+  height: 10px;
+  margin: -2px 0 0 0;
+  border-right: 2px solid var(--card);
+  border-bottom: 2px solid var(--card);
+  transform: rotate(45deg);
+}
+.ack-label {
+  flex: 1;
+  font-size: var(--font-secondary);
+  line-height: var(--leading-secondary);
+  color: var(--text-main);
+}
+.deletion-sheet { display: flex; flex-direction: column; gap: var(--space-md); }
+.deletion-sheet-account { font-size: var(--font-body); line-height: var(--leading-body); font-weight: 600; color: var(--text-main); }
+.deletion-sheet-list { display: flex; flex-direction: column; gap: var(--space-xs); }
+.deletion-sheet-item { font-size: var(--font-secondary); line-height: var(--leading-secondary); color: var(--text-sub); }
+.deletion-sheet-actions { display: flex; flex-direction: column; gap: var(--space-sm); padding-bottom: 24px; }
+.deletion-sheet-safe { background: var(--page-bg); color: var(--text-main); }
+.deletion-sheet-danger { width: 100%; }

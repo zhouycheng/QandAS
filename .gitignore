@@ -15,6 +15,9 @@ apps/miniapp/.tmp-preview/
 apps/miniapp/miniprogram/ext.json
 apps/miniapp/miniprogram/runtime.local.js
 
+# 本地工作区笔记（不属于代码）
+.workbuddy/
+
 # Deployment artifacts and local verification
 release/
 __pycache__/

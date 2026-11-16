@@ -18,6 +18,7 @@ page {
   --warning-soft: #FFFBEB;
   --danger: #B91C1C;
   --danger-soft: #FEF2F2;
+  --feedback-dot: #FF3B30;
   --mask: rgba(15, 23, 42, 0.45);
   --font-caption: 11px;
   --font-secondary: 12px;

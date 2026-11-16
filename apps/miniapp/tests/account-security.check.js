@@ -90,6 +90,15 @@ async function main() {
   bind.setField('email', 'changed@example.test')
   assert.equal(bind.challenge, null, 'proof is tied to exact email')
 
+  // 浮窗切回后页面重建：验证句柄从本机恢复，用户重输同一邮箱仍可用已收到的验证码
+  const reborn = new AccountSecurityViewModel({ repository: noEmailRepo, mode: 'email', now: () => now })
+  await reborn.load()
+  reborn.challenge = { id: 'proof', expiresAt: new Date(now + 600000).toISOString(), email: 'first@example.test', purpose: 'BIND_EMAIL' }
+  reborn.setField('email', 'first@example.test')
+  assert(reborn.challenge, '同一邮箱重新输入保留验证句柄')
+  reborn.setField('email', 'another@example.test')
+  assert.equal(reborn.challenge, null, '换成其他邮箱仍丢弃验证句柄')
+
   let accountProfile = { nickname: '账户名字', wechatBound: false, version: 3 }
   let accountToken = 'owner-token'
   const security = Object.assign({}, repo, {

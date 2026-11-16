@@ -9,7 +9,70 @@
       <password-input wx:if="{{method === 'TEST'}}" maxlength="16" bindinput="handleInput" placeholder="当前测试登录码" disabled="{{loading}}" />
       <button class="{{loading || !method ? 'q-button--disabled' : ''}} q-button q-button--primary btn btn-primary" bindtap="handleVerify" disabled="{{loading || !method}}" loading="{{loading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">{{method === 'WECHAT' ? '验证当前微信身份' : '验证身份'}}</button>
     </block>
-    <button wx:else class="{{loading ? 'q-button--disabled' : ''}} q-button q-button--danger deletion-confirm" bindtap="handleDelete" disabled="{{loading}}" loading="{{loading}}" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销并删除账号数据</button>
+    <block wx:else>
+      <view class="deletion-verified">
+        <text class="deletion-verified-title">身份已验证</text>
+        <text class="deletion-verified-copy">请再次核对注销后果。确认后，账号和私人学习数据将被永久删除。</text>
+      </view>
+      <view
+        class="ack-row"
+        bindtap="handleAckToggle"
+        hover-class="ack-row-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+        aria-role="checkbox"
+        aria-checked="{{acknowledged}}"
+        aria-label="我已了解注销后无法恢复"
+      >
+        <view class="ack-box {{acknowledged ? 'ack-box-checked' : ''}}" aria-hidden="true"><view wx:if="{{acknowledged}}" class="ack-check"></view></view>
+        <text class="ack-label">我已了解账号和私人学习数据将被删除，完成后无法恢复</text>
+      </view>
+      <button
+        class="{{loading || !acknowledged ? 'q-button--disabled' : ''}} q-button q-button--danger deletion-confirm"
+        bindtap="handleDelete"
+        disabled="{{loading || !acknowledged}}"
+        loading="{{loading}}"
+        hover-class="q-button-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+      >注销并删除账号数据</button>
+    </block>
     <text wx:if="{{error}}" class="deletion-error">{{error}}</text>
   </view>
+
+  <!-- 最终确认：独立底部弹层，提交期间不允许误关或重复提交。 -->
+  <bottom-sheet
+    visible="{{confirming}}"
+    title="永久注销当前账号"
+    placement="bottom"
+    bind:close="handleConfirmClose"
+  >
+    <view class="deletion-sheet">
+      <text class="deletion-sheet-account">当前账号：{{accountLabel}}</text>
+      <view class="deletion-sheet-list">
+        <text class="deletion-sheet-item">学习记录、成绩与练习进度将被删除</text>
+        <text class="deletion-sheet-item">收藏、反馈及个人资料将被删除</text>
+        <text class="deletion-sheet-item">所有设备都会退出，完成后无法恢复</text>
+      </view>
+    </view>
+    <view class="deletion-sheet-actions">
+      <button
+        class="q-button deletion-sheet-safe"
+        bindtap="handleConfirmClose"
+        disabled="{{loading}}"
+        hover-class="q-button-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+      >暂不注销</button>
+      <button
+        class="{{loading ? 'q-button--disabled' : ''}} q-button q-button--danger deletion-sheet-danger"
+        bindtap="handleConfirmDelete"
+        disabled="{{loading}}"
+        loading="{{loading}}"
+        hover-class="q-button-hover"
+        hover-start-time="0"
+        hover-stay-time="80"
+      >永久注销</button>
+    </view>
+  </bottom-sheet>
 </view>

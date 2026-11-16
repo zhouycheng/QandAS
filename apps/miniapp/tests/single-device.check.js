@@ -41,7 +41,9 @@ async function main() {
   await restarted.prepare({ sessionId: 'submitted' })
   assert.equal(repository.getResumableSession(storage).sessionId, 's1', '回看结果保留进行中的续答指针')
   storage.set('qandaDeviceId', 'device2')
-  await assert.rejects(restarted.prepare({ sessionId: 's1' }), /正在接续/)
+  const fallback = await restarted.prepare({ sessionId: 's1' })
+  assert.equal(fallback.id, 's1', '接续失败时保留本机快照供查看')
+  assert.equal(fallback.writer.deviceId, 'device1', '本机快照保持原 writer 标识')
   storage.set('qandaDeviceId', 'device1')
   const regular = http.request
   http.request = async (...args) => regular(...args)

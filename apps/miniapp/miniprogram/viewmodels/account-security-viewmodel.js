@@ -37,8 +37,14 @@ class AccountSecurityViewModel {
         if (!Object.prototype.hasOwnProperty.call(this.fields, key))
             return null;
         if (key === 'email' && value !== this.fields.email) {
-            this.challenge = null;
-            this.sendIntent = null;
+            // 页面被回收重建后用户会重新输入同一邮箱：验证码仍然有效，
+            // 只有换成另一个地址才丢弃已签发的验证句柄。
+            const next = (typeof value === 'string' ? value : '').trim().toLowerCase();
+            const same = !!this.challenge && (this.challenge.email || '').trim().toLowerCase() === next;
+            if (!same) {
+                this.challenge = null;
+                this.sendIntent = null;
+            }
         }
         this.fields[key] = typeof value === 'string' ? value : '';
         this.errorText = '';

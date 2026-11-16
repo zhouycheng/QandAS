@@ -34,10 +34,24 @@ async function main() {
   assert.equal(official.result.id, 'official'); assert.equal(official.cloudConfirmed, true)
   assert.equal(online.get('practice').localResult, undefined, '刷新后不从旧队列重建成绩')
   assert(online.detachedSnapshot('practice').localResult)
+  assert(online.restoreDetached(), '归档草稿自动恢复供后台续传')
+  assert.equal(storage.get('qandaOnline:owner:practice:detached'), undefined, '恢复后清理归档入口')
   save()
   online.writerState = async () => { storage.set('qandaAuth', { provider: 'email', userId: 'other', token: 'other-token' }); throw new Error('账号已切换') }
   await assert.rejects(online.prepare({ sessionId: 'practice' }), /账号已切换/)
   online.queue.stop()
+
+  const soloValues = { qandaAuth: { provider: 'email', userId: 'solo', token: 'token' }, qandaDeviceId: 'd' }
+  const soloStorage = require('./helpers/encrypted-storage.js').encrypted({ get: key => copy(soloValues[key]), set: (key, value) => { soloValues[key] = copy(value) }, remove: key => delete soloValues[key], keys: () => Object.keys(soloValues) })
+  const solo = new OnlinePractice(soloStorage)
+  solo.identity()
+  soloStorage.set('qandaOnline:solo:only:detached', { snapshot: { id: 'only', status: 'IN_PROGRESS', version: 1, items: [], route: {}, writer: { deviceId: 'd', epoch: 1 } }, draft: { userId: 'solo', sessionId: 'only', revision: 1, acknowledgedRevision: 0, sequence: 3, acknowledgedSequence: 0, acceptedSequence: 0, pending: null, payload: { progress: { items: [] } }, failures: 0 }, savedAt: new Date().toISOString() })
+  assert(solo.restoreDetached(), '仅剩归档数据时也能自动恢复')
+  assert.equal(soloStorage.get('qandaOnline:solo:only').id, 'only', '恢复归档快照主体')
+  assert.equal(soloStorage.get('qandaSync:v1:solo:only').sequence, 3, '恢复归档队列草稿')
+  assert(solo.queue.get('only'), '队列可读取恢复的草稿')
+  assert(solo.get('only'), 'get 走 vault 恢复路径读取快照')
+  solo.queue.stop()
 
   const vm = new PracticeViewModel({ repository: { getAuth: () => ({ userId: 'owner' }) } })
   vm.online = {}; vm.ownerId = 'owner'
