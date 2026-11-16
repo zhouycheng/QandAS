@@ -8,7 +8,7 @@ class AboutViewModel {
         this.version = input.version || '';
     }
     static getInitialData() {
-        return { version: '', developers: content.developers, donationCodes: content.donationCodes, paragraphs: content.paragraphs };
+        return { version: '', developers: content.developers, paragraphs: content.paragraphs };
     }
     load() {
         return { data: Object.assign(AboutViewModel.getInitialData(), {

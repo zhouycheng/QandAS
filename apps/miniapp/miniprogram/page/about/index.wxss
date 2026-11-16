@@ -25,7 +25,3 @@ page { background: var(--card); }
 .team-member { flex: 1; min-width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; padding: 12rpx 0; border-radius: var(--radius-control); }
 .team-avatar { width: 100rpx; height: 100rpx; border-radius: 50%; background: var(--page-bg); }
 .team-name { margin-top: 8rpx; color: var(--text-main); font-size: var(--font-secondary); line-height: var(--leading-secondary); text-align: center; }
-.donation-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-md); margin-top: var(--space-md); }
-.donation-card { flex: 1 1 260rpx; max-width: 320rpx; padding: var(--space-md); border: 1rpx solid var(--line); border-radius: var(--radius-control); box-sizing: border-box; }
-.donation-code { display: block; width: 100%; }
-.donation-label { display: block; margin-top: 16rpx; color: var(--text-sub); font-size: var(--font-secondary); line-height: 1.5; text-align: center; }
