@@ -19,7 +19,7 @@ The build uses the official WeChat npm builder. `tests/compile.check.js` locates
 ## Boundaries
 
 - Pages own wx APIs, focus, gestures, animation and navigation. ViewModels return data and commands; Models and utils own pure rules; Repositories own HTTP, snapshots, caches and durable drafts.
-- Use flat CommonJS files with explicit require paths. Runtime JavaScript remains native. Keep exact npm versions and a lockfile.
+- Use flat CommonJS files with explicit require paths. Declare runtime dependencies at module scope so WeChat lazy code injection loads them before page events; a first require inside an event can fail with "module is not defined". Runtime JavaScript remains native. Keep exact npm versions and a lockfile.
 - Content comes from the API. Test fixtures stay outside `miniprogram`. Guest snapshots and layout examples are current product behavior.
 - Practice sessions keep one active device credential, immutable revisions and durable asynchronous progress. Automatic handoff freezes editing, drains accepted commands and rotates the writer credential atomically. An unreachable writer must lose its 40-second lease before takeover. Socket heartbeats stay in memory; foreground restore verifies ownership without taking over another device. Offline and hidden pages pause both timers. The next device continues the acknowledged sequence. Preserve idempotency, acknowledgement sequences, retries, dead letters and the finish barrier.
 - Keep grading fields out of the page before their configured reveal point. Submission confirms all nonempty drafts, including other questions.

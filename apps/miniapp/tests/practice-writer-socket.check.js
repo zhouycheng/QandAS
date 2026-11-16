@@ -2,6 +2,9 @@ const assert = require('node:assert/strict')
 const { createWriterSocket } = require('../miniprogram/repositories/practice-writer-socket.js')
 const { PracticeViewModel } = require('../miniprogram/viewmodels/practice-viewmodel.js')
 const http = require('../miniprogram/repositories/http-gateway.js')
+const fs = require('node:fs')
+const { createRequire } = require('node:module')
+const { runInNewContext } = require('node:vm')
 
 async function main() {
   const tasks = new Map(), events = [], sockets = []
@@ -14,6 +17,20 @@ async function main() {
     const socket = { handlers, sent, onOpen(fn) { handlers.open = fn }, onMessage(fn) { handlers.message = fn }, onClose(fn) { handlers.close = fn }, onError(fn) { handlers.error = fn }, send(value) { sent.push(JSON.parse(value.data)) }, close() { if (handlers.close) handlers.close() } }
     sockets.push(socket); return socket
   }
+  const file = require.resolve('../miniprogram/repositories/online-practice.js')
+  const loaded = { exports: {} }, imports = new Map(), requireLocal = createRequire(file)
+  let defining = true
+  runInNewContext('(function(require,module,exports){' + fs.readFileSync(file, 'utf8') + '\n})')(name => {
+    if (defining) imports.set(name, requireLocal(name))
+    assert(imports.has(name), '答题连接必须随仓储声明依赖，微信按需注入后不能临时加载未声明模块：' + name)
+    return imports.get(name)
+  }, loaded, loaded.exports)
+  defining = false
+  const watched = loaded.exports.OnlinePractice.prototype.watchWriter.call({
+    identity: () => ({ userId: 'owner', token: 'session-token' }), deviceId: () => 'device',
+    storage: { get: () => ({ provider: 'email', userId: 'owner', token: 'session-token' }) }, get: () => ({ writer: { epoch: 3, writerToken: 'writer' } })
+  }, 'practice', connect, () => {})
+  watched.stop(); sockets.length = 0
   const channel = createWriterSocket({ id: 'practice', deviceId: 'device', token: 'session-token', current: () => true, connect,
     binding: () => ({ writerToken: 'writer', epoch: 3 }), onEvent: event => events.push(event), random: () => 0,
     setTimeout(fn, delay) { const id = ++next; tasks.set(id, { fn, delay }); return id }, clearTimeout(id) { tasks.delete(id) } })
