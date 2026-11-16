@@ -3,12 +3,13 @@ const { createWxStorageAdapter } = require('../../utils/wx-storage.js')
 const { maskEmail } = require('../../utils/auth-form.js')
 const navigation = require('../../utils/navigation.js')
 Page({
-  data: { loading: true, method: '', emailMasked: '', verified: false, error: '', cooldown: 0 },
+  data: { loading: true, method: '', emailMasked: '', accountLabel: '', verified: false, acknowledged: false, confirming: false, error: '', cooldown: 0 },
   async onLoad() {
     this.repository = new AccountDeletionRepository(createWxStorageAdapter())
     try {
       const profile = await this.repository.load()
-      if (!this.closed) this.setData({ method: profile.method, emailMasked: maskEmail(profile.email), loading: false })
+      const accountLabel = profile.method === 'EMAIL' ? maskEmail(profile.email) : profile.method === 'WECHAT' ? '当前微信登录身份' : '当前测试账号'
+      if (!this.closed) this.setData({ method: profile.method, emailMasked: maskEmail(profile.email), accountLabel, loading: false })
     } catch (error) { if (!this.closed) this.setData({ error: error.message, loading: false }) }
   },
   onUnload() { this.closed = true; this.value = ''; if (this.timer) clearInterval(this.timer); if (this.repository) this.repository.proof = '' },
@@ -32,18 +33,32 @@ Page({
       if (this.closed) return
       await this.repository.verify(this.value || '', code)
       this.value = ''
-      if (!this.closed) this.setData({ verified: true })
+      if (!this.closed) this.setData({ verified: true, acknowledged: false })
     } catch (error) { if (!this.closed) this.setData({ error: error.message }) }
     finally { if (!this.closed) this.setData({ loading: false }) }
   },
+  handleAckToggle() {
+    if (this.data.loading) return
+    this.setData({ acknowledged: !this.data.acknowledged })
+  },
   handleDelete() {
-    if (!this.data.verified || this.data.loading) return
-    wx.showModal({ title: '确认注销账号', content: '注销将删除该账号的学习记录、收藏、反馈及个人资料，并退出所有设备。此操作完成后无法恢复。', confirmText: '确认注销', confirmColor: '#c43c3c', success: async result => {
-      if (!result.confirm || this.closed) return
-      this.setData({ loading: true, error: '' })
-      try { await this.repository.erase(); if (!this.closed) navigation.switchTab({ url: '/page/subject-list/index' }) }
-      catch (error) { if (!this.closed) this.setData({ error: error.message }) }
-      finally { if (!this.closed) this.setData({ loading: false }) }
-    } })
+    if (!this.data.verified || this.data.loading || !this.data.acknowledged) return
+    this.setData({ confirming: true, error: '' })
+  },
+  handleConfirmClose() {
+    if (this.data.loading || this.closed) return
+    this.setData({ confirming: false })
+  },
+  async handleConfirmDelete() {
+    if (!this.data.verified || this.data.loading || !this.data.acknowledged) return
+    this.setData({ loading: true, error: '' })
+    try {
+      await this.repository.erase()
+      if (!this.closed) navigation.switchTab({ url: '/page/subject-list/index' })
+    } catch (error) {
+      if (!this.closed) this.setData({ error: error.message, confirming: false })
+    } finally {
+      if (!this.closed) this.setData({ loading: false })
+    }
   }
 })

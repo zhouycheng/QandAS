@@ -44,40 +44,10 @@
       </view>
     </view>
 
-    <view
-      class="info-item settings-divider"
-      bindtap="handleEmailTap"
-      hover-class="row-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >
-      <text class="info-label">邮箱</text>
-      <view class="info-line">
-        <text class="info-value {{profile.emailMasked ? '' : 'info-value-highlight'}}">{{profile.emailMasked ? '绑定' : '未绑定'}}</text>
-      </view>
-    </view>
-
-    <view
-      class="info-item settings-divider"
-      bindtap="handleWechatTap"
-      hover-class="row-hover"
-      hover-start-time="0"
-      hover-stay-time="80"
-    >
-      <text class="info-label">微信</text>
-      <view class="info-line">
-        <text class="info-value">{{wechatBinding ? '正在绑定…' : profile.wechatStatus}}</text>
-        <text wx:if="{{profile.wechatAction && !profile.isTestAccount}}" class="info-action">{{profile.wechatAction}}</text>
-        <view wx:if="{{!profile.wechatBound && !profile.isTestAccount}}" class="chevron"></view>
-      </view>
-    </view>
-
-
-    <text class="section-note">{{profile.isTestAccount ? '测试账号使用固定登录码，凭据由管理员管理。' : '邮箱与微信用于登录和验证账号操作。'}}</text>
+    <text class="section-note">邮箱、微信等账号安全设置请在「我的 → 账号与安全」中管理。</text>
 
 </view>
 <view class="bottom-bar">
-  <button class="q-button q-button--text account-delete" bindtap="handleAccountDeletion" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">注销账号</button>
   <button
     class="{{!dirty || avatarPreparing || saving ? 'q-button--disabled' : ''}} q-button q-button--primary bottom-btn"
     bindtap="handleSaveTap"

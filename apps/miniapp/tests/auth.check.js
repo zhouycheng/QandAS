@@ -266,7 +266,8 @@ function checkStaticContract() {
   const accountWxml = readFile('page/account/index.wxml')
   const accountJs = readFile('page/account/index.js')
 
-  assert('页面 - 账号管理页显示脱敏邮箱', accountWxml.indexOf('{{profile.emailMasked') >= 0)
+  assert('页面 - 账号安全中心显示脱敏邮箱', readFile('page/account-security-hub/index.wxml').indexOf('{{profile.emailMasked') >= 0)
+  assert('页面 - 账号管理页引导到账号与安全', accountWxml.indexOf('账号与安全') >= 0)
   assert('页面 - 账号管理页可改头像（chooseAvatar）',
     accountWxml.indexOf('open-type="chooseAvatar"') >= 0)
   assert('页面 - 账号管理页头像读取为可保存的图片内容',
@@ -277,7 +278,7 @@ function checkStaticContract() {
 
   assert('页面 - 设置页不再放账户分组', settingsWxml.indexOf('accountActions') < 0)
   assert('页面 - 退出登录独立显示且仅登录后可见',
-    /<view\s+wx:if="\{\{auth.loggedIn\}\}"[^>]*bindtap="confirmLogout"/.test(readFile('page/my/index.wxml')))
+    /<view\s+wx:if="\{\{auth.loggedIn\}\}"[^>]*class="logout-block"/.test(readFile('page/my/index.wxml')) && readFile('page/my/index.wxml').includes('bindtap="confirmLogout"'))
 
   const loginWxss = readFile('page/login/index.wxss')
 

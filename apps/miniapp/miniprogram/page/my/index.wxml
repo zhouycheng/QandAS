@@ -29,8 +29,7 @@
 
   <view class="group">
     <text class="group-title">设置</text>
-    <view
-      class="row"
+    <view class="row"
       wx:for="{{learnRows}}"
       wx:key="key"
       data-key="{{item.key}}"
@@ -46,13 +45,9 @@
       <text class="row-value">{{item.value}}</text>
       <view class="chevron"></view>
     </view>
-    <view wx:if="{{auth.loggedIn}}" class="row" bindtap="confirmLogout" hover-class="row-hover" hover-start-time="0" hover-stay-time="80" aria-role="button">
-      <text class="row-label">退出登录</text>
-      <view class="chevron"></view>
-    </view>
   </view>
 
-  <view class="links">
+  <view class="links {{auth.loggedIn ? 'links-compact' : ''}}">
     <text
       class="link"
       data-key="agreement"
@@ -70,6 +65,19 @@
       hover-start-time="0"
       hover-stay-time="80"
     >隐私政策</text>
+  </view>
+
+  <!-- 退出登录：独立低频操作，不与普通设置行混排，也不用危险红色。 -->
+  <view wx:if="{{auth.loggedIn}}" class="logout-block">
+    <button
+      class="q-button logout-button"
+      bindtap="confirmLogout"
+      hover-class="q-button-hover"
+      hover-start-time="0"
+      hover-stay-time="80"
+      aria-label="退出当前账号"
+    >退出登录</button>
+    <text class="logout-note">退出不会删除本机的做题进度、错题与收藏</text>
   </view>
 </view>
 

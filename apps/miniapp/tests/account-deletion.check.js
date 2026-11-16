@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const { AccountDeletionRepository, resumeCleanup } = require('../miniprogram/repositories/account-deletion-repository.js')
 const { createSyncQueue } = require('../miniprogram/repositories/practice-sync-queue.js')
 const auth = require('../miniprogram/repositories/auth-repository.js')
@@ -41,6 +42,13 @@ async function main() {
   finish({ ok: true }); await pending
   assert(!Object.keys(values).some(key => key.startsWith('qandaSync:v1:' + id)), '迟到回执不会恢复已删除草稿')
   assert.equal(queue.save('practice', {}).ok, false)
+  const deletionPage = fs.readFileSync(require.resolve('../miniprogram/page/account-deletion/index.wxml'), 'utf8')
+  const deletionJs = fs.readFileSync(require.resolve('../miniprogram/page/account-deletion/index.js'), 'utf8')
+  assert(deletionPage.includes('bindtap="handleAckToggle"'), '最终删除前必须先明确勾选后果')
+  assert(deletionPage.includes('visible="{{confirming}}"'), '最终确认使用独立弹层')
+  assert(deletionPage.includes('bindtap="handleConfirmDelete"'))
+  assert(deletionPage.includes('暂不注销') && deletionPage.includes('永久注销'))
+  assert(deletionJs.includes('handleConfirmClose()'), '提交期间不允许误关确认弹层')
   console.log('账号注销：身份复核、明确确认、匿名请求、清理恢复、账号隔离及迟到回执通过')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

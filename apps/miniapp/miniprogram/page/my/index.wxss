@@ -17,3 +17,29 @@ page { background: var(--card); }
 .link-hover {
   opacity: 0.72;
 }
+
+/* 已登录时把让位空间交给独立的退出按钮，未登录时仍由协议区兜底。 */
+.links-compact {
+  padding-bottom: 0;
+}
+
+.logout-block {
+  margin-top: 44rpx;
+  padding-bottom: 272rpx;
+}
+
+.logout-button {
+  width: 100%;
+  background: var(--page-bg);
+  color: var(--text-main);
+}
+
+.logout-note {
+  display: block;
+  margin-top: 14rpx;
+  font-size: var(--font-caption);
+  line-height: var(--leading-caption);
+  font-weight: 500;
+  color: var(--text-sub);
+  text-align: center;
+}

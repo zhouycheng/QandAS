@@ -21,7 +21,7 @@ Page(withPageLifecycle({
       this.applyViewModelResult(this.viewModel.refreshRemote())
     }
   },
-  onUnload() { if (this.viewModel.securityRepository) this.viewModel.securityRepository.close() },
+  onUnload() { },
 
   /**
    * 输入只更新「有改动」标记，不回写 value。
@@ -73,18 +73,6 @@ Page(withPageLifecycle({
     }
   },
 
-  handleEmailTap() {
-    this.applyViewModelResult(this.viewModel.tapEmail())
-  },
-
-  handleWechatTap() {
-    this.applyViewModelResult(this.viewModel.tapWechat())
-  },
-
-  handleAccountDeletion() {
-    navigation.navigateTo({ url: '/page/account-deletion/index' })
-  },
-
   handleSaveTap() {
     if (this.data.avatarPreparing || this.data.saving) return
     this.setData({ saving: true })
@@ -104,15 +92,6 @@ Page(withPageLifecycle({
     }
 
     if (!result.command) {
-      return
-    }
-
-    if (result.command.type === 'confirm-wechat-binding') {
-      wx.showModal({ title: '绑定微信', content: '将当前微信绑定到此账号，之后可使用微信登录。', confirmText: '确认绑定', success: choice => {
-        if (!choice.confirm || this._pageUnloaded) return
-        this.setData({ wechatBinding: true })
-        this.applyViewModelResult(this.viewModel.bindWechat()).finally(() => { if (!this._pageUnloaded) this.setData({ wechatBinding: false }) })
-      } })
       return
     }
 

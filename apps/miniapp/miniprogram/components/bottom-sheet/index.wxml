@@ -1,8 +1,8 @@
-<root-portal enable="{{true}}" wx:if="{{visible}}">
-<view class="portal-theme bottom-sheet" wx:if="{{visible}}">
-  <view class="mask" catchtouchmove="noop" catchtap="handleMaskTap"></view>
+<root-portal enable="{{true}}" wx:if="{{rendered}}">
+<view class="portal-theme bottom-sheet" wx:if="{{rendered}}">
+  <view class="mask {{closing ? 'is-closing' : ''}}" catchtouchmove="noop" catchtap="handleMaskTap"></view>
 
-  <view catchtap="noop" hover-class="none" class="panel {{placement === 'center' ? 'panel-center' : ''}} {{fixedFooter ? 'panel-fixed-footer' : ''}}">
+  <view catchtap="noop" hover-class="none" class="panel {{placement === 'center' ? 'panel-center' : ''}} {{fixedFooter ? 'panel-fixed-footer' : ''}} {{closing ? 'is-closing' : ''}}">
     <view wx:if="{{placement !== 'center'}}" class="panel-grip"></view>
     <view class="panel-header">
       <text class="panel-title">{{title}}</text>

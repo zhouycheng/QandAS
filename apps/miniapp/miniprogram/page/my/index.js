@@ -61,9 +61,9 @@ Page(withPageLifecycle({
 
   confirmLogout() {
     wx.showModal({
-      title: '退出登录',
+      title: '退出当前账号？',
       content: '退出后本机的做题进度、错题与收藏都会保留，下次登录还能接着做。',
-      confirmText: '退出',
+      confirmText: '退出登录',
       success: (res) => {
         if (res.confirm) {
           this.applyViewModelResult(this.viewModel.logout())
