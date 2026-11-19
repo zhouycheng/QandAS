@@ -1,39 +1,23 @@
+import { ManagementDrawer as Drawer } from '../components/management-drawer'
 import { useEffect, useState } from 'react'
-import { Avatar, Breadcrumb, Button, Drawer, Message, Space } from '@arco-design/web-react'
-import { IconMenuFold, IconMenuUnfold, IconPoweroff, IconUser } from '@arco-design/web-react/icon'
+import { Avatar, Button, Message, Space } from '@arco-design/web-react'
+import {
+  IconBook, IconDashboard, IconDesktop, IconExperiment, IconHistory, IconIdcard,
+  IconMenuFold, IconMenuUnfold, IconMessage, IconMindMapping, IconNotification, IconPoweroff,
+  IconSafe, IconUser, IconUserGroup,
+} from '@arco-design/web-react/icon'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { getAdminSession, isAuthenticated, logout, touchAdminSession } from '../lib/auth'
 import { useUiStore } from '../stores/ui-store'
 import { useAdminGateway } from '../gateways/gateway-context'
-import { DesignIcon } from '../components/design-icon'
 import appIcon from '../assets/app-icon.jpg'
 
 const groups = [
-  {
-    title: '工作台',
-    items: [
-      ['/dashboard', '运营概览', 'dashboard'],
-      ['/activity', '活跃度监控', 'activity'],
-      ['/monitoring', '系统监控', 'activity'],
-      ['/colleges', '院级管理', 'college'],
-      ['/question-banks', '题库工作台', 'book'],
-      ['/feedback', '学生反馈', 'file'],
-      ['/announcements', '公告管理', 'announcement'],
-      ['/users', '用户管理', 'users'],
-      ['/test-accounts', '测试账号管理', 'users'],
-    ],
-  },
-  {
-    title: '设置',
-    icon: 'settings',
-    items: [
-      ['/administrators', '管理员账号', 'shield'],
-      ['/security', '安全规则', 'settings'],
-      ['/community-group', '交流群二维码', 'users'],
-      ['/logs', '操作日志', 'file'],
-    ],
-  },
+  { title: '教学内容', items: [['/question-banks', '题库工作台', IconBook], ['/colleges', '院级管理', IconMindMapping]] },
+  { title: '用户与账号', items: [['/users', '用户管理', IconUserGroup], ['/test-accounts', '测试账号管理', IconExperiment]] },
+  { title: '运营', items: [['/dashboard', '运营概览', IconDashboard], ['/feedback', '学生反馈', IconMessage], ['/announcements', '公告与社群', IconNotification]] },
+  { title: '系统', items: [['/monitoring', '系统监控', IconDesktop], ['/administrators', '管理员账号', IconIdcard], ['/security', '安全与 Agent', IconSafe], ['/compatibility', '历史版本管理', IconBook], ['/logs', '操作日志', IconHistory]] },
 ] as const
 const pageNames: Record<string, string> = Object.fromEntries(
   groups.flatMap((g) => g.items.map(([path, name]) => [path, name])),
@@ -97,6 +81,8 @@ export function AdminLayout() {
       window.removeEventListener('storage', storage)
     }
   }, [navigate, timeoutMinutes])
+  const pathname = location.pathname.replace(/\/+$/, '')
+  const activePath = pathname === '/community-group' ? '/announcements' : pathname
   const navigation = (
     <>
       <Link className="brand" to="/dashboard" aria-label="题小搭" title="题小搭">
@@ -107,19 +93,19 @@ export function AdminLayout() {
         {groups.map((group) => (
           <div className="nav-group" key={group.title}>
             <div className="nav-group-title"><span>{group.title}</span></div>
-            {group.items.map(([path, label, icon]) => (
+            {group.items.map(([path, label, Icon]) => (
               <Link
-                className={`nav-link ${location.pathname === path || location.pathname.startsWith(path + '/') ? 'active' : ''}`}
+                className={`nav-link ${activePath === path || activePath.startsWith(path + '/') ? 'active' : ''}`}
                 key={path}
                 title={label}
                 to={path}
-                aria-current={location.pathname === path || location.pathname.startsWith(path + '/') ? 'page' : undefined}
+                aria-current={activePath === path || activePath.startsWith(path + '/') ? 'page' : undefined}
                 onClick={() => {
                   if (mobile) setCollapsed(true)
                 }}
               >
-                <DesignIcon name={icon} />
-                <span>{label}</span>
+                <Icon className="nav-icon" aria-hidden="true" />
+                <span className="nav-label">{label}</span>
               </Link>
             ))}
           </div>
@@ -128,7 +114,8 @@ export function AdminLayout() {
       <div className="sidebar-foot">学生共建 · 高效复习</div>
     </>
   )
-  const pageName = location.pathname.startsWith('/question-banks/') ? '题库工作台' : (pageNames[location.pathname] ?? '管理端')
+  const bankDetail = pathname.startsWith('/question-banks/')
+  const pageName = pathname === '/agent-authorize' ? 'Agent 授权' : pageNames[activePath]
   return (
     <div className={`admin-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="admin-sider">{navigation}</aside>
@@ -153,10 +140,9 @@ export function AdminLayout() {
               icon={collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
               onClick={() => setCollapsed(!collapsed)}
             />
-            <Breadcrumb>
-              <Breadcrumb.Item>后台管理</Breadcrumb.Item>
-              <Breadcrumb.Item>{pageName}</Breadcrumb.Item>
-            </Breadcrumb>
+            {bankDetail
+              ? <nav aria-label="当前位置" className="bank-breadcrumb"><Link aria-label="返回课程题库" to={{ pathname: '/question-banks', search: location.state?.listSearch }}>题库工作台</Link><span aria-hidden="true">/</span><span className="admin-page-title" aria-current="page">题库详情</span></nav>
+              : <h1 className="admin-page-title">{pageName}</h1>}
           </Space>
           <Space>
             <Avatar size={34}>

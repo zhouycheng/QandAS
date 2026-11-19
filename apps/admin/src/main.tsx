@@ -20,7 +20,7 @@ const gateway = new HttpAdminContentGateway(import.meta.env.VITE_API_BASE_URL ||
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider>
+    <ConfigProvider componentConfig={{ Table: { border: false } }} tablePagination={{ hideOnSinglePage: true, showTotal: true, size: 'small' }}>
       <QueryClientProvider client={queryClient}>
         <GatewayProvider gateway={gateway}>
           <BrowserRouter>

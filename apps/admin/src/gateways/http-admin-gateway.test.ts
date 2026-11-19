@@ -148,14 +148,12 @@ describe('HTTP 管理合同', () => {
       expect(restored.correctAnswer).toEqual(example.correctAnswer)
     }
   })
-  it('导入预览失败保持具体问题，正文限制按 UTF-8 字节计算', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json({ valid: false, questionCount: 1, issues: [{ message: '解析缺失' }] }))
+  it('ZIP 预览绑定上传编号并显示具体错误', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ message: '题包缺少图片' }), { status: 422 }))
     const api = new HttpAdminContentGateway('', fetcher, () => 'token')
-    const input = { questionBankId: 'bank', expectedContentVersion: 3, idempotencyKey: 'intent', questions: [{ ...questionImportExamples.SINGLE_CHOICE, questionBankId: 'bank', status: 'ACTIVE' as const }] }
-    await expect(api.previewImport(input)).rejects.toThrow('解析缺失')
-    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).expectedContentVersion).toBe(3)
-    await expect(api.previewImport({ ...input, questions: [{ ...input.questions[0], stem: '题'.repeat(3 * 1024 * 1024) }] })).rejects.toThrow('8 MiB')
-    expect(fetcher).toHaveBeenCalledTimes(1)
+    await expect(api.previewBankPackage('bank', { uploadId: 'upload' })).rejects.toThrow('题包缺少图片')
+    expect(String(fetcher.mock.calls[0][0])).toContain('/bank/package/preview')
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toEqual({ uploadId: 'upload' })
   })
   it('图片通过带认证的二进制请求读取，附件上传带幂等键', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ id: 'image' })).mockResolvedValueOnce(new Response(new Blob(['png'], { type: 'image/png' })))

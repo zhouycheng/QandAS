@@ -154,10 +154,6 @@
   .five .stat-card .arco-card-body {
     min-height: 170px;
   }
-  .dashboard-charts,
-  .activity-grid {
-    grid-template-columns: 1fr;
-  }
   .announcement-form-grid {
     grid-template-columns: 1fr;
   }
@@ -192,8 +188,8 @@
     padding: 0 16px;
     height: 60px;
   }
-  .admin-header .arco-breadcrumb {
-    font-size: 12px;
+  .admin-page-title {
+    font-size: 16px;
   }
   .admin-name {
     display: none;
@@ -221,9 +217,6 @@
   }
   .stat-number {
     font-size: 30px;
-  }
-  .dashboard-charts > .arco-card {
-    min-height: 340px;
   }
   .toolbar {
     align-items: stretch;
@@ -352,12 +345,6 @@
 .five .stat-card .arco-card-body {
   gap: 6px;
   min-height: 214px;
-}
-.dashboard-charts .arco-card-header-title {
-  font-size: 22px;
-}
-.dashboard-charts .donut {
-  width: min(292px, 100%);
 }
 @media (max-width: 760px) {
   .five .stat-icon {

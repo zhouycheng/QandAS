@@ -1,0 +1,62 @@
+.arco-table {
+  --color-neutral-3: #e4ebf3;
+  --color-fill-1: #f7faff;
+  font-variant-numeric: tabular-nums;
+}
+.arco-table .arco-table-container {
+  border-radius: 8px;
+}
+.arco-table .arco-table-th {
+  padding: 0;
+  color: #52647d;
+  background: #f3f6fa;
+  border-color: #e1e8f1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.arco-table .arco-table-th-item {
+  padding: 10px 14px;
+  line-height: 20px;
+}
+.arco-table .arco-table-td {
+  padding: 8px 14px;
+  height: 44px;
+  border-color: #e8edf4;
+  color: #394d68;
+  font-size: 14px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+.arco-table .arco-btn-text { padding-inline: 4px; }
+.arco-table .arco-tag { border: 0; border-radius: 5px; }
+.arco-table .arco-table-empty-row > .arco-table-td { border-bottom: 0; }
+.arco-table .arco-table-no-data { display: grid; place-content: center; min-height: 104px; padding-block: 8px; color: #74839a; text-align: center; }
+.arco-table-no-data .arco-empty { padding: 12px; }
+.arco-table .arco-table-pagination { margin: 12px 0 0; }
+
+@media (max-width: 640px) {
+  .arco-table .arco-table-th-item, .arco-table .arco-table-td { padding-inline: 10px; }
+  :is(.test-list, .log-list) .arco-table-tr > .arco-table-td { height: auto; }
+}
+
+.bank-count-unit { display: none; }
+@media (max-width: 640px) {
+  .bw-bank-table table, .bw-bank-table tbody { display: block; width: 100% !important; min-width: 0 !important; }
+  .bw-bank-table colgroup, .bw-bank-table thead { display: none; }
+  .bw-bank-table .arco-table-tr:not(.arco-table-empty-row) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 10px;
+    padding-block: 12px;
+    border-bottom: 1px solid #e8edf4;
+  }
+  .bw-bank-table .arco-table-tr > .arco-table-td { height: auto; padding: 0; border: 0; font-size: 12px; }
+  .bw-bank-table .arco-table-td:first-child { grid-area: 1 / 1 / 2 / 3; }
+  .bw-bank-table .arco-table-td:nth-child(4) { grid-area: 1 / 3; justify-self: end; }
+  .bw-bank-table .arco-table-td:last-child { justify-self: end; }
+  .bw-bank-table .bw-bank-icon { display: none; }
+  .bw-bank-table .bank-count-unit { display: inline; }
+  .bw-bank-table .arco-table-td:nth-child(3) { justify-self: start; }
+  .bw-bank-table .arco-table-empty-row > td { display: block; }
+}
