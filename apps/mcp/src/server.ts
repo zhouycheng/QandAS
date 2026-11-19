@@ -37,7 +37,9 @@ async function readBody(request: Request, limit: number): Promise<ArrayBuffer | 
 const uuid = z.uuid(), bank = { bankId: uuid }, page = { page: z.number().int().positive().optional(), keyword: z.string().optional() }
 const write = { ...bank, idempotencyKey: uuid }, input = z.record(z.string(), z.unknown())
 const question = z.looseObject({
-  questionBankId: uuid, type: z.string(), stem: z.string().min(1), portableId: uuid.optional(),
+  questionBankId: uuid, type: z.string(),
+  stem: z.string().describe('Use an empty string for an untitled READING group. Other types require a non-blank stem.'),
+  portableId: uuid.optional(),
   assetIds: z.array(uuid).optional(), options: z.array(z.object({ key: z.string(), content: z.string() })).optional(),
   correctAnswer: z.array(z.string()).optional(), subQuestions: z.array(input).optional(),
 }).describe('Flat question fields matching the companion skill. Put stem, options, answers, images and explanation directly in input.')
