@@ -100,7 +100,8 @@ class BankPackagePostgresTest: PostgresFixture() {
         fun preview(target: UUID,upload: Map<String,String>)=call("POST","/admin/question-banks/$target/package/preview",upload)
         fun commit(target: UUID,upload: Map<String,String>,preview: com.fasterxml.jackson.databind.JsonNode,confirmed: Boolean=false,status: Int=200)=
             call("POST","/admin/question-banks/$target/package/commit",upload+mapOf("expectedContentVersion" to preview["contentVersion"],"digest" to preview["digest"],"confirmUpdates" to confirmed),status=status)
-        val original=archive("看图判断 ![题图](asset:fig1)")
+        val codeExample = "> ~~~~text\n> ![示例](asset:placeholder)\n> ~~~\n> ~~~~"
+        val original=archive("看图判断 ![题图](asset:fig1)\n\n$codeExample")
         assertTrue(original.size>8*1024*1024)
         val first=stage(bank,original)
         val p=preview(bank,first)
@@ -114,13 +115,37 @@ class BankPackagePostgresTest: PostgresFixture() {
         fun fallbackHits() = call("GET","/admin/monitoring/compatibility")["stats"].firstOrNull { it["item"].asText()=="inline-fallback" }?.get("month")?.asLong() ?: 0L
         val before=fallbackHits()
         val legacy=call("GET",question,token=null)
-        assertFalse(legacy["stem"].asText().contains("asset:"))
+        assertEquals("看图判断 题图\n\n$codeExample",legacy["stem"].asText())
         assertEquals(1,legacy["assetIds"].size())
-        assertEquals(2,call("GET","$question?includeAnswers=true",token=null)["assetIds"].size())
+        val revealed=call("GET","$question?includeAnswers=true",token=null)
+        assertEquals(2,revealed["assetIds"].size())
         val rich=json.readTree(raw("GET",question,token=null,extraHeaders=mapOf("X-Qanda-Inline-Images" to "1")).body())
         assertTrue(rich["stem"].asText().contains("](asset:"))
         assertTrue(rich["assetIds"].isEmpty)
         assertEquals(before+2,fallbackHits())
+
+        val learner=student()
+        val practiceInput=mapOf("scope" to mapOf("questionBankId" to bank,"count" to 1),
+            "expectedContentVersion" to call("GET","/question-banks/$bank",token=null)["contentVersion"].asLong(),
+            "feedback" to "AFTER_FINISH")
+        fun checkHidden(view: com.fasterxml.jackson.databind.JsonNode) {
+            val item=view["items"].single()["question"]
+            assertEquals(legacy["assetIds"],item["assetIds"])
+            assertTrue(item["explanation"].isNull)
+            assertFalse(item.has("answerOnlyAssetIds"))
+        }
+        checkHidden(call("POST","/practice/trial-snapshots",practiceInput,token=null))
+        val session=call("POST","/practice/sessions",practiceInput+mapOf("deviceId" to UUID.randomUUID()),learner.token)
+        checkHidden(session)
+        val sessionId=id(session)
+        val sessionPath="/practice/sessions/$sessionId"
+        checkHidden(call("GET",sessionPath,token=learner.token))
+        val finished=finish("$sessionPath/finish",mapOf("expectedVersion" to session["version"].asLong(),
+            "writerToken" to session["writer"]["writerToken"].asText(),"durationSeconds" to 0,
+            "items" to listOf(mapOf("itemId" to session["items"].single()["itemId"].asText(),
+                "answer" to mapOf("value" to false),"confirmed" to true))),learner.token)
+        assertEquals(revealed["assetIds"],finished["items"].single()["question"]["assetIds"])
+
         val old=parent["subQuestions"][0]["revisionId"].asText()
         val exported=http.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/api/v1/admin/question-banks/$bank/package")).header("Authorization","Bearer $adminToken").GET().build(),HttpResponse.BodyHandlers.ofByteArray())
         assertEquals(200,exported.statusCode())

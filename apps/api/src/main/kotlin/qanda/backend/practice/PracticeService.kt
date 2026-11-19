@@ -59,7 +59,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         return locked
     }
     private fun grading(id: UUID,q: QuestionView)=OfflineGrading(id,q.correctAnswer,q.correctValue,q.referenceAnswer,q.explanation,q.blanks,q.blankMatch,q.scoringPoints,q.id,q.revisionId,q.material?.revisionId)
-    private fun display(q: QuestionView)=q.copy(correctAnswer=null,correctValue=null,referenceAnswer=null,explanation=null,blanks=null,blankMatch=null,scoringPoints=null)
+    private fun display(q: QuestionView): QuestionView = q.copy(
+        correctAnswer=null, correctValue=null, referenceAnswer=null, explanation=null, blanks=null, blankMatch=null, scoringPoints=null,
+        assetIds=q.assetIds - q.answerOnlyAssetIds, subQuestions=q.subQuestions.map(::display))
     private fun validateConfiguration(mode: String?,timeLimitSeconds: Int?) {
         if(mode!=null && mode !in setOf("order","practice","test","view")) invalid("/mode")
         if(timeLimitSeconds!=null && (timeLimitSeconds !in 1..86400 || mode=="view")) invalid("/timeLimitSeconds")
