@@ -1,6 +1,7 @@
 const http = require('./http-gateway.js')
 const auth = require('./auth-repository.js')
 const pending = new Map()
+const { inlineImageIds } = require('@qanda/content-format')
 
 function validPng(data) {
   const bytes = new Uint8Array(data)
@@ -53,7 +54,12 @@ async function load(storage, ids) {
   return paths
 }
 async function completeSnapshot(storage, snapshot) {
-  const ids = [...new Set((snapshot.items || []).flatMap(item => (item.question.assetIds || []).concat(item.question.material && item.question.material.assetIds || [])))]
+  const grading = new Map((snapshot.offlineGrading || []).map(item => [item.itemId, item]))
+  const ids = [...new Set((snapshot.items || []).flatMap(item => {
+    const q = item.question, m = q.material || {}, answer = grading.get(item.itemId) || q
+    return (q.assetIds || []).concat(m.assetIds || [], inlineImageIds([m.passage], m.contentFormat),
+      inlineImageIds([q.stem, ...(q.options || []).map(option => option.content || option.text), answer.referenceAnswer, answer.explanation, ...(answer.scoringPoints || [])], q.contentFormat))
+  }))]
   const paths = await load(storage, ids)
   const byId = new Map(ids.map((id, index) => [id, paths[index]]))
   for (const item of snapshot.items || []) {

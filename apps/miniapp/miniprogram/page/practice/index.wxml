@@ -221,21 +221,21 @@
             <button wx:if="{{item.contentUpdated && item.latestAvailable}}" class="practice-latest-link" data-id="{{item.id}}" catchtap="handleViewLatest" aria-label="查看新版题目与答案" hover-class="text-hover">查看新版</button>
             <text class="res-item-flag {{item.answered ? (item.isShortAnswer ? 'skip' : (item.isCorrect ? 'ok' : 'no')) : 'skip'}}">{{item.isShortAnswer ? (item.answered ? '已作答 · 不计分' : '未作答 · 不计分') : (item.answered ? (item.isCorrect ? '正确' : '错误') : '未答')}}</text>
           </view>
-          <view class="pra-material" wx:if="{{item.material}}"><rich-content text="{{(item.material.passage) || ''}}" format="{{(item.material.contentFormat) || 'PLAIN_TEXT'}}" /></view>
+          <view class="pra-material" wx:if="{{item.material}}"><rich-content images text="{{(item.material.passage) || ''}}" format="{{(item.material.contentFormat) || 'PLAIN_TEXT'}}" /></view>
           <question-images wx:if="{{item.material}}" paths="{{(item.material.imagePaths) || []}}" />
-          <rich-content class="res-item-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
+          <rich-content images class="res-item-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
           <question-images paths="{{(item.imagePaths) || []}}" />
           <view class="res-item-line">
             <text class="res-item-label">你的答案</text>
-            <rich-content class="res-item-value" text="{{(item.selectedText) || ''}}" code-language="{{(item.presentation === 'CODE_WRITING' ? item.codeLanguage : '') || ''}}" />
+            <rich-content images class="res-item-value" text="{{(item.selectedText) || ''}}" code-language="{{(item.presentation === 'CODE_WRITING' ? item.codeLanguage : '') || ''}}" />
           </view>
           <view class="res-item-line">
             <text class="res-item-label">{{item.isShortAnswer ? (item.presentation === 'CODE_WRITING' ? '参考实现' : '参考思路') : '正确答案'}}</text>
-            <rich-content class="res-item-value" text="{{(item.correctText) || ''}}" format="{{(item.isShortAnswer ? item.contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" />
+            <rich-content images class="res-item-value" text="{{(item.correctText) || ''}}" format="{{(item.isShortAnswer ? item.contentFormat : 'PLAIN_TEXT') || 'PLAIN_TEXT'}}" />
           </view>
           <view class="res-item-line" wx:if="{{item.scoringPoints.length}}">
             <text class="res-item-label">参考要点</text>
-            <rich-content class="res-scoring-point" wx:for="{{item.scoringPoints}}" wx:for-item="point" wx:for-index="pointIndex" wx:key="*this" text="{{(pointIndex + 1) + '. ' + (point || '')}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
+            <rich-content images class="res-scoring-point" wx:for="{{item.scoringPoints}}" wx:for-item="point" wx:for-index="pointIndex" wx:key="*this" text="{{(pointIndex + 1) + '. ' + (point || '')}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
           </view>
           <view class="res-self-assessment" wx:if="{{item.isShortAnswer && item.answered}}">
             <text class="res-item-label">这道题掌握了吗？{{item.selfAssessment === 'CORRECT' ? '已掌握' : (item.selfAssessment === 'WRONG' ? '还需复习' : '')}}</text>
@@ -246,7 +246,7 @@
           </view>
           <view class="res-item-line">
             <text class="res-item-label">解析</text>
-            <rich-content class="res-item-value" text="{{(item.explanation) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
+            <rich-content images class="res-item-value" text="{{(item.explanation) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" />
           </view>
         </view>
       </view>

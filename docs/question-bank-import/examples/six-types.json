@@ -22,7 +22,7 @@
   "assets": [],
   "questions": [
     {
-      "id": "binary",
+      "id": "bceda700-a676-43eb-af33-000000000001",
       "chapterId": "basics",
       "type": "SINGLE_CHOICE",
       "stem": "二进制数 10 对应的十进制数是多少？",
@@ -68,7 +68,7 @@
       "presentation": "STANDARD"
     },
     {
-      "id": "input",
+      "id": "bceda700-a676-43eb-af33-000000000002",
       "chapterId": "basics",
       "type": "MULTIPLE_CHOICE",
       "stem": "下列哪些属于输入设备？",
@@ -117,7 +117,7 @@
       "presentation": "STANDARD"
     },
     {
-      "id": "ram",
+      "id": "bceda700-a676-43eb-af33-000000000003",
       "chapterId": "basics",
       "type": "TRUE_FALSE",
       "stem": "计算机断电后，RAM 中的信息通常会丢失。",
@@ -144,7 +144,7 @@
       "presentation": "STANDARD"
     },
     {
-      "id": "cpu",
+      "id": "bceda700-a676-43eb-af33-000000000004",
       "chapterId": "basics",
       "type": "FILL_BLANK",
       "stem": "中央处理器的英文缩写是 {{1}}。",
@@ -181,7 +181,7 @@
       "presentation": "STANDARD"
     },
     {
-      "id": "backup",
+      "id": "bceda700-a676-43eb-af33-000000000005",
       "chapterId": "basics",
       "type": "SHORT_ANSWER",
       "stem": "说明数据备份的两个作用。",
@@ -213,7 +213,7 @@
       "presentation": "STANDARD"
     },
     {
-      "id": "reading",
+      "id": "bceda700-a676-43eb-af33-000000000006",
       "chapterId": "basics",
       "type": "READING",
       "stem": "文件备份案例",
@@ -235,7 +235,7 @@
       },
       "subQuestions": [
         {
-          "id": "reading-device",
+          "id": "bceda700-a676-43eb-af33-000000000007",
           "type": "SINGLE_CHOICE",
           "stem": "小林用哪种介质恢复了笔记？",
           "options": [
@@ -282,7 +282,7 @@
           "presentation": "STANDARD"
         },
         {
-          "id": "reading-time",
+          "id": "bceda700-a676-43eb-af33-000000000008",
           "type": "TRUE_FALSE",
           "stem": "每周备份一定包含误删当天新增的全部内容。",
           "correctValue": false,

@@ -11,7 +11,7 @@
             hover-stay-time="80"
           >
             <text class="pra-option-key">{{item.label}}</text>
-            <view class="pra-option-text"><rich-content text="{{(item.text) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" /></view>
+            <view class="pra-option-text"><rich-content images text="{{(item.text) || ''}}" format="{{(currentQuestion.contentFormat) || 'PLAIN_TEXT'}}" /></view>
           </view>
         </view>
 

@@ -1,6 +1,7 @@
 <template name="inlineParts">
       <block wx:for="{{parts}}" wx:for-item="part" wx:key="index">
         <input wx:if="{{part.blankIndex !== undefined}}" id="rich-blank-{{part.blankIndex}}" class="rich-blank" value="{{part.value}}" disabled="{{disabled}}" adjust-position="{{!managedKeyboard}}" maxlength="500" data-index="{{part.blankIndex}}" data-no-swipe="true" aria-label="填写空白处" bindinput="inputBlank" bindfocus="focusBlank" bindblur="blurBlank" bindkeyboardheightchange="keyboardHeight" />
+        <bank-image wx:elif="{{part.assetId}}" asset-id="{{part.assetId}}" alt="{{part.alt}}" />
         <rich-text wx:else class="rich-inline" nodes="{{part.nodes}}" />
       </block>
 </template>

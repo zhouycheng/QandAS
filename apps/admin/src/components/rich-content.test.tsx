@@ -2,10 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { RichContent } from './rich-content'
 import { QuestionContentView } from '../pages/questions/question-content-view'
+import { cleanDraft, createQuestionContent } from '../lib/question-content'
 import { parseImportFile } from '../lib/question-bank-file'
 import codeExample from '../../../../docs/question-bank-import/examples/code-content.json'
 
 describe('safe content and review preview', () => {
+  it('keeps mixed source formats when saving a legacy reading group', () => {
+    const child = { type: 'TRUE_FALSE' as const, stem: '旧小题', options: [], correctAnswer: ['TRUE'], explanation: '' }
+    const draft = cleanDraft({ ...createQuestionContent('READING'), contentFormat: undefined, subQuestions: [
+      { ...child, id: 'old' }, { ...child, id: 'rich', contentFormat: 'MARKDOWN' },
+    ] })
+    expect(draft.contentFormat).toBe('PLAIN_TEXT')
+    expect(draft.subQuestions?.map(q => q.contentFormat)).toEqual(['PLAIN_TEXT', 'MARKDOWN'])
+    expect(cleanDraft(createQuestionContent()).contentFormat).toBe('MARKDOWN')
+  })
   it('places answer lines in prose and keeps demonstration code intact', () => {
     const html = renderToStaticMarkup(<RichContent format="MARKDOWN" text={'程序输出 {{1}}。\n\n```js\nconsole.log(1 + 2)\n```'} blanks={['3']} />)
     expect(html).toContain('value="3"')

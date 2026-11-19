@@ -11,6 +11,18 @@ require('prismjs/components/prism-bash')
 
 const markdown = new MarkdownIt({ html: false, breaks: true, linkify: false, typographer: false, maxNesting: 20 })
 markdown.validateLink = value => /^https:\/\/[^\s]+$/i.test(value)
+markdown.inline.ruler.before('image', 'bank_image', (state, silent) => {
+  if (!state.src.startsWith('![', state.pos)) return false
+  const match = /^!\[([^\]\n]*)\]\(asset:([A-Za-z0-9_.-]+)\)/.exec(state.src.slice(state.pos, state.posMax))
+  if (!match) return false
+  if (!silent) {
+    const token = state.push('bank_image', '', 0)
+    token.content = match[1]
+    token.meta = { assetId: match[2] }
+  }
+  state.pos += match[0].length
+  return true
+})
 const TEACHING_SECTIONS = ['结论', '核心知识点', '解题过程', '记忆方法', '易错题型']
 const LANGUAGES = ['c', 'cpp', 'java', 'python', 'javascript', 'typescript', 'sql', 'json', 'html', 'css', 'bash', 'text']
 const aliases = { js: 'javascript', ts: 'typescript', py: 'python', 'c++': 'cpp', shell: 'bash', sh: 'bash', html: 'markup', text: 'plain', plaintext: 'plain' }
@@ -35,6 +47,10 @@ function parseContent(source, format = 'PLAIN_TEXT') {
     for (const token of tokens) {
       const children = stack[stack.length - 1]
       if (token.type === 'inline') { append(token.children || []); continue }
+      if (token.type === 'bank_image') {
+        children.push(node('span', [literal(token.content)], { assetId: token.meta.assetId }))
+        continue
+      }
       if (token.type === 'image') { children.push(literal(token.content)); continue }
       if (token.type === 'fence' || token.type === 'code_block') {
         const language = (token.info || '').trim().split(/\s+/)[0].toLowerCase()
@@ -61,6 +77,12 @@ function parseContent(source, format = 'PLAIN_TEXT') {
 }
 
 function plainText(nodes) { return nodes.map(value => value.text === undefined ? plainText(value.children || []) : value.text).join('') }
+function inlineImageIds(strings, format) {
+  const ids = new Set()
+  function visit(nodes) { for (const item of nodes) { if (item.assetId) ids.add(item.assetId); if (item.children) visit(item.children) } }
+  if (format === 'MARKDOWN') for (const text of strings) if (text && text.includes('](asset:')) visit(parseContent(text, format))
+  return [...ids]
+}
 function parseBlankContent(source, format) {
   let prefix = 'QandaBlankSlot'
   while (source.includes(prefix)) prefix += 'X'
@@ -123,4 +145,4 @@ function contentMetadata(input) {
   return { contentFormat, presentation, codeLanguage: null }
 }
 
-module.exports = { parseContent, parseBlankContent, plainText, codeTokens, containsImage, validateTeachingSections, blankMarkers, contentMetadata, TEACHING_SECTIONS, LANGUAGES }
+module.exports = { parseContent, parseBlankContent, plainText, inlineImageIds, codeTokens, containsImage, validateTeachingSections, blankMarkers, contentMetadata, TEACHING_SECTIONS, LANGUAGES }

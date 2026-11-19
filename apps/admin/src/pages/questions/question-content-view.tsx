@@ -4,13 +4,17 @@ import { questionTypeLabels } from '../../lib/labels'
 import { answerSummary } from '../../lib/question-content'
 import { QuestionImages } from '../../components/question-images'
 import type { QuestionContent } from '../../types/admin'
+import { inlineImageIds } from '@qanda/content-format'
 
 export function QuestionContentView({ question, stage = 'review' }: { question: QuestionContent; stage?: 'answer' | 'feedback' | 'review' }) {
   const reveal = stage === 'review' || (stage === 'feedback' && question.type !== 'SHORT_ANSWER')
-  const body = (text?: string) => <RichContent text={text || ''} format={question.contentFormat || 'PLAIN_TEXT'} />
+  const body = (text?: string) => <RichContent text={text || ''} format={question.contentFormat || 'PLAIN_TEXT'} assetIds={question.assetIds} />
+  const inline = inlineImageIds([question.stem, question.passage, question.explanation, question.referenceAnswer, ...(question.scoringPoints || []), ...question.options.map(o => o.content)], question.contentFormat)
+  const attachments = (question.assetIds || []).filter(id => !inline.includes(id))
   return <div className="bw-content-view">
-    {!!question.assetIds?.length && <QuestionImages ids={question.assetIds} />}
-    <section><Typography.Title heading={6}>{question.type === 'READING' ? '题组标题' : '题干'}</Typography.Title><RichContent text={question.stem} format={question.type === 'READING' ? 'PLAIN_TEXT' : question.contentFormat} blanks={question.type === 'FILL_BLANK' ? (question.blanks || []).map(blank => reveal ? blank.answers[0] || '' : '') : undefined} /></section>
+
+    <section><Typography.Title heading={6}>{question.type === 'READING' ? '题组标题' : '题干'}</Typography.Title><RichContent assetIds={question.assetIds} text={question.stem} format={question.type === 'READING' ? 'PLAIN_TEXT' : question.contentFormat} blanks={question.type === 'FILL_BLANK' ? (question.blanks || []).map(blank => reveal ? blank.answers[0] || '' : '') : undefined} /></section>
+    {!!attachments.length && <QuestionImages ids={attachments} />}
     {question.type === 'READING' ? <>
       <section className="bw-reading-material"><Typography.Title heading={6}>阅读材料</Typography.Title>{body(question.passage)}</section>
       {question.subQuestions?.map((sub, index) => <section className="bw-reading-sub" key={sub.id}><div className="bw-sub-heading"><strong>小题 {index + 1}</strong><Tag>{questionTypeLabels[sub.type]}</Tag></div><QuestionContentView question={sub} stage={stage} /></section>)}

@@ -11,7 +11,7 @@ function richNodes(nodes) {
   })
 }
 
-function contentBlocks(text, format, language, blanks) {
+function contentBlocks(text, format, language, blanks, images) {
   const nodes = language ? [{ tag: 'pre', children: codeTokens(text, language), language, raw: text }] : blanks ? parseBlankContent(text, format) : parseContent(text, format)
   const blocks = [], links = []
   const isScroll = value => value.tag === 'pre' || value.tag === 'table'
@@ -19,6 +19,7 @@ function contentBlocks(text, format, language, blanks) {
   function inlineParts(value) {
     const parts = []
     const inline = (entry, wrappers) => {
+      if (images && entry.assetId) { parts.push({ assetId: entry.assetId, alt: (entry.children[0] || {}).text || '题目插图' }); return }
       if (entry.blankIndex !== undefined) { parts.push({ blankIndex: entry.blankIndex, value: blanks[entry.blankIndex] && blanks[entry.blankIndex].value || '' }); return }
       if (entry.text !== undefined || entry.tag === 'br') {
         let leaf = entry
@@ -48,8 +49,8 @@ function contentBlocks(text, format, language, blanks) {
       wrapped = { ...context.value, children: [wrapped], continuation: context.value.tag === 'li' && context.continued }
       context.continued = true
     }
-    const parts = blanks ? inlineParts(wrapped) : []
-    const hasBlanks = parts.some(part => part.blankIndex !== undefined)
+    const parts = blanks || images && (text || '').includes('](asset:') ? inlineParts(wrapped) : []
+    const hasBlanks = parts.some(part => part.blankIndex !== undefined || part.assetId)
     const rows = value.tag === 'table' && hasBlanks ? value.children.flatMap(section => section.children).map((row, index) => ({ index, cells: row.children.map((cell, index) => ({ index, header: cell.tag === 'th', parts: inlineParts(cell) })) })) : null
     blocks.push({ index: blocks.length, tag: value.tag, language: value.language || 'text', raw: value.raw || '', nodes: richNodes([wrapped]), parts: hasBlanks ? parts : null, rows })
   }

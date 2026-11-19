@@ -61,7 +61,7 @@ function request(method, path, data, options) {
   if (token && safety.requiresCheck(method, path) && !(settings.headers && settings.headers['X-Content-Safety-Request'])) {
     return safety.checkedRequest(method, path, data, settings, token, () => config.tokenProvider ? config.tokenProvider() : token)
   }
-  const headers = Object.assign({ 'content-type': 'application/json', 'X-Request-Id': requestId }, settings.headers || {})
+  const headers = Object.assign({ 'content-type': 'application/json', 'X-Request-Id': requestId, 'X-Qanda-Inline-Images': '1' }, settings.headers || {})
   if (token) headers.Authorization = `Bearer ${token}`
   if (settings.idempotencyKey) headers['Idempotency-Key'] = settings.idempotencyKey
   const body = data === undefined ? {} : JSON.parse(JSON.stringify(data))

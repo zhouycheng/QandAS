@@ -1,7 +1,8 @@
-export interface ContentNode { text?: string; tag?: string; children?: ContentNode[]; token?: string; language?: string; raw?: string; href?: string; start?: number; blankIndex?: number }
+export interface ContentNode { text?: string; tag?: string; children?: ContentNode[]; token?: string; language?: string; raw?: string; href?: string; start?: number; blankIndex?: number; assetId?: string }
 export function parseContent(source: string, format?: string): ContentNode[]
 export function parseBlankContent(source: string, format?: string): ContentNode[]
 export function plainText(nodes: ContentNode[]): string
+export function inlineImageIds(strings: (string | undefined)[], format?: string): string[]
 export function codeTokens(source: string, language: string): ContentNode[]
 export function containsImage(source: string): boolean
 export function validateTeachingSections(source: string, format?: string): boolean
