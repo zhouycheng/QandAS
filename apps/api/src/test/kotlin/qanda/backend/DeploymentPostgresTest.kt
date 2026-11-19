@@ -3,6 +3,7 @@ package qanda.backend
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.jdbc.core.JdbcTemplate
 import org.testcontainers.containers.PostgreSQLContainer
 import qanda.backend.platform.bootstrap.DeploymentHealth
 
@@ -35,18 +36,30 @@ class DeploymentPostgresTest : PostgresFixture() {
                 statement.execute("ALTER TABLE question_feedback DROP COLUMN read_version")
                 statement.execute("ALTER TABLE course_request DROP COLUMN read_version")
             } }
-            repeat(2) {
+            fun upgrade() {
                 val upgrade=ProcessBuilder(java.nio.file.Path.of(System.getProperty("java.home"),"bin/java").toString(),"-jar","target/qanda-backend-1.0.0.jar","schema-init").apply {
                     environment().putAll(mapOf("BACKEND_DB_URL" to database.jdbcUrl,"BACKEND_DB_USER" to database.username,"BACKEND_DB_PASSWORD" to database.password))
                     redirectErrorStream(true)
                 }.start()
                 assertTrue(upgrade.waitFor(30,java.util.concurrent.TimeUnit.SECONDS));assertEquals(0,upgrade.exitValue(),upgrade.inputStream.bufferedReader().readText())
-                source.connection.use { connection -> connection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT confirmed_at FROM practice_item WHERE false").close()
-                    statement.executeQuery("SELECT f.read_version,c.read_version FROM question_feedback f,course_request c WHERE false").close()
-                    statement.executeQuery("SELECT count(*) FROM subject").use { row -> row.next();assertEquals(1,row.getInt(1),"结构升级保留已有记录") }
-                } }
             }
+            val db=JdbcTemplate(source)
+            for ((minimum,version) in listOf(12 to 1L,12 to 3L,16 to 3L)) {
+                db.update("UPDATE security_policy SET min_password_length=?,version=? WHERE id=1",minimum,version)
+                db.execute("""ALTER TABLE security_policy ALTER COLUMN min_password_length SET DEFAULT 12,
+                    DROP CONSTRAINT security_policy_min_password_length_check,
+                    ADD CONSTRAINT security_policy_min_password_length_check CHECK(min_password_length BETWEEN 12 AND 64)""")
+                repeat(2) { upgrade() }
+                val policy=db.queryForMap("SELECT min_password_length,version FROM security_policy WHERE id=1")
+                assertEquals(if(version==1L) 8 else minimum,policy["min_password_length"])
+                assertEquals(if(version==1L) 2L else version,policy["version"])
+                db.update("UPDATE security_policy SET min_password_length=8 WHERE id=1")
+            }
+            source.connection.use { connection -> connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT confirmed_at FROM practice_item WHERE false").close()
+                statement.executeQuery("SELECT f.read_version,c.read_version FROM question_feedback f,course_request c WHERE false").close()
+                statement.executeQuery("SELECT count(*) FROM subject").use { row -> row.next();assertEquals(1,row.getInt(1),"结构升级保留已有记录") }
+            } }
             assertThrows(IllegalArgumentException::class.java) { qanda.backend.platform.bootstrap.DatabaseCommands.initialize(source) }
             qanda.backend.platform.bootstrap.DatabaseCommands.initialize(source,reset=true)
             source.connection.use { connection -> connection.createStatement().use { statement ->

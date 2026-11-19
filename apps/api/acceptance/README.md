@@ -13,6 +13,11 @@ node apps/api/scripts/backend.mjs verify
 `test` 执行单元及模块依赖检查；`verify` 还执行 Testcontainers PostgreSQL、RabbitMQ、Prometheus、Mailpit 的 HTTP/SSE 验收，并通过打包后的 JAR 检查数据库初始化、交互式首管创建及独立监控进程。测试数据库均为临时隔离容器，测试结束后删除。
 
 
+### 后端跨版本演练
+
+构建当前 JAR 后，使用 JDK 21 和 Docker 运行 `apps/api/acceptance/upgrade/verify.sh`。脚本从部署记录对应的提交 `09715715` 导出旧后端和 HTTP 测试客户端，在临时 PostgreSQL 中创建旧数据，随后启动候选版本的 API、worker、monitor 和 Nginx。它在同一库中检查题目与图片、作答快照、JSON 和 Excel 的重复导入及离线提交重试。演练会触发结构校验失败与迁移锁超时，最后重新启动旧版服务并通过网关回读成绩。验收通过后，
+`.backend-runtime/verification/release-upgrade.json` 记录旧发布提交、候选 JAR 摘要、样本 ID、图片摘要和两份作答成绩。
+
 ### 身份与内容检测
 
 普通用户使用邮箱验证码或微信登录，首次验证成功直接创建账号并返回会话。固定测试登录码只接受真实测试记录；管理员密码使用独立策略。测试覆盖首次登录并发、验证码重放、绑定冲突、更换邮箱及会话撤销。

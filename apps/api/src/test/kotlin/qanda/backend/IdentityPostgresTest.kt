@@ -144,9 +144,24 @@ class IdentityPostgresTest : PostgresFixture() {
 
     @Test fun `configured administrator login locking idle timeout and password rules are enforced`() {
         val before=call("GET","/admin/security-policy")
+        assertEquals(8,before["minPasswordLength"].asInt())
+        val account=mapOf("username" to "boundary_${UUID.randomUUID().toString().take(8)}","name" to "密码长度测试")
+        call("POST","/admin/administrators",account+("password" to "Abcd123"),status=422)
+        call("POST","/admin/administrators",account+("password" to "Abcdefgh"),status=422)
+        val created=call("POST","/admin/administrators",account+("password" to "Abcd1234"))
+        fun loginWith(value: String,status: Int=200)=call("POST","/admin/auth/sessions",mapOf("username" to account.getValue("username"),"password" to value,"deviceId" to UUID.randomUUID()),null,status)
+        loginWith("Abcd123",422)
+        loginWith("Abcd1234")
+        val update=account+("expectedVersion" to created["version"].asLong())
+        call("PUT","/admin/administrators/${id(created)}",update+("password" to "New1234"),status=422)
+        call("PUT","/admin/administrators/${id(created)}",update+("password" to "New12345"))
+        val session=loginWith("New12345")["accessToken"].asText()
         val strict=mapOf("expectedVersion" to before["version"].asLong(),"lockEnabled" to true,"maxAttempts" to 3,"lockMinutes" to 5,"sessionMinutes" to 5,"minPasswordLength" to 16,"requireLetter" to true,"requireNumber" to true,"requireMixedCase" to false)
+        call("PUT","/admin/security-policy",strict+("minPasswordLength" to 7),status=422)
         call("PUT","/admin/security-policy",strict)
         try {
+            assertEquals(id(created),id(call("GET","/admin/auth/me",token=session)))
+            loginWith("New12345")
             call("POST","/admin/administrators",mapOf("username" to "short_${UUID.randomUUID().toString().take(8)}","name" to "短密码","password" to "Abc123456789"),status=422)
             val username="locked_${UUID.randomUUID().toString().take(8)}"
             val target=id(call("POST","/admin/administrators",mapOf("username" to username,"name" to "锁定测试","password" to password)))
@@ -159,7 +174,7 @@ class IdentityPostgresTest : PostgresFixture() {
             assertTrue(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE outcome='FAILURE'",Int::class.java)!!>0)
         } finally {
             val current=call("GET","/admin/security-policy")
-            call("PUT","/admin/security-policy",strict+mapOf("expectedVersion" to current["version"].asLong(),"maxAttempts" to 5,"lockMinutes" to 30,"sessionMinutes" to 30,"minPasswordLength" to 12))
+            call("PUT","/admin/security-policy",strict+mapOf("expectedVersion" to current["version"].asLong(),"maxAttempts" to 5,"lockMinutes" to 30,"sessionMinutes" to 30,"minPasswordLength" to before["minPasswordLength"].asInt()))
         }
     }
 

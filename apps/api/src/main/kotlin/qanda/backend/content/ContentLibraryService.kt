@@ -21,7 +21,7 @@ class ContentLibraryService(private val access: ContentAccess,private val querie
     override fun readingChildrenFor(ids: List<UUID>)=if(ids.isEmpty()) emptyList() else queries.readingChildrenFor(ids).map(::questionRef)
     override fun revision(questionId: UUID,revisionId: UUID?,answers: Boolean,materialRevisionId: UUID?): QuestionView {
         val q=questions.selectById(questionId) ?: missing()
-        return content.questionView(q,revisionId ?: q.currentRevisionId!!,answers,materialRevisionId ?: content.materialRevision(q))
+        return content.questionView(q,revisionId ?: q.currentRevisionId!!,answers,if(revisionId==null) content.materialRevision(q) else materialRevisionId)
     }
     override fun favorites(userId: UUID,ids: List<UUID>)=queries.favoriteQuestionIds(userId,ids)
 }

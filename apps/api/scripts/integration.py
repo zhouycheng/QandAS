@@ -297,7 +297,7 @@ def main():
     elif command == "connect":
         connect(config)
     elif command == "admin":
-        environment = {**os.environ, "VITE_API_BASE_URL": "/", "QANDA_API_PROXY_TARGET": config["api"]}
+        environment = {**os.environ, "VITE_API_BASE_URL": "/", "QANDA_GATEWAY_PROXY_TARGET": config["api"]}
         subprocess.run(["pnpm", "dev", "--host", "127.0.0.1", "--strictPort"], cwd=ROOT / "apps/admin", env=environment, check=True)
     elif command in ("status", "logs", "stop"):
         args = {"status": ["ps"], "logs": ["logs", "--tail", "80", "api", "worker", "monitor"], "stop": ["stop"]}[command]

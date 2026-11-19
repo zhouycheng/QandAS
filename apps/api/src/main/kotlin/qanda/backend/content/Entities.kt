@@ -37,6 +37,7 @@ class Question {
     var id: UUID? = null
     var bankId: UUID? = null
     var chapterId: UUID? = null
+    var retiredFromGroup: UUID? = null
     var readingParentId: UUID? = null
     var readingOrder: Int = 0
     var isGroup: Boolean = false

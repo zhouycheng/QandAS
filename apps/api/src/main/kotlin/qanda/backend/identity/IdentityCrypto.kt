@@ -3,6 +3,8 @@ package qanda.backend.identity
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import qanda.backend.identity.api.ADMIN_PASSWORD_MAX_LENGTH
+import qanda.backend.identity.api.ADMIN_PASSWORD_MIN_LENGTH
 import qanda.backend.identity.api.PreparedPassword
 import qanda.backend.platform.http.ApiException
 import qanda.backend.platform.http.FieldError
@@ -79,7 +81,7 @@ class IdentityCrypto(private val environment: Environment) {
         init(SecretKeySpec(key,"HmacSHA256")); doFinal(value.toByteArray(UTF_8))
     }
     fun preparePassword(raw: String): PreparedPassword {
-        validatePassword(raw,12..128,"password")
+        validateAdminPassword(raw)
         return encodePassword(raw)
     }
     fun prepareTestLoginCode(raw: String, field: String = "password"): PreparedPassword {
@@ -94,7 +96,7 @@ class IdentityCrypto(private val environment: Environment) {
         return PreparedPassword(listOf("{pbkdf2-sha256}",iterations.toString(),base64.encodeToString(salt),base64.encodeToString(derive(raw,salt,iterations))).joinToString("$"))
     }
     fun verifyPassword(raw: String, encoded: String?): Boolean {
-        validatePassword(raw,12..128,"password")
+        validateAdminPassword(raw)
         return matchesPassword(raw,encoded)
     }
     fun verifyTestLoginCode(raw: String, encoded: String?): Boolean {
@@ -111,9 +113,9 @@ class IdentityCrypto(private val environment: Environment) {
             encoded != null && matched
         } catch (_: IllegalArgumentException) { false }
     }
-    private fun validatePassword(raw: String, length: IntRange, field: String) {
-        if (raw.codePointCount(0,raw.length) !in length || raw.toByteArray(UTF_8).size > 512 || raw.any { it == '\u0000' } ||
-            raw.indices.any { Character.isSurrogate(raw[it]) && !(Character.isHighSurrogate(raw[it]) && it+1 < raw.length && Character.isLowSurrogate(raw[it+1])) && !(Character.isLowSurrogate(raw[it]) && it>0 && Character.isHighSurrogate(raw[it-1])) }) invalid(field)
+    private fun validateAdminPassword(raw: String) {
+        if (raw.codePointCount(0,raw.length) !in ADMIN_PASSWORD_MIN_LENGTH..ADMIN_PASSWORD_MAX_LENGTH || raw.toByteArray(UTF_8).size > 512 || raw.any { it == '\u0000' } ||
+            raw.indices.any { Character.isSurrogate(raw[it]) && !(Character.isHighSurrogate(raw[it]) && it+1 < raw.length && Character.isLowSurrogate(raw[it+1])) && !(Character.isLowSurrogate(raw[it]) && it>0 && Character.isHighSurrogate(raw[it-1])) }) invalid("password")
     }
     private fun derive(raw: String, salt: ByteArray, rounds: Int): ByteArray {
         val spec = PBEKeySpec(raw.toCharArray(),salt,rounds,256)

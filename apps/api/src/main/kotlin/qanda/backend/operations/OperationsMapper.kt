@@ -9,6 +9,7 @@ class DashboardRow { var collegeCount: Long=0;var subjectCount: Long=0;var quest
     fun feedbackSummary(@Param("userId") userId: UUID): FeedbackSummaryView
     fun readFeedback(@Param("id") id: UUID,@Param("userId") userId: UUID,@Param("version") version: Long): Int
     fun readRequest(@Param("id") id: UUID,@Param("userId") userId: UUID,@Param("version") version: Long): Int
+    fun feedbackMaterial(@Param("questionId") questionId: UUID,@Param("revisionId") revisionId: UUID,@Param("userId") userId: UUID,@Param("at") at: java.time.Instant): UUID?
     fun issuedRevision(@Param("userId") userId: UUID,@Param("revisionId") revisionId: UUID): Boolean
     fun lockFeedback(@Param("id") id: UUID): QuestionFeedback?
     fun feedback(@Param("userId") userId: UUID?,@Param("status") status: String?,@Param("offset") offset: Int,@Param("limit") limit: Int): List<QuestionFeedback>

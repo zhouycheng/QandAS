@@ -40,3 +40,4 @@ data class ImportInput(val expectedContentVersion: Long,@field:Size(min=1,max=30
 data class ImportView(val questionIds: List<UUID>,val contentVersion: Long)
 data class PreviewIssue(val index: Int,val code: String,val message: String)
 data class ImportPreview(val valid: Boolean,val questionCount: Int,val issues: List<PreviewIssue>)
+data class DissolveChapterInput(val expectedVersion: Long,val expectedContentVersion: Long,val targetChapterId: UUID?=null)

@@ -48,7 +48,7 @@
       "maxAttempts": 5,
       "lockMinutes": 30,
       "sessionMinutes": 30,
-      "minPasswordLength": 12,
+      "minPasswordLength": 8,
       "requireLetter": true,
       "requireNumber": true,
       "requireMixedCase": false
@@ -174,6 +174,67 @@
     "operationId": "Operations_announcements_GET",
     "method": "GET",
     "path": "/api/v1/announcements",
+    "body": null
+  },
+  {
+    "operationId": "BankPackage_put_PUT",
+    "method": "PUT",
+    "path": "/api/v1/admin/question-banks/{bankId}/package/uploads/{id}/{part}",
+    "body": null
+  },
+  {
+    "operationId": "BankPackage_start_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{bankId}/package/uploads",
+    "body": {
+      "sizeBytes": 1
+    }
+  },
+  {
+    "operationId": "BankPackage_preview_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{bankId}/package/preview",
+    "body": {
+      "uploadId": "{{uploadId}}"
+    }
+  },
+  {
+    "operationId": "BankPackage_commit_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{bankId}/package/commit",
+    "body": {
+      "uploadId": "{{uploadId}}"
+    }
+  },
+  {
+    "operationId": "BankAgentGrants_authorize_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/bank-agents/authorize",
+    "body": {
+      "clientId": "{{clientId}}",
+      "redirectUri": "示例内容",
+      "resource": "示例内容",
+      "scope": "示例内容",
+      "challenge": "示例内容",
+      "method": "示例内容"
+    }
+  },
+  {
+    "operationId": "BankPackage_export_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/question-banks/{bankId}/package",
+    "body": null
+  },
+  {
+    "operationId": "BankAgentGrants_grants_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/bank-agents",
+    "body": null
+  },
+  {
+    "operationId": "BankAgentGrants_revoke_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/bank-agents/{id}",
     "body": null
   },
   {
@@ -510,6 +571,15 @@
     "body": {
       "name": "示例内容",
       "sortOrder": 0
+    }
+  },
+  {
+    "operationId": "Content_dissolveChapter_POST",
+    "method": "POST",
+    "path": "/api/v1/admin/question-banks/{bankId}/chapters/{id}/dissolve",
+    "body": {
+      "expectedVersion": "{{expectedVersion}}",
+      "expectedContentVersion": "{{expectedContentVersion}}"
     }
   },
   {
@@ -893,6 +963,12 @@
     "operationId": "Monitoring_health_GET",
     "method": "GET",
     "path": "/api/v1/admin/monitoring/health",
+    "body": null
+  },
+  {
+    "operationId": "Compatibility_compatibility_GET",
+    "method": "GET",
+    "path": "/api/v1/admin/monitoring/compatibility",
     "body": null
   },
   {

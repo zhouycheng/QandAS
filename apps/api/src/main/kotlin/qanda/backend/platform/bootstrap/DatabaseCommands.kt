@@ -34,11 +34,13 @@ object DatabaseCommands {
             try {
                 connection.createStatement().use { statement ->
                     if(reset) statement.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
-                    else statement.executeQuery("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").use { result -> result.next();require(result.getInt(1)==0) { "数据库包含现有表，请显式使用db-reset重建开发库" } }
+                    else statement.executeQuery("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'").use { result -> result.next();require(result.getInt(1)==0) { "当前数据库已有表，请使用对应的增量升级入口" } }
                     statement.execute(ClassPathResource("db/schema.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/bank-package.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/user-settings.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/practice-writer.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/monitoring-permissions.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/compatibility.sql").getContentAsString(Charsets.UTF_8))
                 }
                 connection.commit()
             } catch(error: Exception) { connection.rollback();throw error }

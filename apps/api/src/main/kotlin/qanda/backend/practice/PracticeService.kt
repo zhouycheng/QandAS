@@ -72,7 +72,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         val selected=selections.choose(null,input.scope,banks)
         if(selected.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
         val grading=mutableListOf<OfflineGrading>()
-        val full=content.revisions(selected.map { RevisionReference(it.id!!,it.currentRevisionId) },true)
+        val full=content.revisions(selected.map { RevisionReference(it.id!!) },true)
         val items=selected.mapIndexed { position,q ->
             val id=UUID.randomUUID();val answer=full[position]
             grading.add(grading(id,answer))
@@ -95,7 +95,7 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         session.writerDeviceId=input.deviceId;session.writerToken=UUID.randomUUID()
         rows.insert(session)
         ownership.create(session.id!!,writeState(session))
-        val pinned=content.revisions(chosen.map { RevisionReference(it.id!!,it.currentRevisionId) },true)
+        val pinned=content.revisions(chosen.map { RevisionReference(it.id!!) },true)
         val issued=chosen.mapIndexed { i,q -> PracticeItem().apply { id=UUID.randomUUID();sessionId=session.id;questionId=q.id;revisionId=q.currentRevisionId;materialRevisionId=pinned[i].material?.revisionId;position=i } }
         sql.insertItems(issued)
         activity.record(actor.id)

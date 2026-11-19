@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
                      private val revisions: QuestionRevisionMapper,private val categories: BankCategoryMapper,private val files: FileAssetMapper,
                      private val accounts: AccountDirectory,private val directory: CatalogDirectory,
-                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val reader: QuestionReader,private val cache: ContentCache) {
+                     private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val imageFiles: qanda.backend.platform.files.FileService,private val reader: QuestionReader,private val cache: ContentCache) {
     fun bankViewsByIds(ids: List<UUID>): List<BankView> = if(ids.isEmpty()) emptyList() else bankViews(banks.selectByIds(ids),false)
     fun bankView(row: QuestionBank,admin: Boolean): BankView = bankViews(listOf(row),admin).first()
     private fun bankViews(rows: List<QuestionBank>,admin: Boolean,userId: UUID?=null): List<BankView> {
@@ -38,12 +38,13 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
                 userId?.let { BankProgressView(f.answeredCount,f.correctCount,f.wrongCount,f.wrongBookCount) })
         }
     }
-    fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null,filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): Page<BankView> {
+    fun banks(actor: Actor?,subjectId: UUID?,keyword: String?,p: PageSpec,includeProgress: Boolean=false,publicationStatus: String?=null,filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter(),quality: String?=null): Page<BankView> {
+        if(quality!=null && (actor?.kind!="ADMIN" || quality !in setOf("missingExplanation","unassigned","empty"))) invalid("/quality")
         filter.validate(directory)
         if(publicationStatus!=null && publicationStatus !in listOf("DRAFT","PUBLISHED","UNPUBLISHED","ARCHIVED")) invalid("/publicationStatus")
         val publicOnly=actor?.kind!="ADMIN"
         val userId=actor?.takeIf { it.kind=="USER" }?.id
-        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus,filter),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus,filter),p.page,p.pageSize)
+        return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus,filter,quality),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus,filter,quality),p.page,p.pageSize)
     }
     fun bank(actor: Actor?,id: UUID)=bankView(access.bank(actor,id),actor?.kind=="ADMIN")
     fun saveBank(actor: Actor,id: UUID?,input: BankInput): MutationResult {
@@ -96,6 +97,16 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         if(sql.chapterQuestions(id)>0) conflict("CHAPTER_NOT_EMPTY","请先将题目移出章节")
         chapters.deleteById(id);sql.bumpBank(bankId);return MutationResult(id,row.version)
     }
+    fun dissolveChapter(actor: Actor, bankId: UUID, id: UUID, input: DissolveChapterInput): MutationResult {
+        val bank = access.bank(actor,bankId,true)
+        requireVersion(input.expectedContentVersion,bank.contentVersion)
+        val chapter = chapters.selectById(id) ?: missing()
+        if (chapter.bankId != bankId) missing()
+        requireVersion(input.expectedVersion,chapter.version)
+        input.targetChapterId?.let { if (it == id || chapters.selectById(it)?.bankId != bankId) invalid("/targetChapterId") }
+        sql.reassignChapter(id,input.targetChapterId)
+        return deleteChapter(actor,bankId,id,input.expectedVersion)
+    }
     fun reorder(actor: Actor,bankId: UUID,input: ReorderInput): MutationResult {
         val bank=access.bank(actor,bankId,true);requireVersion(input.expectedContentVersion,bank.contentVersion)
         val rows=chapters.selectList(QueryWrapper<Chapter>().eq("bank_id",bankId))
@@ -110,20 +121,25 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         row.publicationStatus=input.status;row.version++;row.updatedAt=Instant.now();banks.updateById(row);return MutationResult(id,row.version)
     }
     private fun validatePublication(row: QuestionBank) {
-        if(publicationChecks(row).any { !it.passed }) invalid("/publication","PUBLISH_VALIDATION_FAILED","发布需要启用的课程、题库说明、有效题目、完整解析")
+        if(publicationChecks(row).any { !it.passed }) invalid("/publication","PUBLISH_VALIDATION_FAILED","发布需要启用的课程和题库、有效题目及完整解析")
     }
     fun publicationChecks(actor: Actor,id: UUID): List<PublicationCheck> = publicationChecks(access.bank(actor,id))
     private fun publicationChecks(row: QuestionBank): List<PublicationCheck> = listOf(
         PublicationCheck("课程与题库已启用",row.status=="ACTIVE" && directory.subject(row.subjectId)?.status=="ACTIVE","停用的内容不能发布"),
-        PublicationCheck("题库说明已填写",row.description.isNotBlank(),"说明题库用途与内容"),
         PublicationCheck("存在有效题目",sql.questionCount(row.id!!,true)>0,"阅读题组按小题计数"),
         PublicationCheck("启用题目解析完整",sql.publicationIssues(row.id!!)==0L,"题型、答案和章节归属在保存时校验")
     )
-    fun validate(input: QuestionInput,validateReferences: Boolean=true) {
+    fun validate(input: QuestionInput,validateReferences: Boolean=true,archive: Boolean=false) {
+        if(input.contentFormat=="MARKDOWN") {
+            val attached=input.assetIds.map(UUID::toString).toSet()
+            (listOfNotNull(input.stem,input.explanation,input.passage,input.referenceAnswer)+input.options.map { it.content }+input.scoringPoints)
+                .forEach { value -> InlineImages.rewrite(value) { _,id -> if(id !in attached) invalid("/assetIds",message="正文图片必须关联到当前题目");id } }
+        }
         if(input.contentFormat !in setOf("PLAIN_TEXT","MARKDOWN")) invalid("/contentFormat")
-        if(input.presentation !in setOf("STANDARD","CONCEPT","CODE_ANALYSIS")) invalid("/presentation")
+        val legacyCode=archive && input.presentation=="CODE_WRITING" && input.type=="SHORT_ANSWER"
+        if(!legacyCode && input.presentation !in setOf("STANDARD","CONCEPT","CODE_ANALYSIS")) invalid("/presentation")
         if(input.presentation in setOf("CONCEPT","CODE_ANALYSIS") && input.type !in setOf("FILL_BLANK","SHORT_ANSWER")) invalid("/presentation")
-        if(input.codeLanguage!=null) invalid("/codeLanguage")
+        if(input.codeLanguage!=null && (!archive || input.type !in setOf("FILL_BLANK","SHORT_ANSWER") || !Regex("[a-zA-Z0-9+#_.-]{1,32}").matches(input.codeLanguage))) invalid("/codeLanguage")
         activeStatus(input.status);if(input.type!="READING" && input.stem.isBlank()) invalid("/stem");safeText(input.stem,10000);safeText(input.explanation,10000)
         if(validateReferences && input.chapterId!=null && chapters.selectById(input.chapterId)?.bankId!=input.questionBankId) invalid("/chapterId","CHAPTER_BANK_MISMATCH","章节不属于题库")
         if(input.assetIds.size>20 || input.assetIds.distinct().size!=input.assetIds.size) invalid("/assetIds")
@@ -151,7 +167,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
                 if(input.passage.isNullOrBlank() || input.subQuestions.size !in 1..50 || input.options.isNotEmpty() || input.correctAnswer.isNotEmpty() || input.correctValue!=null || input.referenceAnswer!=null) invalid("/subQuestions")
                 safeText(input.passage,20000)
                 val ids=input.subQuestions.mapNotNull { it.id };if(ids.distinct().size!=ids.size) invalid("/subQuestions/id")
-                input.subQuestions.forEach { if(it.type=="READING") invalid("/subQuestions/type");validate(it.question(input),validateReferences) }
+                input.subQuestions.forEach { if(it.type=="READING") invalid("/subQuestions/type");validate(it.question(input),validateReferences,archive) }
             }
             else -> invalid("/type")
         }
@@ -164,6 +180,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         reader.read(listOf(qanda.backend.content.api.RevisionReference(question.id!!,revisionId,materialRevisionId)),answers).single()
     fun question(actor: Actor?,id: UUID,includeAnswers: Boolean=false): QuestionView {
         val row=questions.selectById(id) ?: missing();access.bank(actor,row.bankId!!)
+        if(row.retiredFromGroup!=null) missing()
         if(actor?.kind!="ADMIN" && (row.status!="ACTIVE" || row.readingParentId?.let { questions.selectById(it)?.status!="ACTIVE" }==true)) missing()
         return questionView(row,answers=includeAnswers || actor?.kind=="ADMIN")
     }
@@ -189,11 +206,54 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
             QuestionView(q.id!!,q.bankId!!,q.chapterId,q.status,q.version,q.revisionId!!,q.revision,q.type,q.stem,emptyList(),null,null,null,null,emptyList(),q.subjectId,q.subjectName,q.bankName,contentFormat=metadata.contentFormat,presentation=metadata.presentation,codeLanguage=metadata.codeLanguage)
         }
     }
-    fun saveQuestion(actor: Actor,id: UUID?,input: QuestionInput): MutationResult {
-        val bank=access.bank(actor,input.questionBankId,true);validate(input)
+    fun saveAdminQuestion(actor: Actor, id: UUID?, input: QuestionInput): MutationResult {
+        val source = id?.let { questions.selectById(it)?.bankId ?: missing() }
+        val target = input.questionBankId
+        val moving = source != null && source != target
+        val locked = listOfNotNull(source, target).distinct().sorted().associateWith { access.bank(actor, it, true) }
+        if (id != null) {
+            val row = questions.selectById(id) ?: missing()
+            requireVersion(input.expectedVersion ?: invalid("/expectedVersion"), row.version)
+            if (row.bankId != source) conflict("QUESTION_MOVED", "题目所属题库已变更，请刷新")
+            if (row.readingParentId != null || row.retiredFromGroup != null) invalid("/id", message="请在当前阅读题组内编辑小题")
+        }
+        validate(input, validateReferences=false)
+        val replacements = mutableMapOf<String,String>()
+        for (asset in (input.assetIds + input.subQuestions.flatMap { it.assetIds }).distinct()) {
+            val file = files.selectById(asset) ?: invalid("/assetIds")
+            if (file.bankId != target) {
+                access.bank(actor, file.bankId!!)
+                val copy = imageFiles.upload(actor, target, file.mediaType, imageFiles.read(actor, asset))
+                sql.copyAssetOrigin(asset, copy.id)
+                replacements[asset.toString()] = copy.id.toString()
+            }
+        }
+        val draft = if (replacements.isEmpty()) input else {
+            val root = json.valueToTree<com.fasterxml.jackson.databind.node.ObjectNode>(input)
+            for (node in listOf(root) + root.path("subQuestions").filterIsInstance<com.fasterxml.jackson.databind.node.ObjectNode>()) {
+                InlineImages.mapFields(node) { replacements[it] ?: it }
+                val ids = node.path("assetIds").map { replacements[it.asText()] ?: it.asText() }
+                node.putArray("assetIds").also { array -> ids.forEach { array.add(it) } }
+            }
+            json.treeToValue(root, QuestionInput::class.java)
+        }
+        if (moving) {
+            if (sql.portableCollision(id!!, target)) conflict("QUESTION_ALREADY_IN_BANK", "目标题库已包含同一来源的题目")
+            sql.moveQuestion(id, target)
+        }
+        val result = saveQuestion(actor, id, draft)
+        if (moving) {
+            val previous = locked.getValue(source!!)
+            if (previous.publicationStatus == "PUBLISHED") validatePublication(previous)
+            sql.bumpBank(source)
+        }
+        return result
+    }
+    fun saveQuestion(actor: Actor,id: UUID?,input: QuestionInput,archive: Boolean=false): MutationResult {
+        val bank=access.bank(actor,input.questionBankId,true);validate(input,archive=archive)
         if(id!=null && questions.selectById(id)?.readingParentId!=null) invalid("/id","QUESTION_GROUP_REQUIRED","请在阅读题组内编辑小题")
         val result=writeQuestion(actor,id,input)
-        if(bank.publicationStatus=="PUBLISHED") validatePublication(bank)
+        if(bank.publicationStatus=="PUBLISHED" && !archive) validatePublication(bank)
         sql.bumpBank(input.questionBankId)
         return result
     }
@@ -205,7 +265,11 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         if(row.readingParentId!=parentId) invalid("/subQuestions/id","QUESTION_GROUP_MISMATCH","小题所属题组不可变更")
         if(existing!=null && parentId==null) requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version)
         val previous=existing?.let { revisions.selectById(it.currentRevisionId) }
-        if(previous!=null && previous.type!=input.type) invalid("/type","IMMUTABLE_QUESTION_TYPE","题型变更请新增题目")
+        if(existing?.retiredFromGroup!=null) conflict("RETIRED_READING_CHILD","该小题已随原阅读材料归入历史修订")
+        if(existing!=null && row.isGroup!=(input.type=="READING")) {
+            if(row.isGroup) sql.retireChildren(row.id!!)
+            sql.setGroup(row.id!!,input.type=="READING")
+        }
         val revision=QuestionRevision().apply { this.id=UUID.randomUUID();questionId=row.id;revisionNumber=(previous?.revisionNumber ?: 0)+1
             type=input.type;stem=input.stem;explanation=input.explanation;correctValue=input.correctValue;referenceAnswer=input.referenceAnswer;createdBy=actor.id }
         if(existing==null) { row.chapterId=input.chapterId;row.status=input.status;row.currentRevisionId=revision.id;questions.insert(row) }
@@ -227,6 +291,7 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
     }
     fun deactivateQuestion(actor: Actor,id: UUID,expectedVersion: Long): MutationResult {
         val question=questions.selectById(id) ?: missing();val bank=access.bank(actor,question.bankId!!,true);requireVersion(expectedVersion,question.version)
+        if(question.retiredFromGroup!=null) missing()
         if(question.readingParentId!=null) invalid("/id","QUESTION_GROUP_REQUIRED","请在阅读题组内编辑小题")
         sql.updateQuestion(id,question.chapterId,"INACTIVE",question.currentRevisionId!!)
         sql.readingChildren(id).forEach { sql.updateQuestion(it.id!!,it.chapterId,"INACTIVE",it.currentRevisionId!!) }

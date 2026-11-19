@@ -29,7 +29,7 @@ class OperationsService(private val feedbacks: QuestionFeedbackMapper,private va
         requests.insert(row);return MutationResult(row.id!!,1)
     }
     private fun feedbackView(row: QuestionFeedback,admin: Boolean): FeedbackView=FeedbackView(row.id!!,row.userId!!,row.category,row.body,row.status,row.response,row.version,
-        library.revision(row.questionId!!,row.revisionId!!,admin),row.createdAt,row.updatedAt,row.response.isNotBlank() && row.version>row.readVersion)
+        library.revision(row.questionId!!,row.revisionId!!,admin,sql.feedbackMaterial(row.questionId!!,row.revisionId!!,row.userId!!,row.createdAt)),row.createdAt,row.updatedAt,row.response.isNotBlank() && row.version>row.readVersion)
     private fun requestView(row: CourseRequest)=CourseRequestView(row.id!!,row.userId!!,row.courseName,row.majorId,row.body,row.status,row.response,row.version,row.createdAt,row.updatedAt,row.response.isNotBlank() && row.version>row.readVersion)
     fun feedback(actor: Actor,status: String?,p: PageSpec): Page<FeedbackView> {
         val userId=actor.takeIf { it.kind=="USER" }?.id

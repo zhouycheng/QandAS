@@ -19,8 +19,10 @@ class QuestionReader(private val questions: QuestionMapper, private val revision
         val options = mutableMapOf<UUID,List<QuestionOption>>()
         val attachments = mutableMapOf<UUID,List<UUID>>()
         val uncached = mutableSetOf<UUID>()
+        fun materialFor(ref: RevisionReference): UUID? = if(ref.revisionId!=null) ref.materialRevisionId
+            else ref.materialRevisionId ?: questionRows[questionRows[ref.questionId]?.readingParentId]?.currentRevisionId
         var needed = refs.flatMap { ref -> listOfNotNull(ref.revisionId ?: questionRows[ref.questionId]?.currentRevisionId,
-            ref.materialRevisionId ?: questionRows[questionRows[ref.questionId]?.readingParentId]?.currentRevisionId) }.distinct()
+            materialFor(ref)) }.distinct()
         while (needed.isNotEmpty()) {
             val cached=cache.read("question-revision",needed.map(UUID::toString),CachedRevision::class.java)
                 .filter { (id,value) -> value.revision.id?.toString()==id }
@@ -29,7 +31,12 @@ class QuestionReader(private val questions: QuestionMapper, private val revision
             val loaded=cached.values.map { it.revision }+loadedRows
             if (loaded.size != needed.size) missing()
             cached.values.forEach { options[it.revision.id!!]=it.options;attachments[it.revision.id!!]=it.attachments }
-            loaded.forEach { row -> revisionRows[row.id!!] = row; metadata[row.id!!] = json.readValue(row.contentData, QuestionContentData::class.java) }
+            loaded.forEach { row ->
+                revisionRows[row.id!!] = row
+                val data = json.readTree(row.contentData)
+                if (!data.has("contentFormat")) qanda.backend.platform.http.CompatibilityUsage.mark("plain-default")
+                metadata[row.id!!] = json.treeToValue(data, QuestionContentData::class.java)
+            }
             val children = loaded.flatMap { metadata.getValue(it.id!!).children }
             val ids = children.map { it.id }.filter { it !in questionRows }.distinct()
             if (ids.isNotEmpty()) questions.selectByIds(ids).forEach { questionRows[it.id] = it }
@@ -42,17 +49,33 @@ class QuestionReader(private val questions: QuestionMapper, private val revision
             cache.put("question-revision",ids.associate { id -> id.toString() to CachedRevision(revisionRows.getValue(id),options[id].orEmpty(),attachments[id].orEmpty()) })
         }
         fun assets(id: UUID) = attachments[id].orEmpty()
+        val request=(org.springframework.web.context.request.RequestContextHolder.getRequestAttributes() as? org.springframework.web.context.request.ServletRequestAttributes)?.request
+        val studentRead=request!=null && request.requestURI.startsWith("/api/v1/") && !request.requestURI.startsWith("/api/v1/admin/")
+        val rich=request?.getHeader("X-Qanda-Inline-Images")=="1"
         fun view(ref: RevisionReference): QuestionView {
             val q = questionRows[ref.questionId] ?: missing()
             val r = revisionRows[ref.revisionId ?: q.currentRevisionId] ?: missing()
             if (r.questionId != q.id) missing()
             val extra = metadata.getValue(r.id!!)
             val choices = options[r.id].orEmpty()
-            val materialId = ref.materialRevisionId ?: questionRows[q.readingParentId]?.currentRevisionId
+            val materialId = materialFor(ref)
             val material = materialId?.let { id ->
                 val parent = revisionRows[id] ?: missing()
                 val data = metadata.getValue(id)
-                ReadingMaterialView(parent.questionId!!, id, data.passage.orEmpty(), assets(id), data.contentFormat)
+                val media=assets(id)
+                val refs=linkedSetOf<UUID>()
+                val passage=if(studentRead && data.contentFormat=="MARKDOWN") InlineImages.rewrite(data.passage.orEmpty()) { alt,key ->
+                    val file=media.find { it.toString()==key }
+                    if(file!=null) refs.add(file)
+                    if(!rich && file!=null) qanda.backend.platform.http.CompatibilityUsage.mark("inline-fallback")
+                    if(rich && file!=null) "![$alt](asset:$key)" else alt
+                } else data.passage.orEmpty()
+                val solution=mutableSetOf<String>()
+                if(studentRead && data.contentFormat=="MARKDOWN") {
+                    for(text in listOfNotNull(parent.explanation,parent.referenceAnswer)+data.scoringPoints)
+                        InlineImages.rewrite(text) { _,key -> solution.add(key); "" }
+                }
+                ReadingMaterialView(parent.questionId!!, id, passage, (if(rich) emptyList() else refs.toList())+media.filter { it !in refs && it.toString() !in solution }, data.contentFormat)
             }
             return QuestionView(q.id!!, q.bankId!!, q.chapterId, q.status, q.version, r.id!!, r.revisionNumber, r.type, r.stem,
                 choices.map { OptionInput(it.optionKey, it.content) }, choices.filter { it.isCorrect }.map { it.optionKey }.takeIf { answers },
@@ -60,7 +83,9 @@ class QuestionReader(private val questions: QuestionMapper, private val revision
                 blankCount = extra.blanks.size, blanks = extra.blanks.takeIf { answers }, blankMatch = extra.blankMatch.takeIf { answers && r.type == "FILL_BLANK" },
                 scoringPoints = extra.scoringPoints.takeIf { answers }, passage = extra.passage,
                 subQuestions = extra.children.map { view(RevisionReference(it.id, it.revisionId, r.id)) }, material = material,
-                contentFormat = extra.contentFormat, presentation = extra.presentation, codeLanguage = extra.codeLanguage)
+                contentFormat = extra.contentFormat, presentation = extra.presentation, codeLanguage = extra.codeLanguage).let { view ->
+                    if(studentRead) InlineImages.student(view,rich,assets(r.id!!),listOfNotNull(r.explanation,r.referenceAnswer)+extra.scoringPoints) else view
+                }
         }
         return refs.map(::view)
     }
