@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
-import { Button, Form } from '@arco-design/web-react'
+import { Button, Form, Modal } from '@arco-design/web-react'
 import type { ManagedUser } from '../types/operations'
 import { UserDetailDrawer } from './user-detail-drawer'
 
@@ -33,22 +33,24 @@ function click(nodes: ReactElement[], label: string) {
   ;(element.props as { onClick: () => void }).onClick()
 }
 function form(nodes: ReactElement[]) {
-  return nodes.find(node => node.type === Form)!.props as { initialValues: Record<string, unknown>; onSubmit: (values: object) => void }
+  return nodes.find(node => node.type === Form)!.props as { initialValues: Record<string, unknown>; onValuesChange: (field: object, values: object) => void; onSubmit: (values: object) => void }
 }
 beforeEach(() => {
   harness.states = []; harness.cursor = 0; harness.mutate.mockClear()
   harness.profile = { id: 'student', version: 1, name: '原昵称', account: 'QA001', email: 'old@example.test', wechatBound: false, status: 'ACTIVE' }
-  vi.spyOn(Form, 'useForm').mockReturnValue([{} as ReturnType<typeof Form.useForm>[0]])
+  vi.spyOn(Form, 'useForm').mockReturnValue([{resetFields: vi.fn()} as unknown as ReturnType<typeof Form.useForm>[0]])
 })
 it('keeps the edit snapshot across query refreshes and uses fresh data only after reopening', () => {
-  click(render(), '编辑资料')
+  const opened = form(render())
+  opened.onValuesChange({ nickname: '未提交草稿' }, { ...opened.initialValues, nickname: '未提交草稿' })
   harness.profile = { ...harness.profile, version: 2, name: '他人更新', email: 'new@example.test' }
   let nodes = render(), editing = form(nodes)
   expect(editing.initialValues.nickname).toBe('原昵称')
   expect(editing.initialValues.email).toBe('old@example.test')
   editing.onSubmit({ ...editing.initialValues, nickname: '未提交草稿' })
   expect(harness.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: 1, nickname: '未提交草稿', email: 'old@example.test' }))
-  click(nodes, '取消'); click(render(), '编辑资料')
+  vi.spyOn(Modal, 'confirm').mockImplementationOnce(config => { config.onOk?.(); config.afterClose?.(); return {} as ReturnType<typeof Modal.confirm> })
+  click(nodes, '取消')
   nodes = render(); editing = form(nodes)
   expect(editing.initialValues.nickname).toBe('他人更新')
   editing.onSubmit(editing.initialValues)

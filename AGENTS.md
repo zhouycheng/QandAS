@@ -21,5 +21,5 @@ already cost a debugging round. Do not re-derive them.
 
 ## Admin UI density
 
-- Use the existing breadcrumb to identify top-level management pages. Do not repeat the page name and a generic introduction above the working content.
+- Use the header title to identify top-level management pages. Do not repeat the page name and a generic introduction above the working content.
 - Add headings or explanations only when they provide useful context for the current task. Keep entity names, section headings, and actionable field guidance when they help users work.

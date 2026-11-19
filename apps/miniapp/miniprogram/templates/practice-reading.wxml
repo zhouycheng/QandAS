@@ -5,7 +5,7 @@
 </view>
 <view class="reading-workspace" motion="{{ {version: readingVersion, geometry: readingGeometry, open: readingOpen, ratio: readingRatio, keyboard: keyboardVisible, enabled: !readingSuspended && !keyboardVisible && !showQuestionOverview && !showSubmitModal && !editingLocked} }}" change:motion="{{readingDrag.sync}}">
   <scroll-view class="reading-material" scroll-y enhanced bounces="{{false}}" scroll-top="{{paneScroll.material}}" data-pane="material" bindscroll="onPaneScroll">
-    <view class="pra-material"><text class="pra-side-title">阅读原文</text><rich-content text="{{currentQuestion.material.passage || ''}}" format="{{currentQuestion.material.contentFormat || 'PLAIN_TEXT'}}" /><question-images paths="{{currentQuestion.material.imagePaths || []}}" /></view>
+    <view class="pra-material"><text class="pra-side-title">阅读原文</text><rich-content images text="{{currentQuestion.material.passage || ''}}" format="{{currentQuestion.material.contentFormat || 'PLAIN_TEXT'}}" /><question-images paths="{{currentQuestion.material.imagePaths || []}}" /></view>
     <view wx:if="{{!readingOpen}}" class="reading-launcher-clearance"></view>
   </scroll-view>
   <view class="reading-panel" aria-hidden="{{!readingOpen && !keyboardVisible}}">

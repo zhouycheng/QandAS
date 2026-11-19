@@ -1,9 +1,11 @@
+import { ManagementDrawer as Drawer } from './management-drawer'
 import { useState } from 'react'
-import { Alert, Button, Descriptions, Drawer, Form, Input, Message, Modal, Space, Spin } from '@arco-design/web-react'
+import { Alert, Button, Descriptions, Form, Input, Message, Space } from '@arco-design/web-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminGateway } from '../gateways/gateway-context'
 import type { ManagedUser, UpdateManagedUserInput } from '../types/operations'
 import { ErrorState } from './error-state'
+import { closeDraft, formHasChanges } from '../lib/unsaved-changes'
 
 interface UserProfileForm {
   nickname: string
@@ -15,57 +17,49 @@ export function UserDetailDrawer({ id, onClose }: { id: string; onClose: () => v
   const gateway = useAdminGateway(), client = useQueryClient()
   const [form] = Form.useForm<UserProfileForm>()
   const [editProfile, setEditProfile] = useState<ManagedUser>()
-  const [editing, setEditing] = useState(false), [dirty, setDirty] = useState(false)
+  const dirty = Boolean(editProfile)
   const user = useQuery({ queryKey: ['user', id], queryFn: () => gateway.getUser(id) })
   const stats = useQuery({ queryKey: ['user-statistics', id], queryFn: () => gateway.getUserStatistics(id) })
   const save = useMutation({
     mutationFn: (input: UpdateManagedUserInput) => gateway.updateUserProfile(id, input),
-    onSuccess: () => {
-      setEditing(false); setDirty(false); Message.success('学生资料已更新')
-      for (const queryKey of [['user', id], ['users'], ['activity'], ['online-users'], ['organization-directory'], ['resource-label']]) {
-        void client.invalidateQueries({ queryKey })
-      }
+    onError: error => Message.error(error.message),
+    onSuccess: async () => {
+      await Promise.all([['user', id], ['users'], ['activity'], ['online-users'], ['organization-directory'], ['resource-label']].map(queryKey => client.invalidateQueries({ queryKey })))
+      setEditProfile(undefined); Message.success('学生资料已更新')
     },
   })
-  const confirmDiscard = (action: () => void) => {
-    if (!dirty) return action()
-    Modal.confirm({ title: '放弃未保存的修改？', content: '尚未保存的学生资料将丢失。', okText: '放弃修改', cancelText: '继续编辑', onOk: action })
-  }
-  const close = () => { if (!save.isPending) confirmDiscard(onClose) }
-  const cancelEditing = () => { if (!save.isPending) confirmDiscard(() => { setEditing(false); setDirty(false) }) }
-  const profile = editing ? editProfile : user.data
-  const profileFields = [
-    { label: '昵称', value: profile?.name }, { label: '账号', value: profile?.account }, { label: '邮箱', value: profile?.email },
-    { label: '微信绑定', value: profile?.wechatBound ? '已绑定' : '未绑定' },
-    ...(profile?.avatarUrl ? [{ label: '头像', value: <img src={profile.avatarUrl} alt="账户头像" width={48} height={48} style={{ borderRadius: '50%' }} /> }] : []),
-  ]
+  const close = () => closeDraft(dirty && !save.isPending, onClose)
+  const cancelEditing = () => closeDraft(dirty, () => { form.resetFields(); setEditProfile(undefined); save.reset() })
+  const profile = editProfile ?? user.data
+  const initial = { nickname: profile?.name ?? '', accountCode: profile?.account ?? '', email: profile?.email ?? '' }
   const statisticsFields = [
     { label: '已提交答题量', value: stats.data?.answeredCount ?? '—' }, { label: '正确题数', value: stats.data?.correctCount ?? '—' },
     { label: '学习时长', value: stats.data ? Math.floor(stats.data.durationSeconds / 60) + ' 分钟' : '—' },
   ]
-  return <Drawer visible title="学生资料与学习摘要" width={560} maskClosable={!editing} onCancel={close}
-    footer={editing ? <Space><Button disabled={save.isPending} onClick={cancelEditing}>取消</Button><Button type="primary" loading={save.isPending} onClick={() => form.submit()}>保存资料</Button></Space> : null}>
-    {(user.error || stats.error) && <ErrorState message={(user.error || stats.error)!.message} onRetry={() => { void user.refetch(); void stats.refetch() }} />}
-    <Spin loading={user.isPending || stats.isPending}>
-      {profile && !editing && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <Button onClick={() => { setEditProfile({ ...profile }); setDirty(false); save.reset(); setEditing(true) }}>编辑资料</Button>
-      </div>}
-      {editing && profile ? <>
-        {save.error && <Alert type="error" content={save.error.message} />}
-        <Alert className="section-gap" type="warning" content={profile.isTestAccount ? '测试账号的账号和邮箱由系统生成，登录凭据由管理员管理。' : '修改邮箱会使学生现有登录退出；清空邮箱前须保留微信登录绑定。'} />
-        <Form<UserProfileForm> form={form} layout="vertical" disabled={save.isPending}
-          initialValues={{ nickname: profile.name, accountCode: profile.account, email: profile.email }}
-          onValuesChange={() => { setDirty(true); save.reset() }}
+  return <Drawer visible title="学生资料与学习摘要" width={560} style={{ maxWidth: '100vw' }} onCancel={close}
+    footer={dirty ? <Space><Button disabled={save.isPending} onClick={cancelEditing}>取消</Button><Button type="primary" loading={save.isPending} onClick={() => form.submit()}>保存资料</Button></Space> : null}>
+    {user.error && <ErrorState stale={!!user.data} message={user.error.message} onRetry={() => void user.refetch()} />}
+    {user.isPending && <p role="status">正在读取学生资料…</p>}
+    {profile && <>
+      <header className="user-identity">
+        {profile.avatarUrl && <img src={profile.avatarUrl} alt="学生头像" width={44} height={44} />}
+        <div><h2>{profile.name}</h2><small>{profile.wechatBound ? '已绑定微信' : '未绑定微信'}{profile.isTestAccount && ' · 测试账号'}</small></div>
+      </header>
+      {save.error && <Alert type="error" content={save.error.message} />}
+        <Form<UserProfileForm> key={profile.version} form={form} layout="vertical" disabled={save.isPending}
+          initialValues={initial}
+          onValuesChange={(_, values) => { setEditProfile(formHasChanges(initial, values) ? profile : undefined); save.reset() }}
           onSubmit={values => {
             if (!profile) return
             save.mutate({ expectedVersion: profile.version, nickname: values.nickname, accountCode: values.accountCode, email: values.email.trim() || null })
           }}>
           <Form.Item field="nickname" label="昵称" rules={[{ required: true, message: '请输入昵称' }]}><Input maxLength={40} /></Form.Item>
           <Form.Item field="accountCode" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input maxLength={12} disabled={profile.isTestAccount} /></Form.Item>
-          <Form.Item field="email" label="邮箱"><Input type="email" disabled={profile.isTestAccount} maxLength={254} placeholder="留空表示未绑定邮箱" /></Form.Item>
+          <Form.Item field="email" label="邮箱" extra={profile.isTestAccount ? '测试账号由系统分配邮箱和账号。' : '修改邮箱会使现有登录退出，清空邮箱须已绑定微信。'}><Input type="email" disabled={profile.isTestAccount} maxLength={254} placeholder="留空表示未绑定邮箱" /></Form.Item>
         </Form>
-      </> : <Descriptions column={1} data={profileFields} />}
-      <Descriptions column={1} data={statisticsFields} />
-    </Spin>
+    </>}
+    <h3>学习摘要</h3>
+    {stats.error && <ErrorState stale={!!stats.data} message={stats.error.message} onRetry={() => void stats.refetch()} />}
+    <Descriptions column={1} data={statisticsFields} />
   </Drawer>
 }

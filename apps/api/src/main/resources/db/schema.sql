@@ -51,7 +51,7 @@ $$;
 CREATE TABLE security_policy (
  id integer PRIMARY KEY CHECK(id=1), lock_enabled boolean NOT NULL DEFAULT true, max_attempts integer NOT NULL DEFAULT 5 CHECK(max_attempts BETWEEN 3 AND 10),
  lock_minutes integer NOT NULL DEFAULT 30 CHECK(lock_minutes BETWEEN 1 AND 1440), session_minutes integer NOT NULL DEFAULT 30 CHECK(session_minutes BETWEEN 5 AND 1440),
- min_password_length integer NOT NULL DEFAULT 12 CHECK(min_password_length BETWEEN 12 AND 64), require_letter boolean NOT NULL DEFAULT true,
+ min_password_length integer NOT NULL DEFAULT 8 CHECK(min_password_length BETWEEN 8 AND 64), require_letter boolean NOT NULL DEFAULT true,
  require_number boolean NOT NULL DEFAULT true, require_mixed_case boolean NOT NULL DEFAULT false, version bigint NOT NULL DEFAULT 1 CHECK(version>0), updated_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO security_policy(id) VALUES(1);

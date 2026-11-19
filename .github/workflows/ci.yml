@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
@@ -43,14 +44,22 @@ jobs:
           node --check tests/capacity/load.js
           node --check tests/capacity/writer-sockets.js
           python3 -m py_compile tests/capacity/writer-local.py tests/capacity/tunnel.py
+      - name: Prepare shared content and skill resources
+        run: |
+          npm --prefix packages/content-format ci
+          npm --prefix packages/content-format run build
+          pnpm --dir apps/admin install --frozen-lockfile
+          node apps/admin/scripts/build-bank-skills.mjs
       - name: Verify shared content and admin
         if: inputs.scope != 'backend'
         run: |
-          npm --prefix packages/content-format ci
           npm --prefix packages/content-format test
-          pnpm --dir apps/admin install --frozen-lockfile
           pnpm --dir apps/admin test
           pnpm --dir apps/admin build
+      - name: Verify MCP
+        run: |
+          pnpm --dir apps/mcp install --frozen-lockfile
+          pnpm --dir apps/mcp test
       - name: Verify mini program logic
         if: inputs.scope != 'backend' && inputs.scope != 'frontend'
         run: |
@@ -61,19 +70,21 @@ jobs:
           fi
       - name: Verify backend and package the tested JAR
         if: inputs.scope != 'frontend'
+        env:
+          QANDA_MCP_ACCEPTANCE: '1'
         run: |
-          npm --prefix packages/content-format ci
-          npm --prefix packages/content-format run build
           npm --prefix apps/miniapp ci
           python3 -m pip install -r apps/api/acceptance/requirements-qa.txt
           node apps/api/scripts/backend.mjs init
           node apps/api/scripts/backend.mjs verify
+          apps/api/acceptance/upgrade/verify.sh
           sudo python3 deploy/tests/db_admin_integration.py
       - name: Verify the packaged backend image
         if: inputs.scope != 'frontend'
         run: |
           docker build -t qanda-backend-ci:${{ github.sha }} apps/api
-          python3 deploy/candidate-check.py qanda-backend-ci:${{ github.sha }}
+          docker build -f apps/mcp/Dockerfile -t qanda-mcp-ci:${{ github.sha }} .
+          python3 deploy/candidate-check.py qanda-backend-ci:${{ github.sha }} --mcp qanda-mcp-ci:${{ github.sha }}
       - name: Verify container network isolation
         run: |
           docker pull nginx:1.28-alpine

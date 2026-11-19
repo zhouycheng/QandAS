@@ -158,6 +158,9 @@ def main():
         }}'''
         start('api', app, api_conf, ip(40))
         start('monitor', app, monitor_conf, ip(41))
+        discovery = '/.well-known/oauth-protected-resource/mcp'
+        start('mcp', app, f'server {{ listen 8090; location = {discovery} {{ return 200 "MCP"; }} }}',
+              alias='bank-mcp')
         gateway_key = 'a' * 64
         routes = (DEPLOY / 'public-gateway-routes.inc').read_text().replace('http://api:8083', f'http://{ip(40)}:8083').replace('http://monitor:8083', f'http://{ip(41)}:8083')
         backend = start('backend', app, (DEPLOY / 'public-gateway.conf').read_text(), ip(21), {
@@ -167,10 +170,14 @@ def main():
         }, files={certificate: '/etc/qanda/tls/fullchain.pem', key: '/etc/qanda/tls/privkey.pem',
                   DEPLOY / 'public-gateway-nginx.conf': '/etc/nginx/nginx.conf'})
         web_conf = (DEPLOY / 'web.conf').read_text()
-        web = start('web', app, web_conf.replace('/etc/ssl/cert.pem', '/fixture/ca.pem'), ip(10), {
-            'QANDA_API_UPSTREAM': 'https://backend.test:8443', 'QANDA_MONITOR_UPSTREAM': 'https://backend.test:8443',
+        https_upstream = 'https://backend.test:8443'
+        split_env = {
+            'QANDA_API_UPSTREAM': https_upstream, 'QANDA_MONITOR_UPSTREAM': https_upstream,
+            'QANDA_MCP_UPSTREAM': https_upstream,
             'QANDA_GATEWAY_KEY': gateway_key,
-        }, files={certificate: '/fixture/ca.pem'})
+        }
+        web = start('web', app, web_conf.replace('/etc/ssl/cert.pem', '/fixture/ca.pem'), ip(10),
+                    split_env, files={certificate: '/fixture/ca.pem'})
         client_conf = '''server { listen 8089;
             proxy_ssl_verify on; proxy_ssl_server_name on;
             proxy_ssl_trusted_certificate /fixture/ca.pem;
@@ -209,6 +216,8 @@ def main():
         assert get(member, f'http://{ip(21)}:8080/api/v1/health') == 'API:' + ip(11) + ':'
         blocked(member, f'http://{ip(21)}:8080/api/v1/catalog', ['X-Qanda-Gateway-Key: ' + gateway_key])
         direct_url = f'http://{ip(12)}:8089'
+        assert get(member, f'http://{ip(20)}:8080' + discovery) == 'MCP'
+        blocked(member, direct_url + discovery)
         assert get(member, direct_url + '/api/v1/catalog') == 'API:' + ip(12) + ':'
         assert get(member, direct_url + '/api/v1/catalog', [
             'X-Forwarded-For: 203.0.113.99', 'X-Qanda-Gateway-Key: ' + gateway_key,
@@ -231,10 +240,8 @@ def main():
         ]) == 'API:203.0.113.99:'
         blocked(member, direct_url + '/actuator/health')
         docker('exec', web, 'test', '-s', '/etc/ssl/cert.pem')
-        untrusted = start('untrusted-web', 'container:' + web, web_conf.replace('listen 8080;', 'listen 8086;'), env={
-            'QANDA_API_UPSTREAM': 'https://backend.test:8443', 'QANDA_MONITOR_UPSTREAM': 'https://backend.test:8443',
-            'QANDA_GATEWAY_KEY': gateway_key,
-        })
+        untrusted = start('untrusted-web', 'container:' + web, web_conf.replace('listen 8080;', 'listen 8086;'),
+                          env=split_env)
         for _ in range(30):
             try:
                 get(untrusted, 'http://127.0.0.1:8086/healthz')
@@ -246,7 +253,8 @@ def main():
         assert b'upstream SSL certificate verify error' in diagnostic.stdout + diagnostic.stderr
         staging = start('staging-web', 'container:' + web, web_conf.replace('listen 8080;', 'listen 8087;'), env={
             'QANDA_API_UPSTREAM': f'http://{host_ip}:{event_server.server_port}',
-            'QANDA_MONITOR_UPSTREAM': f'http://{host_ip}:{event_server.server_port}', 'QANDA_GATEWAY_KEY': gateway_key,
+            'QANDA_MONITOR_UPSTREAM': f'http://{host_ip}:{event_server.server_port}',
+            'QANDA_MCP_UPSTREAM': f'http://{host_ip}:{event_server.server_port}', 'QANDA_GATEWAY_KEY': gateway_key,
         })
         for _ in range(30):
             try:
@@ -263,10 +271,11 @@ def main():
                                 'http://127.0.0.1:8087/api/v1/admin/login'], capture_output=True)
         assert login.returncode != 0 and len(event_requests) == count, 'Staging forwarded credentials over HTTP'
         blocked(staging, 'http://127.0.0.1:8087/api/v1/admin/monitoring/sync/stream')
+        blocked(staging, 'http://127.0.0.1:8087' + discovery)
         assert len(event_requests) == count
         combined = start('combined-web', app, web_conf.replace('listen 8080;', 'listen 8088;'), env={
             'QANDA_API_UPSTREAM': f'http://{ip(40)}:8083', 'QANDA_MONITOR_UPSTREAM': f'http://{ip(41)}:8083',
-            'QANDA_GATEWAY_KEY': '',
+            'QANDA_MCP_UPSTREAM': 'http://bank-mcp:8090', 'QANDA_GATEWAY_KEY': '',
         })
         for _ in range(30):
             try:
@@ -276,6 +285,7 @@ def main():
                 time.sleep(1)
         else:
             raise AssertionError('Combined deployment internal HTTP route changed')
+        assert get(combined, 'http://127.0.0.1:8088' + discovery) == 'MCP'
         started = time.monotonic()
         with urllib.request.urlopen('http://127.0.0.1:38193/api/v1/admin/monitoring/sync/stream', timeout=12) as stream:
             assert stream.headers['Content-Type'] == 'text/event-stream'
@@ -310,7 +320,9 @@ def main():
         assert get(control, f'http://{other_host}:38191') == 'HOST'
         assert get(control, f'http://{other_host}:38192') == 'OTHER'
         assert get(member, f'http://{ip(20)}:8080/api/v1/health') == 'API:' + ip(10) + ':'
-        print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; combined internal HTTP; gateway credential enforcement and stripping; API and monitoring routing; SSE streaming; deny-only security-agent coexistence; source and host isolation')
+        print('PASS: sanitized HTTP health staging; no HTTP credential forwarding; verified HTTPS; '
+              'combined internal HTTP; gateway credential enforcement and stripping; API, monitoring and MCP routing; '
+              'SSE streaming; deny-only security-agent coexistence; source and host isolation')
     except Exception:
         for name in names:
             result = subprocess.run(['docker', 'logs', '--tail', '5', name], capture_output=True)

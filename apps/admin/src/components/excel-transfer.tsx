@@ -1,3 +1,4 @@
+import { downloadFile as download } from '../lib/download-file'
 import { useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Form, Message, Modal, Select, Table, Tag } from '@arco-design/web-react'
 import { IconUpload } from '@arco-design/web-react/icon'
@@ -7,40 +8,49 @@ import { ResourceSelect } from './resource-select'
 import { questionTypeLabels } from '../lib/labels'
 import type { QuestionType } from '../types/admin'
 import type { ExcelOptions, ExcelPreview } from '../types/excel'
+import { closeDraft } from '../lib/unsaved-changes'
 
-function download(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob), link = document.createElement('a')
-  link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-export function ExcelTransfer({ resource, query = {}, count, bankId, onImported }: { resource: 'users' | 'question-banks'; query?: object; count?: number; bankId?: string; onImported: () => void }) {
+export function ExcelTransfer({ resource, query = {}, count, scopeLabel = '当前筛选范围', bankId, onImported }: { resource: 'users' | 'question-banks'; query?: object; count?: number; scopeLabel?: string; bankId?: string; onImported: () => void }) {
   const gateway = useAdminGateway()
   const input = useRef<HTMLInputElement>(null)
+  const batch = useRef(0)
   const [open, setOpen] = useState(false), [files, setFiles] = useState<File[]>([]), [preview, setPreview] = useState<ExcelPreview>(), [options, setOptions] = useState<ExcelOptions>({ targets: {} }), [busy, setBusy] = useState(false)
+  const [importing, setImporting] = useState(false)
   const showIssueFiles = preview && (preview.files.length !== 1 || preview.issues.some(issue => issue.file !== preview.files[0].name))
   const chapters = useQueries({ queries: (preview?.files || []).map(f => ({ queryKey: ['excel-chapters', options.targets[f.fileId]?.bankId], enabled: !!options.targets[f.fileId]?.bankId, queryFn: () => gateway.listChapters(options.targets[f.fileId].bankId!) })) })
   const execute = async (work: () => Promise<void>) => { setBusy(true); try { await work() } catch (e) { Message.error((e as Error).message) } finally { setBusy(false) } }
-  const check = async () => { const p = await gateway.previewExcel(resource, files, options); setPreview(p)
+  const check = async () => { const currentBatch = batch.current; const p = await gateway.previewExcel(resource, files, options)
+    if (batch.current !== currentBatch) return
+    setPreview(p)
     setOptions(current => { const targets = { ...current.targets }; p.files.forEach(f => { if (targets[f.fileId]?.bankId && f.expectedContentVersion !== null) targets[f.fileId] = { ...targets[f.fileId], expectedContentVersion: f.expectedContentVersion } }); return { targets } })
   }
   const target = (id: string, patch: object) => { setPreview(current => current ? { ...current, valid: false, issues: [{ file: '批次', sheet: '映射', row: 1, column: '', message: '映射已调整，请重新预览' }] } : current); setOptions(current => ({ targets: { ...current.targets, [id]: { ...current.targets[id], ...patch } } })) }
-  const cancel = () => { if (!busy) setOpen(false) }
+  const clearBatch = () => {
+    batch.current++
+    setOpen(false); setFiles([]); setPreview(undefined); setOptions({ targets: {} })
+  }
+  const cancel = () => closeDraft(!importing && files.length > 0, clearBatch, '关闭后，已选文件和本次导入设置将清除。')
   const importFiles = () => {
     if (!preview?.valid || busy) return
+    setImporting(true)
+    const currentBatch = batch.current
     void execute(async () => {
       await gateway.importExcel(resource, files, options)
-      Message.success('导入完成'); setOpen(false); setPreview(undefined); setFiles([]); onImported()
-    })
+      Message.success('导入完成')
+      if (currentBatch === batch.current) clearBatch()
+      onImported()
+    }).finally(() => setImporting(false))
   }
   return <div className="excel-transfer">
     <Button loading={busy} onClick={() => void execute(async () => download(await gateway.downloadExcel(resource, 'template'), `${resource}-模板.xlsx`))}>下载 Excel 模板</Button>
     <Button onClick={() => setOpen(true)}>导入 Excel</Button>
-    <Button loading={busy} onClick={() => Modal.confirm({ title: '导出 Excel', content: `导出当前筛选条件下的全部${count === undefined ? '' : ` ${count} 条`}记录。`, onOk: () => execute(async () => { const blob = await gateway.downloadExcel(resource, 'export', { ...query, bankId }); download(blob, blob.type.includes('zip') ? '题小搭-导出.zip' : `${resource}.xlsx`) }) })}>导出 Excel</Button>
+    <Button loading={busy} onClick={() => Modal.confirm({ title: '导出 Excel', content: `导出「${scopeLabel}」的全部${count === undefined ? '' : ` ${count} 条`}记录。`, onOk: () => execute(async () => { const blob = await gateway.downloadExcel(resource, 'export', { ...query, bankId }); download(blob, blob.type.includes('zip') ? '题小搭-导出.zip' : `${resource}.xlsx`) }) })}>导出 Excel</Button>
     <Modal className="excel-import-modal" title={resource === 'users' ? '导入用户' : '导入题库'} visible={open}
-      style={{ width: 900, maxWidth: 'calc(100vw - 32px)' }} maskClosable={false} closable={!busy} escToExit={!busy} onCancel={cancel} unmountOnExit
+      style={{ width: 900, maxWidth: 'calc(100vw - 32px)' }} onCancel={cancel} unmountOnExit
       footer={<div className="excel-import-footer">
         <span>{preview ? `本批 ${preview.count} 条 · ${preview.valid ? '校验通过' : '待处理提示'}` : files.length ? `已选择 ${files.length} 个文件` : '请选择导入文件'}</span>
         <div className="excel-import-actions">
-          <Button disabled={busy} onClick={cancel}>取消</Button>
+          <Button onClick={cancel}>取消</Button>
           <Button type={preview?.valid ? 'default' : 'primary'} disabled={!files.length || busy} loading={busy} onClick={() => void execute(check)}>预览并校验</Button>
           <Button type="primary" disabled={!preview?.valid || busy} loading={busy} onClick={importFiles}>确认导入{preview ? `（${preview.count} 条）` : ''}</Button>
         </div>
@@ -78,7 +88,7 @@ export function ExcelTransfer({ resource, query = {}, count, bankId, onImported 
           {!!preview.issues.length && <Table className="excel-import-issues" size="small" rowKey={row => JSON.stringify(row)} data={preview.issues} border={false} scroll={{ x: 720 }} pagination={preview.issues.length > 10 ? { pageSize: 10, size: 'small' } : false} columns={[
             ...(showIssueFiles ? [{ title: '文件', dataIndex: 'file', width: 180, ellipsis: true }] : []),
             { title: '工作表', dataIndex: 'sheet', width: 100 },
-            { title: '行', dataIndex: 'row', width: 50 },
+            { title: '行', align: 'right', dataIndex: 'row', width: 50 },
             { title: '列', dataIndex: 'column', width: 120 },
             { title: '原因', dataIndex: 'message' },
           ]} />}

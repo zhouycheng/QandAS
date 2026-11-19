@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Start immutable images against disposable dependencies; never attach production volumes."""
+import argparse
 import base64
 import json
 import os
 from pathlib import Path
 import secrets
 import subprocess
-import sys
 import tempfile
 import time
 import uuid
 
 
-def check(backend, web=None):
+def check(backend, web=None, mcp=None):
     prefix = 'qanda-check-' + uuid.uuid4().hex[:12]
     names = []
     def docker(*args):
@@ -32,6 +32,7 @@ def check(backend, web=None):
                       'BACKEND_RABBIT_PASSWORD': 'isolated-queue-password', 'BACKEND_WECHAT_PROVIDER': 'local',
                       'BACKEND_REDIS_HOST': prefix + '-cache', 'BACKEND_REDIS_PASSWORD': 'isolated-cache-password',
                       'BACKEND_CONTENT_CACHE_ENABLED': 'true',
+                      'QANDA_MCP_RESOURCE': 'https://candidate.invalid/mcp',
                       'BACKEND_IDENTITY_RATE_KEY': key, 'BACKEND_ROLE': 'all', 'BACKEND_WORKER_ENABLED': 'true',
                       **{f'BACKEND_{kind}_KEYS': '1:' + key for kind in ('COMMAND_DIGEST', 'IDENTITY_MAC', 'MAIL_ENCRYPTION', 'TEST_ACCOUNT_ENCRYPTION')}}
             path = Path(temporary) / 'test.env'
@@ -71,6 +72,18 @@ def check(backend, web=None):
                 time.sleep(2)
             else:
                 raise RuntimeError('Candidate backend did not become ready')
+            if mcp:
+                container = start('mcp', mcp, '-e', 'QANDA_MCP_RESOURCE=' + values['QANDA_MCP_RESOURCE'],
+                                  '-e', f'QANDA_API_UPSTREAM=http://{prefix}-api:8083')
+                for _ in range(30):
+                    status = docker('inspect', '-f', '{{.State.Health.Status}}', container)
+                    if status == 'healthy':
+                        break
+                    if status == 'unhealthy':
+                        raise RuntimeError('Candidate MCP failed its readiness check')
+                    time.sleep(2)
+                else:
+                    raise RuntimeError('Candidate MCP did not become ready')
             if web:
                 start('web', web)
                 for _ in range(20):
@@ -89,6 +102,8 @@ def check(backend, web=None):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (2, 3):
-        sys.exit('Usage: candidate-check.py BACKEND_IMAGE [WEB_IMAGE]')
-    check(*sys.argv[1:])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('backend')
+    parser.add_argument('web', nargs='?')
+    parser.add_argument('--mcp')
+    check(**vars(parser.parse_args()))

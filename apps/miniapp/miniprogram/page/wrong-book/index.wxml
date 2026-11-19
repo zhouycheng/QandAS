@@ -135,7 +135,7 @@
           <view class="q-chevron" wx:else></view>
         </view>
         <text class="q-chapter" wx:if="{{type === 'wrong' && item.bankName}}">{{item.bankName}}</text>
-        <rich-content class="q-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
+        <rich-content images class="q-stem" text="{{(item.stem) || ''}}" format="{{(item.contentFormat) || 'PLAIN_TEXT'}}" blanks="{{item.blankInputs}}" disabled />
         <view class="q-meta">
           <text class="q-badge {{item.badgeTone}}">{{item.badgeText}}</text>
           <text class="q-type">{{item.typeText}}</text>

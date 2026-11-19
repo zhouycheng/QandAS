@@ -35,5 +35,13 @@ export function answerSummary(question: QuestionContent) {
 
 export function contentFingerprint(question: QuestionContent) {
   return JSON.stringify([question.contentFormat, question.presentation, question.codeLanguage, question.type, question.stem, question.options, question.correctAnswer, question.explanation,
-    question.blanks, question.blankMatch, question.referenceAnswer, question.scoringPoints, question.passage, question.subQuestions])
+    question.blanks, question.blankMatch, question.referenceAnswer, question.scoringPoints, question.passage, question.assetIds ?? [], question.subQuestions])
+}
+
+export function cleanDraft(content: QuestionContent): QuestionContent {
+  return { ...content, contentFormat: content.contentFormat ?? 'PLAIN_TEXT',
+    blanks: content.blanks?.map((blank) => ({ answers: blank.answers.filter((answer) => answer.trim()) })),
+    scoringPoints: content.scoringPoints?.map((point) => point.trim()).filter(Boolean),
+    subQuestions: content.subQuestions?.map((sub) => ({ ...cleanDraft(sub) as AtomicQuestionContent, id: sub.id })),
+  }
 }

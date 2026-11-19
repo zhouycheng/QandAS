@@ -45,8 +45,10 @@ abstract class PostgresFixture {
         protected val queueNetwork=org.testcontainers.containers.Network.newNetwork()
         @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/compatibility.sql"),"/docker-entrypoint-initdb.d/005-compatibility.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/user-settings.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-user-settings.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/bank-package.sql",0b110_100_100),"/docker-entrypoint-initdb.d/004-bank-package.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/practice-writer.sql",0b110_100_100),"/docker-entrypoint-initdb.d/003-practice-writer.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/monitoring-permissions.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-monitoring-permissions.sql")
         }
@@ -275,7 +277,7 @@ abstract class PostgresFixture {
         "correctValue" to false.takeIf { type=="TRUE_FALSE" },"referenceAnswer" to "原参考答案".takeIf { type=="SHORT_ANSWER" })
     protected fun fixture(audiences: List<Map<String,Any>> = emptyList(),maintainers: List<UUID> = emptyList()): Fixture {
         val subject=id(call("POST","/admin/subjects",mapOf("name" to "课程${UUID.randomUUID()}")))
-        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "课程练习题库","categories" to audiences,"maintainerIds" to maintainers)))
+        val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "","categories" to audiences,"maintainerIds" to maintainers)))
         val questions=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { id(call("POST","/admin/questions",question(bank,it))) }
         val current=call("GET","/admin/question-banks/$bank")
         call("PUT","/admin/question-banks/$bank/publication",mapOf("expectedVersion" to current["version"].asLong(),"status" to "PUBLISHED"))

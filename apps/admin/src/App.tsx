@@ -19,7 +19,7 @@ const QuestionBanksPage = lazy(() =>
 const BankWorkspacePage = lazy(() =>
   import('./pages/question-banks/bank-workspace-page').then((module) => ({ default: module.BankWorkspacePage })),
 )
-const ActivityPage = lazy(() => import('./pages/activity/activity-page').then(m => ({ default: m.ActivityPage })))
+const CompatibilityPage = lazy(() => import('./pages/monitoring/compatibility-page'))
 const MonitoringPage = lazy(() => import('./pages/monitoring/monitoring-page').then(m => ({ default: m.MonitoringPage })))
 const TestAccountsPage = lazy(() => import('./pages/operations/test-accounts-page').then(m => ({ default: m.TestAccountsPage })))
 const UsersPage = lazy(() => import('./pages/operations/users-page').then(m => ({ default: m.UsersPage })))
@@ -27,7 +27,6 @@ const FeedbackPage = lazy(() => import('./pages/operations/feedback-page').then(
 const AnnouncementsPage = lazy(() => import('./pages/operations/announcements-page').then(m => ({ default: m.AnnouncementsPage })))
 const AdministratorsPage = lazy(() => import('./pages/operations/administrators-page').then(m => ({ default: m.AdministratorsPage })))
 const SecurityPage = lazy(() => import('./pages/operations/security-page').then(m => ({ default: m.SecurityPage })))
-const CommunityGroupPage = lazy(() => import('./pages/operations/community-group-page').then(m => ({ default: m.CommunityGroupPage })))
 const LogsPage = lazy(() => import('./pages/operations/logs-page').then(m => ({ default: m.LogsPage })))
 
 export default function App() {
@@ -49,7 +48,8 @@ export default function App() {
           }
         >
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/activity" element={<Navigate to="/dashboard#activity-rankings" replace />} />
+          <Route path="/compatibility" element={<CompatibilityPage />} />
           <Route path="/monitoring" element={<MonitoringPage />} />
           <Route path="/colleges" element={<CollegesPage />} />
           <Route path="/users" element={<UsersPage />} />
@@ -57,7 +57,8 @@ export default function App() {
           <Route path="/announcements" element={<AnnouncementsPage />} />
           <Route path="/administrators" element={<AdministratorsPage />} />
           <Route path="/security" element={<SecurityPage />} />
-          <Route path="/community-group" element={<CommunityGroupPage />} />
+          <Route path="/agent-authorize" element={<SecurityPage />} />
+          <Route path="/community-group" element={<Navigate to="/announcements#community-group" replace />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/question-banks" element={<QuestionBanksPage />} />

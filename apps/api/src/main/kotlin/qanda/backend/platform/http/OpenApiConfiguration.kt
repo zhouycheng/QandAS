@@ -15,6 +15,8 @@ import io.swagger.v3.oas.models.headers.Header
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import kotlin.reflect.full.primaryConstructor
+import qanda.backend.identity.api.ADMIN_PASSWORD_MAX_LENGTH
+import qanda.backend.identity.api.ADMIN_PASSWORD_MIN_LENGTH
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.AnnotatedElementUtils
@@ -46,7 +48,7 @@ class OpenApiConfiguration {
             requestSchema.schema=ComposedSchema().addAllOfItem(requestSchema.schema).addAllOfItem(ObjectSchema().addProperty("expectedVersion",IntegerSchema().format("int64").minimum(java.math.BigDecimal.ONE)).required(listOf("expectedVersion")))
         }
         if(requestSchema!=null && method=="POST" && root+localPath=="/api/v1/admin/administrators") {
-            requestSchema.schema=ComposedSchema().addAllOfItem(requestSchema.schema).addAllOfItem(ObjectSchema().addProperty("password",StringSchema().minLength(12).maxLength(128)).required(listOf("password")))
+            requestSchema.schema=ComposedSchema().addAllOfItem(requestSchema.schema).addAllOfItem(ObjectSchema().addProperty("password",StringSchema().minLength(ADMIN_PASSWORD_MIN_LENGTH).maxLength(ADMIN_PASSWORD_MAX_LENGTH)).required(listOf("password")))
         }
         operation.security=if(PublicRoutes.permits(method,root+localPath)) emptyList() else listOf(SecurityRequirement().addList("BearerAuth"))
         for(status in listOf(400,401,403,404,405,406,409,413,415,422,429,500,503)) {

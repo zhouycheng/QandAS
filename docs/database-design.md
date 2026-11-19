@@ -908,7 +908,7 @@
 | `max_attempts` | `integer` | 否 | `5` |
 | `lock_minutes` | `integer` | 否 | `30` |
 | `session_minutes` | `integer` | 否 | `30` |
-| `min_password_length` | `integer` | 否 | `12` |
+| `min_password_length` | `integer` | 否 | `8` |
 | `require_letter` | `boolean` | 否 | `true` |
 | `require_number` | `boolean` | 否 | `true` |
 | `require_mixed_case` | `boolean` | 否 | `false` |
@@ -920,7 +920,7 @@
 | `security_policy_id_check` | `CHECK ((id = 1))` |
 | `security_policy_lock_minutes_check` | `CHECK (((lock_minutes >= 1) AND (lock_minutes <= 1440)))` |
 | `security_policy_max_attempts_check` | `CHECK (((max_attempts >= 3) AND (max_attempts <= 10)))` |
-| `security_policy_min_password_length_check` | `CHECK (((min_password_length >= 12) AND (min_password_length <= 64)))` |
+| `security_policy_min_password_length_check` | `CHECK (((min_password_length >= 8) AND (min_password_length <= 64)))` |
 | `security_policy_pkey` | `PRIMARY KEY (id)` |
 | `security_policy_session_minutes_check` | `CHECK (((session_minutes >= 5) AND (session_minutes <= 1440)))` |
 | `security_policy_version_check` | `CHECK ((version > 0))` |

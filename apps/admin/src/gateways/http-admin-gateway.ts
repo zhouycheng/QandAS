@@ -1,10 +1,10 @@
+import type { PackageRequest, PackageResult } from '../types/bank-package'
 import type { TestAccount, TestAccountInput, TestAccountCredentials, TestAccountQuery } from '../types/operations'
 import type { AdminContentGateway } from './admin-content-gateway'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, UpdateManagedUserInput, UserQuery, UserStatus } from '../types/operations'
+import type { ActivityQuery, ActivitySummary, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, LogQuery, ManagedUser, OperationLog, RankingRow, SecuritySettings, StudentFeedback, UpdateManagedUserInput, UserQuery, UserStatus } from '../types/operations'
 import { getAdminSession, logout } from '../lib/auth'
-import { importBody, questionFromWire, questionToWire } from './question-wire'
-import { countQuestions } from '../lib/question-content'
+import { questionFromWire, questionToWire } from './question-wire'
 import { ApiError } from './api-error'
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
 import { watchSyncStream } from './sync-stream'
@@ -77,6 +77,23 @@ export class HttpAdminContentGateway implements AdminContentGateway {
       throw error
     }
   }
+  private packagePath(bank: string) { return '/admin/question-banks/' + segment(bank) + '/package' }
+  bankAgents() { return this.request<import('../types/bank-package').AgentDirectory>('GET', '/admin/bank-agents') }
+  authorizeAgent(consent: Record<string, string>) { return this.request<{ code: string }>('POST', '/admin/bank-agents/authorize', consent) }
+  revokeAgent(id: string) { return this.request<void>('DELETE', '/admin/bank-agents/' + segment(id)) }
+  exportBankPackage(bank: string) { return this.request<Blob>('GET', this.packagePath(bank), undefined, undefined, undefined, true) }
+  async uploadBankPackage(bank: string, file: File, progress?: (percent: number) => void) {
+    const path = this.packagePath(bank) + '/uploads'
+    const { uploadId } = await this.request<{ uploadId: string }>('POST', path, { sizeBytes: file.size })
+    const chunk = 4 * 1024 * 1024
+    for (let start = 0; start < file.size; start += chunk) {
+      await this.request('PUT', path + '/' + segment(uploadId) + '/' + start / chunk, file.slice(start, start + chunk, 'application/octet-stream'))
+      progress?.(Math.round(Math.min(start + chunk, file.size) * 100 / file.size))
+    }
+    return uploadId
+  }
+  previewBankPackage(bank: string, request: PackageRequest) { return this.request<PackageResult>('POST', this.packagePath(bank) + '/preview', request) }
+  commitBankPackage(bank: string, request: PackageRequest, key: string) { return this.write<PackageResult>('POST', this.packagePath(bank) + '/commit', request, undefined, key) }
   downloadExcel(resource: string, action: 'template' | 'export', query?: object) { return this.request<Blob>('GET', `/${'admin'}/${resource}/excel/${action}`, undefined, query, undefined, true) }
   private excelBody(files: File[], options: import('../types/excel').ExcelOptions) { const form = new FormData(); files.forEach(file => form.append('files', file)); form.append('options', JSON.stringify(options)); return form }
   previewExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions) { return this.request<import('../types/excel').ExcelPreview>('POST', `/admin/${resource}/excel/preview`, this.excelBody(files, options)) }
@@ -114,6 +131,9 @@ export class HttpAdminContentGateway implements AdminContentGateway {
     const result = await this.write(id ? 'PUT' : 'POST', `/admin/question-banks/${segment(questionBankId)}/chapters${id ? '/' + segment(id) : ''}`, body)
     return { ...input, ...result }
   }
+  async dissolveChapter(chapter: Chapter, expectedContentVersion: number, targetChapterId?: string) {
+    await this.write('POST', `/admin/question-banks/${segment(chapter.questionBankId)}/chapters/${segment(chapter.id)}/dissolve`, { expectedContentVersion, expectedVersion: chapter.version, targetChapterId })
+  }
   async deleteChapter(chapter: Chapter) { await this.write('DELETE', `/admin/question-banks/${segment(chapter.questionBankId)}/chapters/${segment(chapter.id)}`, undefined, { expectedVersion: chapter.version }) }
   async reorderChapters(id: string, ids: string[], expectedContentVersion: number) { await this.write('PUT', `/admin/question-banks/${segment(id)}/chapter-order`, { ids, expectedContentVersion }) }
   async listQuestions(query: QuestionQuery & { questionBankId: string }) {
@@ -125,16 +145,11 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   async createQuestion(input: CreateQuestionInput) { const result = await this.write('POST', '/admin/questions', questionToWire(input)); return this.getQuestion(result.id) }
   async updateQuestion(id: string, input: UpdateQuestionInput) { await this.write('PUT', '/admin/questions/' + segment(id), questionToWire(input)); return this.getQuestion(id) }
   async deactivateQuestion(id: string, expectedVersion: number) { await this.write('DELETE', '/admin/questions/' + segment(id), undefined, { expectedVersion }) }
-  async previewImport(input: ImportQuestionsInput) {
-    const result = await this.request<{ valid: boolean; questionCount: number; issues: { message: string }[] }>('POST', `/admin/question-banks/${segment(input.questionBankId)}/import-preview`, importBody(input))
-    if (!result.valid) throw new Error(result.issues.map(item => item.message).join('；'))
-    return { acceptedCount: result.questionCount }
-  }
-  async importQuestions(input: ImportQuestionsInput) { await this.write('POST', `/admin/question-banks/${segment(input.questionBankId)}/imports`, importBody(input), undefined, input.idempotencyKey); return countQuestions(input.questions) }
   getDashboardSummary() { return this.request<DashboardSummary>('GET', '/admin/dashboard') }
   getActivity(query: ActivityQuery) { return this.request<ActivitySummary>('GET', '/admin/statistics/activity', undefined, query) }
   getRankings(query: ActivityQuery) { return this.page<RankingRow>('/admin/statistics/rankings', query) }
   getOnlineUsers(query: OnlineQuery) { return this.request<OnlineUsers>('GET', '/admin/statistics/online-users', undefined, { page: 1, pageSize: 20, ...query }) }
+  getCompatibility(release?: string) { return this.request<import('../types/monitoring').CompatibilityReport>('GET', '/admin/monitoring/compatibility', undefined, { release }) }
   getSystemHealth() { return this.request<SystemHealth>('GET', '/admin/monitoring/health') }
   getDeadLetterHead() { return this.request<import('../types/monitoring').DeadLetterHead>('GET', '/admin/sync/dead-letters/head') }
   replaySyncCommand(commandId: string) { return this.write('POST', `/admin/sync/dead-letters/${segment(commandId)}/replay`) }
@@ -174,7 +189,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   communityGroupImage(version: number) { return `${this.baseUrl}/api/v1/community/group/image?v=${version}` }
   async listOperationLogs(query?: LogQuery) {
     const data = await this.page<{ id: string; createdAt: string; actorAdminId?: string; actorUserId?: string; operation: string; outcome: 'SUCCESS' | 'FAILURE'; reasonCode?: string; requestId: string }>('/admin/audit-logs', query)
-    return { ...data, items: data.items.map(row => ({ id: row.id, createdAt: row.createdAt, actor: row.actorAdminId || row.actorUserId || '系统', module: row.operation, content: [row.reasonCode, row.requestId].filter(Boolean).join(' · '), result: row.outcome, ip: '' } satisfies OperationLog)) }
+    return { ...data, items: data.items.map(row => ({ id: row.id, createdAt: row.createdAt, actor: row.actorAdminId || row.actorUserId || '系统', module: row.operation, requestId: row.requestId, reasonCode: row.reasonCode, content: [row.reasonCode, row.requestId].filter(Boolean).join(' · '), result: row.outcome, ip: '' } satisfies OperationLog)) }
   }
   uploadImage(bankId: string, file: File) {
     const key = this.imageKeys.get(file) || crypto.randomUUID()

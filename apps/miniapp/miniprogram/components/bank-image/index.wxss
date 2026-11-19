@@ -1,0 +1,2 @@
+@import "../../styles/controls.wxss";
+.figure { width: 100%; max-width: 100%; }

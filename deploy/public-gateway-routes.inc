@@ -57,3 +57,12 @@ location /api/v1/ {
     proxy_read_timeout 90s;
 }
 location / { return 404; }
+location ~ ^/(mcp$|\.well-known/oauth-(authorization-server$|protected-resource/mcp$)|bank-agent/(register$|token$|files/[A-Za-z0-9_-]+$)) {
+    allow ${QANDA_GATEWAY_ALLOWED_CLIENT};
+    deny all;
+    if ($scheme = http) { return 503; }
+    if ($qanda_gateway_authenticated = 0) { return 403; }
+    set $bank_mcp http://bank-mcp:8090;
+    proxy_pass $bank_mcp$request_uri;
+    proxy_buffering off;
+}

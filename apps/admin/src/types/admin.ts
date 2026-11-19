@@ -46,6 +46,7 @@ export interface Major extends Versioned {
 export interface Subject extends Versioned {
   id: string
   name: string
+  description?: string
   status: ContentStatus
   createdAt: string
   updatedAt: string
@@ -111,7 +112,7 @@ export interface Question extends QuestionContent, Versioned {
 }
 
 export type CreateSubjectInput = Pick<Subject, 'name' | 'status'>
-export type UpdateSubjectInput = CreateSubjectInput & { expectedVersion: number }
+export type UpdateSubjectInput = CreateSubjectInput & Pick<Subject, 'description'> & { expectedVersion: number }
 export type CreateCollegeInput = Pick<College, 'name' | 'code' | 'status'>
 export type UpdateCollegeInput = CreateCollegeInput & { expectedVersion: number }
 export type CreateMajorInput = Pick<Major, 'collegeId' | 'name' | 'code' | 'status'>
@@ -139,6 +140,7 @@ export interface MajorQuery extends CollegeQuery {
 }
 
 export interface QuestionBankQuery extends PageQuery {
+  quality?: 'missingExplanation' | 'unassigned' | 'empty'
   keyword?: string
   subjectId?: string
   publicationStatus?: BankPublicationStatus

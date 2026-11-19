@@ -16,7 +16,7 @@
   "assets": [],
   "questions": [
     {
-      "id": "js-output-1",
+      "id": "23be07bb-843d-4112-b73c-0a35f1cf6401",
       "type": "FILL_BLANK",
       "presentation": "CODE_ANALYSIS",
       "contentFormat": "MARKDOWN",
@@ -52,7 +52,7 @@
       }
     },
     {
-      "id": "js-concept-1",
+      "id": "70389cb6-3019-444a-a991-4ecdfb1bccd2",
       "type": "SHORT_ANSWER",
       "presentation": "CODE_ANALYSIS",
       "contentFormat": "MARKDOWN",
@@ -83,7 +83,7 @@
       }
     },
     {
-      "id": "js-function-output-1",
+      "id": "8c4d30c2-f11d-46ef-9113-f194a5ef1fd9",
       "type": "FILL_BLANK",
       "presentation": "CODE_ANALYSIS",
       "contentFormat": "MARKDOWN",

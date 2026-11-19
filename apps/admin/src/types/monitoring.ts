@@ -20,3 +20,16 @@ export interface SystemHealth {
 }
 export type StreamStatus = 'CONNECTING' | 'LIVE' | 'RECONNECTING' | 'AUTH_EXPIRED'
 export interface DeadLetterHead { item: { commandId: string | null; sessionId: string | null; failure: { code: string; message: string; status: number } | null; reason: string | null } | null }
+
+export interface CompatibilityReport {
+  releases: { release: string; firstSeen: string }[]
+  selected: string | null
+  items: { id: string; name: string; introduced: string; reason: string; replacement: string }[]
+  stats: { item: string; week: number; month: number; lastSeen: string }[]
+  coverageThrough: string
+  gaps: { start: string; end: string }[]
+  checkedAt: string
+  legacyRevisions: number
+  practiceRevisions: number
+  referencedRevisions: number
+}

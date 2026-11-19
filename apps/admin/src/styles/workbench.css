@@ -513,3 +513,10 @@
     display: none;
   }
 }
+.bank-package-drop { display: grid; place-items: center; gap: 8px; padding: 36px 18px; border: 1px dashed var(--color-border-3); border-radius: 8px; background: var(--color-fill-1); }
+.bank-package-drop span { color: var(--color-text-3); }
+.dashboard-metrics .metric-link, a.quality-row { text-decoration: none; }
+.dashboard-metrics .metric-link:hover, a.quality-row:hover { background: #f0f6ff; color: #145fc0; }
+a.quality-row:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; }
+.dashboard-metrics .count-static strong, .quality-row.count-static strong { color: #738096; }
+.dashboard-metrics .metric-link strong, a.quality-row strong { color: #145fc0; }

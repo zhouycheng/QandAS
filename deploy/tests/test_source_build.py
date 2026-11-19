@@ -73,6 +73,9 @@ class SourceBuildTests(unittest.TestCase):
                                 build.build(request, phases.append)
                         else:
                             result = build.build(request, phases.append)
+                            self.assertEqual('mcp' in result, role == 'backend')
+                            if role == 'backend':
+                                self.assertTrue(any(str(arg).endswith('apps/mcp/Dockerfile') for call in calls for arg in call))
                             self.assertEqual(result['backend' if role == 'backend' else 'web'], 'sha256:' + 'b' * 64)
                         self.assertNotIn('token', request)
                         compiler = next(call for call in calls if call[:2] == ('docker', 'run'))

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import qanda.backend.identity.*
+import qanda.backend.identity.api.ADMIN_PASSWORD_MIN_LENGTH
 import qanda.backend.platform.http.*
 import qanda.backend.platform.http.invalid
 import qanda.backend.platform.http.conflict
@@ -82,7 +83,7 @@ class AdminService(private val rows: AdminAccountMapper,private val sessionRows:
     fun policy(input: PolicyInput): PolicyView {
         sql.lockControl();val row=policies.selectById(1);requireVersion(input.expectedVersion,row.version)
         if(input.newDeviceVerification || input.changeInitialPassword) invalid("/policy","UNSUPPORTED_SECURITY_POLICY","当前安全策略不支持启用该项")
-        if(input.maxAttempts !in 3..10 || input.lockMinutes !in 1..1440 || input.sessionMinutes !in 5..1440 || input.minPasswordLength !in 12..64) invalid("/policy")
+        if(input.maxAttempts !in 3..10 || input.lockMinutes !in 1..1440 || input.sessionMinutes !in 5..1440 || input.minPasswordLength !in ADMIN_PASSWORD_MIN_LENGTH..64) invalid("/policy")
         row.lockEnabled=input.lockEnabled;row.maxAttempts=input.maxAttempts;row.lockMinutes=input.lockMinutes;row.sessionMinutes=input.sessionMinutes
         row.minPasswordLength=input.minPasswordLength;row.requireLetter=input.requireLetter;row.requireNumber=input.requireNumber;row.requireMixedCase=input.requireMixedCase
         row.version++;row.updatedAt=clock.instant();policies.updateById(row);return policy()

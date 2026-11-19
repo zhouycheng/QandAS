@@ -20,9 +20,11 @@ class IdentityCryptoTest {
         assertFalse(crypto.verifyPassword(raw.trim(),first.encoded))
         assertFalse(crypto.verifyPassword("wrong-password",null))
         assertFalse(first.toString().contains(first.encoded))
-        assertTrue(crypto.verifyPassword("😀".repeat(12),crypto.preparePassword("😀".repeat(12)).encoded))
+        assertTrue(crypto.verifyPassword("😀".repeat(8),crypto.preparePassword("😀".repeat(8)).encoded))
         assertThrows(ApiException::class.java) { crypto.preparePassword("😀".repeat(129)) }
-        assertThrows(ApiException::class.java) { crypto.preparePassword("a".repeat(11)) }
+        assertThrows(ApiException::class.java) { crypto.preparePassword("😀".repeat(7)) }
+        val existingHash = "{pbkdf2-sha256}\$600000\$AAECAwQFBgcICQoLDA0ODw\$62qiV2nujc9hABOOBsQPpzaDDIw26KlmMwcPl_OGgAw"
+        assertTrue(crypto.verifyPassword("Old-login-2026",existingHash))
     }
     @Test fun `fixed test code is exactly sixteen alphanumeric characters with letters and digits`() {
         val raw="TestCode12345678"

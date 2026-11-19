@@ -3,6 +3,7 @@ import { Alert, Form, Input, Message, Modal, Radio } from '@arco-design/web-reac
 import { useMutation } from '@tanstack/react-query'
 import { useAdminGateway } from '../../gateways/gateway-context'
 import type { College, ContentStatus, Major } from '../../types/admin'
+import { closeDraft, formHasChanges } from '../../lib/unsaved-changes'
 
 export type DirectoryEntry =
   | { kind: 'college'; record: College }
@@ -26,7 +27,7 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
 }) {
   const gateway = useAdminGateway()
   const [form] = Form.useForm<EditorValues>()
-  const [dirty, setDirty] = useState(false)
+  const initial = { name: target.record?.name ?? '', status: target.record?.status ?? 'ACTIVE' }
   const [generatedCode] = useState(() => `${target.kind === 'college' ? 'COL' : 'MAJ'}-${crypto.randomUUID().replaceAll('-', '').slice(0, 20).toUpperCase()}`)
   const label = labels[target.kind]
   const save = useMutation({
@@ -40,19 +41,14 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
         return target.record ? gateway.updateMajor(target.record.id, { ...input, expectedVersion: target.record.version }) : gateway.createMajor(input)
       }
     },
+    onError: error => Message.error(error.message),
     onSuccess: () => {
       Message.success(`${label}已${target.record ? '更新' : '新增'}`)
       onSaved()
     },
   })
   const cancel = () => {
-    if (save.isPending) return
-    if (!dirty) return onCancel()
-    Modal.confirm({
-      title: '放弃本次修改？',
-      content: '尚未保存的内容将丢失。',
-      okText: '放弃修改', cancelText: '继续编辑', onOk: onCancel,
-    })
+    closeDraft(!save.isPending && formHasChanges(initial, form.getFieldsValue()), onCancel)
   }
   return (
     <Modal
@@ -60,11 +56,7 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
       title={`${target.record ? '编辑' : '新增'}${label}`}
       visible
       style={{ width: 480, maxWidth: 'calc(100vw - 32px)' }}
-      maskClosable={false}
-      escToExit={!save.isPending}
-      closable={!save.isPending}
       confirmLoading={save.isPending}
-      cancelButtonProps={{ disabled: save.isPending }}
       okText={target.record ? '保存修改' : `新增${label}`}
       cancelText="取消"
       onCancel={cancel}
@@ -74,9 +66,9 @@ export function DirectoryEditorModal({ target, onCancel, onSaved }: {
       <Form<EditorValues>
         form={form}
         layout="vertical"
-        initialValues={{ ...target.record, status: target.record?.status ?? 'ACTIVE' }}
-        onValuesChange={() => { setDirty(true); save.reset() }}
-        onSubmit={(values) => { if (!save.isPending) save.mutate(values) }}
+        initialValues={initial}
+        onValuesChange={() => save.reset()}
+        onSubmit={(values) => { if (!save.isPending) save.mutate(values, { onSuccess: onCancel }) }}
         disabled={save.isPending}
       >
         {target.kind !== 'college' && <Form.Item label="所属学院"><Input value={target.college.name} disabled /></Form.Item>}

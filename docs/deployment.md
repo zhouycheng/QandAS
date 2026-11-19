@@ -28,8 +28,8 @@ Actions 完成完整测试后，经 Tailscale 和受限 SSH 提交固定源码 S
 2. 将仓库部署文件复制到服务器后，以管理员在交互式终端运行 `sudo bash deploy/install.sh`。后端首次完整安装会提示录入官方微信、内容审核公网 HTTPS 地址、与微信控制台一致的回调 Token／EncodingAESKey，以及腾讯云 SES 参数，并为数据库、队列、缓存、身份、邮件及命令摘要生成独立随机密钥，自动创建 `/srv/qanda/production.env`（`root:root`、权限 `600`）。启用腾讯云 SES 实际发信前须在提示中明确确认。已有配置必须具备当前模板中的全部字段；发现已有数据库或队列数据卷但配置文件缺失时，安装会停止并要求先恢复原配置。
 3. 安装器继续建立基础服务、部署账号和每日备份计时器。`--control-only` 仅安装运维入口和网络，不创建应用环境配置。
 4. DNS 指向已核验的主机入口。先提供 HTTP ACME 验证位置，申请证书，再安装 `deploy/nginx-site.conf`。执行 `nginx -t`、平滑 reload 和证书续期检查。
-5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限；已有数据库通过同一入口幂等添加 `practice_item.confirmed_at` 以及反馈、缺课需求的 `read_version` 字段，保留已有记录，其他结构须与发布代码匹配。
-6. 在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
+5. 配置下节的 GitHub/Tailscale 身份，手动运行第一次部署。全新数据库由 `schema-init` 直接加载当前结构和监控权限。已有数据库先对照已发布版本 `09715715` 的列名、类型和可空性检查基线。识别到可升级的结构后，按批回填题目 ID，检查历史练习、反馈和监控依赖的结构，并在 `schema_migration` 登记已完成步骤。单批提交后可以断点续跑。基线列差异会写入升级日志，此时原服务继续提供访问。升级时，初始安全策略的管理员密码最短长度由 12 位降至 8 位。已保存过的安全策略沿用原值，已有管理员可继续使用原密码和有效会话。
+6. 全新安装时，在管理员交互终端中，使用当前 `BACKEND_IMAGE`、`WEB_IMAGE`、`REVISION` 调用应用 Compose 的 `run --rm -it api bootstrap` 创建首管。凭据只保存在密码管理器或仓库外私有文件中。
 7. 小程序扩展配置 `apiBaseUrl` 设为 `https://qanda.api.zhoust.cn/api/v1`，通过官方 npm 构建同步运行配置，并在微信后台配置相应网络能力的合法域名 `https://qanda.api.zhoust.cn`。微信上传、审核和发布独立执行。
 
 主机无法访问 Docker Hub 时，可临时设置仓库变量 `QANDA_PREPARE_INFRA=true`，手动部署的验证产物会额外包含官方 Linux/amd64 基础镜像归档。管理员下载该次 artifact，核对 SHA-256 后，通过 Tailscale SSH 将归档传给主机的 `sudo docker load`，再继续安装。完成后删除此变量，避免后续发布重复生成大归档。此步骤使用管理员已有的 SSH 权限，不增加 CI 账号的 Docker 权限。
@@ -76,11 +76,15 @@ SSH 私钥在 runner 的私有临时目录中使用，结束时删除。`*_DEPLO
 
 服务器需安装 Python 3、Docker Engine 和 Buildx，并能访问 `codeload.github.com`、Maven、npm 与相应基础镜像仓库。后端 JRE 和管理端 Nginx 基础镜像会在应用编译前下载并缓存，镜像构建使用该本地副本。源码构建要求至少 1.25 GiB（1280 MiB）可用内存和 5 GiB 空闲磁盘：构建容器上限为 1 GiB，另留 256 MiB 主机余量；构建期间旧服务保持运行，其已用内存不能抵扣这一要求。可用内存取自 `MemAvailable`，不计入 swap。资源不足时报告当前可用内存并保留旧服务。该检查与应用切换预检分开：后端首次启动要求 1.5 GiB，已有版本更新要求 384 MiB。依赖缓存位于 `/var/cache/qanda-build`；临时源码在 `/var/lib/qanda-deploy` 下按任务创建并清理。离线基础设施包继续通过 `QANDA_PREPARE_INFRA` 单独准备。发布记录保存 SHA、操作标识和本地 image ID，镜像须匹配来源、版本和节点角色标签。发布前检查当前与上一版本本地镜像可用；回滚使用同一部署体系保留的镜像。
 
-后端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 在线备份 → 停止后端应用组 → 使用临时数据库和队列验证镜像及重复初始化 → 初始化或校验当前结构 → 启动 API、worker、monitor → 检查 readiness。管理端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 保存静态资源 → 更新 web → 检查公网管理端和 API。构建期间旧服务继续运行，应用切换可能短暂停机；持久数据保留，客户端沿用原幂等键重试。
+后端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 在线备份 → 使用临时数据库和队列验证镜像及重复初始化 → 增量升级并校验当前库 → 停止旧后端应用组 → 启动 API、worker、monitor 和 MCP → 检查 readiness。管理端流程为：资源预检 → 获取源码 → 构建应用与镜像 → 保存静态资源 → 更新 web → 检查公网管理端和 API。构建期间旧服务继续运行，应用切换可能短暂停机；持久数据保留，客户端沿用原幂等键重试。
 
 失败时恢复与当前数据结构及客户端合同配套的应用版本，禁止回退到会重新判题或无法读取加密资料的版本。空库由 `schema.sql` 初始化；已有生产库先在线备份，再执行部署入口支持的增量字段更新和结构校验。结构不符时停止发布，核实兼容迁移与恢复方案，禁止清空生产数据库、队列、附件或客户端未同步数据。客户端、队列正文及仍在使用的密钥必须配套。成功同步正文在三十天后分批移除，幂等回执继续保留；旧摘要密钥必须保留至对应回执生命周期结束。启动检查要求当前正文可空的结构。
 
 `/api/v1/health` 保持原响应。容器使用内部 `/actuator/health/readiness` 检查数据库、队列、附件目录及 worker 消费状态。Actuator 不经公网网关转发。入口覆盖外来转发头，后端只信任固定的应用网关地址。
+
+后端发布包含 `bank-mcp`。后端和管理端节点的 `production.env` 应设置同一个 `QANDA_MCP_RESOURCE`，值为管理端 HTTPS 地址加 `/mcp`。分机部署沿用 `PRODUCTION_API_UPSTREAM` 指定的 HTTPS 网关。控制程序、应用 Compose 和后端网关路由须先更新，再依次发布后端和管理端。后端发布时会渲染共享路由，路由有变化时先校验 Nginx 配置，再重载。
+
+后端先用隔离数据库启动候选镜像，确认 MCP 返回的资源地址、API 认可的资源地址和 API 健康状态。应用启动后继续观察容器健康，管理端发布另经公网校验资源发现地址。后端发布记录同时保存 `backend` 和 `mcp` 镜像摘要，手动回滚和启动失败恢复都会按记录还原。恢复到首次接入 MCP 之前的记录时，发布程序移除新增的 MCP 容器。
 
 发布任务由 systemd 独立运行，服务器总时限六十分钟，Actions 部署 job 时限七十五分钟。日志按操作标识增量读取并过滤凭据；Actions 中断或暂时断线后，服务器继续运行，后续 `check` 可查询最终结果。源码、构建或健康检查失败均让本次 Actions 失败；健康检查通过且运行 SHA 与本次操作一致后才成功。
 
@@ -125,7 +129,7 @@ sudo qanda-db restore /受保护目录/数据.dump
 
 ## 双服务器与容器运维
 
-管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。新后端使用空库初始化，原服务器上的测试数据不迁移。切换验收后停用原后端应用和题小搭基础服务；首次正式部署清除本项目旧数据库、队列、缓存、附件、备份及监控历史，按当前结构重新初始化并创建新首管；部署凭据、证书和网络配置继续使用。
+管理端和公网 HTTPS 网关留在现有服务器；API、worker、monitor、PostgreSQL、RabbitMQ、附件和指标放在后端所有者的服务器。首次拆分时曾为独立后端初始化空库。后续版本升级使用在线备份和增量迁移，保留现有库、队列、附件及历史回执。部署入口在旧服务运行期间先核查候选版本和数据库，迁移校验通过后才切换服务。迁移记录保存在 `schema_migration`。
 
 两位所有者分别在自己的 Tailnet 登记题小搭容器节点。每台运行独立的 `qanda-tailnet` Compose 项目，只转发受限运维端口；后端节点使用 `tag:qanda-backend`，管理端保留现有用户身份。两端部署工作流分别进入各自 Tailnet，读取相应凭据并操作本地题小搭节点。管理端和小程序分别通过公网 HTTPS 访问后端网关。
 
@@ -149,7 +153,7 @@ sudo qanda-db restore /受保护目录/数据.dump
 
 `qanda-ops.service` 运行独立 OpenSSH 实例，只监听题小搭 Docker 网桥地址的 `2203`。Tailscale 容器把私网 `2222` 转发到这里。CI 和调试账号分别使用部署公钥、个人调试公钥；`ForceCommand` 固定执行 `remote-entry.py`，`DisableForwarding` 禁用 SSH 转发。
 
-`qanda-deploy` 可提交发布、回滚和查询状态。`qanda-debug` 可对后端的 `api/worker/monitor` 或管理端的 `web` 执行 `containers`、`logs`、`shell`、`restart`。脚本检查 Compose 项目、服务、挂载、网络和容器权限，再调用 Docker；Shell 在目标容器内执行。调试权限能够读取该应用容器中的运行文件及项目密钥，应只授予需要排障的操作者。
+`qanda-deploy` 可提交发布、回滚和查询状态。`qanda-debug` 可对后端的 `api`、`worker`、`monitor`、`bank-mcp` 或管理端的 `web` 执行 `containers`、`logs`、`shell`、`restart`。脚本检查 Compose 项目、服务、挂载、网络和容器权限，再调用 Docker；Shell 在目标容器内执行。调试权限能够读取该应用容器中的运行文件及项目密钥，应只授予需要排障的操作者。
 
 操作者在仓库外的 SSH 配置中登记节点别名、端口 `2222`、账号 `qanda-debug`、个人私钥和已核验的服务器公钥后，可运行：
 

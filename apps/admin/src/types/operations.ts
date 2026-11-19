@@ -109,6 +109,8 @@ export interface SecuritySettings extends Versioned {
 export interface CommunityGroup { version: number; expiresAt: string | null; available: boolean }
 
 export interface OperationLog {
+  requestId: string
+  reasonCode?: string
   id: string
   createdAt: string
   actor: string

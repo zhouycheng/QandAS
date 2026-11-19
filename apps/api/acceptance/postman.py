@@ -35,7 +35,7 @@ def main():
         if kind == "array":
             return [sample(schema["items"], owner) for _ in range(schema.get("minItems", 0))]
         if kind in ("integer", "number"):
-            return {"count": 1, "maxAttempts": 5, "lockMinutes": 30, "sessionMinutes": 30, "minPasswordLength": 12, "durationSeconds": 0, "currentIndex": 0, "sortOrder": 0}.get(field, max(schema.get("minimum", 1), 1))
+            return {"count": 1, "maxAttempts": 5, "lockMinutes": 30, "sessionMinutes": 30, "durationSeconds": 0, "currentIndex": 0, "sortOrder": 0}.get(field, max(schema.get("minimum", 1), 1))
         if kind == "boolean":
             return field in ("lockEnabled", "requireLetter", "requireNumber")
         if kind == "null":

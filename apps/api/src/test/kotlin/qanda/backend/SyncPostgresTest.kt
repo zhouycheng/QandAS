@@ -383,7 +383,7 @@ class SyncPostgresTest : PostgresFixture() {
         PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply { withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-cli-password") }.use { database ->
             database.start()
             val apiPort=java.net.ServerSocket(0).use { it.localPort }
-            val environment=mapOf("BACKEND_MODE" to "test","BACKEND_BIND_ADDRESS" to "127.0.0.1","BACKEND_API_PORT" to apiPort.toString(),
+            val environment=mapOf("BACKEND_METRICS_PORT" to "0","BACKEND_MODE" to "test","BACKEND_BIND_ADDRESS" to "127.0.0.1","BACKEND_API_PORT" to apiPort.toString(),
                 "BACKEND_DB_URL" to database.jdbcUrl,"BACKEND_DB_USER" to database.username,"BACKEND_DB_PASSWORD" to database.password,
                 "BACKEND_COMMAND_DIGEST_KEYS" to "1:$key","BACKEND_IDENTITY_MAC_KEYS" to "1:$key","BACKEND_IDENTITY_RATE_KEY" to key,
                 "BACKEND_WECHAT_PROVIDER" to "local","BACKEND_MAIL_ENABLED" to "false","BACKEND_FILES_ENABLED" to "false","BACKEND_DOCS_ENABLED" to "false")

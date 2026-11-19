@@ -450,7 +450,7 @@
             "description": "Admin_policy_PUT",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"expectedVersion\": {{expectedVersion}},\n  \"lockEnabled\": true,\n  \"maxAttempts\": 5,\n  \"lockMinutes\": 30,\n  \"sessionMinutes\": 30,\n  \"minPasswordLength\": 12,\n  \"requireLetter\": true,\n  \"requireNumber\": true,\n  \"requireMixedCase\": false\n}",
+              "raw": "{\n  \"expectedVersion\": {{expectedVersion}},\n  \"lockEnabled\": true,\n  \"maxAttempts\": 5,\n  \"lockMinutes\": 30,\n  \"sessionMinutes\": 30,\n  \"minPasswordLength\": 8,\n  \"requireLetter\": true,\n  \"requireNumber\": true,\n  \"requireMixedCase\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1861,6 +1861,639 @@
                   "if(session.accessToken)pm.environment.set(\"userToken\",session.accessToken);",
                   "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "if(b.id)pm.environment.set(\"announcementId\",b.id);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bankpackage",
+      "item": [
+        {
+          "name": "BankPackage_put_PUT",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "image/png"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/package/uploads/{{id}}/{{part}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "package",
+                "uploads",
+                "{{id}}",
+                "{{part}}"
+              ],
+              "query": []
+            },
+            "description": "BankPackage_put_PUT",
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": "{{imageFile}}"
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(204));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankPackage_start_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/package/uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "package",
+                "uploads"
+              ],
+              "query": []
+            },
+            "description": "BankPackage_start_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sizeBytes\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankPackage_preview_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/package/preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "package",
+                "preview"
+              ],
+              "query": []
+            },
+            "description": "BankPackage_preview_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uploadId\": \"{{uploadId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankPackage_commit_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{effectiveCommandKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/package/commit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "package",
+                "commit"
+              ],
+              "query": []
+            },
+            "description": "BankPackage_commit_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uploadId\": \"{{uploadId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankAgentGrants_authorize_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/bank-agents/authorize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "bank-agents",
+                "authorize"
+              ],
+              "query": []
+            },
+            "description": "BankAgentGrants_authorize_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"redirectUri\": \"示例内容\",\n  \"resource\": \"示例内容\",\n  \"scope\": \"示例内容\",\n  \"challenge\": \"示例内容\",\n  \"method\": \"示例内容\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankPackage_export_GET",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/package",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "package"
+              ],
+              "query": []
+            },
+            "description": "BankPackage_export_GET"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankAgentGrants_grants_GET",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/bank-agents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "bank-agents"
+              ],
+              "query": []
+            },
+            "description": "BankAgentGrants_grants_GET"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BankAgentGrants_revoke_DELETE",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/bank-agents/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "bank-agents",
+                "{{id}}"
+              ],
+              "query": []
+            },
+            "description": "BankAgentGrants_revoke_DELETE"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(204));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
                   "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
                   "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
@@ -4208,6 +4841,11 @@
               ],
               "query": [
                 {
+                  "key": "quality",
+                  "value": "示例内容",
+                  "disabled": true
+                },
+                {
                   "key": "subjectId",
                   "value": "00000000-0000-0000-0000-000000000001",
                   "disabled": true
@@ -4676,6 +5314,95 @@
                   "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
                   "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "if(b.id)pm.environment.set(\"chapterId\",b.id);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Content_dissolveChapter_POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{effectiveCommandKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/question-banks/{{questionBankId}}/chapters/{{chapterId}}/dissolve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "question-banks",
+                "{{questionBankId}}",
+                "chapters",
+                "{{chapterId}}",
+                "dissolve"
+              ],
+              "query": []
+            },
+            "description": "Content_dissolveChapter_POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": {{expectedVersion}},\n  \"expectedContentVersion\": {{expectedContentVersion}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
                   "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
                   "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
                   "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
@@ -9273,6 +10000,81 @@
               "query": []
             },
             "description": "Monitoring_health_GET"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base=pm.environment.get('baseUrl');",
+                  "if(!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$/.test(base))throw new Error('本集合用于本地验收');",
+                  "const key=pm.environment.get('commandKey')||pm.variables.replaceIn('{{$guid}}');",
+                  "pm.variables.set('effectiveCommandKey',key);pm.environment.set('lastCommandKey',key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('状态符合合同',()=>pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('禁止缓存',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));",
+                  "if(pm.response.headers.get('Content-Type')?.includes('application/json')&&pm.response.code<300){const b=pm.response.json();",
+                  "const session=b;",
+                  "if(session.accessToken)pm.environment.set(\"adminToken\",session.accessToken);",
+                  "if(b.version!==undefined)pm.environment.set('expectedVersion',b.version);if(b.contentVersion!==undefined)pm.environment.set('expectedContentVersion',b.contentVersion);",
+                  "const w=b.writer||b;if(w.writerToken)pm.environment.set('writerToken',w.writerToken);if(w.epoch!==undefined)pm.environment.set('expectedEpoch',w.epoch);if(w.acknowledgedSequence!==undefined){pm.environment.set('acknowledgedSequence',w.acknowledgedSequence);pm.environment.set('clientSequence',w.acknowledgedSequence+1);}",
+                  "if(b.commandId)pm.environment.set('commandId',b.commandId);if(b.acknowledgement){const a=b.acknowledgement;pm.environment.set('expectedVersion',a.version);pm.environment.set('acknowledgedSequence',a.acknowledgedSequence);pm.environment.set('clientSequence',a.acknowledgedSequence+1);}",
+                  "for(const key of ['sessionId','revisionId','subjectId','questionBankId']){if(b[key])pm.environment.set(key,b[key]);}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compatibility_compatibility_GET",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/monitoring/compatibility",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "monitoring",
+                "compatibility"
+              ],
+              "query": [
+                {
+                  "key": "release",
+                  "value": "示例内容",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Compatibility_compatibility_GET"
           },
           "event": [
             {

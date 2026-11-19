@@ -1,4 +1,4 @@
-import { validateTeachingSections } from '@qanda/content-format'
+import { inlineImageIds, validateTeachingSections } from '@qanda/content-format'
 import type { CreateQuestionInput } from '../types/admin'
 import { parseQuestionFile } from './content-rules'
 
@@ -60,8 +60,8 @@ const contentFields = {
 }
 
 /** Portable identifiers stay in the preview until the administrator maps chapters and images. */
-export function parseImportFile(input: string, bankId: string): ParsedQuestionFile {
-  if (new TextEncoder().encode(input).length > 8 * 1024 * 1024) fail('$', '每批请求最多 8 MiB')
+export function parseImportFile(input: string, bankId: string, zip = false): ParsedQuestionFile {
+  if (new TextEncoder().encode(input).length > (zip ? 32 : 8) * 1024 * 1024) fail('$', zip ? 'bank.json 最多 32 MiB' : '每批请求最多 8 MiB')
   const root: unknown = JSON.parse(input.replace(/^\uFEFF/, ''))
   if (Array.isArray(root) || (root && typeof root === 'object' && !('format' in root) && !('version' in root))) return { questions: parseQuestionFile(input, bankId) }
   const doc = object(root, '$')
@@ -69,9 +69,9 @@ export function parseImportFile(input: string, bankId: string): ParsedQuestionFi
   if (doc.format !== IMPORT_FORMAT) fail('$.format', `应为 ${IMPORT_FORMAT}`)
   if (doc.version !== IMPORT_VERSION) fail('$.version', '支持的协议版本为 1.0')
   const bank = object(doc.bank, '$.bank')
-  fields(bank, ['name', 'description'], '$.bank'); text(bank.name, '$.bank.name', 120); text(bank.description, '$.bank.description', 10000, true)
+  fields(bank, zip ? ['name', 'description', 'textbook', 'status'] : ['name', 'description'], '$.bank'); text(bank.name, '$.bank.name', 120); text(bank.description, '$.bank.description', 10000, true)
   const sourceIds = new Set<string>(), chapterIds = new Set<string>(), assetIds = new Set<string>(), questionIds = new Set<string>()
-  array(doc.sources, '$.sources', 1).forEach((value, index) => {
+  array(doc.sources, '$.sources', zip ? 0 : 1).forEach((value, index) => {
     const p = `$.sources[${index}]`, source = object(value, p)
     fields(source, ['id', 'name', 'kind', 'uri'], p); uniqueId(source.id, `${p}.id`, sourceIds); text(source.name, `${p}.name`, 500)
     if (!['text', 'pdf', 'word', 'slides', 'spreadsheet', 'image', 'web', 'audio', 'video'].includes(String(source.kind))) fail(`${p}.kind`, '来源类型无效')
@@ -92,30 +92,38 @@ export function parseImportFile(input: string, bankId: string): ParsedQuestionFi
     fields(asset, ['id', 'path', 'sourceRefs'], p); uniqueId(asset.id, `${p}.id`, assetIds)
     const assetPath = text(asset.path, `${p}.path`, 500)
     if (!/^assets\/(?:[\w\u4e00-\u9fff .-]+\/)*[\w\u4e00-\u9fff .-]+\.(png|jpe?g|webp)$/i.test(assetPath) || assetPath.split('/').some(part => part === '..' || part === '.') || assetPaths.has(assetPath)) fail(`${p}.path`, '使用 assets/ 下唯一的 PNG、JPEG 或 WebP 相对路径')
-    assetPaths.add(assetPath); refs(asset.sourceRefs, `${p}.sourceRefs`)
+    assetPaths.add(assetPath); if (!zip || asset.sourceRefs !== undefined) refs(asset.sourceRefs, `${p}.sourceRefs`)
   })
   const check = (value: unknown, p: string, child = false): Record<string, unknown> => {
     const q = object(value, p), type = String(q.type) as keyof typeof contentFields
     if (!Object.hasOwn(contentFields, type) || (child && type === 'READING')) fail(`${p}.type`, '题型无效，阅读题组不能嵌套')
-    fields(q, ['id', 'type', 'contentFormat', 'presentation', 'codeLanguage', 'stem', 'explanation', 'assetIds', 'provenance', ...(!child ? ['chapterId'] : []), ...contentFields[type]], p)
+    fields(q, ['id', ...(zip ? ['status'] : []), 'type', 'contentFormat', 'presentation', 'codeLanguage', 'stem', 'explanation', 'assetIds', 'provenance', ...(!child ? ['chapterId'] : []), ...contentFields[type]], p)
     uniqueId(q.id, `${p}.id`, questionIds)
+    if (zip && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(String(q.id))) fail(p, '题号须为稳定 UUID')
+    const options = Array.isArray(q.options) ? q.options.map(o => o?.content) : []
+    if (zip) for (const id of inlineImageIds([q.stem, q.explanation, q.referenceAnswer, q.passage, ...options, ...(Array.isArray(q.scoringPoints) ? q.scoringPoints : [])].map(s => String(s || '')), String(q.contentFormat))) {
+      if (!assetIds.has(id)) fail(p, '正文引用的图片不存在：' + id)
+    }
     text(q.stem, `${p}.stem`, 10000, type === 'READING')
     if (q.chapterId !== undefined && !chapterIds.has(String(q.chapterId))) fail(`${p}.chapterId`, '引用的文件章节不存在')
     if (q.assetIds !== undefined) array(q.assetIds, `${p}.assetIds`).forEach((id, i) => { if (!assetIds.has(String(id))) fail(`${p}.assetIds[${i}]`, '引用的图片不存在') })
-    const provenance = object(q.provenance, `${p}.provenance`)
-    fields(provenance, ['origin', 'sourceRefs', 'ai'], `${p}.provenance`)
-    if (!['extracted', 'authored'].includes(String(provenance.origin))) fail(`${p}.provenance.origin`, '应为 extracted 或 authored')
-    refs(provenance.sourceRefs, `${p}.provenance.sourceRefs`)
-    const ai = object(provenance.ai, `${p}.provenance.ai`)
-    fields(ai, ['fields', 'note'], `${p}.provenance.ai`)
-    const aiFields = array(ai.fields, `${p}.provenance.ai.fields`)
-    if (new Set(aiFields).size !== aiFields.length || aiFields.some(field => !['stem', 'explanation', 'options', 'correctAnswer', 'correctValue', 'blanks', 'referenceAnswer', 'scoringPoints', 'passage'].includes(String(field)))) fail(`${p}.provenance.ai.fields`, 'AI 字段无效或重复')
-    text(ai.note, `${p}.provenance.ai.note`, 2000, !aiFields.length)
+    let aiFields: unknown[] = []
+    if (!zip || q.provenance !== undefined) {
+      const provenance = object(q.provenance, `${p}.provenance`)
+      fields(provenance, ['origin', 'sourceRefs', 'ai'], `${p}.provenance`)
+      if (!['extracted', 'authored'].includes(String(provenance.origin))) fail(`${p}.provenance.origin`, '应为 extracted 或 authored')
+      refs(provenance.sourceRefs, `${p}.provenance.sourceRefs`)
+      const ai = object(provenance.ai, `${p}.provenance.ai`)
+      fields(ai, ['fields', 'note'], `${p}.provenance.ai`)
+      aiFields = array(ai.fields, `${p}.provenance.ai.fields`)
+      if (new Set(aiFields).size !== aiFields.length || aiFields.some(field => !['stem', 'explanation', 'options', 'correctAnswer', 'correctValue', 'blanks', 'referenceAnswer', 'scoringPoints', 'passage'].includes(String(field)))) fail(`${p}.provenance.ai.fields`, 'AI 字段无效或重复')
+      text(ai.note, `${p}.provenance.ai.note`, 2000, !aiFields.length)
+    }
     if (type === 'READING') {
       if (q.explanation !== undefined) text(q.explanation, `${p}.explanation`, 10000, true)
       array(q.subQuestions, `${p}.subQuestions`, 1).forEach((sub, i) => check(sub, `${p}.subQuestions[${i}]`, true))
     } else {
-      const explanation = text(q.explanation, `${p}.explanation`, 10000)
+      const explanation = text(q.explanation, `${p}.explanation`, 10000, zip)
       if (aiFields.includes('explanation')) {
         if (!validateTeachingSections(explanation, String(q.contentFormat || 'PLAIN_TEXT'))) fail(`${p}.explanation`, 'AI 教学解析需要五个有内容的独立标题：结论、核心知识点、解题过程、记忆方法、易错题型')
       }
@@ -139,10 +147,17 @@ export function parseImportFile(input: string, bankId: string): ParsedQuestionFi
       })
     }
     // The existing content validator owns answer relationships and all question-type limits.
-    try { parseQuestionFile(JSON.stringify([q]), bankId) } catch (error) { fail(p, (error as Error).message.replace(/^第 1 题：/, '')) }
+    const compatible = (item: Record<string, unknown>): Record<string, unknown> => {
+      const code = item.presentation === 'CODE_WRITING' && item.type === 'SHORT_ANSWER'
+      if (item.codeLanguage != null && (!['FILL_BLANK', 'SHORT_ANSWER'].includes(String(item.type)) || !/^[a-zA-Z0-9+#_.-]{1,32}$/.test(String(item.codeLanguage)))) fail(p, '历史代码语言无效')
+      return { ...item, codeLanguage: null, presentation: code ? 'STANDARD' : item.presentation,
+        subQuestions: Array.isArray(item.subQuestions) ? item.subQuestions.map(compatible) : undefined }
+    }
+    try { parseQuestionFile(JSON.stringify([zip ? compatible(q) : q]), bankId) } catch (error) { fail(p, (error as Error).message.replace(/^第 1 题：/, '')) }
     return q
   }
-  array(doc.questions, '$.questions', 1).forEach((q, i) => check(q, `$.questions[${i}]`))
+  array(doc.questions, '$.questions', zip ? 0 : 1).forEach((q, i) => check(q, `$.questions[${i}]`))
+  if (zip) return { questions: [], document: doc as unknown as QuestionBankFile }
   const questions = parseQuestionFile(input, bankId).map(q => ({ ...q, subQuestions: q.subQuestions?.map(sub => ({ ...sub, id: crypto.randomUUID() })) }))
   return { questions, document: doc as unknown as QuestionBankFile }
 }

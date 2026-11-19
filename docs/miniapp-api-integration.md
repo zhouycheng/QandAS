@@ -86,8 +86,6 @@
 | `PUT /api/v1/admin/question-banks/{id}/chapter-order` | `Content_reorder_PUT` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/{id}/chapters` | `Content_adminChapters_GET` | 管理员会话 |
 | `POST /api/v1/admin/question-banks/{id}/chapters` | `Content_createChapter_POST` | 管理员会话 |
-| `POST /api/v1/admin/question-banks/{id}/import-preview` | `Content_preview_POST` | 管理员会话 |
-| `POST /api/v1/admin/question-banks/{id}/imports` | `Content_importQuestions_POST` | 管理员会话 |
 | `PUT /api/v1/admin/question-banks/{id}/publication` | `Content_publish_PUT` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/{id}/publication-checks` | `Content_publicationChecks_GET` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/{id}/questions` | `Content_adminQuestions_GET` | 管理员会话 |
@@ -124,12 +122,10 @@
 
 ### excel
 
+题库 ZIP 及 Agent 授权的工作台接口见[富媒体题库 ZIP](question-bank-import.md)。小程序继续使用目录、题目、快照及练习接口。
+
 | 方法与路径 | operationId | 访问凭据 |
 | --- | --- | --- |
-| `GET /api/v1/admin/question-banks/excel/export` | `Excel_export_GET_admin_question_banks_excel_export` | 管理员会话 |
-| `POST /api/v1/admin/question-banks/excel/imports` | `Excel_import_POST_admin_question_banks_excel_imports` | 管理员会话 |
-| `POST /api/v1/admin/question-banks/excel/preview` | `Excel_preview_POST_admin_question_banks_excel_preview` | 管理员会话 |
-| `GET /api/v1/admin/question-banks/excel/template` | `Excel_template_GET_admin_question_banks_excel_template` | 管理员会话 |
 | `GET /api/v1/admin/users/excel/export` | `Excel_export_GET_admin_users_excel_export` | 管理员会话 |
 | `POST /api/v1/admin/users/excel/imports` | `Excel_import_POST_admin_users_excel_imports` | 管理员会话 |
 | `POST /api/v1/admin/users/excel/preview` | `Excel_preview_POST_admin_users_excel_preview` | 管理员会话 |

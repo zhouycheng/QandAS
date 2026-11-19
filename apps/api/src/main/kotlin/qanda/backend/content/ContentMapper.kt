@@ -21,8 +21,8 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun bank(@Param("id") id: UUID,@Param("userId") userId: UUID?=null): QuestionBank?
     fun lockBank(@Param("id") id: UUID): QuestionBank?
     fun lockBankForRead(@Param("id") id: UUID): QuestionBank?
-    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): List<QuestionBank>
-    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter()): Long
+    fun banks(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter(),@Param("quality") quality: String?=null): List<QuestionBank>
+    fun bankCount(@Param("subjectId") subjectId: UUID?,@Param("keyword") keyword: String?,@Param("publicOnly") publicOnly: Boolean,@Param("userId") userId: UUID?=null,@Param("publicationStatus") publicationStatus: String?=null,@Param("filter") filter: qanda.backend.catalog.CategoryFilter=qanda.backend.catalog.CategoryFilter(),@Param("quality") quality: String?=null): Long
     fun questionCount(@Param("bankId") bankId: UUID,@Param("activeOnly") activeOnly: Boolean): Long
     fun questions(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("offset") offset: Int,@Param("limit") limit: Int,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): List<Question>
     fun filteredQuestionCount(@Param("bankId") bankId: UUID,@Param("chapterId") chapterId: UUID?,@Param("keyword") keyword: String?,@Param("activeOnly") activeOnly: Boolean,@Param("type") type: String?=null,@Param("status") status: String?=null,@Param("unassigned") unassigned: Boolean=false): Long
@@ -37,9 +37,15 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun clearCategories(@Param("bankId") bankId: UUID)
     fun bumpBank(@Param("id") id: UUID)
     fun updateQuestion(@Param("id") id: UUID,@Param("chapterId") chapterId: UUID?,@Param("status") status: String,@Param("revisionId") revisionId: UUID)
+    fun reassignChapter(@Param("id") id: UUID,@Param("target") target: UUID?)
     fun chapterQuestions(@Param("id") id: UUID): Long
     fun publicationIssues(@Param("bankId") bankId: UUID): Long
     fun readingChildren(@Param("id") id: UUID): List<Question>
     fun readingChildrenFor(@Param("ids") ids: List<UUID>): List<Question>
+    fun setGroup(@Param("id") id: UUID,@Param("group") group: Boolean)
+    fun moveQuestion(@Param("id") id: UUID,@Param("target") target: UUID)
+    fun portableCollision(@Param("id") id: UUID,@Param("target") target: UUID): Boolean
+    fun copyAssetOrigin(@Param("source") source: UUID,@Param("target") target: UUID)
+    fun retireChildren(@Param("id") id: UUID)
     fun readingOrder(@Param("id") id: UUID,@Param("order") order: Int)
 }

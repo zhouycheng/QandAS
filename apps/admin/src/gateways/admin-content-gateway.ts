@@ -1,11 +1,19 @@
+import type { PackageRequest, PackageResult } from '../types/bank-package'
 import type { TestAccount, TestAccountInput, TestAccountCredentials, TestAccountQuery } from '../types/operations'
 import type { BankPublicationStatus, Chapter, College, CollegeQuery, CreateCollegeInput, CreateMajorInput, CreateQuestionBankInput, CreateQuestionInput, CreateSubjectInput, DashboardSummary, DirectorySummary, Major, MajorQuery, Page, PageQuery, PublicationCheck, Question, QuestionBank, QuestionBankQuery, QuestionQuery, Subject, SubjectQuery, UpdateCollegeInput, UpdateMajorInput, UpdateQuestionBankInput, UpdateQuestionInput, UpdateSubjectInput } from '../types/admin'
-import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, ImportQuestionsInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UpdateManagedUserInput, UserQuery } from '../types/operations'
+import type { StudentFeedback, UserStatus, ActivityQuery, ActivitySummary, RankingRow, AdminAccount, AdminAccountInput, AdminLogin, Announcement, AnnouncementInput, LogQuery, ManagedUser, OperationLog, SecuritySettings, UpdateManagedUserInput, UserQuery } from '../types/operations'
 
 import type { OnlineQuery, OnlineUsers, SyncSnapshot, SystemHealth, StreamStatus } from '../types/monitoring'
 import type { CommunityGroup } from '../types/operations'
 
 export interface AdminContentGateway {
+  bankAgents(): Promise<import('../types/bank-package').AgentDirectory>
+  authorizeAgent(consent: Record<string, string>): Promise<{ code: string }>
+  revokeAgent(id: string): Promise<void>
+  exportBankPackage(bank: string): Promise<Blob>
+  uploadBankPackage(bank: string, file: File, progress?: (percent: number) => void): Promise<string>
+  previewBankPackage(bank: string, request: PackageRequest): Promise<PackageResult>
+  commitBankPackage(bank: string, request: PackageRequest, key: string): Promise<PackageResult>
   downloadExcel(resource: string, action: 'template' | 'export', query?: object): Promise<Blob>
   previewExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions): Promise<import('../types/excel').ExcelPreview>
   importExcel(resource: string, files: File[], options: import('../types/excel').ExcelOptions): Promise<{ count: number }>
@@ -15,6 +23,7 @@ export interface AdminContentGateway {
   logoutAdmin(): Promise<void>
   listChapters(questionBankId: string): Promise<Chapter[]>
   saveChapter(id: string | undefined, input: Pick<Chapter, 'questionBankId' | 'name' | 'sortOrder'> & { expectedVersion?: number }): Promise<Chapter>
+  dissolveChapter(chapter: Chapter, expectedContentVersion: number, targetChapterId?: string): Promise<void>
   deleteChapter(chapter: Chapter): Promise<void>
   reorderChapters(questionBankId: string, ids: string[], expectedContentVersion: number): Promise<void>
   setBankPublication(id: string, status: BankPublicationStatus, expectedVersion: number): Promise<QuestionBank>
@@ -45,11 +54,10 @@ export interface AdminContentGateway {
   getRankings(query: ActivityQuery): Promise<Page<RankingRow>>
   getOnlineUsers(query: OnlineQuery): Promise<OnlineUsers>
   getSystemHealth(): Promise<SystemHealth>
+  getCompatibility(release?: string): Promise<import('../types/monitoring').CompatibilityReport>
   getDeadLetterHead(): Promise<import('../types/monitoring').DeadLetterHead>
   replaySyncCommand(commandId: string): Promise<unknown>
   watchSyncHealth(onSnapshot: (data: SyncSnapshot) => void, onStatus: (status: StreamStatus) => void): () => void
-  importQuestions(input: ImportQuestionsInput): Promise<number>
-  previewImport(input: ImportQuestionsInput): Promise<{ acceptedCount: number }>
   getDashboardSummary(): Promise<DashboardSummary>
   getDirectorySummary(query?: { collegeId?: string; majorId?: string }): Promise<DirectorySummary>
   uploadImage(bankId: string, file: File): Promise<{ id: string }>

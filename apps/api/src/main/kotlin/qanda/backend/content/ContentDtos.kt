@@ -1,5 +1,7 @@
 package qanda.backend.content
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Instant
 import java.util.UUID
@@ -35,8 +37,10 @@ data class QuestionView(val id: UUID,val questionBankId: UUID,val chapterId: UUI
                         @field:Schema(allowableValues=["SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","FILL_BLANK","SHORT_ANSWER","READING"]) val type: String,val stem: String,val options: List<OptionInput>,val correctAnswer: List<String>?,val correctValue: Boolean?,val referenceAnswer: String?,
                         val explanation: String?,val assetIds: List<UUID>,val subjectId: UUID?=null,val subjectName: String?=null,val questionBankName: String?=null,
                         val blankCount: Int=0,val blanks: List<BlankInput>?=null,val blankMatch: BlankMatch?=null,val scoringPoints: List<String>?=null,
-                        val passage: String?=null,val subQuestions: List<QuestionView> = emptyList(),val material: ReadingMaterialView?=null,@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS","CODE_WRITING"]) val presentation: String="STANDARD",val codeLanguage: String?=null)
+                        val passage: String?=null,val subQuestions: List<QuestionView> = emptyList(),val material: ReadingMaterialView?=null,@field:Schema(allowableValues=["PLAIN_TEXT","MARKDOWN"]) val contentFormat: String="PLAIN_TEXT",@field:Schema(allowableValues=["STANDARD","CONCEPT","CODE_ANALYSIS","CODE_WRITING"]) val presentation: String="STANDARD",val codeLanguage: String?=null,
+                        @get:JsonIgnore @field:Schema(hidden=true) val answerOnlyAssetIds: Set<UUID> = emptySet())
 data class ImportInput(val expectedContentVersion: Long,@field:Size(min=1,max=3000) val questions: List<QuestionInput>)
 data class ImportView(val questionIds: List<UUID>,val contentVersion: Long)
 data class PreviewIssue(val index: Int,val code: String,val message: String)
 data class ImportPreview(val valid: Boolean,val questionCount: Int,val issues: List<PreviewIssue>)
+data class DissolveChapterInput(val expectedVersion: Long,val expectedContentVersion: Long,val targetChapterId: UUID?=null)

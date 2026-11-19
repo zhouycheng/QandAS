@@ -1,6 +1,7 @@
 package qanda.backend.admin
 
 import com.baomidou.mybatisplus.annotation.*
+import qanda.backend.identity.api.ADMIN_PASSWORD_MIN_LENGTH
 import java.time.Instant
 import java.util.UUID
 
@@ -42,7 +43,7 @@ class SecurityPolicy {
     var maxAttempts: Int = 5
     var lockMinutes: Int = 30
     var sessionMinutes: Int = 30
-    var minPasswordLength: Int = 12
+    var minPasswordLength: Int = ADMIN_PASSWORD_MIN_LENGTH
     var requireLetter: Boolean = true
     var requireNumber: Boolean = true
     var requireMixedCase: Boolean = false

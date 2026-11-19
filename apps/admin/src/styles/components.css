@@ -36,18 +36,6 @@
   color: var(--muted);
   font-size: 13px;
 }
-.activity-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
-}
-.activity-grid .donut {
-  width: 185px;
-}
-.activity-grid .donut-block {
-  gap: 18px;
-  padding: 0;
-}
 .bar-chart {
   display: flex;
   justify-content: space-around;
