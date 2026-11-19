@@ -12,7 +12,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib/qanda"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import source_build
@@ -22,7 +24,7 @@ ROOT = Path('/srv/qanda')
 STATE = Path('/var/lib/qanda-deploy')
 REQUEST = Path('/run/qanda-release-request.json')
 INPUT_TIMEOUT_SECONDS = 30
-SERVICES = ('api', 'worker', 'monitor', 'web')
+SERVICES = ('api', 'worker', 'monitor', 'bank-mcp', 'web')
 GATEWAY_IMAGE = 'nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236'
 PULL_TIMEOUT_SECONDS = 15 * 60
 
@@ -34,8 +36,11 @@ def node_role():
     return role
 
 
-def services():
-    return ('web',) if node_role() == 'frontend' else SERVICES[:3] if node_role() == 'backend' else SERVICES
+def services(release=None):
+    owned = ('web',) if node_role() == 'frontend' else SERVICES[:-1] if node_role() == 'backend' else SERVICES
+    if release is not None and 'mcp' not in release:
+        return tuple(service for service in owned if service != 'bank-mcp')
+    return owned
 
 
 def debug_request(action, args):
@@ -67,12 +72,12 @@ def owned_container(service):
             or config.get('NetworkMode') == 'host' or config.get('PidMode') == 'host'
             or config.get('IpcMode') == 'host'):
         raise RuntimeError('Container does not satisfy the project isolation boundary')
-    expected_networks = {'qanda-application'} | (set() if service == 'web' else {'qanda-data'})
+    expected_networks = {'qanda-application'} | (set() if service in ('web', 'bank-mcp') else {'qanda-data'})
     if set(container['NetworkSettings']['Networks']) != expected_networks:
         raise RuntimeError('Unexpected application networks')
     for mount in container['Mounts']:
         if (mount['Type'] == 'volume' and mount.get('Name') == 'qanda-production-assets'
-                and mount['Destination'] == '/var/lib/qanda/assets' and service != 'web'):
+                and mount['Destination'] == '/var/lib/qanda/assets' and service in ('api', 'worker', 'monitor')):
             continue
         if (mount['Type'] == 'bind' and mount['Source'] == str(ROOT / 'web-assets')
                 and mount['Destination'] == '/srv/qanda-assets' and not mount['RW'] and service == 'web'):
@@ -86,7 +91,7 @@ def debug(action, args):
     protected(ROOT / 'node.json')
     if action == 'containers':
         result = []
-        for name in services():
+        for name in services(read(STATE / 'current.json')):
             container = owned_container(name)
             result.append({'service': name, 'image': container['Config']['Image'],
                            'state': container['State']['Status'],
@@ -142,6 +147,8 @@ def read(path, default=None):
 def validate_release(release):
     images = ('web',) if node_role() == 'frontend' else ('backend',) if node_role() == 'backend' else ('backend', 'web')
     required = {'revision', *images}
+    if isinstance(release, dict) and 'mcp' in release and 'backend' in required:
+        required.add('mcp')
     metadata = {'operation_id'} if isinstance(release, dict) and 'operation_id' in release else set()
     if metadata and (not isinstance(release['operation_id'], str) or not re.fullmatch(r'[0-9]+-[0-9]+-(backend|frontend)', release['operation_id'])):
         raise ValueError('Invalid release operation identity')
@@ -188,7 +195,7 @@ def pull_image(image):
 
 
 def ensure_local_images(release):
-    for kind in ('backend', 'web'):
+    for kind in ('backend', 'mcp', 'web'):
         if kind in release:
             require_image_labels(release[kind], release['revision'])
 
@@ -204,10 +211,12 @@ def compose(release, *args):
     # Compose interpolates inactive services too; scratch cannot start an unselected role.
     env = {**os.environ, 'BACKEND_IMAGE': release['backend'] if 'backend' in release else 'scratch',
            'WEB_IMAGE': release['web'] if 'web' in release else 'scratch',
-           'REVISION': release['revision']}
+           'QANDA_MCP_IMAGE': release.get('mcp', 'scratch'), 'REVISION': release['revision']}
     command = ['docker', 'compose', '-p', 'qanda-application', '--env-file', ROOT / 'production.env']
     if (ROOT / 'node.env').exists():
         command += ['--env-file', ROOT / 'node.env']
+    if 'mcp' in release:
+        command += ['--profile', 'bank-mcp']
     command += ['-f', ROOT / 'compose.application.yml']
     return run(*command, *args, env=env)
 
@@ -240,6 +249,20 @@ def start_public_gateway():
             return
         time.sleep(2)
     raise RuntimeError('Public business gateway did not become ready')
+
+
+def reload_gateway_routes():
+    # Render only the shared routes. Certificate selection belongs to the node owner.
+    public_gateway('exec', '-T', 'gateway', 'sh', '-ec', """
+        cd /etc/nginx/conf.d
+        routes=gateway-routes.inc
+        envsubst '$QANDA_GATEWAY_ALLOWED_CLIENT $QANDA_GATEWAY_KEY' \
+            < /etc/nginx/templates/gateway-routes.inc.template > "$routes.new"
+        if cmp -s "$routes" "$routes.new"; then rm "$routes.new"; exit 0; fi
+        cp "$routes" "$routes.previous"
+        mv "$routes.new" "$routes"
+        if nginx -t && nginx -s reload; then rm "$routes.previous"; else mv "$routes.previous" "$routes"; exit 1; fi
+    """)
 
 
 def tailnet_image():
@@ -277,6 +300,7 @@ def preflight(first=False):
             protected(ROOT / name)
     if (ROOT / 'production.env').stat().st_mode & 0o077:
         raise RuntimeError('production.env must have mode 0600')
+    public_mcp_resource()
     if node_role() != 'combined':
         for name in ('node.json', 'node.env', 'compose.tailnet.yml', 'tailnet-config/serve.json'):
             protected(ROOT / name)
@@ -322,8 +346,23 @@ def assets(release):
         run('docker', 'rm', container)
 
 
+def public_mcp_resource():
+    resource = 'https://qanda.zhoust.cn/mcp'
+    for line in (ROOT / 'production.env').read_text().splitlines():
+        if line.startswith('QANDA_MCP_RESOURCE='):
+            resource = line.partition('=')[2].strip().strip("'\"") or resource
+    if not resource.startswith('https://') or not resource.endswith('/mcp'):
+        raise ValueError('Expected HTTPS MCP resource on the admin origin')
+    parts = urlsplit(resource)
+    if (parts.hostname in ('localhost', '127.0.0.1', '::1') and parts.path == '/mcp' and
+            not parts.username and not parts.password and not parts.query and not parts.fragment and
+            (parts.port is None or 1 <= parts.port <= 65535)):
+        return resource
+    return business_gateway.endpoint(resource[:-4]) + '/mcp'
+
+
 def health(release):
-    for role in services():
+    for role in services(release):
         container = compose(release, 'ps', '-q', role)
         if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
             raise RuntimeError('Application group is not healthy')
@@ -339,12 +378,26 @@ def health(release):
         if not container or run('docker', 'inspect', '-f', '{{.State.Health.Status}}', container) != 'healthy':
             raise RuntimeError('Public business gateway is not healthy')
         return
-    with urllib.request.urlopen('https://qanda.zhoust.cn/api/v1/health', timeout=15) as response:
+    resource = public_mcp_resource()
+    origin = resource[:-4]
+    with urllib.request.urlopen(origin + '/api/v1/health', timeout=15) as response:
         if json.load(response).get('status') != 'UP':
             raise RuntimeError('Public API check failed')
-    with urllib.request.urlopen('https://qanda.zhoust.cn/', timeout=15) as response:
+    with urllib.request.urlopen(origin + '/', timeout=15) as response:
         if b'<div id="root"' not in response.read():
             raise RuntimeError('Public admin check failed')
+    if (image_labels(release['web']) or {}).get('qanda.mcp.gateway') == 'true':
+        with urllib.request.urlopen(origin + '/.well-known/oauth-protected-resource/mcp', timeout=15) as response:
+            if json.load(response).get('resource') != resource:
+                raise RuntimeError('Public MCP gateway resource mismatch')
+        try:
+            with urllib.request.urlopen(resource, timeout=15):
+                raise RuntimeError('Public MCP endpoint did not request authorization')
+        except urllib.error.HTTPError as error:
+            with error:
+                expected = 'resource_metadata="' + origin + '/.well-known/oauth-protected-resource/mcp"'
+                if error.code != 401 or expected not in error.headers.get('WWW-Authenticate', ''):
+                    raise RuntimeError('Public MCP authorization challenge failed') from error
 
 
 def mark(phase):
@@ -359,10 +412,15 @@ def mark(phase):
 
 def activate(release):
     # Persist the image variables so host restarts/manual compose commands use the same release.
+    desired = read(STATE / 'desired.json', {})
+    if 'mcp' in desired and 'mcp' not in release:
+        compose(desired, 'rm', '--stop', '--force', 'bank-mcp')
     atomic(STATE / 'desired.json', release)
-    compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *services())
+    compose(release, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', *services(release))
     if node_role() == 'backend':
         start_public_gateway()
+        if 'mcp' in release:
+            reload_gateway_routes()
     if node_role() != 'combined':
         # Application releases keep the operations node and release status connection alive.
         run('systemctl', 'start', 'qanda-ops.service', 'qanda-tailnet.service')
@@ -394,19 +452,22 @@ def apply(request):
         run('/usr/local/sbin/qanda-backup')
     stopped = False
     try:
-        if current:
-            mark('stopping')
-            # Stop only 题小搭 application roles. Infrastructure and persistent volumes stay running.
-            stopped = True
-            compose(current, 'stop', '--timeout', '120', *services())
         if request['action'] == 'deploy' and node_role() != 'frontend':
             mark('checking-candidate')
             candidate = ['/usr/local/lib/qanda/candidate-check.py', release['backend']]
             if node_role() == 'combined':
                 candidate.append(release['web'])
+            if 'mcp' in release:
+                candidate.extend(['--mcp', release['mcp']])
             run(*candidate)
             mark('initializing')
-            compose(release, 'run', '--rm', '--no-deps', 'schema-init')
+            previous = ['-e', 'BACKEND_PREVIOUS_REVISION=' + current['revision']] if current else []
+            compose(release, 'run', '--rm', '--no-deps', *previous, 'schema-init')
+        if current:
+            mark('stopping')
+            # Stop only 题小搭 application roles. Infrastructure and persistent volumes stay running.
+            stopped = True
+            compose(current, 'stop', '--timeout', '120', *services(current))
         if node_role() != 'backend':
             assets(release)
         mark('starting')
@@ -421,9 +482,11 @@ def apply(request):
             activate(current)
             health(current)
             mark('rolled-back')
-        else:
+        elif not current:
             # Keep the independent operations entry reachable for diagnosis and retry.
-            compose(release, 'stop', '--timeout', '120', *services())
+            compose(release, 'stop', '--timeout', '120', *services(release))
+            mark('failed')
+        else:
             mark('failed')
         raise
     if current:
@@ -464,7 +527,7 @@ def reconcile(locked=False):
     active = subprocess.run(['systemctl', 'is-active', 'qanda-release.service'], capture_output=True, text=True, timeout=15).stdout.strip()
     if (operation.get('boot_id') and operation['boot_id'] != boot_id()) or active not in ('active', 'activating'):
         phase = operation.get('phase')
-        recover = phase in ('stopping', 'checking-candidate', 'initializing', 'starting', 'observing', 'rolling-back')
+        recover = phase in ('stopping', 'starting', 'observing', 'rolling-back')
         current = read(STATE / 'current.json') if recover else None
         mark('rolling-back' if current else 'failed')
         REQUEST.unlink(missing_ok=True)
@@ -508,7 +571,7 @@ def main():
                 end = min(len(data), query['offset'] + 65536)
                 print(json.dumps({'offset': end, 'text': data[query['offset']:end]}))
             return
-        print(json.dumps({'source_build_protocol': 1, 'role': node_role(), 'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
+        print(json.dumps({'source_build_protocol': 1, 'mcp_release_protocol': 1, 'role': node_role(), 'operation': read(STATE / 'operation.json'), 'current': read(STATE / 'current.json')}))
         return
     if action == 'tailnet-run':
         if node_role() == 'combined':

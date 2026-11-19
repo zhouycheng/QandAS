@@ -101,6 +101,9 @@ PY
 fi
 if test "${1:-}" = --control-only; then
   test "$qanda_node_role" != combined
+  if test "$qanda_node_role" = backend && test -d /srv/qanda/public-gateway; then
+    install -m 0644 "$qanda_source_dir/public-gateway-routes.inc" /srv/qanda/public-gateway/gateway-routes.inc.template
+  fi
   exit 0
 fi
 if test "$qanda_node_role" = backend; then

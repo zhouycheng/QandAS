@@ -26,6 +26,17 @@ x-backend: &backend
     retries: 36
     start_period: 30s
 services:
+  bank-mcp:
+    image: ${QANDA_MCP_IMAGE:-scratch}
+    profiles: [bank-mcp]
+    depends_on:
+      api: {condition: service_healthy}
+    environment:
+      QANDA_API_UPSTREAM: http://api:8083
+      QANDA_MCP_RESOURCE: ${QANDA_MCP_RESOURCE:-https://qanda.zhoust.cn/mcp}
+    networks: [application]
+    restart: unless-stopped
+    mem_limit: 160m
   api:
     <<: *backend
     mem_limit: 576m
@@ -37,6 +48,7 @@ services:
     environment:
       <<: *environment
       BACKEND_ROLE: api
+      QANDA_MCP_RESOURCE: ${QANDA_MCP_RESOURCE:-https://qanda.zhoust.cn/mcp}
   worker:
     <<: *backend
     networks:
@@ -68,6 +80,7 @@ services:
     image: ${WEB_IMAGE:?digest required}
     environment:
       QANDA_API_UPSTREAM: ${PRODUCTION_API_UPSTREAM:-http://api:8083}
+      QANDA_MCP_UPSTREAM: ${PRODUCTION_MCP_UPSTREAM:-${PRODUCTION_API_UPSTREAM:-http://bank-mcp:8090}}
       QANDA_MONITOR_UPSTREAM: ${PRODUCTION_MONITOR_UPSTREAM:-http://monitor:8083}
       QANDA_GATEWAY_KEY: ${PUBLIC_GATEWAY_KEY:-}
     volumes: [/srv/qanda/web-assets:/srv/qanda-assets:ro]

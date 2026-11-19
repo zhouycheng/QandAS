@@ -85,7 +85,7 @@ class TailnetTests(unittest.TestCase):
             'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'frontend',
             'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
             'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-        }), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'frontend', 'source_build_protocol': 1}) as remote, \
+        }), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'frontend', 'source_build_protocol': 1, 'mcp_release_protocol': 1}) as remote, \
                 patch.object(dispatch, 'execute', return_value={'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
             dispatch.main()
             remote.assert_called_once_with('100.64.0.10', 'status', ssh=ANY)
@@ -101,7 +101,7 @@ class TailnetTests(unittest.TestCase):
             'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': 'backend',
             'OPERATION': 'deploy', 'GITHUB_STEP_SUMMARY': summary.name,
             'DEPLOY_SSH_KEY': 'isolated-test-key', 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-        }, clear=True), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'backend', 'source_build_protocol': 1}) as remote, \
+        }, clear=True), patch.object(dispatch, 'remote', return_value={'current': None, 'role': 'backend', 'source_build_protocol': 1, 'mcp_release_protocol': 1}) as remote, \
                 patch.object(dispatch, 'execute', return_value={
                     'operation': {'phase': 'complete'}, 'current': {'revision': 'a' * 40}}) as execute:
             dispatch.main()
@@ -122,7 +122,7 @@ class TailnetTests(unittest.TestCase):
                 'DEPLOY_TARGETS': json.dumps(topology()), 'DEPLOY_NODE': role, 'OPERATION': 'check',
                 'GITHUB_STEP_SUMMARY': summary.name, 'DEPLOY_SSH_KEY': 'isolated-test-key',
                 'DEPLOY_SSH_KNOWN_HOSTS': 'isolated-host-key',
-            }), patch.object(dispatch, 'remote', return_value={'role': role, 'current': None, 'operation': None, 'source_build_protocol': 1}) as remote, \
+            }), patch.object(dispatch, 'remote', return_value={'role': role, 'current': None, 'operation': None, 'source_build_protocol': 1, 'mcp_release_protocol': 1}) as remote, \
                     patch.object(dispatch, 'execute') as execute:
                 dispatch.main()
                 execute.assert_not_called()

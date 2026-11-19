@@ -137,19 +137,27 @@ def build(request, mark):
         finally:
             subprocess.run(['docker', 'rm', '-f', BUILD_NAME], capture_output=True, timeout=30)
         mark('building-image')
-        kind = 'backend' if role == 'backend' else 'web'
-        tag = f'qanda-local/{kind}:{request["operation_id"]}'
-        context = source / 'apps/api' if role == 'backend' else source
-        dockerfile = context / 'Dockerfile' if role == 'backend' else source / 'deploy/web.Dockerfile'
-        build_args = ['--load', '--progress=plain',
-                      '--label', 'org.opencontainers.image.source=https://github.com/zhouycheng/QandAS',
-                      '--label', f'org.opencontainers.image.revision={revision}', '--label', f'qanda.role={role}',
-                      '-t', tag, '-f', dockerfile, context]
-        # The Docker Engine builder reuses the runtime base pulled above instead of resolving it remotely.
-        command('docker', 'buildx', 'build', '--builder', 'default',
-                '--resource', 'memory=1g', '--resource', 'memory-swap=1g',
-                '--resource', 'cpu-period=100000', '--resource', 'cpu-quota=100000', *build_args)
-        identifier = command('docker', 'image', 'inspect', '--format', '{{.Id}}', tag)
-        if not re.fullmatch(r'sha256:[0-9a-f]{64}', identifier):
-            raise RuntimeError('Invalid local image identity')
-        return {'revision': revision, kind: identifier}
+        release = {'revision': revision}
+        if role == 'backend':
+            release['backend'] = build_image(request, 'backend', source / 'apps/api/Dockerfile', source / 'apps/api')
+            release['mcp'] = build_image(request, 'mcp', source / 'apps/mcp/Dockerfile', source)
+        else:
+            release['web'] = build_image(request, 'web', source / 'deploy/web.Dockerfile', source)
+        return release
+
+
+def build_image(request, kind, dockerfile, context):
+    revision, role = request['revision'], request['role']
+    tag = f'qanda-local/{kind}:{request["operation_id"]}'
+    build_args = ['--load', '--progress=plain',
+                  '--label', 'org.opencontainers.image.source=https://github.com/zhouycheng/QandAS',
+                  '--label', f'org.opencontainers.image.revision={revision}', '--label', f'qanda.role={role}',
+                  '-t', tag, '-f', dockerfile, context]
+    # The Docker Engine builder reuses the runtime base pulled above instead of resolving it remotely.
+    command('docker', 'buildx', 'build', '--builder', 'default',
+            '--resource', 'memory=1g', '--resource', 'memory-swap=1g',
+            '--resource', 'cpu-period=100000', '--resource', 'cpu-quota=100000', *build_args)
+    identifier = command('docker', 'image', 'inspect', '--format', '{{.Id}}', tag)
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}', identifier):
+        raise RuntimeError('Invalid local image identity')
+    return identifier

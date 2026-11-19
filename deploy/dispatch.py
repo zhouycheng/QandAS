@@ -84,6 +84,8 @@ def main():
             raise ValueError('The management target has a different deployment role')
         if before.get('source_build_protocol') != 1:
             raise ValueError('Install the source-build deployment controller on this node first')
+        if os.environ['OPERATION'] == 'deploy' and before.get('mcp_release_protocol') != 1:
+            raise ValueError('Update the deployment controller and application Compose for MCP releases')
         if os.environ['OPERATION'] == 'check':
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
                 summary.write(f'Node {selected}: Tailscale and restricted SSH connection verified; role `{before["role"]}`\n')
