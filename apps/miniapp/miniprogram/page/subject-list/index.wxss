@@ -580,9 +580,11 @@
 
 .new-practice-button { margin-top: var(--space-md); }
 
-.home-pinned { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: var(--font-secondary); color: var(--text-sub); }
+.home-pinned { display: flex; align-items: center; gap: 16rpx; margin-top: 20rpx; min-height: 88rpx; padding: 0 24rpx; border-radius: var(--radius-card); background: var(--page-bg); font-size: var(--font-secondary); }
 .home-pinned-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-main); }
-.notice-pin { color: var(--brand); }
+.notice-pin { flex: none; padding: 4rpx 12rpx; border-radius: var(--radius-tag); background: var(--brand-soft); color: var(--brand); font-size: var(--font-caption); }
+.home-pinned-arrow { flex: none; width: 28rpx; height: 28rpx; }
+.home-pinned + .entry-grid { margin-top: 20rpx; }
 .notice-date { display: block; margin-top: 0; color: var(--text-sub); font-size: var(--font-caption); }
 .notice-list-row { min-height: 44px; }
 
