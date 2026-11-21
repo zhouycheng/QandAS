@@ -20,7 +20,9 @@ class SchemaReadiness {
         val confirmationReady=feedbackReady && (env.getProperty("qanda.backend.role") == "monitor" || jdbc.queryForObject("SELECT count(confirmed_at) FROM practice_item WHERE false",Long::class.java)==0L)
         val preferencesReady=confirmationReady && (env.getProperty("qanda.backend.role") == "monitor" || jdbc.queryForObject("SELECT (SELECT count(version) FROM user_settings WHERE false)+(SELECT count(exam_date) FROM user_exam_countdown WHERE false)+(SELECT count(is_default) FROM user_practice_preset WHERE false)",Long::class.java)==0L)
         val writerReady=preferencesReady && (env.getProperty("qanda.backend.role")=="monitor" || jdbc.queryForObject("SELECT count(writer_epoch+CASE WHEN writer_sealed THEN 1 ELSE 0 END) FROM practice_sync_state WHERE takeover_id IS NULL AND takeover_device_id IS NULL AND takeover_expires_at IS NULL AND takeover_state IS NULL AND false",Long::class.java)==0L)
-        check(writerReady) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
+        val snapshotReady=writerReady && (env.getProperty("qanda.backend.role")=="monitor" || jdbc.queryForObject(
+            "SELECT NOT EXISTS(SELECT b.deleted_at,s.bank_name,i.issued_version,i.issued_status,i.issued_chapter_id FROM question_bank b,practice_session s,practice_item i WHERE false)",Boolean::class.java)==true)
+        check(snapshotReady) { "数据库结构未就绪，请按README运行db-init初始化开发库" }
     }
 }
 data class HealthView(val status: String="UP",val version: String="1.0.0")

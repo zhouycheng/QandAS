@@ -29,7 +29,7 @@
     ORDER BY array_position(ARRAY[<foreach collection="groupIds" item="id" separator=",">CAST(#{id} AS uuid)</foreach>],<include refid="groupId"/>),q.reading_order,q.id
   </select>
   <select id="eligibleCount" resultType="long"><if test="scope.selectionKind == 'WRONG'"><include refid="qanda.backend.learning.api.ReadContracts.collectionFacts"/></if> SELECT count(*) FROM active_question q <include refid="eligibleFilter"/></select>
-  <insert id="insertItems">INSERT INTO practice_item(id,session_id,question_id,revision_id,material_revision_id,position) VALUES <foreach collection="items" item="item" separator=",">(#{item.id},#{item.sessionId},#{item.questionId},#{item.revisionId},#{item.materialRevisionId},#{item.position})</foreach></insert>
+  <insert id="insertItems">INSERT INTO practice_item(id,session_id,question_id,revision_id,material_revision_id,issued_chapter_id,issued_status,issued_version,position) VALUES <foreach collection="items" item="item" separator=",">(#{item.id},#{item.sessionId},#{item.questionId},#{item.revisionId},#{item.materialRevisionId},#{item.issuedChapterId},#{item.issuedStatus},#{item.issuedVersion},#{item.position})</foreach></insert>
   <select id="lockSession" resultType="qanda.backend.practice.PracticeSession">SELECT * FROM practice_session WHERE id=#{id} FOR UPDATE</select>
   <select id="items" resultType="qanda.backend.practice.PracticeItem">SELECT * FROM practice_item WHERE session_id=#{sessionId}<if test="ids != null"> AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></if> ORDER BY position</select>
   <select id="batchChoices" resultType="qanda.backend.practice.PracticeChoiceRow">SELECT item_id,option_key FROM practice_item_choice WHERE item_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> ORDER BY item_id,option_key</select>
@@ -43,6 +43,6 @@
     FROM (VALUES <foreach collection="items" item="i" separator=",">(#{i.id},CAST(#{i.answerText} AS text),CAST(#{i.answerBoolean} AS boolean),CAST(#{i.answerBlanks} AS text),#{i.confirmed},#{i.marked},CAST(#{i.outcome} AS text),CAST(#{i.selfAssessment} AS text),CAST(#{i.confirmedAt} AS timestamptz))</foreach>)
     v(id,answer_text,answer_boolean,answer_blanks,confirmed,marked,outcome,self_assessment,confirmed_at) WHERE p.id=v.id</update>
   <select id="result" resultType="qanda.backend.practice.PracticeResult">SELECT * FROM practice_result WHERE session_id=#{sessionId}</select>
-  <select id="history" resultType="qanda.backend.practice.PracticeSession">SELECT practice_session.*,sync.writer_device_id,sync.finish_sequence,(SELECT name FROM question_bank WHERE id=practice_session.bank_id) bank_name FROM practice_session LEFT JOIN practice_sync_state sync ON sync.session_id=practice_session.id WHERE user_id=#{userId} ORDER BY updated_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="history" resultType="qanda.backend.practice.PracticeSession">SELECT practice_session.*,sync.writer_device_id,sync.finish_sequence FROM practice_session LEFT JOIN practice_sync_state sync ON sync.session_id=practice_session.id WHERE user_id=#{userId} ORDER BY updated_at DESC,id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="historyCount" resultType="long">SELECT count(*) FROM practice_session WHERE user_id=#{userId}</select>
 </mapper>

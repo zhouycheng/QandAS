@@ -23,7 +23,7 @@ export function BankWorkspacePage() {
   const listSearch = useLocation().state?.listSearch
   const navigate = useNavigate()
   const chapterId = params.get('chapter') ?? undefined
-  const [settings, setSettings] = useState<'basic' | 'scope'>()
+  const [settings, setSettings] = useState(false)
   const [importing, setImporting] = useState<File | true | false>(false)
   const [exporting, setExporting] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -97,20 +97,19 @@ export function BankWorkspacePage() {
         <div className="bw-detail-hero">
           <div className="bank-title"><h1>{bank.name}</h1><Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag></div>
           <div className="bw-detail-actions">
-            <Button.Group><Button onClick={() => setSettings('basic')}>题库设置</Button>
+            <Button.Group><Button onClick={() => setSettings(true)}>题库设置</Button>
             {bank.publicationStatus !== 'ARCHIVED' && <Dropdown trigger="click" droplist={<Menu onClickMenuItem={() => changePublication(true)}><Menu.Item key="archive">归档题库</Menu.Item></Menu>}><Button icon={<IconDown />} aria-label="更多题库操作" /></Dropdown>}</Button.Group>
             {bank.publicationStatus === 'PUBLISHED' ? <Button status="warning" onClick={() => changePublication()}>下架题库</Button> : <Button type="outline" onClick={() => setPublishing(true)}>检查并发布</Button>}
           </div>
         </div>
         <div className="bw-detail-meta"><span>{course.name}</span>{bank.textbook && <span>{bank.textbook}</span>}
           {bank.activeQuestionCount != null && bank.activeQuestionCount < bank.questionCount && <span>{bank.activeQuestionCount} / {bank.questionCount} 道已启用</span>}
-          {bank.categories.length > 0 && <button className="bw-detail-scope" onClick={() => setSettings('scope')}>{bank.categories.length} 组分类</button>}
         </div>
       </header>
       {course?.status !== 'ACTIVE' && <Alert className="bw-detail-alert" type="warning" content="所属课程已停用，题库暂不在学生列表中展示。请到课程目录恢复启用。" />}
       <QuestionsManager newChapter={newChapter} bank={bank} chapters={chapterRows} chapterId={chapterId} onImport={file => setImporting(file || true)} />
     </section>
-    {settings && <BankSettingsDrawer bank={bank} initialTab={settings} onClose={() => setSettings(undefined)} onSaved={() => setSettings(undefined)} />}
+    {settings && <BankSettingsDrawer bank={bank} onClose={() => setSettings(false)} onSaved={() => setSettings(false)} />}
     {importing && <ImportQuestionsModal initialFile={importing === true ? undefined : importing} bank={bank} chapters={chapterRows} onClose={() => setImporting(false)} onImported={refresh} />}
     {publishing && <PublicationModal bank={bank} onFix={target => {
       setPublishing(false)

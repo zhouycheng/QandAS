@@ -16,7 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 @Service
 @Transactional
 class ContentService(private val banks: QuestionBankMapper,private val chapters: ChapterMapper,private val questions: QuestionMapper,
-                     private val revisions: QuestionRevisionMapper,private val categories: BankCategoryMapper,private val files: FileAssetMapper,
+                     private val revisions: QuestionRevisionMapper,private val files: FileAssetMapper,
                      private val accounts: AccountDirectory,private val directory: CatalogDirectory,
                      private val sql: ContentQueries,private val access: ContentAccess,private val json: ObjectMapper,private val imageFiles: qanda.backend.platform.files.FileService,private val reader: QuestionReader,private val cache: ContentCache) {
     fun bankViewsByIds(ids: List<UUID>): List<BankView> = if(ids.isEmpty()) emptyList() else bankViews(banks.selectByIds(ids),false)
@@ -47,30 +47,30 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus,filter,quality),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus,filter,quality),p.page,p.pageSize)
     }
     fun bank(actor: Actor?,id: UUID)=bankView(access.bank(actor,id),actor?.kind=="ADMIN")
+    fun deleteBank(actor: Actor, id: UUID, expectedVersion: Long): MutationResult {
+        val bank = access.bank(actor, id, true)
+        requireVersion(expectedVersion, bank.version)
+        bank.updatedAt = Instant.now()
+        bank.deletedAt = bank.updatedAt
+        bank.status = "INACTIVE"
+        bank.version++
+        bank.contentVersion++
+        banks.updateById(bank)
+        return MutationResult(id, bank.version)
+    }
     fun saveBank(actor: Actor,id: UUID?,input: BankInput): MutationResult {
         val row=id?.let { access.bank(actor,it,true) } ?: QuestionBank().apply { this.id=UUID.randomUUID();createdBy=actor.id;subjectId=input.subjectId }
         if(id!=null) { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version);if(row.subjectId!=input.subjectId) invalid("/subjectId","IMMUTABLE_PARENT","题库所属课程不可变更") }
         if(directory.subject(input.subjectId)==null) invalid("/subjectId")
-        if(input.categories.size>100) invalid("/categories")
-        val normalized=input.categories.map { normalizeCategory(it) }
-        if(normalized.distinct().size!=normalized.size) invalid("/categories")
         input.maintainerIds?.let { ids ->
             if(ids.size>100 || ids.distinct().size!=ids.size) invalid("/maintainerIds")
             ids.forEach { if(!accounts.activeAdmin(it)) invalid("/maintainerIds") }
         }
         row.name=name(input.name);row.description=text(input.description,2000);row.textbook=text(input.textbook,500);row.status=activeStatus(input.status);row.updatedAt=Instant.now()
         if(id==null) banks.insert(row) else { row.version++;banks.updateById(row) }
-        sql.clearCategories(row.id!!);normalized.forEach { categories.insert(BankCategory().apply { this.id=UUID.randomUUID();bankId=row.id;collegeId=it.collegeId;majorId=it.majorId;grade=it.grade }) }
         if(input.maintainerIds!=null) { sql.clearMaintainers(row.id!!);input.maintainerIds.forEach { sql.addMaintainer(row.id!!,it) } }
         if(row.publicationStatus=="PUBLISHED" && row.status=="ACTIVE") validatePublication(row)
         return MutationResult(row.id!!,row.version)
-    }
-    private fun normalizeCategory(input: CategoryInput): CategoryInput {
-        val major=input.majorId?.let { directory.major(it) ?: invalid("/categories/majorId") }
-        if(major!=null && input.collegeId!=null && major.collegeId!=input.collegeId) invalid("/categories/collegeId")
-        if(input.collegeId!=null && directory.college(input.collegeId)==null || major==null && input.collegeId==null && input.grade==null) invalid("/categories")
-        if(input.grade!=null && input.grade !in 1..5) invalid("/categories/grade")
-        return input.copy(collegeId=if(major==null) input.collegeId else null)
     }
     fun chapters(actor: Actor?,bankId: UUID): List<ChapterView> {
         access.bank(actor,bankId)

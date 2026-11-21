@@ -24,6 +24,15 @@ async function main() {
     setData(patch) { Object.assign(this.data, patch) },
     getTabBar: () => ({ setSelected: route => { selected = route } })
   })
+  const recentPage = Object.assign({}, page, { data: { ...page.data }, viewModel: {
+    storage, repository: { getAuth: () => ({ loggedIn: true, token: 'a' }), getRemoteRecent: () => [],
+      refreshRemote: async () => ({ items: [] }) }
+  } })
+  await recentPage.refreshRecentVisibility()
+  assert.equal(recentPage.data.hasRecentPractice, false)
+  recentPage.viewModel.repository.refreshRemote = async () => ({ items: [{ id: 'session' }] })
+  await recentPage.refreshRecentVisibility()
+  assert.equal(recentPage.data.hasRecentPractice, true)
   const opened = []
   let searched = ''
   page.viewModel = {
@@ -68,6 +77,15 @@ async function main() {
   page.data.filterColleges = [{ id: '', name: '全部学院' }, { id: 'b', name: '学院乙' }]
   await page.handleCollegeFilter({ detail: { value: '1' } })
   assert.deepEqual(filters.read(storage), { collegeId: 'b', majorId: '', grade: 2 })
+  assert.equal(page.data.filterColleges[page.data.filterCollegeIndex].name, '学院乙')
+  assert.equal(page.data.filterGradeIndex, 2)
+  api.getAll = async () => ({ ok: false, reason: '网络不可用' })
+  await bankDefinition.loadFilters.call(page)
+  assert.equal(page.data.filterColleges[page.data.filterCollegeIndex].id, 'b')
+  assert.match(page.data.filterError, /网络不可用/)
+  api.getAll = async path => ({ ok: true, data: path === '/colleges' ? [{ id: 'b', name: '学院乙' }] : [] })
+  await bankDefinition.loadFilters.call(page)
+  assert.equal(page.data.filterError, '')
   assert.equal(searched, '原关键词', '切筛选后重查当前搜索')
   assert.equal(page.routeBankId, '')
   assert.equal(page.data.searchLoading, false)
@@ -96,7 +114,8 @@ async function main() {
   assert.equal((bankMarkup.match(/<picker class="catalog-picker"/g) || []).length, 3)
   assert(!homeMarkup.includes('catalog-filters'))
   assert(!bankMarkup.includes('<page-header'))
-  assert(bankMarkup.includes('class="rail"') && bankMarkup.includes('class="panel"'))
+  assert(bankMarkup.includes('class="rail" wx:if="{{hasRecentPractice || subjects.length}}"'), '左栏仅在有最近练习或科目时占位')
+  assert(bankMarkup.includes('class="panel"'))
   const idle = new SubjectListViewModel({ storage }).openBank().command
   assert.equal(idle.type, 'switchTab')
   console.log('题库导航与筛选通过：原底栏定位、分享章节、一次消费、筛选搜索、迟到响应及首页入口')

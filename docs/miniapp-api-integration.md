@@ -1,6 +1,6 @@
 # 接口接入台账
 
-合同版本为 **1.0.0**，当前包含 **144 项操作**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
+合同版本为 **1.0.0**。路径、参数及响应以 [OpenAPI](../apps/api/contracts/openapi.yaml) 为准；[Postman](../apps/api/postman/QandA.postman_collection.json) 提供请求模板，凭据变量由使用者填写。
 
 ## 调用与身份
 
@@ -79,6 +79,7 @@
 | --- | --- | --- |
 | `GET /api/v1/admin/question-banks` | `Content_adminBanks_GET` | 管理员会话 |
 | `POST /api/v1/admin/question-banks` | `Content_createBank_POST` | 管理员会话 |
+| `DELETE /api/v1/admin/question-banks/{id}` | `Content_deleteBank_DELETE` | 管理员会话 |
 | `DELETE /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_deleteChapter_DELETE` | 管理员会话 |
 | `PUT /api/v1/admin/question-banks/{bankId}/chapters/{id}` | `Content_updateChapter_PUT` | 管理员会话 |
 | `GET /api/v1/admin/question-banks/{id}` | `Content_adminBank_GET` | 管理员会话 |

@@ -68,7 +68,7 @@ class ExcelService(private val jdbc: JdbcTemplate,private val json: ObjectMapper
                     } else {
                         val subject=resolveSubject(doc,t,false)
                         require(t.subjectId!=null || t.createSubject || subject!=null) { "请选择已有课程，或确认创建课程" }
-                        if(subject!=null) require(jdbc.queryForObject("SELECT count(*) FROM question_bank WHERE subject_id=? AND name=?",Int::class.java,subject,doc.path("bank").path("name").asText())==0) { "该课程已有同名题库，请选择追加目标题库" }
+                        if(subject!=null) require(jdbc.queryForObject("SELECT count(*) FROM question_bank WHERE subject_id=? AND name=? AND deleted_at IS NULL",Int::class.java,subject,doc.path("bank").path("name").asText())==0) { "该课程已有同名题库，请选择追加目标题库" }
                     }
                     val chapters=doc.path("chapters").map { it.path("id").asText() }
                     require(chapters.distinct().size==chapters.size && chapters.all { it.isNotBlank() }) { "章节编号为空或重复" }

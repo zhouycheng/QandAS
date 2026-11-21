@@ -92,13 +92,25 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
         if(input.feedback !in setOf("IMMEDIATE","AFTER_FINISH")) invalid("/feedback")
         val chosen=selections.choose(actor.id,input.scope,banks)
         if(chosen.isEmpty()) invalid("/scope/count","INSUFFICIENT_QUESTIONS","请增加题量以容纳完整题组")
-        val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
+        val session=PracticeSession().apply { id=UUID.randomUUID();userId=actor.id;bankId=bank.id;bankName=bank.name;selectionKind=input.scope.selectionKind;questionOrder=input.scope.order;feedback=input.feedback;createdAt=clock.instant();updatedAt=createdAt }
         session.configurationSnapshot=json.writeValueAsString(PracticeConfiguration(input.scope.chapterIds,chosen.size,input.scope.order,input.scope.selectionKind,input.feedback,bank.contentVersion,chosen.map { it.id!! },input.scope.collectionChip,input.mode,input.timeLimitSeconds,banks.map { it.id },banks.associate { it.id to it.contentVersion }))
         session.writerDeviceId=input.deviceId;session.writerToken=UUID.randomUUID()
         rows.insert(session)
         ownership.create(session.id!!,writeState(session))
         val pinned=content.revisions(chosen.map { RevisionReference(it.id!!) },true)
-        val issued=chosen.mapIndexed { i,q -> PracticeItem().apply { id=UUID.randomUUID();sessionId=session.id;questionId=q.id;revisionId=q.currentRevisionId;materialRevisionId=pinned[i].material?.revisionId;position=i } }
+        val issued = pinned.mapIndexed { index, question ->
+            PracticeItem().apply {
+                id = UUID.randomUUID()
+                sessionId = session.id
+                questionId = question.id
+                revisionId = question.revisionId
+                materialRevisionId = question.material?.revisionId
+                issuedChapterId = question.chapterId
+                issuedStatus = question.status
+                issuedVersion = question.version
+                position = index
+            }
+        }
         sql.insertItems(issued)
         activity.record(actor.id)
         return view(session,input.deviceId,true,issued,pinned)
@@ -126,7 +138,8 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
                       full: List<QuestionView> = content.revisions(items.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true),
                       choices: Map<UUID?,List<PracticeChoiceRow>> = if(items.isEmpty()) emptyMap() else sql.batchChoices(items.map { it.id!! }).groupBy { it.itemId }): List<PracticeItemView> {
         val configuration=json.readValue(session.configurationSnapshot,PracticeConfiguration::class.java)
-        return items.zip(full).map { (item,revision) ->
+        return items.zip(full).map { (item,question) ->
+            val revision = question.copy(chapterId=item.issuedChapterId, status=item.issuedStatus, version=item.issuedVersion)
             val reveal=session.status=="SUBMITTED" || configuration.mode=="view" || session.feedback=="IMMEDIATE" && item.confirmed && revision.type!="SHORT_ANSWER"
             PracticeItemView(item.id!!,item.position,if(reveal) revision else display(revision),answer(item,choices[item.id].orEmpty().map { it.optionKey }),item.confirmed,item.marked,item.outcome.takeIf { reveal },item.selfAssessment.takeIf { reveal })
         }
@@ -137,8 +150,9 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
                      full: List<QuestionView> = content.revisions(issued.map { RevisionReference(it.questionId!!,it.revisionId,it.materialRevisionId) },true)): PracticeView {
         val grading=if(offline) issued.zip(full).map { (item,q) -> grading(item.id!!,q) } else null
         val items=views(row,issued,full)
+        val config=json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java)
         return PracticeView(row.id!!,row.bankId!!,row.status,row.version,row.currentIndex,row.durationSeconds,row.feedback,items,row.createdAt,
-            json.readValue(row.configurationSnapshot,PracticeConfiguration::class.java),grading,writerView(row,deviceId),content.favorites(row.userId!!,items.map { it.question.id }))
+            config,grading,writerView(row,deviceId),content.favorites(row.userId!!,items.map { it.question.id }),config.title(row.bankName))
     }
     fun read(userId: UUID,id: UUID): PracticeView = view(owned(userId,id))
     fun version(userId: UUID,id: UUID)=owned(userId,id).version
@@ -285,6 +299,6 @@ class PracticeService(private val rows: PracticeSessionMapper,private val result
     }
     fun history(userId: UUID,p: PageSpec,deviceId: UUID?): Page<PracticeSummary> = Page(sql.history(userId,deviceId,p.offset,p.pageSize).map {
         val config=json.readValue(it.configurationSnapshot,PracticeConfiguration::class.java)
-        PracticeSummary(it.id!!,it.bankId!!,it.status,it.version,it.durationSeconds,it.createdAt,it.submittedAt,it.writerDeviceId,it.finishSequence!=null,config.count,config.mode,it.bankName)
+        PracticeSummary(it.id!!,it.bankId!!,it.status,it.version,it.durationSeconds,it.createdAt,it.submittedAt,it.writerDeviceId,it.finishSequence!=null,config.count,config.mode,config.title(it.bankName))
     },sql.historyCount(userId,deviceId),p.page,p.pageSize)
 }

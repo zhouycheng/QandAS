@@ -134,6 +134,7 @@ export class HttpAdminContentGateway implements AdminContentGateway {
   async dissolveChapter(chapter: Chapter, expectedContentVersion: number, targetChapterId?: string) {
     await this.write('POST', `/admin/question-banks/${segment(chapter.questionBankId)}/chapters/${segment(chapter.id)}/dissolve`, { expectedContentVersion, expectedVersion: chapter.version, targetChapterId })
   }
+  async deleteQuestionBank(id: string, expectedVersion: number) { await this.write('DELETE', `/admin/question-banks/${segment(id)}`, undefined, { expectedVersion }) }
   async deleteChapter(chapter: Chapter) { await this.write('DELETE', `/admin/question-banks/${segment(chapter.questionBankId)}/chapters/${segment(chapter.id)}`, undefined, { expectedVersion: chapter.version }) }
   async reorderChapters(id: string, ids: string[], expectedContentVersion: number) { await this.write('PUT', `/admin/question-banks/${segment(id)}/chapter-order`, { ids, expectedContentVersion }) }
   async listQuestions(query: QuestionQuery & { questionBankId: string }) {

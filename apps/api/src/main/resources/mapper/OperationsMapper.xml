@@ -26,12 +26,12 @@
   <sql id="requestFilter"><where><if test="userId != null">user_id=#{userId} </if><choose><when test="status == 'PENDING'">AND status IN ('OPEN','IN_PROGRESS')</when><when test="status != null">AND status=#{status}</when></choose></where></sql>
   <select id="requests" resultType="qanda.backend.operations.CourseRequest">SELECT * FROM course_request <include refid="requestFilter"/> ORDER BY <choose><when test="userId != null">updated_at</when><otherwise>created_at</otherwise></choose> DESC,id LIMIT #{limit} OFFSET #{offset}</select>
   <select id="requestCount" resultType="long">SELECT count(*) FROM course_request <include refid="requestFilter"/></select>
-  <select id="dashboard" resultType="qanda.backend.operations.DashboardRow">SELECT (SELECT count(*) FROM college) college_count,(SELECT count(*) FROM subject) subject_count,(SELECT count(*) FROM question_bank) question_bank_count,(SELECT count(*) FROM bank_question WHERE NOT is_group) question_count,(SELECT count(*) FROM user_account WHERE account_in_statistics(id)) user_count,(SELECT coalesce(sum(r.answered_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE account_in_statistics(s.user_id)) answered_count,(SELECT count(*) FROM question_feedback WHERE status IN ('OPEN','IN_PROGRESS')) pending_feedback_count,
+  <select id="dashboard" resultType="qanda.backend.operations.DashboardRow">SELECT (SELECT count(*) FROM college) college_count,(SELECT count(*) FROM subject) subject_count,(SELECT count(*) FROM question_bank WHERE deleted_at IS NULL) question_bank_count,(SELECT count(*) FROM bank_question WHERE bank_id IN (SELECT id FROM question_bank WHERE deleted_at IS NULL) AND NOT is_group) question_count,(SELECT count(*) FROM user_account WHERE account_in_statistics(id)) user_count,(SELECT coalesce(sum(r.answered_count),0) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE account_in_statistics(s.user_id)) answered_count,(SELECT count(*) FROM question_feedback WHERE status IN ('OPEN','IN_PROGRESS')) pending_feedback_count,
     (SELECT count(*) FROM course_request WHERE status IN ('OPEN','IN_PROGRESS')) pending_course_request_count,
-    (SELECT count(*) FROM question_bank WHERE publication_status='PUBLISHED') published_bank_count,
-    (SELECT count(*) FROM question_bank WHERE publication_status='DRAFT') draft_bank_count,
-    (SELECT count(*) FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE NOT q.is_group AND q.id IN (SELECT id FROM active_question) AND btrim(r.explanation)='') missing_explanation_count,
-    (SELECT count(*) FROM bank_question WHERE NOT is_group AND chapter_id IS NULL) unassigned_question_count,
-    (SELECT count(*) FROM question_bank b WHERE NOT EXISTS(SELECT 1 FROM bank_question q WHERE q.bank_id=b.id AND NOT q.is_group)) empty_bank_count
+    (SELECT count(*) FROM question_bank WHERE deleted_at IS NULL AND publication_status='PUBLISHED') published_bank_count,
+    (SELECT count(*) FROM question_bank WHERE deleted_at IS NULL AND publication_status='DRAFT') draft_bank_count,
+    (SELECT count(*) FROM question q JOIN question_revision r ON r.id=q.current_revision_id WHERE q.bank_id IN (SELECT id FROM question_bank WHERE deleted_at IS NULL) AND NOT q.is_group AND q.id IN (SELECT id FROM active_question) AND btrim(r.explanation)='') missing_explanation_count,
+    (SELECT count(*) FROM bank_question WHERE bank_id IN (SELECT id FROM question_bank WHERE deleted_at IS NULL) AND NOT is_group AND chapter_id IS NULL) unassigned_question_count,
+    (SELECT count(*) FROM question_bank b WHERE b.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM bank_question q WHERE q.bank_id=b.id AND NOT q.is_group)) empty_bank_count
   </select>
 </mapper>

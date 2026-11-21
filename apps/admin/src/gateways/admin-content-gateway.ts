@@ -24,6 +24,7 @@ export interface AdminContentGateway {
   listChapters(questionBankId: string): Promise<Chapter[]>
   saveChapter(id: string | undefined, input: Pick<Chapter, 'questionBankId' | 'name' | 'sortOrder'> & { expectedVersion?: number }): Promise<Chapter>
   dissolveChapter(chapter: Chapter, expectedContentVersion: number, targetChapterId?: string): Promise<void>
+  deleteQuestionBank(id: string, expectedVersion: number): Promise<void>
   deleteChapter(chapter: Chapter): Promise<void>
   reorderChapters(questionBankId: string, ids: string[], expectedContentVersion: number): Promise<void>
   setBankPublication(id: string, status: BankPublicationStatus, expectedVersion: number): Promise<QuestionBank>

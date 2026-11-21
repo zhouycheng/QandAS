@@ -127,6 +127,8 @@ services:
     ports: ["127.0.0.1:${BACKEND_DB_PORT:-56432}:5432"]
     volumes:
       - backend_pg:/var/lib/postgresql/data
+      - ./src/main/resources/db/bank-deletion.sql:/docker-entrypoint-initdb.d/006-bank-deletion.sql:ro
+      - ./src/main/resources/db/subject-category.sql:/docker-entrypoint-initdb.d/007-subject-category.sql:ro
       - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
       - ./src/main/resources/db/user-settings.sql:/docker-entrypoint-initdb.d/002-user-settings.sql:ro
       - ./src/main/resources/db/practice-writer.sql:/docker-entrypoint-initdb.d/003-practice-writer.sql:ro

@@ -358,9 +358,20 @@ class SyncPostgresTest : PostgresFixture() {
         val originalDevice=jdbc.queryForObject("SELECT device_id FROM user_session WHERE id=?",UUID::class.java,sessionService.authenticate(s.token).sessionId)!!
         val newDevice=UUID.randomUUID();val newToken=loginDevice(s,newDevice)
         builder.environment().putAll(mapOf("QANDA_TEST_DEVICE_ID" to originalDevice.toString(),"QANDA_TEST_OTHER_DEVICE_ID" to newDevice.toString(),"QANDA_TEST_OTHER_TOKEN" to newToken,"QANDA_TEST_URL" to "http://127.0.0.1:$port","QANDA_TEST_TOKEN" to s.token,"QANDA_TEST_BANK_ID" to f.bank.toString(),"QANDA_TEST_USER_ID" to s.id.toString()))
+        builder.environment()["QANDA_TEST_ADMIN_TOKEN"]=adminToken
+        val published="rabbitmq_detailed_queue_exchange_messages_published_total"
+        val acknowledged="rabbitmq_detailed_queue_messages_acked_total"
+        val publishedBefore=queueCounter(published)
+        val ackBefore=queueCounter(acknowledged)
         val process=builder.start()
-        if(!process.waitFor(90,java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly();fail<Unit>("小程序真实HTTP验收超时") }
-        assertEquals(0,process.exitValue(),Files.readString(report));assertTrue(json.readTree(Files.readString(report))["passed"].asBoolean())
+        if(!process.waitFor(150,java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly();fail<Unit>("小程序真实HTTP验收超时") }
+        assertEquals(0,process.exitValue(),Files.readString(report))
+        val evidence=json.readTree(Files.readString(report))
+        assertTrue(evidence["passed"].asBoolean())
+        val id=UUID.fromString(evidence["offlineSessionId"].asText())
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM practice_result WHERE session_id=?",Int::class.java,id))
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM sync_command WHERE session_id=? AND kind='FINISH' AND state='COMMITTED'",Int::class.java,id))
+        eventually { queueCounter(published) >= publishedBefore+2 && queueCounter(acknowledged) >= ackBefore+2 }
     }
 
     @Test fun `OpenAPI contains current typed endpoints and version one`() {

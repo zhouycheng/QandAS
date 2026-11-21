@@ -11,11 +11,12 @@ let enabled = false
 let owner = ''
 let sessionToken = ''
 let scope = ''
+let catalogGeneration = 0
 let activeStorage = null
 let overviewBase = null
-function empty() { return { subjects: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, feedbackSummary: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
+function empty() { return { subjects: [], catalogSubjectIds: [], subjectTotal: 0, banks: [], chapters: {}, questions: {}, questionRevisions: {}, collectionPages: {}, favorites: [], wrong: [], mastered: [], recent: [], history: [], days: [], statistics: null, periodStatistics: {}, overview: null, profile: null, feedbackSummary: null, colleges: [], majors: [], announcements: [], announcementIndex: [], announcementPreview: null, announcementTotal: 0, recommendations: [], recommendationPage: 0, recommendationTotal: 0 } }
 const state = observable.object(empty(), { questions: false }, { deep: false })
-function reset() { overviewBase = null; cache.clear(); runInAction(() => Object.assign(state, empty())) }
+function reset() { catalogGeneration++; overviewBase = null; cache.clear(); runInAction(() => Object.assign(state, empty())) }
 function enable(value) { enabled = value !== false; owner = ''; sessionToken = ''; scope = ''; activeStorage = null; reset() }
 function isEnabled() { return enabled }
 function bind(storage) {
@@ -74,6 +75,8 @@ function refreshSubjects(storage, options) {
   const query = Object.assign({ page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(storage))
   return resource(storage, 'subjects', query, TTL.catalog, '/subjects', data => {
     state.subjects = query.page === 1 ? data.items : mergeById(state.subjects, data.items); state.subjectTotal = data.total
+    const ids = data.items.map(subject => subject.id)
+    state.catalogSubjectIds = query.page === 1 ? ids : [...new Set(state.catalogSubjectIds.concat(ids))]
   }, options && options.force)
 }
 function bankQuery(options) { return Object.assign({ subjectId: options && options.subjectId || undefined, keyword: options && options.keyword || undefined, page: options && options.page || 1, pageSize: 20, includeProgress: owner ? true : undefined }, catalogFilters.query(activeStorage)) }
@@ -87,16 +90,21 @@ function refreshBanks(storage, options) {
 }
 async function refreshCatalog(storage, options) {
   const settings = options || {}
+  bind(storage)
+  const generation = catalogGeneration
   if (settings.force) ['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:'].forEach(cache.invalidate)
   await refreshSubjects(storage, { force: settings.force })
-  for (let page = 2; page <= (settings.subjectPage || 1); page++) await refreshSubjects(storage, { page, force: settings.force })
-  if (settings.subjectId && !state.subjects.some(subject => subject.id === settings.subjectId)) {
-    try { await loadSubject(storage, settings.subjectId, settings) }
-    catch (error) { if (error.statusCode !== 404) throw error }
+  for (let page = 2; generation === catalogGeneration && page <= (settings.subjectPage || 1); page++) await refreshSubjects(storage, { page, force: settings.force })
+  if (generation !== catalogGeneration) return
+  if (settings.subjectId && !state.catalogSubjectIds.includes(settings.subjectId)) {
+    try {
+      const extra = await loadSubject(storage, settings.subjectId, Object.assign({}, settings, { filtered: true }))
+      if (extra && generation === catalogGeneration) runInAction(() => { state.catalogSubjectIds = [...new Set(state.catalogSubjectIds.concat(extra.id))] })
+    } catch (error) { if (error.statusCode !== 404) throw error }
   }
-  const subjectId = state.subjects.some(subject => subject.id === settings.subjectId) ? settings.subjectId : (state.subjects[0] || {}).id
+  const subjectId = state.catalogSubjectIds.includes(settings.subjectId) ? settings.subjectId : state.catalogSubjectIds[0]
   if (subjectId || settings.keyword) {
-    for (let page = settings.force ? 1 : (settings.page || 1); page <= (settings.page || 1); page++) await refreshBanks(storage, Object.assign({}, settings, { page, subjectId: settings.keyword ? undefined : subjectId }))
+    for (let page = settings.force ? 1 : (settings.page || 1); generation === catalogGeneration && page <= (settings.page || 1); page++) await refreshBanks(storage, Object.assign({}, settings, { page, subjectId: settings.keyword ? undefined : subjectId }))
   }
   return null
 }
@@ -108,13 +116,10 @@ function loadSubject(storage, id, options) {
     runInAction(() => { state.subjects = mergeById(state.subjects, [listedSubject]) })
     return Promise.resolve(listedSubject)
   }
-  const expectedOwner = owner, expectedScope = scope
-  return resource(storage, 'subject:' + id, { includeProgress: owner ? true : undefined }, TTL.catalog, '/subjects/' + encodeURIComponent(id), data => {
+  const query = Object.assign({ includeProgress: owner ? true : undefined }, options && options.filtered ? catalogFilters.query(storage) : {})
+  return resource(storage, 'subject:' + id, query, TTL.catalog, '/subjects/' + encodeURIComponent(id), data => {
     state.subjects = mergeById(state.subjects, [data])
-  }, options && options.force).then(data => {
-    if (data && expectedOwner === owner && expectedScope === scope) runInAction(() => { state.subjects = mergeById(state.subjects, [data]) })
-    return data
-  })
+  }, options && options.force)
 }
 function loadBank(storage, id, options) {
   return resource(storage, 'bank:' + id, {}, TTL.catalog, '/question-banks/' + encodeURIComponent(id), data => {
@@ -448,8 +453,9 @@ module.exports.getRecommendations = getRecommendations
 Object.assign(module.exports, { getRecommendationPage, refreshRecommendations })
 function invalidateCatalogFilters(next) {
   if (!next) return null
+  catalogGeneration++
   ;['subjects:', 'subject:', 'banks:', 'bank:', 'chapters:', 'recommendations:'].forEach(cache.invalidate)
-  runInAction(() => { state.subjects = []; state.banks = []; state.chapters = {}; state.recommendations = []; state.recommendationPage = 0; state.recommendationTotal = 0 })
+  runInAction(() => { state.subjects = []; state.catalogSubjectIds = []; state.banks = []; state.chapters = {}; state.recommendations = []; state.recommendationPage = 0; state.recommendationTotal = 0 })
   api.cancelReads()
   return next
 }
@@ -465,3 +471,5 @@ Object.assign(module.exports, { refreshFeedbackSummary, getFeedbackSummary, inva
 module.exports.releaseQuestion = function (id) {
   for (const q of Object.values(state.questionRevisions)) if (q.id === id) { require('./answer-vault.js').release([q]); q.complete = false }
 }
+
+module.exports.getCatalogSubjects = () => getSubjectSummaries().filter(subject => state.catalogSubjectIds.includes(subject.id))

@@ -13,6 +13,7 @@ class ContentAccess(private val sql: ContentQueries,private val banks: QuestionB
         }
         if(actor.kind!="ADMIN" || actor.role!="SUPER_ADMIN") forbidden()
         val bank=(if(write) sql.lockBank(id) else banks.selectById(id)) ?: missing()
+        if (bank.deletedAt != null) missing()
         return bank
     }
 }

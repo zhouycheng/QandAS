@@ -17,7 +17,7 @@ export function audienceGroups(categories: BankCategory[], directory: AudienceDi
     const collegeId = audience.collegeId ?? directory.majors.find((m) => m.id === audience.majorId)?.collegeId
     const key = `${collegeId ?? ''}/${audience.majorId ?? ''}`
     const group = grouped.get(key) ?? { id: key, collegeId, majorId: audience.majorId, grades: [] }
-    if (audience.grade === undefined) { unlimited.add(key); group.grades = [] }
+    if (audience.grade == null) { unlimited.add(key); group.grades = [] }
     else if (!unlimited.has(key)) group.grades = [...new Set([...group.grades, audience.grade])]
     grouped.set(key, group)
   }
@@ -34,7 +34,7 @@ export function groupsToCategories(groups: ScopeGroup[]): BankCategory[] {
 
 export function getScopeError(categories: BankCategory[], directory: AudienceDirectory) {
   for (const audience of categories) {
-    if (!audience.collegeId && !audience.majorId && audience.grade === undefined)
+    if (!audience.collegeId && !audience.majorId && audience.grade == null)
       return '每条展示条件至少填写一个条件。'
     if (audience.collegeId && !directory.colleges.some((c) => c.id === audience.collegeId))
       return '展示学院不存在，请重新选择。'
@@ -46,7 +46,7 @@ export function getScopeError(categories: BankCategory[], directory: AudienceDir
 }
 
 export function scopeLabels(bank: Pick<QuestionBank, 'categories'>, directory: AudienceDirectory) {
-  if (!bank.categories.length) return ['通用题库']
+  if (!bank.categories.length) return ['通用']
   return bank.categories.map((audience) => {
     const major = directory.majors.find((m) => m.id === audience.majorId)
     const college = directory.colleges.find((c) => c.id === (audience.collegeId ?? major?.collegeId))

@@ -11,6 +11,7 @@ class QuestionBank {
     var subjectId: UUID? = null
     var name: String = ""
     var description: String = ""
+    var deletedAt: Instant? = null
     var textbook: String = ""
     var status: String = "ACTIVE"
     var publicationStatus: String = "DRAFT"
