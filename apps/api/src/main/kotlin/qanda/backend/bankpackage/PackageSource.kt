@@ -17,26 +17,8 @@ internal fun packageSource(json: ObjectMapper,row: JsonNode,sources: JsonNode): 
     val allowed=setOf("stem","explanation","options","correctAnswer","correctValue","blanks","referenceAnswer","scoringPoints","passage")
     if(!fields.isArray || fields.map { it.asText() }.distinct().size!=fields.size() || fields.any { it.asText() !in allowed } ||
         !ai.path("note").isTextual || !fields.isEmpty && ai.path("note").asText().isBlank()) invalid("/provenance/ai")
-    if(fields.any { it.asText()=="explanation" } && row.path("type").asText()!="READING") {
-        val titles=listOf("结论","核心知识点","解题过程","记忆方法","易错题型")
-        val found=mutableListOf<String>()
-        var fence=""
-        var hasBody=true
-        for(raw in row.path("explanation").asText().lineSequence()) {
-            val line=raw.trim()
-            val marker=Regex("^(`{3,}|~{3,})").find(line)?.value
-            if(marker!=null) {
-                if(fence.isEmpty()) fence=marker else if(marker.startsWith(fence)) fence=""
-                continue
-            }
-            val title=if(row.path("contentFormat").asText()=="MARKDOWN") Regex("^#{1,6}\\s+(.+)$").matchEntire(line)?.groupValues?.get(1) else line.trimEnd('：',':')
-            if(fence.isEmpty() && title in titles) {
-                if(!hasBody) invalid("/explanation",message="教学解析标题下需要填写内容")
-                found.add(title!!);hasBody=false
-            } else if(line.isNotBlank()) hasBody=true
-        }
-        if(found!=titles || !hasBody) invalid("/explanation",message="教学解析需要五个有内容且顺序正确的标题")
-    }
+    if (fields.any { it.asText() == "explanation" } && row.path("explanation").textValue().isNullOrBlank())
+        invalid("/explanation", message="AI 补写的解析需要填写正文")
     val metadata=sourceReferences(json,refs,sources)
     provenance.set<JsonNode>("sourceRefs",metadata["sourceRefs"])
     return json.valueToTree(mapOf("provenance" to provenance,"sources" to metadata["sources"]))

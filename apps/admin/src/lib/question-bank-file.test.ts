@@ -72,11 +72,19 @@ describe('portable question bank v1.0', () => {
     ['option type', (d: any) => { d.questions[0].options[0].content = 2 }, '.options[0].content'],
     ['answer', (d: any) => { d.questions[0].correctAnswer = ['Z'] }, '正确答案'],
     ['blank marker', (d: any) => { d.questions[3].stem = '{{2}}' }, '空位标记'],
-    ['AI explanation', (d: any) => { d.questions[0].explanation = '答案 A' }, '.explanation'],
+    ['AI explanation', (d: any) => { d.questions[0].explanation = '   ' }, '.explanation'],
     ['nested reading', (d: any) => { d.questions[5].subQuestions[0] = structuredClone(d.questions[5]) }, '.subQuestions[0].type'],
     ['typo', (d: any) => { d.questions[0].explnation = 'typo' }, '.explnation'],
   ])('locates invalid %s', (_name, mutate, error) => {
     const doc = document(); mutate(doc); expect(() => parse(doc)).toThrow(error)
+  })
+  it('checks AI explanations in ZIP reading children and preserves their text', () => {
+    const doc = document()
+    const child = doc.questions[5].subQuestions![0]
+    const read = () => parseImportFile(JSON.stringify(doc), 'bank', true)
+    expect(read().document?.questions[5].subQuestions?.[0].explanation).toBe(child.explanation)
+    child.explanation = '   '
+    expect(read).toThrow('subQuestions[0].explanation')
   })
   it('enforces 3000 actual items and the byte boundary while retaining simple input', () => {
     const doc = document()

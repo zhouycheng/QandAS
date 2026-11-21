@@ -1,10 +1,9 @@
-import { inlineImageIds, validateTeachingSections } from '@qanda/content-format'
+import { inlineImageIds } from '@qanda/content-format'
 import type { CreateQuestionInput } from '../types/admin'
 import { parseQuestionFile } from './content-rules'
 
 export const IMPORT_FORMAT = 'qanda-question-bank'
 export const IMPORT_VERSION = '1.0'
-export const TEACHING_SECTIONS = ['结论', '核心知识点', '解题过程', '记忆方法', '易错题型']
 export interface SourceRef { sourceId: string; location: string }
 export interface Provenance {
   origin: 'extracted' | 'authored'
@@ -119,14 +118,12 @@ export function parseImportFile(input: string, bankId: string, zip = false): Par
       if (new Set(aiFields).size !== aiFields.length || aiFields.some(field => !['stem', 'explanation', 'options', 'correctAnswer', 'correctValue', 'blanks', 'referenceAnswer', 'scoringPoints', 'passage'].includes(String(field)))) fail(`${p}.provenance.ai.fields`, 'AI 字段无效或重复')
       text(ai.note, `${p}.provenance.ai.note`, 2000, !aiFields.length)
     }
+    const aiExplanation = aiFields.includes('explanation')
     if (type === 'READING') {
-      if (q.explanation !== undefined) text(q.explanation, `${p}.explanation`, 10000, true)
+      if (aiExplanation || q.explanation !== undefined) text(q.explanation, `${p}.explanation`, 10000, !aiExplanation)
       array(q.subQuestions, `${p}.subQuestions`, 1).forEach((sub, i) => check(sub, `${p}.subQuestions[${i}]`, true))
     } else {
-      const explanation = text(q.explanation, `${p}.explanation`, 10000, zip)
-      if (aiFields.includes('explanation')) {
-        if (!validateTeachingSections(explanation, String(q.contentFormat || 'PLAIN_TEXT'))) fail(`${p}.explanation`, 'AI 教学解析需要五个有内容的独立标题：结论、核心知识点、解题过程、记忆方法、易错题型')
-      }
+      text(q.explanation, `${p}.explanation`, 10000, zip && !aiExplanation)
     }
     if (type === 'TRUE_FALSE' && typeof q.correctValue !== 'boolean') fail(`${p}.correctValue`, '判断答案必须是布尔值')
     if (type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE') {

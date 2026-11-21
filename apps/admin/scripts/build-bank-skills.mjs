@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { zipSync } from 'fflate'
@@ -16,7 +16,18 @@ const files = {}
 for (const name of [author, operator, 'qanda-system-admin-mcp']) {
   files[name + '/SKILL.md'] = await readFile(new URL('.agents/skills/' + name + '/SKILL.md', root))
 }
+async function includeDirectory(prefix) {
+  const directory = new URL('.agents/skills/' + prefix + '/', root)
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = prefix + '/' + entry.name
+    if (entry.isDirectory()) await includeDirectory(path)
+    else if (entry.isFile() && !entry.name.startsWith('.')) files[path] = await readFile(new URL(entry.name, directory))
+  }
+}
 files[author + '/references/content.md'] = await readFile(new URL('.agents/skills/' + author + '/references/content.md', root))
+files[author + '/references/explanations.md'] = await readFile(new URL('.agents/skills/' + author + '/references/explanations.md', root))
+await includeDirectory(author + '/references/writing')
+await includeDirectory(operator + '/references')
 for (const name of ['schema.json', 'examples/six-types.json']) {
   files[author + '/' + name] = await readFile(new URL('docs/question-bank-import/' + name, root))
 }
