@@ -243,3 +243,5 @@
 
 .cell-draft { background: var(--warning-soft); border-color: var(--warning); border-style: dashed; }
 .cell-draft .cell-number { color: var(--warning); }
+
+.card-group-title { margin: 16rpx 0 12rpx; color: var(--text-main); font-size: var(--font-secondary); font-weight: 600; }

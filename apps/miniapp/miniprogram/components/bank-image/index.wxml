@@ -1,2 +1,2 @@
-<image wx:if="{{path}}" src="{{path}}" aria-label="{{alt}}" class="figure" mode="widthFix" catchtap="preview" bindload="ready" />
+<image wx:if="{{path}}" src="{{path}}" aria-label="{{alt}}" class="figure" mode="widthFix" catchtap="preview" bindload="ready" binderror="failed" />
 <text wx:elif="{{error}}" catchtap="load">{{alt}}（点击重试）</text><text wx:else>{{alt}}</text>

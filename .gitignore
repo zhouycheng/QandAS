@@ -22,3 +22,5 @@ apps/miniapp/miniprogram/runtime.local.js
 release/
 __pycache__/
 deploy/production.env
+
+/apps/miniapp/miniprogram/math/renderer.js

@@ -21,6 +21,7 @@
     "page/legal/index",
     "page/feedback/index"
   ],
+  "subPackages": [{ "root": "math", "pages": [] }],
   "window": {
     "navigationStyle": "custom",
     "navigationBarTextStyle": "black",

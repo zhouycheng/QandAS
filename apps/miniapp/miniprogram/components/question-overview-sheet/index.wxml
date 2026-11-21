@@ -40,21 +40,24 @@
     <text class="panel-sub" wx:else>点击题号快速查看</text>
 
     <scroll-view class="grid-scroll" scroll-y enhanced bounces show-scrollbar="{{false}}">
-      <view class="grid">
-        <view
-          wx:for="{{items}}"
-          wx:key="index"
-          class="cell {{item.isCurrent ? 'cell-current' : ''}} {{item.isDraft ? 'cell-draft' : (item.answered ? 'cell-answered' : 'cell-pending')}}"
-          data-index="{{item.index}}"
-          bindtap="handleItemTap"
-          hover-class="cell-hover"
-          hover-start-time="0"
-          hover-stay-time="80"
-        >
-          <text class="cell-number">{{item.number}}</text>
-          <view class="cell-mark" wx:if="{{item.isMarked}}"></view>
+      <block wx:for="{{card.groups(items)}}" wx:for-item="group" wx:key="label">
+        <view class="card-group-title">{{group.label}}</view>
+        <view class="grid">
+          <view
+            wx:for="{{group.items}}"
+            wx:key="index"
+            class="cell {{item.isCurrent ? 'cell-current' : ''}} {{item.isDraft ? 'cell-draft' : (item.answered ? 'cell-answered' : 'cell-pending')}}"
+            data-index="{{item.index}}"
+            bindtap="handleItemTap"
+            hover-class="cell-hover"
+            hover-start-time="0"
+            hover-stay-time="80"
+          >
+            <text class="cell-number">{{item.number}}</text>
+            <view class="cell-mark" wx:if="{{item.isMarked}}"></view>
+          </view>
         </view>
-      </view>
+      </block>
     </scroll-view>
 
     <!-- 按钮组三态，对应设计稿的三个答题卡面板：
@@ -120,3 +123,4 @@
 </view>
 
 </root-portal>
+<wxs module="card" src="../../templates/answer-card.wxs" />

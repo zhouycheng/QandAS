@@ -1,3 +1,4 @@
+<wxs module="card" src="../../templates/answer-card.wxs" />
 <wxs module="layoutDrag" src="../../utils/layout-drag.wxs" />
 <wxs module="analysisDrag" src="../../utils/analysis-drag.wxs" />
 <wxs module="readingDrag" src="../../utils/reading-drag.wxs" />
@@ -122,21 +123,24 @@
           <view class="res-legend-item"><view class="res-mark-dot"></view><text class="res-legend-text">标记</text></view>
         </view>
 
-        <view class="res-grid">
-          <view
-            wx:for="{{overviewItems}}"
-            wx:key="index"
-            class="res-cell {{item.answered ? (item.isShortAnswer ? 'cell-unscored' : (item.isCorrect ? 'cell-correct' : 'cell-wrong')) : 'cell-pending'}}"
-            data-index="{{item.index}}"
-            bindtap="jumpToQuestion"
-            hover-class="cell-flat-hover"
-            hover-start-time="0"
-            hover-stay-time="80"
-          >
-            <text class="res-cell-number">{{item.number}}</text>
-            <view class="res-cell-mark" wx:if="{{item.isMarked}}"></view>
+        <block wx:for="{{card.groups(overviewItems)}}" wx:for-item="group" wx:key="label">
+          <view class="card-group-title">{{group.label}}</view>
+          <view class="res-grid">
+            <view
+              wx:for="{{group.items}}"
+              wx:key="index"
+              class="res-cell {{item.answered ? (item.isShortAnswer ? 'cell-unscored' : (item.isCorrect ? 'cell-correct' : 'cell-wrong')) : 'cell-pending'}}"
+              data-index="{{item.index}}"
+              bindtap="jumpToQuestion"
+              hover-class="cell-flat-hover"
+              hover-start-time="0"
+              hover-stay-time="80"
+            >
+              <text class="res-cell-number">{{item.number}}</text>
+              <view class="res-cell-mark" wx:if="{{item.isMarked}}"></view>
+            </view>
           </view>
-        </view>
+        </block>
       </view>
 
       <view class="res-actions">

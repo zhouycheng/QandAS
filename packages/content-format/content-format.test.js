@@ -34,4 +34,26 @@ for (const language of sandbox.module.exports.LANGUAGES) {
 }
 assert(sandbox.module.exports.codeTokens('int count = 1;', 'c').some(token => token.token === 'keyword'))
 assert.equal(sandbox.Prism, undefined)
+
+const formulas = nodes => nodes.flatMap(value => value.tex ? [value.tex] : formulas(value.children || []))
+for (const format of ['MARKDOWN', 'PLAIN_TEXT']) {
+  const text = 'H_2O、x^2、$\\frac{a_i}{\\sqrt{2}}$、$$\\sum_{i=1}^n a_i$$，user_id、`x^2`、https://example.org/a_1'
+  const nodes = parseContent(text, format, true)
+  assert.deepEqual(formulas(nodes), ['H_2O', 'x^2', '\\frac{a_i}{\\sqrt{2}}', '\\sum_{i=1}^n a_i'])
+  assert.deepEqual(formulas(parseContent(text, format)), [])
+  const mixed = parseBlankContent('$x^2$ 对应 {{1}}', format, true)
+  assert.deepEqual(collectSlots(mixed), [0])
+  assert.deepEqual(formulas(mixed), ['x^2'])
+}
+assert.deepEqual(formulas(parseContent('\\$5、`$x$`、[原文](https://example.org/a_2)\n\n```js\nx^2\n```', 'MARKDOWN', true)), [])
+const { renderFormula } = require('./math-svg.js')
+for (const tex of ['H_2O', '\\frac{a_i}{\\sqrt{2}}', '\\sum_{i=1}^n a_i']) {
+  const svg = renderFormula(tex, true)
+  assert.match(svg.xml, /<path\b/)
+  assert.ok(parseFloat(svg.width) > 0 && parseFloat(svg.height) > 0)
+}
+assert.throws(() => renderFormula('\\invalidTeXcommand', false))
+
+assert.deepEqual(collectSlots(parseBlankContent('$x + {{1}}$', 'MARKDOWN', true)), [0])
+assert.deepEqual(formulas(parseContent('费用 $5、$10', 'PLAIN_TEXT', true)), [])
 console.log('content-format checks passed')

@@ -1,6 +1,6 @@
-export interface ContentNode { text?: string; tag?: string; children?: ContentNode[]; token?: string; language?: string; raw?: string; href?: string; start?: number; blankIndex?: number; assetId?: string }
-export function parseContent(source: string, format?: string): ContentNode[]
-export function parseBlankContent(source: string, format?: string): ContentNode[]
+export interface ContentNode { text?: string; tag?: string; children?: ContentNode[]; token?: string; language?: string; raw?: string; href?: string; start?: number; blankIndex?: number; assetId?: string; tex?: string; display?: boolean }
+export function parseContent(source: string, format?: string, formulas?: boolean): ContentNode[]
+export function parseBlankContent(source: string, format?: string, formulas?: boolean): ContentNode[]
 export function plainText(nodes: ContentNode[]): string
 export function inlineImageIds(strings: (string | undefined)[], format?: string): string[]
 export function codeTokens(source: string, language: string): ContentNode[]

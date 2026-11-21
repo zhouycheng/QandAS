@@ -4,9 +4,16 @@
 .code-bar { display: flex; align-items: center; justify-content: space-between; padding: 10rpx 24rpx 0; color: var(--text-sub); font-size: var(--font-caption); font-weight: 400; }
 .code-copy { margin: 0;         }
 .code-scroll { width: 100%; padding: 12rpx 24rpx 24rpx; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: inherit; font-weight: 400; line-height: 1.65; }
-.rich-fill-line { display: flex; flex-wrap: wrap; align-items: baseline; margin: 8rpx 0; line-height: 2.1; }
-.rich-inline { display: inline-block; min-width: 0; max-width: 100%; }
-.rich-blank { display: inline-block; vertical-align: baseline; width: 180rpx; height: 1.7em; margin: 0 8rpx; padding: 0 8rpx; border: 0; border-bottom: 2rpx solid var(--text-sub); border-radius: 0; background: transparent; color: var(--text-main); font-size: inherit; font-weight: 400; text-align: center; box-sizing: border-box; }
+.rich-fill-line { display: flex; flex-wrap: wrap; align-items: baseline; margin: 8rpx 0; line-height: 1.8; }
+.rich-break { flex: 0 0 100%; width: 100%; height: 0; }
+.rich-quote { border-left: 3px solid var(--line); padding-left: 12px; }
+.rich-heading { font-weight: 600; }
+.rich-inline { display: inline-block; white-space: pre-wrap; min-width: 0; max-width: 100%; }
+.math-display, .inline-figure { display: block; width: 100%; min-width: 0; }
+.math-inline { display: inline-block; max-width: 100%; }
+.blank-wrap { position: relative; display: inline-block; vertical-align: middle; min-width: 3.5em; max-width: calc(100% - 16rpx); height: 1.7em; box-sizing: border-box; margin: 0 8rpx; padding: 0 12rpx; font-weight: 400; overflow: hidden; }
+.blank-measure { visibility: hidden; white-space: pre; }
+.rich-blank { position: absolute; left: 0; top: 0; width: 100%; height: 100%; padding: 0 8rpx; border: 0; border-bottom: 2rpx solid var(--text-sub); border-radius: 0; background: transparent; color: var(--text-main); font-size: inherit; font-weight: 400; text-align: center; box-sizing: border-box; }
 .rich-blank:focus { outline: 0; border-bottom-color: var(--brand); }
 .table-scroll { width: 100%; margin: 12rpx 0; }
 .rich-link { color: var(--brand); font-size: var(--font-secondary); padding: 8rpx 0; overflow-wrap: anywhere; }

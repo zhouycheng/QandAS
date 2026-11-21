@@ -80,12 +80,22 @@ function getQuestionView(question, selectedKeys, revealAnswer) {
     })
   }
 
+function overviewGroup(question) {
+  if (question.material) return '阅读题'
+  if (question.isShortAnswer) return '简答题'
+  if (question.isFillBlank) return '填空题'
+  if (question.isMultiple) return '多选题'
+  if (question.isJudge || question.type === 'TRUE_FALSE' || question.type === 'judge') return '判断题'
+  return '单选题'
+}
+
 function getOverviewItems(session, answers, currentIndex) {
     const favorites = new Set(session.state.favoriteQuestionIds)
     const marks = new Set(session.state.markedQuestionIds)
     return session.state.questions.map((question, index) => {
       const hasInput = session.hasInput(question, answers[index])
       return {
+        group: overviewGroup(question),
         number: index + 1,
         index,
         answered: hasInput && answers[index].confirmed !== false,
