@@ -4,6 +4,7 @@
           <text class="blank-measure" aria-hidden="true">{{measured[part.blankIndex] == null ? part.value : measured[part.blankIndex]}}</text>
           <input id="rich-blank-{{part.blankIndex}}" class="rich-blank" value="{{part.value}}" disabled="{{disabled}}" adjust-position="{{!managedKeyboard}}" maxlength="500" data-index="{{part.blankIndex}}" data-no-swipe="true" aria-label="填写空白处" bindinput="inputBlank" bindfocus="focusBlank" bindblur="blurBlank" bindkeyboardheightchange="keyboardHeight" />
         </view>
+        <view wx:elif="{{part.break}}" class="rich-break" />
         <math-formula wx:elif="{{part.tex}}" class="{{part.display ? 'math-display' : 'math-inline'}}" tex="{{part.tex}}" raw="{{part.raw}}" display="{{part.display}}" />
         <bank-image class="inline-figure" wx:elif="{{part.assetId}}" asset-id="{{part.assetId}}" alt="{{part.alt}}" />
         <rich-text wx:else class="rich-inline" nodes="{{part.nodes}}" />

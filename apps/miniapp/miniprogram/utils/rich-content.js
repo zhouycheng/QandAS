@@ -23,7 +23,8 @@ function contentBlocks(text, format, language, blanks, images) {
       if (entry.tex) { parts.push({ tex: entry.tex, raw: entry.children[0].text, display: entry.display }); return }
       if (images && entry.assetId) { parts.push({ assetId: entry.assetId, alt: (entry.children[0] || {}).text || '题目插图' }); return }
       if (entry.blankIndex !== undefined) { parts.push({ blankIndex: entry.blankIndex, value: blanks[entry.blankIndex] && blanks[entry.blankIndex].value || '' }); return }
-      if (entry.text !== undefined || entry.tag === 'br') {
+      if (entry.tag === 'br') { parts.push({ break: true }); return }
+      if (entry.text !== undefined) {
         let leaf = entry
         for (let i = wrappers.length - 1; i >= 0; i--) leaf = { ...wrappers[i], children: [leaf] }
         parts.push({ nodes: richNodes([leaf]) }); return
