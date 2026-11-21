@@ -134,6 +134,8 @@ assert.equal(mixedBlocks[1].parts[0].assetId, 'fig-1')
 assert.equal(mixedBlocks[1].parts.find(part => part.blankIndex === 0).value, '混合 A1')
 const brokenFormula = contentBlocks('第一行 $x^2$\n第二行', 'MARKDOWN', '', null, true).blocks[0]
 assert.equal(brokenFormula.parts.some(part => part.break), true)
+const plainBrokenFormula = contentBlocks('第一行\nx^2 第二行', 'PLAIN_TEXT', '', null, true).blocks[0]
+assert.equal(plainBrokenFormula.parts.some(part => part.break), true)
 const cell = contentBlocks('|空位|\n|---|\n|$a_i$ {{1}}|', 'MARKDOWN', '', [], true).blocks[0].rows[1].cells[0]
 assert.equal(cell.parts[0].tex, 'a_i')
 assert.equal(cell.parts.find(part => part.blankIndex === 0).value, '')

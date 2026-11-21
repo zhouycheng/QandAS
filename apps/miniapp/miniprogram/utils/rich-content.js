@@ -25,9 +25,16 @@ function contentBlocks(text, format, language, blanks, images) {
       if (entry.blankIndex !== undefined) { parts.push({ blankIndex: entry.blankIndex, value: blanks[entry.blankIndex] && blanks[entry.blankIndex].value || '' }); return }
       if (entry.tag === 'br') { parts.push({ break: true }); return }
       if (entry.text !== undefined) {
-        let leaf = entry
-        for (let i = wrappers.length - 1; i >= 0; i--) leaf = { ...wrappers[i], children: [leaf] }
-        parts.push({ nodes: richNodes([leaf]) }); return
+        const lines = entry.text.split(/\r\n|\n|\r/)
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i]) {
+            let leaf = { ...entry, text: lines[i] }
+            for (let j = wrappers.length - 1; j >= 0; j--) leaf = { ...wrappers[j], children: [leaf] }
+            parts.push({ nodes: richNodes([leaf]) })
+          }
+          if (i < lines.length - 1) parts.push({ break: true })
+        }
+        return
       }
       ;(entry.children || []).forEach(child => inline(child, ['strong', 'em', 's', 'code', 'span', 'a'].includes(entry.tag) ? wrappers.concat(entry) : wrappers))
     }
