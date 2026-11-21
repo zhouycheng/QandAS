@@ -11,7 +11,7 @@
 <view class="secondary-page secondary-page-fill">
   <page-header title="考试倒计时" />
 <preference-sync bind:updated="handlePreferencesUpdated" />
-  <scroll-view class="countdown-scroll" scroll-y scroll-into-view="{{editorVisible ? (editingId ? 'countdown-card-' + editingId : 'countdown-editor') : ''}}">
+  <scroll-view class="countdown-scroll" scroll-y scroll-into-view="{{editorVisible ? (editingId ? 'countdown-card-' + editingId : 'countdown-editor') : ''}}" enhanced show-scrollbar="{{false}}">
     <view class="countdown-page settings-detail {{!editorVisible ? 'page-with-bottom-bar' : ''}}">
       <view class="countdown-toolbar">
         <text class="countdown-count">{{exams.length ? '共 ' + exams.length + ' 个倒计时' : '我的倒计时'}}</text>

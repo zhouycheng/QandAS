@@ -14,6 +14,7 @@ Component({
         if (this.properties.assetId === id) this.setData({ path })
       } catch (_) { if (this.properties.assetId === id) this.setData({ error: true }) }
     },
+    failed() { this.setData({ path: '', error: true }); this.ready() },
     ready() { this.triggerEvent('contentready', {}, { bubbles: true, composed: true }) },
     preview() { wx.previewImage({ current: this.data.path, urls: [this.data.path] }) }
   }

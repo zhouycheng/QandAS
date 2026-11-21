@@ -12,19 +12,29 @@ function richNodes(nodes) {
 }
 
 function contentBlocks(text, format, language, blanks, images) {
-  const nodes = language ? [{ tag: 'pre', children: codeTokens(text, language), language, raw: text }] : blanks ? parseBlankContent(text, format) : parseContent(text, format)
+  const nodes = language ? [{ tag: 'pre', children: codeTokens(text, language), language, raw: text }] : blanks ? parseBlankContent(text, format, true) : parseContent(text, format, true)
   const blocks = [], links = []
   const isScroll = value => value.tag === 'pre' || value.tag === 'table'
   const hasScroll = value => isScroll(value) || (value.children || []).some(hasScroll)
+  const hasEmbed = value => value.tex || value.blankIndex !== undefined || (images && value.assetId) || (value.children || []).some(hasEmbed)
   function inlineParts(value) {
     const parts = []
     const inline = (entry, wrappers) => {
+      if (entry.tex) { parts.push({ tex: entry.tex, raw: entry.children[0].text, display: entry.display }); return }
       if (images && entry.assetId) { parts.push({ assetId: entry.assetId, alt: (entry.children[0] || {}).text || '题目插图' }); return }
       if (entry.blankIndex !== undefined) { parts.push({ blankIndex: entry.blankIndex, value: blanks[entry.blankIndex] && blanks[entry.blankIndex].value || '' }); return }
-      if (entry.text !== undefined || entry.tag === 'br') {
-        let leaf = entry
-        for (let i = wrappers.length - 1; i >= 0; i--) leaf = { ...wrappers[i], children: [leaf] }
-        parts.push({ nodes: richNodes([leaf]) }); return
+      if (entry.tag === 'br') { parts.push({ break: true }); return }
+      if (entry.text !== undefined) {
+        const lines = entry.text.split(/\r\n|\n|\r/)
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i]) {
+            let leaf = { ...entry, text: lines[i] }
+            for (let j = wrappers.length - 1; j >= 0; j--) leaf = { ...wrappers[j], children: [leaf] }
+            parts.push({ nodes: richNodes([leaf]) })
+          }
+          if (i < lines.length - 1) parts.push({ break: true })
+        }
+        return
       }
       ;(entry.children || []).forEach(child => inline(child, ['strong', 'em', 's', 'code', 'span', 'a'].includes(entry.tag) ? wrappers.concat(entry) : wrappers))
     }
@@ -33,7 +43,8 @@ function contentBlocks(text, format, language, blanks, images) {
   }
   function visit(value, ancestors) {
     if (value.href && !links.includes(value.href)) links.push(value.href)
-    if (!isScroll(value) && hasScroll(value)) {
+    const container = ['ol', 'ul', 'li', 'blockquote'].includes(value.tag)
+    if (!isScroll(value) && (hasScroll(value) || container && hasEmbed(value))) {
       const context = { value, continued: false }
       ;(value.children || []).forEach((child, index) => {
         if (value.tag === 'ol') context.value = { ...value, start: (value.start || 1) + index }
@@ -44,15 +55,20 @@ function contentBlocks(text, format, language, blanks, images) {
     const collectLinks = children => children.forEach(child => { if (child.href && !links.includes(child.href)) links.push(child.href); collectLinks(child.children || []) })
     collectLinks(value.children || [])
     let wrapped = value
+    let marker = ''
     for (let i = ancestors.length - 1; i >= 0; i--) {
       const context = ancestors[i]
+      if (context.value.tag === 'li' && !context.continued && !marker) {
+        const list = ancestors[i - 1] && ancestors[i - 1].value
+        marker = list && list.tag === 'ol' ? (list.start || 1) + '.' : '•'
+      }
       wrapped = { ...context.value, children: [wrapped], continuation: context.value.tag === 'li' && context.continued }
       context.continued = true
     }
-    const parts = blanks || images && (text || '').includes('](asset:') ? inlineParts(wrapped) : []
-    const hasBlanks = parts.some(part => part.blankIndex !== undefined || part.assetId)
-    const rows = value.tag === 'table' && hasBlanks ? value.children.flatMap(section => section.children).map((row, index) => ({ index, cells: row.children.map((cell, index) => ({ index, header: cell.tag === 'th', parts: inlineParts(cell) })) })) : null
-    blocks.push({ index: blocks.length, tag: value.tag, language: value.language || 'text', raw: value.raw || '', nodes: richNodes([wrapped]), parts: hasBlanks ? parts : null, rows })
+    const embedded = hasEmbed(value)
+    const parts = embedded && value.tag !== 'table' ? inlineParts(value) : null
+    const rows = value.tag === 'table' && embedded ? value.children.flatMap(section => section.children).map((row, index) => ({ index, cells: row.children.map((cell, index) => ({ index, header: cell.tag === 'th', parts: inlineParts(cell) })) })) : null
+    blocks.push({ index: blocks.length, tag: value.tag, language: value.language || 'text', raw: value.raw || '', nodes: richNodes([wrapped]), parts, rows, marker, heading: /^h[1-6]$/.test(value.tag), quoted: ancestors.some(context => context.value.tag === 'blockquote') })
   }
   nodes.forEach(value => visit(value, []))
   // The parent owns outer spacing; Markdown keeps spacing between its paragraphs.

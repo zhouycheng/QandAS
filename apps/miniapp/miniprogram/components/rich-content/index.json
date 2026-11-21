@@ -1,1 +1,1 @@
-{ "component": true, "usingComponents": { "bank-image": "../bank-image/index" } }
+{ "component": true, "usingComponents": { "math-formula": "../math-formula/index", "bank-image": "../bank-image/index" } }

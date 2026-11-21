@@ -1,7 +1,7 @@
 <view class="secondary-page secondary-page-fill">
   <page-header title="默认答题配置" />
 <preference-sync bind:updated="handlePreferencesUpdated" />
-  <scroll-view class="presets-scroll" scroll-y>
+  <scroll-view class="presets-scroll" scroll-y enhanced show-scrollbar="{{false}}">
     <view class="settings-detail presets-page page-with-bottom-bar">
       <view class="preset-card" wx:for="{{presets}}" wx:key="id">
         <view class="preset-card-main"><text class="settings-label preset-name">{{item.name}}</text><text class="preset-default" wx:if="{{item.isDefault}}">默认</text></view>

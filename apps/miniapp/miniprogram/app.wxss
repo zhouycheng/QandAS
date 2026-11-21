@@ -237,3 +237,6 @@ button {
   background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSI4LjYiIHI9IjMuOSIvPjxwYXRoIGQ9Ik00LjkgMjBjLjctMy42IDMuNi01LjcgNy4xLTUuN3M2LjQgMi4xIDcuMSA1LjciLz48L3N2Zz4=");
 }
 /* === ICON-BLOCK-END === */
+
+/* 原生页面使用页面滚动，独立滚动区由 scroll-view 控制。 */
+page::-webkit-scrollbar, ::-webkit-scrollbar:vertical { width: 0; display: none; }

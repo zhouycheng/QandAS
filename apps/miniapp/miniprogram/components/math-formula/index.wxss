@@ -1,0 +1,2 @@
+@import "../../styles/theme.wxss";
+.display { width: 100%; text-align: center; padding: .35em 0; white-space: nowrap; }

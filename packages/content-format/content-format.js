@@ -1,4 +1,5 @@
 const MarkdownIt = require('markdown-it')
+const { delimited, splitPlainLegacy, splitPlain } = require('./formulas.js')
 const Prism = require('prismjs')
 require('prismjs/components/prism-c')
 require('prismjs/components/prism-cpp')
@@ -23,6 +24,14 @@ markdown.inline.ruler.before('image', 'bank_image', (state, silent) => {
   state.pos += match[0].length
   return true
 })
+markdown.inline.ruler.before('text', 'formula', (state, silent) => {
+  if (!state.env.formulas || state.src[state.pos] !== '$') return false
+  const value = delimited(state.src.slice(0, state.posMax), state.pos)
+  if (!value) return false
+  if (!silent) state.push('formula', '', 0).meta = value
+  state.pos += value.children[0].text.length
+  return true
+})
 const TEACHING_SECTIONS = ['结论', '核心知识点', '解题过程', '记忆方法', '易错题型']
 const LANGUAGES = ['c', 'cpp', 'java', 'python', 'javascript', 'typescript', 'sql', 'json', 'html', 'css', 'bash', 'text']
 const aliases = { js: 'javascript', ts: 'typescript', py: 'python', 'c++': 'cpp', shell: 'bash', sh: 'bash', html: 'markup', text: 'plain', plaintext: 'plain' }
@@ -37,16 +46,22 @@ function codeTokens(value, language) {
   return convert(Prism.tokenize(value, grammar))
 }
 
-function parseContent(source, format = 'PLAIN_TEXT') {
+function parseContent(source, format = 'PLAIN_TEXT', formulas = false) {
   const text = String(source == null ? '' : source)
-  if (format !== 'MARKDOWN') return [node('p', [literal(text)])]
-  const key = format + ':' + text
+  if (format !== 'MARKDOWN') return [node('p', formulas ? splitPlain(text) : [literal(text)])]
+  const key = format + ':' + formulas + ':' + text
   if (cache.has(key)) return cache.get(key)
   const root = [], stack = [root]
   function append(tokens) {
     for (const token of tokens) {
       const children = stack[stack.length - 1]
       if (token.type === 'inline') { append(token.children || []); continue }
+      if (token.type === 'formula') { children.push(token.meta); continue }
+      if (formulas && token.type === 'text') {
+        // Markdown has already consumed escapes; only infer bare scripts here.
+        children.push(...splitPlainLegacy(token.content))
+        continue
+      }
       if (token.type === 'bank_image') {
         children.push(node('span', [literal(token.content)], { assetId: token.meta.assetId }))
         continue
@@ -69,7 +84,7 @@ function parseContent(source, format = 'PLAIN_TEXT') {
       else if (token.content) children.push(literal(token.content))
     }
   }
-  append(markdown.parse(text, {}))
+  append(markdown.parse(text, { formulas }))
   // Bound cached ASTs; large banks are rendered one visible question at a time.
   if (cache.size >= 64) cache.delete(cache.keys().next().value)
   cache.set(key, root)
@@ -83,7 +98,7 @@ function inlineImageIds(strings, format) {
   if (format === 'MARKDOWN') for (const text of strings) if (text && text.includes('](asset:')) visit(parseContent(text, format))
   return [...ids]
 }
-function parseBlankContent(source, format) {
+function parseBlankContent(source, format, formulas = false) {
   let prefix = 'QandaBlankSlot'
   while (source.includes(prefix)) prefix += 'X'
   const pattern = new RegExp(prefix + '(\\d+)EndMarker', 'g')
@@ -95,6 +110,8 @@ function parseBlankContent(source, format) {
     return parts
   }
   const convert = nodes => nodes.flatMap(value => {
+    // Preserve editable slots even in an old formula containing a blank marker.
+    if (value.tex && value.tex.includes(prefix)) return split(value.children[0].text)
     if (value.tag === 'pre') {
       const slots = split(value.raw).filter(part => part.blankIndex !== undefined)
       const raw = value.raw.replace(pattern, (_, number) => `{{${number}}}`)
@@ -104,7 +121,7 @@ function parseBlankContent(source, format) {
     }
     return value.text === undefined ? [{ ...value, children: convert(value.children || []) }] : split(value.text)
   })
-  return convert(parseContent(marked, format))
+  return convert(parseContent(marked, format, formulas))
 }
 function containsImage(source) {
   const visit = tokens => tokens.some(token => token.type === 'image' || token.children && visit(token.children))

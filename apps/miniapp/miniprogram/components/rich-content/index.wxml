@@ -1,7 +1,12 @@
 <template name="inlineParts">
       <block wx:for="{{parts}}" wx:for-item="part" wx:key="index">
-        <input wx:if="{{part.blankIndex !== undefined}}" id="rich-blank-{{part.blankIndex}}" class="rich-blank" value="{{part.value}}" disabled="{{disabled}}" adjust-position="{{!managedKeyboard}}" maxlength="500" data-index="{{part.blankIndex}}" data-no-swipe="true" aria-label="填写空白处" bindinput="inputBlank" bindfocus="focusBlank" bindblur="blurBlank" bindkeyboardheightchange="keyboardHeight" />
-        <bank-image wx:elif="{{part.assetId}}" asset-id="{{part.assetId}}" alt="{{part.alt}}" />
+        <view wx:if="{{part.blankIndex !== undefined}}" class="blank-wrap">
+          <text class="blank-measure" aria-hidden="true">{{measured[part.blankIndex] == null ? part.value : measured[part.blankIndex]}}</text>
+          <input id="rich-blank-{{part.blankIndex}}" class="rich-blank" value="{{part.value}}" disabled="{{disabled}}" adjust-position="{{!managedKeyboard}}" maxlength="500" data-index="{{part.blankIndex}}" data-no-swipe="true" aria-label="填写空白处" bindinput="inputBlank" bindfocus="focusBlank" bindblur="blurBlank" bindkeyboardheightchange="keyboardHeight" />
+        </view>
+        <view wx:elif="{{part.break}}" class="rich-break" />
+        <math-formula wx:elif="{{part.tex}}" class="{{part.display ? 'math-display' : 'math-inline'}}" tex="{{part.tex}}" raw="{{part.raw}}" display="{{part.display}}" />
+        <bank-image class="inline-figure" wx:elif="{{part.assetId}}" asset-id="{{part.assetId}}" alt="{{part.alt}}" />
         <rich-text wx:else class="rich-inline" nodes="{{part.nodes}}" />
       </block>
 </template>
@@ -14,13 +19,13 @@
     <scroll-view wx:elif="{{item.tag === 'table'}}" scroll-x class="table-scroll" catchtouchstart="noop">
       <view wx:if="{{item.rows}}" class="rich-fill-table">
         <view wx:for="{{item.rows}}" wx:for-item="row" wx:key="index" class="rich-fill-row">
-          <view wx:for="{{row.cells}}" wx:for-item="cell" wx:key="index" class="rich-fill-cell {{cell.header ? 'rich-fill-heading' : ''}}"><template is="inlineParts" data="{{parts: cell.parts, disabled, managedKeyboard}}" /></view>
+          <view wx:for="{{row.cells}}" wx:for-item="cell" wx:key="index" class="rich-fill-cell {{cell.header ? 'rich-fill-heading' : ''}}"><template is="inlineParts" data="{{parts: cell.parts, disabled, managedKeyboard, measured}}" /></view>
         </view>
       </view>
       <rich-text wx:else nodes="{{item.nodes}}" user-select />
     </scroll-view>
-    <view wx:elif="{{item.parts}}" class="rich-fill-line">
-      <template is="inlineParts" data="{{parts: item.parts, disabled, managedKeyboard}}" />
+    <view wx:elif="{{item.parts}}" class="rich-fill-line {{item.quoted ? 'rich-quote' : ''}} {{item.heading ? 'rich-heading' : ''}}">
+      <text wx:if="{{item.marker}}">{{item.marker}} </text><template is="inlineParts" data="{{parts: item.parts, disabled, managedKeyboard, measured}}" />
     </view>
     <rich-text wx:else nodes="{{item.nodes}}" user-select />
   </block>
