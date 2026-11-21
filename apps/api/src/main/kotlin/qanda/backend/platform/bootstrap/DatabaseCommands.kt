@@ -41,6 +41,7 @@ object DatabaseCommands {
                     statement.execute(ClassPathResource("db/practice-writer.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/monitoring-permissions.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/bank-deletion.sql").getContentAsString(Charsets.UTF_8))
+                    statement.execute(ClassPathResource("db/subject-category.sql").getContentAsString(Charsets.UTF_8))
                     statement.execute(ClassPathResource("db/compatibility.sql").getContentAsString(Charsets.UTF_8))
                 }
                 connection.commit()

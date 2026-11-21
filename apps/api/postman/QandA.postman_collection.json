@@ -3630,6 +3630,21 @@
               ],
               "query": [
                 {
+                  "key": "collegeId",
+                  "value": "00000000-0000-0000-0000-000000000001",
+                  "disabled": true
+                },
+                {
+                  "key": "majorId",
+                  "value": "00000000-0000-0000-0000-000000000001",
+                  "disabled": true
+                },
+                {
+                  "key": "grade",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
                   "key": "includeProgress",
                   "value": "False",
                   "disabled": true

@@ -30,6 +30,8 @@ function save(storage, patch, options) {
   if (!next.collegeId) next.majorId = ''
   const saved = options && options.clearPrevious ? null : hasSelection(previous) && !hasSelection(next) ? previous : normalize(stored.previous)
   if (saved && hasSelection(saved)) next.previous = saved
+  if (next.collegeId) next.collegeName = patch.collegeName || (next.collegeId === previous.collegeId && stored.collegeName) || ''
+  if (next.majorId) next.majorName = patch.majorName || (next.majorId === previous.majorId && stored.majorName) || ''
   storage.set(KEY, next)
   return read(storage)
 }

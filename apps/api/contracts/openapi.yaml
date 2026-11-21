@@ -46377,6 +46377,33 @@
             }
           },
           {
+            "name": "collegeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "majorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
             "name": "includeProgress",
             "in": "query",
             "required": false,
@@ -71227,6 +71254,33 @@
           "expectedVersion"
         ]
       },
+      "CategoryFilter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "collegeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "majorId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "grade": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "SubjectInput": {
         "type": "object",
         "additionalProperties": false,
@@ -71251,6 +71305,15 @@
             ],
             "format": "int64",
             "minimum": 1
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CategoryFilter"
+            }
           }
         },
         "required": [
@@ -74957,6 +75020,12 @@
                 "type": "null"
               }
             ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryFilter"
+            }
           }
         },
         "required": [

@@ -7,4 +7,3 @@ import org.apache.ibatis.annotations.Mapper
 @Mapper interface ChapterMapper: BaseMapper<Chapter>
 @Mapper interface QuestionMapper: BaseMapper<Question>
 @Mapper interface QuestionRevisionMapper: BaseMapper<QuestionRevision>
-@Mapper interface BankCategoryMapper: BaseMapper<BankCategory>

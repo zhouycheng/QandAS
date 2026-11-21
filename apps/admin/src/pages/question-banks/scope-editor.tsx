@@ -1,11 +1,9 @@
-import { useState } from 'react'
-import { Button, Select, Tag } from '@arco-design/web-react'
-import { IconDelete, IconEye, IconPlus } from '@arco-design/web-react/icon'
+import { Button, Select } from '@arco-design/web-react'
+import { IconDelete, IconPlus } from '@arco-design/web-react/icon'
 import { GRADE_OPTIONS } from '../../types/admin'
-import type { QuestionBank, Subject } from '../../types/admin'
 import { ResourceSelect } from '../../components/resource-select'
 import { useScopeDirectory } from './scope-directory'
-import { bankVisibility, emptyScopeGroup, groupsToCategories, scopeLabels, type AudienceDirectory, type ScopeGroup } from '../../lib/bank-workbench'
+import { emptyScopeGroup, groupsToCategories, scopeLabels, type ScopeGroup } from '../../lib/bank-workbench'
 
 export function DirectorySelectors({ value, onChange, multipleGrades = false, disabled = false, prefix }: {
   value: ScopeGroup
@@ -33,8 +31,8 @@ export function ScopeEditor({ groups, onChange, disabled }: {
   const directory = useScopeDirectory(categories)
   const labels = scopeLabels({ categories }, directory)
   return <div className="bw-scope-editor">
-    <h3>题库分类</h3>
-      <p className="muted">分类用于学生自由筛选。每组内同时匹配，多组取并集；留空表示通用题库。</p>
+    <h3>显示范围</h3>
+      <p className="muted">学生可按学院、专业和年级筛选科目。每组内同时匹配，多组取并集。留空表示通用。</p>
       {groups.map((group, index) => <div className="bw-scope-group" key={group.id}>
         <div className="bw-scope-group-heading"><span>分类 {index + 1}</span><Button aria-label={`移除分类 ${index + 1}`} type="text" status="danger" icon={<IconDelete />} disabled={disabled} onClick={() => onChange(groups.filter((g) => g.id !== group.id))} /></div>
         <DirectorySelectors value={group} multipleGrades prefix={`分类${index + 1}`} disabled={disabled} onChange={(next) => onChange(groups.map((g) => g.id === group.id ? next : g))} />
@@ -42,18 +40,4 @@ export function ScopeEditor({ groups, onChange, disabled }: {
       <Button type="dashed" long icon={<IconPlus />} disabled={disabled} onClick={() => onChange([...groups, emptyScopeGroup()])}>添加分类</Button>
     <div className="bw-scope-summary"><span>分类摘要</span>{labels.map((label) => <p key={label}>{label}</p>)}</div>
   </div>
-}
-
-export function ScopePreview({ bank, subjects }: { bank: QuestionBank; directory: AudienceDirectory; subjects: Subject[] }) {
-  const [profile, setProfile] = useState<ScopeGroup>({ id: 'preview', grades: [] })
-  const result = bankVisibility(bank, { collegeId: profile.collegeId, majorId: profile.majorId, grade: profile.grades[0] }, subjects)
-  const selected = true
-  return <section className="bw-scope-preview">
-    <div className="bw-section-heading"><h3><IconEye /> 分类筛选预览</h3><Tag color="arcoblue">预览</Tag></div>
-    <p className="muted">选择分类，检查题库是否出现在筛选结果中。</p>
-    <DirectorySelectors value={profile} onChange={setProfile} prefix="预览" />
-    <div className={`bw-preview-result ${selected && result.visible ? 'is-visible' : ''}`} role="status">
-      {selected ? <><Tag color={result.visible ? 'green' : result.matches ? 'orange' : 'gray'}>{result.visible ? '会展示' : result.matches ? '范围匹配' : '不展示'}</Tag><span>{result.message}</span></> : <span>请选择学生资料后查看匹配结果。</span>}
-    </div>
-  </section>
 }

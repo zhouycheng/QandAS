@@ -28,28 +28,6 @@ page { background: var(--card); }
   flex-direction: column;
 }
 
-.catalog-status {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding-bottom: 272rpx;
-  padding-bottom: calc(272rpx + env(safe-area-inset-bottom));
-  pointer-events: none;
-}
-
-.catalog-status-note {
-  border-radius: var(--radius-tag);
-  background: var(--card);
-  pointer-events: auto;
-}
-
 .catalog-empty {
   flex: 1;
   min-height: 0;

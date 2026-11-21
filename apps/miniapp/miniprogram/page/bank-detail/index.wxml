@@ -29,24 +29,16 @@
       <picker class="catalog-picker" range="{{filterMajors}}" range-key="name" value="{{filterMajorIndex}}" bindchange="handleMajorFilter"><view class="filter-select" aria-label="专业筛选">{{filterMajors[filterMajorIndex].name || '全部专业'}}</view></picker>
       <picker class="catalog-picker" range="{{filterGrades}}" value="{{filterGradeIndex}}" bindchange="handleGradeFilter"><view class="filter-select" aria-label="年级筛选">{{filterGrades[filterGradeIndex] || '全部年级'}}</view></picker>
     </view>
-    <view wx:if="{{filterError}}" class="load-note" bindtap="loadFilters" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{filterError}} · 重试</view>
+    <view wx:if="{{filterError && !catalogError}}" class="load-note" bindtap="loadFilters" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{filterError}} · 重试</view>
   </view>
 
   <view class="mock-selection" wx:if="{{mockSelection}}"><view class="mock-selection-main"><text>选择模拟考章节</text><text class="config-note">点击章节或整科卡片开考 · 45 分钟</text></view><button class="q-button q-button--text" bindtap="handleExitMock" hover-class="q-button-hover" hover-start-time="0" hover-stay-time="80">退出选择</button></view>
   <view class="catalog-content">
-  <view wx:if="{{catalogLoading && !rows.length}}" class="loading-skeleton catalog-skeleton" aria-label="正在加载题库">
-    <view class="skeleton-rail"></view>
-    <view class="skeleton-main"><view class="skeleton-block"></view><view wx:for="{{[1,2,3,4,5]}}" wx:key="*this" class="skeleton-block"></view></view>
-  </view>
-  <view class="catalog-empty" wx:if="{{!catalogLoading && !catalogError && !subject}}">
-    <view>当前筛选下暂无公开题库</view>
-    <view bindtap="handleRequestCourse" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">反馈缺少课程</view>
-  </view>
-
-  <view class="workbench" style="pointer-events: {{catalogSwitching || catalogError ? 'none' : 'auto'}};" wx:if="{{subject}}" hidden="{{catalogLoading && !rows.length}}">
-    <scroll-view class="rail" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-default-style="none" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
+  <view class="workbench">
+    <scroll-view class="rail" wx:if="{{hasRecentPractice || subjects.length}}" scroll-y enhanced bounces="{{false}}" show-scrollbar="{{false}}">
       <view class="rail-inner">
         <view
+          wx:if="{{hasRecentPractice}}"
           class="rail-item {{railMode === 'recent' ? 'is-active' : ''}}"
           bindtap="handleRecentTap"
           hover-class="rail-item-hover"
@@ -82,7 +74,13 @@
 
     <scroll-view class="panel" scroll-y enhanced bounces show-scrollbar="{{false}}" refresher-enabled="{{!configSheetVisible && !routeLoadingVisible}}" refresher-triggered="{{pullRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
       <view class="panel-inner">
-        <view wx:if="{{catalogSwitching}}" class="load-note" aria-live="polite">正在加载…</view>
+        <view wx:if="{{catalogSwitching || catalogLoading && !rows.length}}" class="loading-skeleton" aria-label="正在加载题库"><view wx:for="{{[1,2,3]}}" wx:key="*this" class="skeleton-block"></view></view>
+        <view wx:if="{{catalogError}}" class="load-note" bindtap="handleCatalogErrorRetry" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80" aria-role="button">{{filterError ? '筛选选项和题库加载失败' : catalogError}} · 点击重试</view>
+        <view class="catalog-empty" wx:if="{{!catalogLoading && !catalogError && !subject}}">
+          <view>当前筛选下暂无公开题库</view>
+          <view bindtap="handleRequestCourse" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">反馈缺少课程</view>
+        </view>
+        <view wx:if="{{pullRefreshState && !pullRefreshing && !catalogError && !filterError}}" class="load-note" aria-live="polite">{{pullRefreshMessage}}</view>
         <!-- 搜索态：跨科目命中，点一行直接配这一章 -->
         <block wx:if="{{searchActive}}">
           <view class="search-head">
@@ -116,7 +114,7 @@
           </view>
         </block>
 
-        <block wx:else>
+        <block wx:elif="{{subject && !catalogSwitching}}">
           <view
             class="stat-card"
             bindtap="handleStatTap"
@@ -168,11 +166,6 @@
       </view>
     </scroll-view>
   </view>
-
-  <view class="catalog-status" wx:if="{{catalogError}}" aria-live="polite">
-    <view class="load-note catalog-status-note" wx:if="{{catalogLoading}}">正在读取题库…</view>
-    <view class="load-note catalog-status-note" wx:else bindtap="handleRetryLoad" aria-role="button" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">{{catalogError}} · 点击重试</view>
-  </view>
   </view>
 
   <bottom-sheet visible="{{configSheetVisible}}" title="{{configTitle}}" fixed-footer bind:close="handleSheetClose">
@@ -222,5 +215,3 @@
         </view>
   </bottom-sheet>
 </view>
-
-<include src="../../templates/refresh-status.wxml" />

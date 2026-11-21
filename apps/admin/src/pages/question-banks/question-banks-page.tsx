@@ -16,13 +16,14 @@ function CourseHeading({ course }: { course: Subject }) {
   const gateway = useAdminGateway()
   const client = useQueryClient()
   const [draft, setDraft] = useState<Subject>()
+  const [editing, setEditing] = useState<Subject>()
   const current = draft ?? course
   const save = useMutation({
     mutationFn: (edited: Subject) => gateway.updateSubject(edited.id, {
       name: edited.name.trim(), status: edited.status, description: edited.description, expectedVersion: edited.version,
     }),
     onSuccess: saved => {
-      client.setQueryData(['subjects', saved.id], saved)
+      client.setQueryData(['subjects', saved.id], { ...course, ...saved })
       setDraft(undefined)
       refreshWorkbench(client)
       Message.success('课程已保存')
@@ -46,6 +47,8 @@ function CourseHeading({ course }: { course: Subject }) {
       <label className="course-visibility"><Switch aria-label="开放本课程题库" size="small"
         checked={current.status === 'ACTIVE'} disabled={save.isPending}
         onChange={checked => edit({ status: checked ? 'ACTIVE' : 'INACTIVE' })} />开放题库</label>
+      <Button size="small" disabled={!!draft} onClick={() => setEditing(course)}>显示范围</Button>
+      {editing && <CourseEditorModal course={editing} onClose={() => setEditing(undefined)} onSaved={saved => { client.setQueryData(['subjects', saved.id], saved); setEditing(undefined) }} />}
       {draft && <div className="course-edit-actions" role="group" aria-label="课程修改">
         <Button size="small" type="text" loading={save.isPending} disabled={!draft.name.trim() || stale}
           onClick={() => save.mutate(draft)}>保存</Button>
@@ -83,12 +86,11 @@ export function QuestionBanksPage() {
   const [coursePage, setCoursePage] = useState(1)
   const courses = useQuery({ queryKey: ['subjects', 'list', coursePage, courseSearch], queryFn: () => gateway.listSubjects({ page: coursePage, pageSize: 20, keyword: courseSearch }) })
   const [creatingCourse, setCreatingCourse] = useState(false)
-  const [bankEditor, setBankEditor] = useState<{ bank?: QuestionBank; tab: 'basic' | 'scope' }>()
+  const [bankEditor, setBankEditor] = useState<{ bank?: QuestionBank }>()
   const course = useQuery({ queryKey: ['subjects', courseId], enabled: Boolean(courseId), queryFn: () => gateway.getSubject(courseId!) })
   const banks = useQuery({ queryKey: ['question-banks', courseId, keyword, status, quality, page], queryFn: () => gateway.listQuestionBanks({ subjectId: courseId, keyword, publicationStatus: status, quality, page }) })
   const openBank = (id: string) => navigate('/question-banks/' + id + (quality === 'unassigned' ? '?chapter=unassigned' : ''), { state: { listSearch: params.toString() } })
   const bankAction = (key: string, bank: QuestionBank) => {
-    if (key === 'basic' || key === 'scope') { setBankEditor({ bank, tab: key }); return }
     if (key === 'delete') {
       Modal.confirm({
         title: '删除题库「' + bank.name + '」？',
@@ -126,7 +128,7 @@ export function QuestionBanksPage() {
     <section className="bw-bank-panel" id="banks" aria-label="题库列表">
       <header className="bank-catalog-header">
         {courseId && course.data ? <CourseHeading key={courseId} course={course.data} /> : <h2>{courseId ? '课程题库' : '全部题库'}</h2>}
-        <Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({ tab: 'basic' })}>新建题库</Button>
+        <Button type="primary" icon={<IconPlus />} onClick={() => setBankEditor({})}>新建题库</Button>
       </header>
       {course.error && <ErrorState stale={!!course.data} message={course.error.message} onRetry={() => void course.refetch()} />}
       <div className="bank-catalog-filters">
@@ -138,13 +140,12 @@ export function QuestionBanksPage() {
       {banks.error && <ErrorState stale={!!banks.data} message={banks.error.message} onRetry={() => void banks.refetch()} />}
       <Table<QuestionBank> className="bw-bank-table" rowKey="id" data={banks.data?.items ?? []} loading={banks.isFetching} border={false} scroll={{ x: 620 }} pagination={{ current: page, pageSize: 20, total: banks.data?.total ?? 0, showTotal: true, onChange: value => setFilter('page', String(value)) }} columns={[
           { title: '题库 / 教材', render: (_, bank) => <button className="bw-bank-name" onClick={() => openBank(bank.id)}><span className="bw-bank-icon"><IconBook /></span><span><strong title={bank.name}>{bank.name}</strong>{bank.textbook && <small title={bank.textbook}>{bank.textbook}</small>}</span></button> },
-          { title: '分类', width: '18%', render: (_, bank) => bank.categories.length ? bank.categories.length + ' 组分类' : '通用题库' },
           { title: '题数', dataIndex: 'questionCount', width: 80, align: 'right', render: count => <>{count}<span className="bank-count-unit"> 道题</span></> },
           { title: '状态', width: 100, render: (_, bank) => <Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag> },
-          { title: '操作', width: 112, render: (_, bank) => <Space size={0}><Button type="text" onClick={() => setBankEditor({ bank, tab: 'basic' })}>设置</Button><Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => bankAction(key, bank)}><Menu.Item key="scope">题库分类</Menu.Item>{bank.publicationStatus === 'PUBLISHED' && <Menu.Item key="unpublish">下架</Menu.Item>}<Menu.Item key="archive">归档</Menu.Item><Menu.Item key="delete">删除题库</Menu.Item></Menu>}><Button type="text" aria-label={'更多操作 ' + bank.name} icon={<IconMore />} /></Dropdown></Space> },
+          { title: '操作', width: 112, render: (_, bank) => <Space size={0}><Button type="text" onClick={() => setBankEditor({ bank })}>设置</Button><Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => bankAction(key, bank)}>{bank.publicationStatus === 'PUBLISHED' && <Menu.Item key="unpublish">下架</Menu.Item>}<Menu.Item key="archive">归档</Menu.Item><Menu.Item key="delete">删除题库</Menu.Item></Menu>}><Button type="text" aria-label={'更多操作 ' + bank.name} icon={<IconMore />} /></Dropdown></Space> },
         ]} noDataElement={<Empty description={banks.error ? '题库加载失败' : keyword || quality || status ? '没有符合条件的题库' : '暂无题库'} />} />
     </section>
     {creatingCourse && <CourseEditorModal onClose={() => setCreatingCourse(false)} onSaved={saved => { client.setQueryData(['subjects', saved.id], saved); setCreatingCourse(false); setFilter('course', saved.id) }} />}
-    {bankEditor && <BankSettingsDrawer bank={bankEditor.bank} subjectId={courseId} initialTab={bankEditor.tab} onClose={() => setBankEditor(undefined)} onSaved={saved => { setBankEditor(undefined); if (!bankEditor.bank) openBank(saved.id) }} />}
+    {bankEditor && <BankSettingsDrawer bank={bankEditor.bank} subjectId={courseId} onClose={() => setBankEditor(undefined)} onSaved={saved => { setBankEditor(undefined); if (!bankEditor.bank) openBank(saved.id) }} />}
   </section>
 }

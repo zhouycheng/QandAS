@@ -9,13 +9,18 @@ import java.util.UUID
 
 @Service
 @Transactional
-class CatalogService(private val colleges: CollegeMapper,private val majors: MajorMapper,private val subjects: SubjectMapper,private val sql: CatalogQueries) {
+class CatalogService(private val colleges: CollegeMapper,private val majors: MajorMapper,private val subjects: SubjectMapper,private val sql: CatalogQueries,private val directoryService: qanda.backend.catalog.api.CatalogDirectory) {
     fun collegeView(it: College)=CollegeView(it.id!!,it.name,it.code,it.status,it.version)
     fun college(id: UUID)=collegeView(colleges.selectById(id) ?: missing())
     fun major(id: UUID)=majorView(majors.selectById(id) ?: missing())
     fun majorView(it: Major)=MajorView(it.id!!,it.collegeId!!,it.name,it.code,it.status,it.version)
-    fun subjectsByIds(ids: List<UUID>): List<SubjectView> = if(ids.isEmpty()) emptyList() else subjects.selectByIds(ids).map(::subjectView)
+    fun subjectsByIds(ids: List<UUID>): List<SubjectView> = if(ids.isEmpty()) emptyList() else withCategories(subjects.selectByIds(ids).map(::subjectView))
     fun subjectView(it: Subject)=SubjectView(it.id!!,it.name,it.description,it.status,it.version)
+    private fun withCategories(rows: List<SubjectView>): List<SubjectView> {
+        if(rows.isEmpty()) return rows
+        val groups=sql.categories(rows.map { it.id }).groupBy { it.subjectId }
+        return rows.map { row -> row.copy(categories=groups[row.id].orEmpty().map { CategoryFilter(it.collegeId,it.majorId,it.grade) }) }
+    }
     fun directory(collegeId: UUID?,majorId: UUID?) = DirectorySummary(colleges.selectCount(null),majors.selectCount(QueryWrapper<Major>().eq(collegeId!=null,"college_id",collegeId)))
     fun colleges(p: PageSpec,admin: Boolean,keyword: String?=null,status: String?=null): Page<CollegeView> {
         if(status!=null) activeStatus(status)
@@ -30,11 +35,12 @@ class CatalogService(private val colleges: CollegeMapper,private val majors: Maj
     }
     fun subjects(p: PageSpec,keyword: String?,publicOnly: Boolean,userId: UUID?=null,includeProgress: Boolean=false,filter: CategoryFilter=CategoryFilter()): Page<SubjectView> {
         val rows=sql.subjects(keyword,publicOnly,p.offset,p.pageSize,userId,filter).map(::subjectView)
-        val facts=if(rows.isNotEmpty()) sql.subjectListFacts(rows.map { it.id },userId.takeIf { includeProgress },filter).associateBy { it.subjectId } else emptyMap()
-        return Page(rows.map { row -> facts[row.id]?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.platform.queries.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount,it.wrongBookCount)) } ?: row },sql.subjectCount(keyword,publicOnly,userId,filter),p.page,p.pageSize)
+        val facts=if(rows.isNotEmpty()) sql.subjectListFacts(rows.map { it.id },userId.takeIf { includeProgress }).associateBy { it.subjectId } else emptyMap()
+        return Page(withCategories(rows).map { row -> facts[row.id]?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.platform.queries.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount,it.wrongBookCount)) } ?: row },sql.subjectCount(keyword,publicOnly,userId,filter),p.page,p.pageSize)
     }
-    fun subject(id: UUID,publicOnly: Boolean,userId: UUID?=null,includeProgress: Boolean=false): SubjectView {
-        val row=subjectView((if(publicOnly) sql.publishedSubject(id,userId) else subjects.selectById(id)) ?: missing())
+    fun subject(id: UUID,publicOnly: Boolean,userId: UUID?=null,includeProgress: Boolean=false,filter: CategoryFilter=CategoryFilter()): SubjectView {
+        val subject=(if(publicOnly) sql.publishedSubject(id,userId,filter) else subjects.selectById(id)) ?: missing()
+        val row=withCategories(listOf(subjectView(subject))).single()
         val facts=if(userId!=null && includeProgress) sql.subjectListFacts(listOf(id),userId).firstOrNull() else null
         return facts?.let { row.copy(bankCount=it.bankCount,questionCount=it.questionCount,progress=qanda.backend.platform.queries.BankProgressView(it.answeredCount,it.correctCount,it.wrongCount,it.wrongBookCount)) } ?: row
     }
@@ -58,6 +64,17 @@ class CatalogService(private val colleges: CollegeMapper,private val majors: Maj
         if(id!=null) requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version)
         row.name=name(input.name);row.description=text(input.description,2000);row.status=activeStatus(input.status);row.updatedAt=Instant.now()
         if(id==null) subjects.insert(row) else { row.version++;subjects.updateById(row) }
+        input.categories?.let { groups ->
+            if(groups.size>100) invalid("/categories")
+            val normalized=groups.map {
+                it.validate(directoryService)
+                if(it==CategoryFilter()) invalid("/categories")
+                if(it.majorId!=null) it.copy(collegeId=null) else it
+            }
+            if(normalized.distinct().size!=normalized.size) invalid("/categories")
+            sql.clearCategories(row.id!!)
+            normalized.forEach { sql.addCategory(row.id!!,it) }
+        }
         return MutationResult(row.id!!,row.version)
     }
 }

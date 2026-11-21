@@ -28,6 +28,9 @@ class ReleaseUpgradeTest : PostgresFixture() {
             Path.of("target/candidate-under-test.jar"),java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         val user=student()
         val bank=fixture()
+        val sibling=id(call("POST","/admin/question-banks",mapOf("subjectId" to bank.subject,"name" to "同科目题库","categories" to listOf(mapOf("grade" to 2)))))
+        jdbc.update("INSERT INTO bank_category(id,bank_id,grade) VALUES(gen_random_uuid(),?,1)",bank.bank)
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM bank_category WHERE bank_id IN (?,?)",Int::class.java,bank.bank,sibling))
         val base="/admin/question-banks/${bank.bank}"
         val image=ByteArrayOutputStream().also { ImageIO.write(BufferedImage(2,2,BufferedImage.TYPE_INT_ARGB),"png",it) }
         val file=id(json.readTree(raw("POST","$base/images",image.toByteArray(),contentType="image/png").body()))
@@ -94,8 +97,10 @@ class ReleaseUpgradeTest : PostgresFixture() {
             } finally { blocker.rollback() }
         }
         migrate();migrate()
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM subject_category WHERE subject_id=?",Int::class.java,bank.subject))
+        for(id in listOf(bank.bank,sibling)) assertTrue(jdbc.queryForObject("SELECT bank_matches_category(?,NULL,NULL,3)",Boolean::class.java,id)!!)
         assertEquals(preserved,jdbc.queryForObject("SELECT portable_id FROM question WHERE id=?",UUID::class.java,group))
-        assertEquals(3,jdbc.queryForObject("SELECT count(*) FROM schema_migration",Int::class.java))
+        assertEquals(4,jdbc.queryForObject("SELECT count(*) FROM schema_migration",Int::class.java))
         assertEquals("复习题库",jdbc.queryForObject("SELECT bank_name FROM practice_session WHERE id=?",String::class.java,id(finished)))
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM practice_item WHERE session_id=? AND issued_version IS NULL",Int::class.java,id(open)))
         val envInContainer=env + mapOf("BACKEND_LOCAL_CONTAINER" to "true","BACKEND_MAIL_ENCRYPTION_KEYS" to "1:$key","BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS" to "1:$key","BACKEND_DB_URL" to "jdbc:postgresql://upgrade-db:5432/qanda_backend","BACKEND_BIND_ADDRESS" to "0.0.0.0",
@@ -151,7 +156,7 @@ class ReleaseUpgradeTest : PostgresFixture() {
                             oldWorker.start(); oldApi.start(); oldMonitor.start()
                             assertEquals(0,gateway.execInContainer("nginx","-s","reload").exitCode)
                             eventually { raw("GET","/health",token=null).statusCode()==200 }
-                            assertEquals(newResult,call("GET","$openPath/result",token=user.token))
+                            assertEquals(snapshot(newResult),snapshot(call("GET","$openPath/result",token=user.token)))
                             assertEquals(snapshot(result),snapshot(call("GET",resultPath,token=user.token)))
                             assertEquals(receipt,call("POST","$base/imports",payload,key=importKey))
                         }

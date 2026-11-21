@@ -44,6 +44,7 @@ export interface Major extends Versioned {
 }
 
 export interface Subject extends Versioned {
+  categories?: BankCategory[]
   id: string
   name: string
   description?: string
@@ -111,7 +112,7 @@ export interface Question extends QuestionContent, Versioned {
   updatedAt: string
 }
 
-export type CreateSubjectInput = Pick<Subject, 'name' | 'status'>
+export type CreateSubjectInput = Pick<Subject, 'name' | 'status' | 'categories'>
 export type UpdateSubjectInput = CreateSubjectInput & Pick<Subject, 'description'> & { expectedVersion: number }
 export type CreateCollegeInput = Pick<College, 'name' | 'code' | 'status'>
 export type UpdateCollegeInput = CreateCollegeInput & { expectedVersion: number }

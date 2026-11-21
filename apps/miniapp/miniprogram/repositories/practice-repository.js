@@ -86,3 +86,5 @@ module.exports.getRemoteChapters = remoteData.getChapters
 module.exports.previewRemotePracticeScope = remoteData.previewPracticeScope
 
 module.exports.getRemoteAnnouncementIndex = remoteData.getAnnouncementIndex
+
+module.exports.getCatalogSubjects = remoteData.getCatalogSubjects

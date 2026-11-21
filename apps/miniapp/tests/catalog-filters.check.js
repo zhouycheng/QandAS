@@ -46,6 +46,41 @@ async function main() {
   remote.setCatalogFilters(storage, { grade: 3 })
   resolve({ ok: true, data: { items: [], total: 0, page: 1 } })
   await assert.rejects(pending, /筛选已变化/)
+  const requests = []
+  let late
+  api.request = async (_, path, query) => {
+    requests.push({ path, ...query })
+    if (path === '/subjects' && query.grade === 1) return new Promise(done => { late = done })
+    if (path === '/subjects') return { ok: true, data: { items: [{ id: 'new', name: '新科目' }], total: 30 } }
+    if (path === '/subjects/old') return query.grade === 2 ? { ok: false, statusCode: 404 } : { ok: true, data: { id: 'old', name: '旧科目' } }
+    return { ok: true, data: { items: [], total: 0 } }
+  }
+  remote.setCatalogFilters(storage, { grade: 1 })
+  const first = remote.refreshCatalog(storage, { subjectId: 'old', subjectPage: 2 })
+  await Promise.resolve()
+  remote.setCatalogFilters(storage, { grade: 2 })
+  await remote.refreshCatalog(storage, { subjectId: 'old', page: 2, force: true })
+  late({ ok: true, data: { items: [{ id: 'old', name: '旧科目' }], total: 1 } })
+  await first
+  assert.deepEqual(remote.getCatalogSubjects().map(row => row.id), ['new'])
+  assert.deepEqual(requests.filter(row => row.path === '/question-banks').map(row => [row.grade, row.subjectId, row.page]), [[2,'new',1],[2,'new',2]])
+  assert.equal(requests.find(row => row.path === '/subjects/old').grade, 2)
+  const { BankDetailViewModel } = require('../miniprogram/viewmodels/bank-detail-viewmodel.js')
+  const vm = new BankDetailViewModel({ storage })
+  let phase = 'empty'
+  api.request = async (_, path, query) => {
+    assert.equal(query.grade, 2)
+    if (phase === 'error') return { ok: false, statusCode: 503, reason: '目录暂不可用' }
+    const items = phase === 'ready' && path === '/subjects' ? [{ id: 'back', name: '恢复的科目' }] : []
+    return { ok: true, data: { items, total: items.length } }
+  }
+  assert.equal((await vm.refreshRemote('', { force: true })).data.subject, null)
+  phase = 'error'
+  assert.equal((await vm.refreshRemote('', { force: true })).data.catalogError, '目录暂不可用')
+  phase = 'ready'
+  const restored = (await vm.refreshRemote('', { force: true })).data
+  assert.equal(restored.subjectId, 'back')
+  assert.equal(restored.catalogError, '')
   remote.enable(false)
   console.log('分类筛选：本机持久化、切换账号保留、失效清理、迟到响应通过')
 }

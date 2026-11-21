@@ -5,8 +5,12 @@ import org.apache.ibatis.annotations.Param
 import java.util.UUID
 
 class SubjectListFacts { var subjectId: UUID?=null;var bankCount: Long=0;var questionCount: Long=0;var answeredCount: Long=0;var correctCount: Long=0;var wrongCount: Long=0;var wrongBookCount: Long=0 }
+class SubjectCategoryRow { lateinit var subjectId: UUID; var collegeId: UUID?=null; var majorId: UUID?=null; var grade: Int?=null }
 @Mapper interface CatalogQueries {
-    fun subjectListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?,@Param("filter") filter: CategoryFilter=CategoryFilter()): List<SubjectListFacts>
+    fun categories(@Param("ids") ids: List<UUID>): List<SubjectCategoryRow>
+    fun clearCategories(@Param("id") id: UUID)
+    fun addCategory(@Param("id") id: UUID,@Param("row") row: CategoryFilter)
+    fun subjectListFacts(@Param("ids") ids: List<UUID>,@Param("userId") userId: UUID?): List<SubjectListFacts>
 
     fun lockCollege(@Param("id") id: UUID): College?
     fun lockMajor(@Param("id") id: UUID): Major?

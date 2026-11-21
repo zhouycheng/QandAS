@@ -8,6 +8,7 @@ const remote = require('../../repositories/remote-data-repository.js')
 Page(withPageLifecycle({
   customHeader: true,
   data: Object.assign(BankDetailViewModel.getInitialData(), {
+    hasRecentPractice: false,
     filterColleges: [{ id: '', name: '全部学院' }], filterMajors: [{ id: '', name: '全部专业' }],
     filterGrades: filters.GRADES, filterCollegeIndex: 0, filterMajorIndex: 0, filterGradeIndex: 0, filterError: ''
   }),
@@ -40,8 +41,24 @@ Page(withPageLifecycle({
       this.chapterLocated = false
       this.viewModel.directBankId = ''
     }
+    this.showSavedFilters(filters.read(this.viewModel.storage))
     this.loadFilters()
+    this.refreshRecentVisibility()
     return this.refreshCatalog()
+  },
+
+  async refreshRecentVisibility() {
+    const { repository, storage } = this.viewModel
+    const auth = repository.getAuth(storage)
+    const request = this.recentRequest = (this.recentRequest || 0) + 1
+    try {
+      this.setData({ hasRecentPractice: repository.getRemoteRecent(storage).length > 0 })
+      if (!auth.loggedIn) return
+      const recent = await repository.refreshRemote(storage, 'recent', { force: true })
+      if (recent && !this._pageUnloaded && request === this.recentRequest && repository.getAuth(storage).token === auth.token) {
+        this.setData({ hasRecentPractice: recent.items.length > 0 })
+      }
+    } catch (_) { /* Keep known history visible when the network is unavailable. */ }
   },
 
   syncTabBar() {
@@ -70,11 +87,29 @@ Page(withPageLifecycle({
     const subjectId = this.routeSubjectId || this.data.subjectId
     if (!this.hasLoadedOnce) this.applyViewModelResult(this.viewModel.load(subjectId))
     this.hasLoadedOnce = true
-    return this.applyViewModelResult(this.viewModel.refreshRemote(subjectId, options).then(result => {
-      if (request !== this.catalogRequest) return
+    return this.viewModel.refreshRemote(subjectId, options).then(async result => {
+      if (request !== this.catalogRequest || this._pageUnloaded) return
       this.applyViewModelResult(result)
-      return this.viewModel.restorePendingPractice()
-    }))
+      if (result && result.data && !result.data.catalogError) this.routeSubjectId = result.data.subjectId || ''
+      const keyword = this.data.searchKeyword
+      if (keyword && keyword.trim()) {
+        try { this.applyViewModelResult(await this.viewModel.updateSearch(keyword)) }
+        catch (error) { if (request === this.catalogRequest && this.data.searchKeyword === keyword) this.setData({ searchEmptyText: error.message }) }
+      }
+      if (request !== this.catalogRequest) return
+      const pending = await this.viewModel.restorePendingPractice()
+      if (request === this.catalogRequest) this.applyViewModelResult(pending)
+    })
+  },
+
+  showSavedFilters(value) {
+    const options = (rows, id, label) => id && !rows.some(row => row.id === id) ? rows.concat({ id, name: label }) : rows
+    const stored = this.viewModel.storage.get(filters.KEY) || {}
+    const colleges = options(this.data.filterColleges, value.collegeId, stored.collegeName || '已选学院')
+    const majors = options(this.data.filterMajors, value.majorId, stored.majorName || '已选专业')
+    this.setData({ filterColleges: colleges, filterMajors: majors,
+      filterCollegeIndex: Math.max(0, colleges.findIndex(row => row.id === value.collegeId)),
+      filterMajorIndex: Math.max(0, majors.findIndex(row => row.id === value.majorId)), filterGradeIndex: value.grade || 0 })
   },
 
   async loadFilters() {
@@ -101,7 +136,8 @@ Page(withPageLifecycle({
     try {
       this.viewModel.beginFilterRefresh()
       const value = remote.setCatalogFilters(this.viewModel.storage, patch)
-      this.setData({ filterGradeIndex: value.grade || 0 })
+      if (patch.collegeId !== undefined && !value.majorId) this.setData({ filterMajors: [this.data.filterMajors[0]] })
+      this.showSavedFilters(value)
       this.loadFilters()
       return this.refreshFilteredCatalog()
     } catch (error) { this.viewModel.cancelFilterRefresh(); wx.showToast({ title: error.message || '筛选保存失败', icon: 'none' }) }
@@ -112,24 +148,24 @@ Page(withPageLifecycle({
     const keyword = this.data.searchKeyword || ''
     this.routeBankId = ''; this.routeSubjectId = ''; this.routeChapterId = ''
     this.viewModel.directBankId = ''
-    this.viewModel.currentSubjectId = ''
+    const selected = this.data.subjectId
     this.viewModel.remotePage = 1
     this.viewModel.remoteSubjectPage = 1
     this.setData({ catalogSwitching: true })
     this.applyViewModelResult(this.viewModel.clearSearch())
     this.setData({ searchKeyword: keyword, searchLoading: !!keyword.trim(), searchActive: !!keyword.trim() })
     const request = this.catalogRequest = (this.catalogRequest || 0) + 1
-    return this.viewModel.refreshRemote('', { force: true }).then(async result => {
+    return this.viewModel.refreshRemote(selected, { force: true }).then(async result => {
       if (this._pageUnloaded || request !== this.catalogRequest) return
       this.applyViewModelResult(result)
-      if (keyword.trim()) this.applyViewModelResult(await this.viewModel.updateSearch(keyword))
+      if (keyword.trim() && this.data.searchKeyword === keyword) this.applyViewModelResult(await this.viewModel.updateSearch(keyword))
     }).catch(error => {
       if (!this._pageUnloaded && request === this.catalogRequest) wx.showToast({ title: error.message || '筛选读取失败', icon: 'none' })
     }).finally(() => { if (!this._pageUnloaded && request === this.catalogRequest) this.setData({ searchLoading: false }) })
   },
 
-  handleCollegeFilter(event) { const item = (this.data.filterColleges || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ collegeId: item.id }) },
-  handleMajorFilter(event) { const item = (this.data.filterMajors || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ majorId: item.id }) },
+  handleCollegeFilter(event) { const item = (this.data.filterColleges || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ collegeId: item.id, collegeName: item.name }) },
+  handleMajorFilter(event) { const item = (this.data.filterMajors || [])[Number(event.detail.value)]; if (item) return this.changeFilters({ majorId: item.id, majorName: item.name }) },
   handleGradeFilter(event) { return this.changeFilters({ grade: Number(event.detail.value) || null }) },
 
   onShareAppMessage() {
@@ -167,8 +203,11 @@ Page(withPageLifecycle({
   handleBanksMore() { return this.applyViewModelResult(this.viewModel.loadMoreBanks()) },
   handleSubjectsMore() { return this.applyViewModelResult(this.viewModel.loadMoreSubjects()) },
   handleRetryLoad() { return this.refreshCatalog({ force: true }) },
+  handleCatalogErrorRetry() {
+    return this.data.filterError ? Promise.all([this.loadFilters(), this.handleRetryLoad()]) : this.handleRetryLoad()
+  },
   getRefreshError() { return this.data.catalogError || this.data.filterError || '' },
-  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad(), require('../../repositories/remote-data-repository.js').refreshFeedbackSummary(this.viewModel.storage)]) },
+  onPullDownRefresh() { return Promise.all([this.loadFilters(), this.handleRetryLoad(), remote.refreshFeedbackSummary(this.viewModel.storage)]) },
   onHide() {
     this.viewModel.closeConfig()
     const pages = getCurrentPages()

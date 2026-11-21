@@ -47,6 +47,7 @@ abstract class PostgresFixture {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/compatibility.sql"),"/docker-entrypoint-initdb.d/005-compatibility.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/bank-deletion.sql"),"/docker-entrypoint-initdb.d/006-bank-deletion.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/subject-category.sql"),"/docker-entrypoint-initdb.d/007-subject-category.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/user-settings.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-user-settings.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/bank-package.sql",0b110_100_100),"/docker-entrypoint-initdb.d/004-bank-package.sql")
@@ -277,7 +278,7 @@ abstract class PostgresFixture {
         "correctAnswer" to when(type) { "SINGLE_CHOICE" -> listOf("A");"MULTIPLE_CHOICE" -> listOf("A","B");else -> emptyList<String>() },
         "correctValue" to false.takeIf { type=="TRUE_FALSE" },"referenceAnswer" to "原参考答案".takeIf { type=="SHORT_ANSWER" })
     protected fun fixture(audiences: List<Map<String,Any>> = emptyList(),maintainers: List<UUID> = emptyList()): Fixture {
-        val subject=id(call("POST","/admin/subjects",mapOf("name" to "课程${UUID.randomUUID()}")))
+        val subject=id(call("POST","/admin/subjects",mapOf("name" to "课程${UUID.randomUUID()}","categories" to audiences)))
         val bank=id(call("POST","/admin/question-banks",mapOf("subjectId" to subject,"name" to "复习题库","description" to "","categories" to audiences,"maintainerIds" to maintainers)))
         val questions=listOf("SINGLE_CHOICE","MULTIPLE_CHOICE","TRUE_FALSE","SHORT_ANSWER").map { id(call("POST","/admin/questions",question(bank,it))) }
         val current=call("GET","/admin/question-banks/$bank")

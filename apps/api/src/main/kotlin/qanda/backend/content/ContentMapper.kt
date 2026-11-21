@@ -34,7 +34,6 @@ class QuestionAttachmentRow { var revisionId: UUID?=null; var fileId: UUID?=null
     fun attach(@Param("revisionId") revisionId: UUID,@Param("fileId") fileId: UUID)
     fun clearMaintainers(@Param("bankId") bankId: UUID)
     fun addMaintainer(@Param("bankId") bankId: UUID,@Param("adminId") adminId: UUID)
-    fun clearCategories(@Param("bankId") bankId: UUID)
     fun bumpBank(@Param("id") id: UUID)
     fun updateQuestion(@Param("id") id: UUID,@Param("chapterId") chapterId: UUID?,@Param("status") status: String,@Param("revisionId") revisionId: UUID)
     fun reassignChapter(@Param("id") id: UUID,@Param("target") target: UUID?)

@@ -2,7 +2,7 @@
 
 当前结构由 `apps/api/src/main/resources/db/schema.sql` 和同目录 `user-settings.sql` 定义；监控权限由 `monitoring-permissions.sql` 定义。空库直接初始化，启动时检查结构。账号设置安装只创建自己的父子表，题库数据沿用原结构。下表按隔离 PostgreSQL 初始化后的结构整理。
 
-普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述题库分类，空分类表示通用目录。批量查询通过 `visible_question_bank` 与 `active_question` 视图计算可见性和可用题目；`bank_visible`、`question_active` 提供同一规则的单项判断，分类列表使用 `bank_matches_category`。
+普通用户保存邮箱与微信绑定，测试登录码哈希及加密凭据归测试账号表，管理员密码独立保存。学院、专业和年级描述科目显示范围，空分类表示通用目录。批量查询通过 `visible_question_bank` 与 `active_question` 视图计算可见性和可用题目；`bank_visible`、`question_active` 提供同一规则的单项判断，科目条件组保存在 subject_category，升级时已有科目统一为通用。目录和搜索使用 `subject_matches_category`。
 
 题目稳定身份与不可变修订分离，练习固定题目和材料修订。历史结果、同步序号与交卷屏障沿用数据库约束。成功同步任务正文保留三十天后可为空，`payload_bytes` 随之为零；其他状态必须保留完整正文。摘要、序号与回执继续用于幂等对账。内容检测上下文、请求、媒体和回调持久化；注销证明完成后与账号及会话外键解耦，保留限时幂等回执。个人头像和待检测媒体随对应账号／任务清理。具体事务与访问规则见[产品规则](product-rules.md)、[内容安全](content-safety.md)及[同步监控](sync-monitoring.md)。
 
