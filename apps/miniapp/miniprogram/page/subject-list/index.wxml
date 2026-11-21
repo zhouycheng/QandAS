@@ -74,7 +74,11 @@
       </view>
     </view>
 
-    <view wx:if="{{pinnedAnnouncement}}" class="home-pinned" data-id="{{pinnedAnnouncement.id}}" bindtap="handleAnnouncementDetail" aria-role="button" aria-label="查看置顶公告：{{pinnedAnnouncement.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80"><text class="notice-pin">置顶</text><text class="home-pinned-title">{{pinnedAnnouncement.title}}</text><text>›</text></view>
+    <view wx:if="{{pinnedAnnouncement}}" class="home-pinned" data-id="{{pinnedAnnouncement.id}}" bindtap="handleAnnouncementDetail" aria-role="button" aria-label="查看置顶公告：{{pinnedAnnouncement.title}}" hover-class="chip-flat-hover" hover-start-time="0" hover-stay-time="80">
+      <text class="notice-pin">置顶</text>
+      <text class="home-pinned-title">{{pinnedAnnouncement.title}}</text>
+      <image class="home-pinned-arrow" src="/assets/icons/arrow-right.svg" mode="aspectFit" aria-hidden="true" />
+    </view>
     <view class="entry-grid">
       <view
         wx:for="{{entries}}"

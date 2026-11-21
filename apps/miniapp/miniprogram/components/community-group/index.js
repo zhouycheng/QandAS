@@ -9,33 +9,34 @@ Component({
   },
   pageLifetimes: {
     show() { this.pageShown = true; this.refresh(false) },
-    hide() { this.pageShown = false; this.refreshPromise = null; this.refreshVersion = (this.refreshVersion || 0) + 1; clearTimeout(this.expiryTimer); this.setData({ loading: false }) }
+    hide() { this.pageShown = false; this.refreshPromise = null; this.refreshVersion = (this.refreshVersion || 0) + 1; clearTimeout(this.expiryTimer); this.setData({ loading: false, imageUrl: '' }) }
   },
   methods: {
     refresh(preview) {
-      if (this.refreshPromise) return this.refreshPromise
-      const pending = this.loadGroup(preview).finally(() => { if (this.refreshPromise === pending) this.refreshPromise = null })
+      if (this.refreshPromise) {
+        if (preview === true) this.previewRequested = true
+        return this.refreshPromise
+      }
+      this.previewRequested = preview === true
+      const pending = this.loadGroup().finally(() => { if (this.refreshPromise === pending) this.refreshPromise = null })
       this.refreshPromise = pending
       return pending
     },
-    async loadGroup(preview) {
+    async loadGroup() {
       const version = this.refreshVersion = (this.refreshVersion || 0) + 1
       this.setData({ loading: true, message: '' })
-      const result = await this.viewModel.load(preview === true)
-      if (this.data.hideUnavailable && result.data.imageUrl) {
-        const loaded = await new Promise(resolve => wx.getImageInfo({ src: result.data.imageUrl, success: () => resolve(true), fail: () => resolve(false) }))
-        if (!loaded || Date.parse(result.data.expiresAt) <= Date.now()) {
-          result.data.imageUrl = ''
-          result.command = null
-        }
-      }
+      const result = await this.viewModel.load()
       if (!this.active || this.pageShown === false || this.refreshVersion !== version) return
       this.setData(result.data)
       clearTimeout(this.expiryTimer)
       if (result.data.imageUrl) {
         this.expiryTimer = setTimeout(() => { this.setData({ imageUrl: '' }); this.refresh(false) }, Math.min(2147483647, Math.max(0, Date.parse(result.data.expiresAt) - Date.now())))
       }
-      if (result.command) wx.previewImage({ current: result.command.url, urls: [result.command.url], fail: () => this.imageError() })
+      if (this.previewRequested && result.data.imageUrl) {
+        wx.previewImage({ current: result.data.imageUrl, urls: [result.data.imageUrl], fail: () => {
+          if (this.active && this.refreshVersion === version) this.imageError()
+        } })
+      }
     },
     open() { return this.refresh(true) },
     imageError() { this.setData({ imageUrl: '', message: '群二维码加载失败，点击重试', retryable: true }) }
