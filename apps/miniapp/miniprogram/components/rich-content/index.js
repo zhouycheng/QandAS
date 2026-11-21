@@ -1,16 +1,21 @@
 const { contentBlocks } = require('../../utils/rich-content.js')
 Component({
   properties: { images: Boolean, text: { type: String, value: '' }, format: { type: String, value: 'PLAIN_TEXT' }, codeLanguage: { type: String, value: '' }, blanks: { type: null, value: null }, disabled: { type: Boolean, value: false }, managedKeyboard: { type: Boolean, value: false } },
-  data: { blocks: [], links: [] },
+  data: { blocks: [], links: [], measured: [] },
   observers: {
     'text, format, codeLanguage, blanks, images'(text, format, language, blanks, images) {
-      this.setData(contentBlocks(typeof text === 'string' ? text : '', format || 'PLAIN_TEXT', language, Array.isArray(blanks) ? blanks : null, images))
+      this.setData({ measured: [], ...contentBlocks(typeof text === 'string' ? text : '', format || 'PLAIN_TEXT', language, Array.isArray(blanks) ? blanks : null, images) })
       this.triggerEvent('contentready', {}, { bubbles: true, composed: true })
     }
   },
   methods: {
     noop() {},
-    inputBlank(event) { this.triggerEvent('blankinput', { index: Number(event.currentTarget.dataset.index), value: event.detail.value }) },
+    inputBlank(event) {
+      const index = Number(event.currentTarget.dataset.index)
+      const value = event.detail.value
+      this.setData({ ['measured[' + index + ']']: value })
+      this.triggerEvent('blankinput', { index, value })
+    },
     focusBlank(event) {
       this.triggerEvent('blankfocus')
       if (!this.properties.managedKeyboard) return

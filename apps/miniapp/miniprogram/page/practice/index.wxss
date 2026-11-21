@@ -48,3 +48,5 @@
 .practice-content-update text { padding: 12rpx; color: var(--primary-color, #2463eb); }
 
 .practice-latest-link { display: inline-flex; align-items: center; flex-shrink: 0; min-height: 88rpx; margin: 0; padding: 0 16rpx; border: 0; background: transparent; font-size: 24rpx; line-height: 1.4; color: var(--primary-color, #2463eb); }
+
+.card-group-title { margin: 16rpx 0 12rpx; color: var(--text-main); font-size: var(--font-secondary); font-weight: 600; }

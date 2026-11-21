@@ -23,7 +23,7 @@
       </view>
       <view class="font-preview">
         <text class="font-preview-label">预览</text>
-        <scroll-view class="font-preview-scroll font-{{fontSize}}" scroll-y>
+        <scroll-view class="font-preview-scroll font-{{fontSize}}" scroll-y enhanced show-scrollbar="{{false}}">
           <text class="font-preview-text">{{fontPreviewText}}</text>
           <text class="font-preview-text font-preview-option">A. 风能</text>
         </scroll-view>

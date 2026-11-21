@@ -1,0 +1,3 @@
+<template name="formula"><image wx:if="{{src}}" style="{{style}}" mode="aspectFit" src="{{src}}" aria-label="{{tex}}" bindload="ready" binderror="failed" /><text wx:else>{{raw}}</text></template>
+<scroll-view wx:if="{{display}}" scroll-x class="display" data-no-swipe="true" catchtouchstart="noop"><template is="formula" data="{{src, style, tex, raw}}" /></scroll-view>
+<template wx:else is="formula" data="{{src, style, tex, raw}}" />

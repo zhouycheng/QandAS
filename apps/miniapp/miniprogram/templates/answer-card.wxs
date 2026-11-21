@@ -1,0 +1,10 @@
+var labels = ['单选题', '多选题', '填空题', '判断题', '阅读题', '简答题']
+function groups(items) {
+  var rows = []
+  var result = []
+  for (var i = 0; i < labels.length; i++) rows.push({ label: labels[i], items: [] })
+  for (var n = 0; n < items.length; n++) rows[labels.indexOf(items[n].group)].items.push(items[n])
+  for (var j = 0; j < rows.length; j++) if (rows[j].items.length) result.push(rows[j])
+  return result
+}
+module.exports.groups = groups

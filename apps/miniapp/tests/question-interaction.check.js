@@ -126,3 +126,21 @@ const stored = {}
 const storage = { get: key => stored[key], set: (key, value) => { stored[key] = value }, keys: () => Object.keys(stored) }
 
 console.log("answer confirmation and drafts passed")
+
+const mixedBlocks = contentBlocks('1. $x^2$\n2. ![示意图](asset:fig-1) {{1}}', 'MARKDOWN', '', [{ value: '混合 A1' }], true).blocks
+assert.deepEqual(mixedBlocks.map(block => block.marker), ['1.', '2.'])
+assert.equal(mixedBlocks[0].parts[0].tex, 'x^2')
+assert.equal(mixedBlocks[1].parts[0].assetId, 'fig-1')
+assert.equal(mixedBlocks[1].parts.find(part => part.blankIndex === 0).value, '混合 A1')
+const cell = contentBlocks('|空位|\n|---|\n|$a_i$ {{1}}|', 'MARKDOWN', '', [], true).blocks[0].rows[1].cells[0]
+assert.equal(cell.parts[0].tex, 'a_i')
+assert.equal(cell.parts.find(part => part.blankIndex === 0).value, '')
+
+const mixedSession = session(['TRUE_FALSE', 'SINGLE_CHOICE', 'FILL_BLANK', 'MULTIPLE_CHOICE', 'SHORT_ANSWER', 'SINGLE_CHOICE', 'SINGLE_CHOICE'])
+mixedSession.state.questions[5].material = { id: 'passage' }
+const groups = require('../miniprogram/templates/answer-card.wxs').groups
+for (const data of [mixedSession.openQuestionOverview().data, mixedSession.forceSubmit().data]) {
+  assert.deepEqual(groups(data.overviewItems).map(group => [group.label, group.items.map(item => item.index)]), [
+    ['单选题', [1, 6]], ['多选题', [3]], ['填空题', [2]], ['判断题', [0]], ['阅读题', [5]], ['简答题', [4]]
+  ])
+}

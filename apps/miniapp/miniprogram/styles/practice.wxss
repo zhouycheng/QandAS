@@ -167,6 +167,7 @@
 }
 
 .pra-option-text {
+  min-width: 0;
   flex: 1;
   font-size: var(--reading-size, var(--reading-normal));
   line-height: 1.65;
