@@ -414,6 +414,12 @@
     }
   },
   {
+    "operationId": "Content_deleteBank_DELETE",
+    "method": "DELETE",
+    "path": "/api/v1/admin/question-banks/{id}",
+    "body": null
+  },
+  {
     "operationId": "Content_publish_PUT",
     "method": "PUT",
     "path": "/api/v1/admin/question-banks/{id}/publication",

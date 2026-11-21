@@ -47,6 +47,17 @@ class ContentService(private val banks: QuestionBankMapper,private val chapters:
         return Page(bankViews(sql.banks(subjectId,keyword,publicOnly,p.offset,p.pageSize,userId,publicationStatus,filter,quality),!publicOnly,userId?.takeIf { includeProgress }),sql.bankCount(subjectId,keyword,publicOnly,userId,publicationStatus,filter,quality),p.page,p.pageSize)
     }
     fun bank(actor: Actor?,id: UUID)=bankView(access.bank(actor,id),actor?.kind=="ADMIN")
+    fun deleteBank(actor: Actor, id: UUID, expectedVersion: Long): MutationResult {
+        val bank = access.bank(actor, id, true)
+        requireVersion(expectedVersion, bank.version)
+        bank.updatedAt = Instant.now()
+        bank.deletedAt = bank.updatedAt
+        bank.status = "INACTIVE"
+        bank.version++
+        bank.contentVersion++
+        banks.updateById(bank)
+        return MutationResult(id, bank.version)
+    }
     fun saveBank(actor: Actor,id: UUID?,input: BankInput): MutationResult {
         val row=id?.let { access.bank(actor,it,true) } ?: QuestionBank().apply { this.id=UUID.randomUUID();createdBy=actor.id;subjectId=input.subjectId }
         if(id!=null) { requireVersion(input.expectedVersion ?: invalid("/expectedVersion"),row.version);if(row.subjectId!=input.subjectId) invalid("/subjectId","IMMUTABLE_PARENT","题库所属课程不可变更") }

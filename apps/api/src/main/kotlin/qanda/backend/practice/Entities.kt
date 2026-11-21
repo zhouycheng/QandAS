@@ -30,7 +30,7 @@ class PracticeSession {
     var acknowledgedSequence: Long = 0
     @TableField(exist = false)
     var finishSequence: Long? = null
-    @TableField(exist = false)
+    @TableField(insertStrategy = FieldStrategy.NEVER, updateStrategy = FieldStrategy.NEVER)
     var bankName: String? = null
 }
 
@@ -41,6 +41,9 @@ class PracticeItem {
     var sessionId: UUID? = null
     var questionId: UUID? = null
     var revisionId: UUID? = null
+    var issuedChapterId: UUID? = null
+    var issuedStatus: String = "ACTIVE"
+    var issuedVersion: Long = 1
     var materialRevisionId: UUID? = null
     var answerBlanks: String? = null
     var position: Int = 0

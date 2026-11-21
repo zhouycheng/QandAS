@@ -4,7 +4,7 @@ import qanda.backend.content.QuestionView
 import qanda.backend.platform.security.Actor
 import java.util.UUID
 
-data class BankReference(val id: UUID,val subjectId: UUID,val contentVersion: Long)
+data class BankReference(val id: UUID,val subjectId: UUID,val contentVersion: Long,val name: String)
 class QuestionReference {
     var id: UUID?=null;var bankId: UUID?=null;var currentRevisionId: UUID?=null;var readingParentId: UUID?=null;var status: String=""
 }

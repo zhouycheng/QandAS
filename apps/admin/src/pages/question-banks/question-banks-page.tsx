@@ -89,6 +89,22 @@ export function QuestionBanksPage() {
   const openBank = (id: string) => navigate('/question-banks/' + id + (quality === 'unassigned' ? '?chapter=unassigned' : ''), { state: { listSearch: params.toString() } })
   const bankAction = (key: string, bank: QuestionBank) => {
     if (key === 'basic' || key === 'scope') { setBankEditor({ bank, tab: key }); return }
+    if (key === 'delete') {
+      Modal.confirm({
+        title: '删除题库「' + bank.name + '」？',
+        content: '删除后无法再用此题库开始新练习。学生已有的练习记录和统计会保留。',
+        okText: '删除题库', cancelText: '取消', okButtonProps: { status: 'danger' },
+        onOk: async () => {
+          try {
+            await gateway.deleteQuestionBank(bank.id, bank.version)
+            if (page > 1 && banks.data?.items.length === 1) setFilter('page', String(page - 1))
+            refreshWorkbench(client)
+            Message.success('题库已删除')
+          } catch (error) { Message.error((error as Error).message); throw error }
+        },
+      })
+      return
+    }
     Modal.confirm({ title: key === 'archive' ? '归档题库？' : '下架题库？', content: '「' + bank.name + '」将从学生列表中移除，保留已发放练习和历史记录。', okText: '确认', cancelText: '取消',
       onOk: async () => { try { await gateway.setBankPublication(bank.id, key === 'archive' ? 'ARCHIVED' : 'UNPUBLISHED', bank.version); refreshWorkbench(client) } catch (error) { Message.error((error as Error).message); throw error } } })
   }
@@ -125,7 +141,7 @@ export function QuestionBanksPage() {
           { title: '分类', width: '18%', render: (_, bank) => bank.categories.length ? bank.categories.length + ' 组分类' : '通用题库' },
           { title: '题数', dataIndex: 'questionCount', width: 80, align: 'right', render: count => <>{count}<span className="bank-count-unit"> 道题</span></> },
           { title: '状态', width: 100, render: (_, bank) => <Tag color={publicationColors[bank.publicationStatus]}>{publicationLabels[bank.publicationStatus]}</Tag> },
-          { title: '操作', width: 112, render: (_, bank) => <Space size={0}><Button type="text" onClick={() => setBankEditor({ bank, tab: 'basic' })}>设置</Button><Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => bankAction(key, bank)}><Menu.Item key="scope">题库分类</Menu.Item>{bank.publicationStatus === 'PUBLISHED' && <Menu.Item key="unpublish">下架</Menu.Item>}<Menu.Item key="archive">归档</Menu.Item></Menu>}><Button type="text" aria-label={'更多操作 ' + bank.name} icon={<IconMore />} /></Dropdown></Space> },
+          { title: '操作', width: 112, render: (_, bank) => <Space size={0}><Button type="text" onClick={() => setBankEditor({ bank, tab: 'basic' })}>设置</Button><Dropdown trigger="click" droplist={<Menu onClickMenuItem={key => bankAction(key, bank)}><Menu.Item key="scope">题库分类</Menu.Item>{bank.publicationStatus === 'PUBLISHED' && <Menu.Item key="unpublish">下架</Menu.Item>}<Menu.Item key="archive">归档</Menu.Item><Menu.Item key="delete">删除题库</Menu.Item></Menu>}><Button type="text" aria-label={'更多操作 ' + bank.name} icon={<IconMore />} /></Dropdown></Space> },
         ]} noDataElement={<Empty description={banks.error ? '题库加载失败' : keyword || quality || status ? '没有符合条件的题库' : '暂无题库'} />} />
     </section>
     {creatingCourse && <CourseEditorModal onClose={() => setCreatingCourse(false)} onSaved={saved => { client.setQueryData(['subjects', saved.id], saved); setCreatingCourse(false); setFilter('course', saved.id) }} />}

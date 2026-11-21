@@ -95,7 +95,9 @@ class ReleaseUpgradeTest : PostgresFixture() {
         }
         migrate();migrate()
         assertEquals(preserved,jdbc.queryForObject("SELECT portable_id FROM question WHERE id=?",UUID::class.java,group))
-        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM schema_migration",Int::class.java))
+        assertEquals(3,jdbc.queryForObject("SELECT count(*) FROM schema_migration",Int::class.java))
+        assertEquals("复习题库",jdbc.queryForObject("SELECT bank_name FROM practice_session WHERE id=?",String::class.java,id(finished)))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM practice_item WHERE session_id=? AND issued_version IS NULL",Int::class.java,id(open)))
         val envInContainer=env + mapOf("BACKEND_LOCAL_CONTAINER" to "true","BACKEND_MAIL_ENCRYPTION_KEYS" to "1:$key","BACKEND_TEST_ACCOUNT_ENCRYPTION_KEYS" to "1:$key","BACKEND_DB_URL" to "jdbc:postgresql://upgrade-db:5432/qanda_backend","BACKEND_BIND_ADDRESS" to "0.0.0.0",
             "BACKEND_REVISION" to "upgrade-candidate","BACKEND_RABBIT_HOST" to "rabbitmq","BACKEND_RABBIT_USER" to "qanda","BACKEND_RABBIT_PASSWORD" to "isolated-queue-password",
             "BACKEND_FILES_ENABLED" to "true","BACKEND_FILE_ROOT" to "/test-assets","BACKEND_PROMETHEUS_URL" to "http://upgrade-prom:9090")

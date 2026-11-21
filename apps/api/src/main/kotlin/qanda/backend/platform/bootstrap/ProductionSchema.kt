@@ -41,6 +41,9 @@ object ProductionSchema {
                     FROM compatibility_inventory inventory,compatibility_usage u,compatibility_coverage c,compatibility_release r LIMIT 0""") {
                     sql.execute(org.springframework.core.io.ClassPathResource("db/compatibility.sql").getContentAsString(Charsets.UTF_8))
                 }
+                migrate("003-bank-deletion", "SELECT b.deleted_at,s.bank_name,i.issued_version,i.issued_status,i.issued_chapter_id FROM question_bank b,practice_session s,practice_item i LIMIT 0") {
+                    sql.execute(org.springframework.core.io.ClassPathResource("db/bank-deletion.sql").getContentAsString(Charsets.UTF_8))
+                }
                 System.getenv("BACKEND_PREVIOUS_REVISION")?.takeIf { it.matches(Regex("[0-9a-f]{40}")) }?.let { previous ->
                     connection.prepareStatement("INSERT INTO compatibility_release(release,manifest) VALUES (?, '[]') ON CONFLICT DO NOTHING").use {
                         it.setString(1,previous); it.executeUpdate()

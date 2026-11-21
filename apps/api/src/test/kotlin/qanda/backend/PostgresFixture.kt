@@ -46,6 +46,7 @@ abstract class PostgresFixture {
         @JvmField val postgres=PostgreSQLContainer<Nothing>("postgres:17.6-alpine").apply {
             withDatabaseName("qanda_backend");withUsername("qanda_backend");withPassword("isolated-test-password")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/compatibility.sql"),"/docker-entrypoint-initdb.d/005-compatibility.sql")
+            withCopyFileToContainer(MountableFile.forClasspathResource("db/bank-deletion.sql"),"/docker-entrypoint-initdb.d/006-bank-deletion.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/schema.sql",0b110_100_100),"/docker-entrypoint-initdb.d/001-schema.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/user-settings.sql",0b110_100_100),"/docker-entrypoint-initdb.d/002-user-settings.sql")
             withCopyFileToContainer(MountableFile.forClasspathResource("db/bank-package.sql",0b110_100_100),"/docker-entrypoint-initdb.d/004-bank-package.sql")

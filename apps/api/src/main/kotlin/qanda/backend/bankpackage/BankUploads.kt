@@ -34,6 +34,7 @@ class BankUploads(private val jdbc: JdbcTemplate, private val access: ContentAcc
 
     @Transactional
     fun put(actor: Actor, bank: UUID, id: UUID, part: Int, bytes: ByteArray) {
+        access.bank(actor, bank, true)
         val size = size(actor, bank, id)
         if (part < 0 || part.toLong()*CHUNK >= size || bytes.size.toLong() != minOf(CHUNK.toLong(), size-part.toLong()*CHUNK)) invalid("/part")
         val inserted = jdbc.update("INSERT INTO bank_package_part VALUES(?,?,?) ON CONFLICT DO NOTHING", id, part, bytes)

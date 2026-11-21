@@ -13,9 +13,14 @@ const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringif
 const makeStorage = data => require('./helpers/encrypted-storage.js').encrypted({ get: key => copy(data.get(key)), set: (key, value) => data.set(key, copy(value)), remove: key => data.delete(key), keys: () => [...data.keys()] })
 let storage = makeStorage(values)
 let loseReleaseResponse = true, loseClaimResponse = true
+let offline = false, finishRequest
 const requests = []
 global.wx = { request(options) {
+  if (offline) { options.fail({ errMsg: 'fixture offline' }); return }
   const url = new URL(options.url)
+  if (options.method === 'POST' && url.pathname.endsWith('/sync-commands') && options.data.kind === 'FINISH') {
+    finishRequest = { url: options.url, headers: options.header, body: JSON.stringify(options.data) }
+  }
   const read = options.method === 'GET'
   if (read) Object.entries(options.data || {}).forEach(([key, value]) => url.searchParams.set(key, value))
   requests.push({ method: options.method, path: url.pathname })
@@ -27,6 +32,75 @@ global.wx = { request(options) {
     })
     .catch(error => options.fail({ errMsg: error.message }))
 } }
+async function offlineDeletion(bank, runtime) {
+  const vm = new PracticeViewModel({ storage })
+  await vm.load({ bankId: bank.id, subjectId: bank.subjectId, mode: 'order', count: '4' })
+  const id = vm.session.meta.sessionId
+  const path = '/practice/sessions/' + id
+  const read = async route => {
+    const response = await api.request('GET', route, null, { token: source.QANDA_TEST_TOKEN })
+    assert.equal(response.statusCode, 200, route)
+    return response.data
+  }
+  const before = await read('/me/statistics?period=ALL')
+  const index = vm.session.state.questions.findIndex(question => question.isShortAnswer)
+  assert(index >= 0)
+  offline = true
+  await vm.jumpToQuestion(index)
+  vm.setAnswerText('离线退出前的作答')
+  vm.toggleMarkQuestion()
+  await vm.suspendWriter()
+  assert(!runtime.queue.isIdle(id))
+  runtime.queue.stop()
+
+  // The admin request uses a separate connection while student transport remains offline.
+  const bankUrl = source.QANDA_TEST_URL + '/api/v1/admin/question-banks/' + bank.id
+  const headers = { Authorization: 'Bearer ' + source.QANDA_TEST_ADMIN_TOKEN }
+  const detail = await fetch(bankUrl, { headers })
+  assert.equal(detail.status, 200)
+  const deletion = await fetch(bankUrl + '?expectedVersion=' + (await detail.json()).version, {
+    method: 'DELETE', headers: { ...headers, 'Idempotency-Key': api.uuid() },
+  })
+  assert.equal(deletion.status, 200)
+
+  offline = false
+  const beforeSync = await read(path)
+  assert.equal(beforeSync.items[index].answer, null)
+  runtime = online.enable(storage)
+  runtime.identity()
+  async function drain() {
+    const deadline = Date.now() + 45000
+    while (!runtime.queue.isIdle(id)) {
+      assert(Date.now() < deadline, '离线队列未按时清空')
+      await runtime.flush(id)
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+  await drain()
+  const saved = await read(path)
+  assert.equal(saved.status, 'IN_PROGRESS')
+  assert.equal(saved.currentIndex, index)
+  assert.equal(saved.items[index].answer.text, '离线退出前的作答')
+  assert.equal(saved.items[index].marked, true)
+  const resumed = new PracticeViewModel({ storage })
+  await resumed.load({ sessionId: id })
+  await resumed.forceSubmit()
+  await drain()
+  const result = await read(path + '/result')
+  assert.equal(result.answeredCount, 1)
+  assert.equal(result.items[index].question.stem, saved.items[index].question.stem)
+  assert.equal(result.items[index].answer.text, saved.items[index].answer.text)
+  assert.equal(finishRequest.url, source.QANDA_TEST_URL + '/api/v1' + path + '/sync-commands')
+  const replay = await fetch(finishRequest.url, { method: 'POST', headers: finishRequest.headers, body: finishRequest.body })
+  assert.equal(replay.status, 202)
+  assert.equal((await replay.json()).state, 'COMMITTED')
+  const stats = await read('/me/statistics?period=ALL')
+  assert.equal(stats.practiceCount, before.practiceCount + 1)
+  assert.equal(stats.answeredCount, before.answeredCount + 1)
+  assert.deepEqual(await read(path + '/result'), result)
+  runtime.queue.stop()
+  return id
+}
 async function main() {
   api.configure({ baseUrl: source.QANDA_TEST_URL, tokenProvider: () => auth.getAuth(storage).token || source.QANDA_TEST_TOKEN })
   auth.saveAuth(storage, { provider: 'email', userId: source.QANDA_TEST_USER_ID, token: source.QANDA_TEST_TOKEN, email: 'fixture@example.test' })
@@ -120,7 +194,7 @@ async function main() {
   const originalDeviceResult = await originalRuntime.prepare({ sessionId: completed.id, review: '1' })
   assert.equal(originalDeviceResult.status, 'SUBMITTED', '原设备读取另一设备交卷后的结果')
   assert.equal(originalDeviceResult.result.shortAnswer.rated, 1)
-  runtime.queue.stop()
-  console.log(JSON.stringify({ passed: true, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.localResult.objective.correct, selfRated: completed.localResult.shortAnswer.rated, crossDevice: true, recoveredHandoffResponses: true }))
+  const offlineSessionId = await offlineDeletion(bank, runtime)
+  console.log(JSON.stringify({ passed: true, offlineSessionId, requests: requests.length, questions: view.data.total, objectiveCorrect: completed.localResult.objective.correct, selfRated: completed.localResult.shortAnswer.rated, crossDevice: true, recoveredHandoffResponses: true }))
 }
 main().catch(error => { const runtime = online.current(); if (runtime && runtime.queue) runtime.queue.stop(); console.error(error.message); process.exitCode = 1 })

@@ -10,7 +10,7 @@ import java.util.UUID
 class ContentLibraryService(private val access: ContentAccess,private val queries: ContentQueries,private val questions: QuestionMapper,
                             private val chapters: ChapterMapper,private val content: ContentService,private val reader: QuestionReader): ContentLibrary {
     override fun revisions(refs: List<RevisionReference>,answers: Boolean) = reader.read(refs,answers)
-    private fun bankRef(row: QuestionBank)=BankReference(row.id!!,row.subjectId!!,row.contentVersion)
+    private fun bankRef(row: QuestionBank)=BankReference(row.id!!,row.subjectId!!,row.contentVersion,row.name)
     private fun questionRef(row: Question)=QuestionReference().apply { id=row.id;bankId=row.bankId;currentRevisionId=row.currentRevisionId;readingParentId=row.readingParentId;status=row.status }
     override fun bank(actor: Actor?,id: UUID,write: Boolean)=bankRef(access.bank(actor,id,write))
     override fun lockBank(id: UUID)=bankRef(queries.lockBankForRead(id) ?: missing())

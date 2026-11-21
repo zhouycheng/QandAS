@@ -300,6 +300,9 @@ class ContentPostgresTest : PostgresFixture() {
         val selected=call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 1,"selectionKind" to "FAVORITE"),s.token)
         assertEquals(1,selected["selectedCount"].asInt())
         call("POST","/practice/scope-preview",mapOf("questionBankId" to f.bank,"count" to 1,"questionIds" to listOf(firstId)),s.token,422)
+        val version=call("GET","/admin/question-banks/${f.bank}")["version"].asLong()
+        call("DELETE","/admin/question-banks/${f.bank}?expectedVersion=$version")
+        assertEquals(result,call("GET","/practice/sessions/${id(session)}/result",token=s.token))
     }
 
     @Test fun `retyping a group preserves issued material and retires children atomically`() {
@@ -543,6 +546,72 @@ class ContentPostgresTest : PostgresFixture() {
         assertEquals(404,readImage(student().token).statusCode())
         call("GET","/practice/sessions/${id(session)}",token=s.token)
         assertEquals(415,raw("POST","/admin/question-banks/${f.bank}/images","<svg/>".toByteArray(),contentType="image/svg+xml").statusCode())
+        val version=call("GET","/admin/question-banks/${f.bank}")["version"].asLong()
+        call("DELETE","/admin/question-banks/${f.bank}?expectedVersion=$version")
+        assertEquals(200,readImage(s.token).statusCode())
+        assertEquals(404,readImage(student().token).statusCode())
+    }
+
+    @Test fun `deleting a bank preserves submitted results and lets a saved mixed session finish`() {
+        val owner=student()
+        val other=student()
+        val f=fixture()
+        val submitted=createPractice(owner,f)
+        val resultPath="/practice/sessions/${id(submitted)}"
+        val result=finish("$resultPath/finish",progressBody(submitted),owner.token)
+        val stats=call("GET","/me/statistics?period=ALL",token=owner.token)
+
+        val second=id(call("POST","/admin/question-banks",mapOf("subjectId" to f.subject,"name" to "配套练习")))
+        call("POST","/admin/questions",question(second,"TRUE_FALSE"))
+        val secondPath="/admin/question-banks/$second"
+        call("PUT","$secondPath/publication",mapOf("expectedVersion" to call("GET",secondPath)["version"].asLong(),"status" to "PUBLISHED"))
+        val scope=mapOf("questionBankId" to second,"questionBankIds" to listOf(second,f.bank),"count" to 5)
+        val preview=call("POST","/practice/scope-preview",scope,owner.token)
+        val create=mapOf("scope" to scope,"expectedContentVersion" to preview["contentVersion"],"expectedContentVersions" to preview["contentVersions"],"deviceId" to UUID.randomUUID())
+        val mixed=call("POST","/practice/sessions",create,owner.token)
+        val mixedPath="/practice/sessions/${id(mixed)}"
+        val partial=progressBody(mixed)+mapOf("currentIndex" to 2,"items" to answers(mixed).take(2))
+        progress("$mixedPath/sync-commands",partial,owner.token)
+        val saved=call("GET",mixedPath,token=owner.token)
+
+        val q=f.questions.first()
+        call("PUT","/admin/questions/$q",question(f.bank,"SINGLE_CHOICE")+mapOf("stem" to "新版题干","expectedVersion" to 1))
+        val bankPath="/admin/question-banks/${f.bank}"
+        val bank=call("GET",bankPath)
+        val renamed=call("PUT",bankPath,mapOf("subjectId" to f.subject,"name" to "新版题库","expectedVersion" to bank["version"].asLong()))
+        val deletion="$bankPath?expectedVersion=${renamed["version"].asLong()}"
+        call("DELETE",deletion,token=other.token,status=403)
+        call("DELETE","$bankPath?expectedVersion=1",status=409)
+        val key=UUID.randomUUID()
+        assertEquals(call("DELETE",deletion,key=key),call("DELETE",deletion,key=key))
+        call("GET",bankPath,status=404)
+        call("PUT","$bankPath/publication",mapOf("expectedVersion" to 1,"status" to "PUBLISHED"),status=404)
+        call("POST","$bankPath/package/uploads",mapOf("sizeBytes" to 10),status=404)
+        call("GET","/question-banks/${f.bank}",token=owner.token,status=404)
+        assertTrue(call("GET","/admin/question-banks?subjectId=${f.subject}")["items"].none { id(it)==f.bank })
+        call("POST","/practice/sessions",create,owner.token,404)
+        call("GET",mixedPath,token=other.token,status=404)
+        val secondDevice=loginDevice(owner,UUID.randomUUID())
+        assertEquals(saved["items"],call("GET",mixedPath,token=secondDevice)["items"])
+        assertEquals(2,call("GET",mixedPath,token=secondDevice)["currentIndex"].asInt())
+        assertEquals(result,call("GET","$resultPath/result",token=secondDevice))
+        assertEquals(stats,call("GET","/me/statistics?period=ALL",token=secondDevice))
+        val records=call("GET","/me/recent-learning",token=secondDevice)["items"]
+        assertEquals("复习题库",records.first { id(it)==id(submitted) }["title"].asText())
+        assertEquals("2 个题库联合练习",records.first { id(it)==id(mixed) }["title"].asText())
+        val offlineKey=UUID.randomUUID()
+        val offlineSave=progressBody(mixed)+mapOf("expectedVersion" to saved["version"].asLong(),"clientSequence" to 2,
+            "currentIndex" to 3,"items" to answers(mixed).take(3))
+        progress("$mixedPath/sync-commands",offlineSave,owner.token,key=offlineKey)
+        progress("$mixedPath/sync-commands",offlineSave,owner.token,key=offlineKey)
+        val resumed=call("GET",mixedPath,token=secondDevice)
+        assertEquals(3,resumed["currentIndex"].asInt())
+        assertEquals(saved["version"].asLong()+1,resumed["version"].asLong())
+        val finishKey=UUID.randomUUID()
+        val finishInput=progressBody(mixed)+mapOf("expectedVersion" to resumed["version"].asLong())
+        assertEquals(finish("$mixedPath/finish",finishInput,owner.token,key=finishKey),
+            finish("$mixedPath/finish",finishInput,owner.token,key=finishKey))
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM practice_result r JOIN practice_session s ON s.id=r.session_id WHERE s.user_id=?",Int::class.java,owner.id))
     }
 
     @Test fun `database rejects broken references and immutable historical edits`() {
