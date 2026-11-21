@@ -26,10 +26,8 @@ Use `contentFormat=MARKDOWN` and an explicit `presentation` for new questions an
 
 ## Teaching explanations and review
 
-For AI-authored explanations, use these five Chinese headings, each on its own line with `###`, in order: 结论, 核心知识点, 解题过程, 记忆方法, 易错题型. Preserve a verified source explanation and record its location when extracting original content.
+Keep a verified original explanation and its location. For each answerable item without one (including reading children and supplied ZIPs), independently solve it and follow [writing explanations](explanations.md). Preserve all portable IDs when completing a package.
 
-- Explain every option, correct false statements, explain each blank, align subjective approaches with reference points, and locate reading evidence in the passage.
-- Use reasoning specific to the item. Check that the formal answer, conclusion, and reasoning agree. Present subjective reference approaches as reasonable approaches rather than uniquely correct wording.
 - Independently solve each item from its stem/material. Check ambiguity, overlapping options, answer cardinality, units, missing conditions, blank markers, accepted variants, and reading boundaries.
 - Record unresolved conflicts, uncertain answers, unreadable material, and unsupported assertions in the Chinese review report. Exclude affected items from the importable content until resolved, counting and explaining every omission.
 
@@ -39,7 +37,9 @@ Use actual Markdown headings and language-labelled code fences. Provide complete
 
 Put new blank markers in prose and keep demonstration code intact. Existing markers inside fences still count, with inputs displayed after the code; a preceding backslash marks a literal marker. Preserve meaningful internal whitespace, punctuation, and character width in answers.
 
-Use Unicode or attached images for formulas, HTTPS for links, and asset references for images. HTML and code are displayed as text. Follow existing student answer-reveal rules; provenance and AI metadata belong to the package and Admin preview.
+Compare formulas and figures against the source page in stems, options, passages, children and explanations. Check signs, subscripts, superscripts, fractions, radicals and units. Use `$…$` inline or `$$…$$` for display only when the target client's TeX rendering has been verified. Otherwise use unambiguous Unicode for simple expressions and legible source crops for complex ones. Keep code literal and blank markers intact.
+
+Crop from the original at readable resolution, retaining axes, legends, units and labels. Open each crop and match it to its source location. Store PNG, JPEG or WebP under `assets/images/`, register its source in `assets[].sourceRefs`, and insert `![description](asset:image-id)` at the original position in the relevant Markdown field. Check every reference against the actual file, including option images. If a symbol or diagram needed to answer remains unreadable, exclude the affected item and record its location. Use HTTPS for external links. HTML and code are displayed as text. Follow existing student answer-reveal rules; provenance and AI metadata belong to the package and Admin preview.
 
 ## Review report
 

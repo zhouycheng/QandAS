@@ -6,7 +6,15 @@
 
 题目、选项、阅读材料和解析使用 `![图注](asset:图号)` 引用原图，例如 `![电路图](asset:fig-01)`。视频使用 HTTPS 链接。存量资料缺少来源时，迁移核验清单逐题记录。旧小程序沿用原目录、题目和练习接口，练习仍按创建时的修订读取。
 
-规范和样例见[题包 Schema](question-bank-import/schema.json)和[六类题型示例](question-bank-import/examples/six-types.json)。在题库详情下载两份 Skill，解压后在制题 Skill 目录中运行 `node scripts/validate.cjs /path/to/bank.json`。
+规范和样例见[题包 Schema](question-bank-import/schema.json)和[六类题型示例](question-bank-import/examples/six-types.json)。在题库详情下载 Skill 安装包，解压后在制题 Skill 目录中运行 `node scripts/validate.cjs /path/to/bank.json`。
+
+## 通过 MCP 导入
+
+连接缺少权限时，Agent 打开 MCP 客户端生成的完整授权链接。请在浏览器核对客户端、回调地址及申请权限，亲自点击「同意授权」。取消即停止本次远程操作。授权后，Agent 会重新检查连接权限。
+
+上传前，请选定科目、该科目下的题库以及库内章节。若请求中已写明完整路径，Agent 会核实归属。多章节 ZIP 需核对每个源章节和未归章题目的去向。预览发现已有题目将被修改时，需另行确认字段差异。
+
+制题时核对题干、选项、材料和解析中的公式及插图。目标客户端已验证公式排版时可使用 TeX 标记；其余情况下，简单式采用 Unicode，复杂式使用带来源位置的清晰裁片。
 
 ## 顶层字段
 
@@ -25,7 +33,7 @@
 
 ## 题目字段与限制
 
-共同字段为 `id`、`type`、`stem`、`explanation`、`provenance`。根题目可带本地 `chapterId`；`assetIds` 引用文件图片。每项通过 `contentFormat` 指定正文格式，新内容使用 `MARKDOWN`，旧内容缺少字段时按 `PLAIN_TEXT` 读取。公式使用 Unicode 或独立图片。正文最多 10000 字，阅读材料最多 20000 字，每题图片最多 20 张。
+共同字段为 `id`、`type`、`stem`、`explanation`、`provenance`。根题目可带本地 `chapterId`；`assetIds` 引用文件图片。每项通过 `contentFormat` 指定正文格式，新内容使用 `MARKDOWN`，旧内容缺少字段时按 `PLAIN_TEXT` 读取。公式仅在目标客户端确认支持后使用 TeX 标记；其余情况下使用 Unicode 或清晰的题源图片。正文最多 10000 字，阅读材料最多 20000 字，每题图片最多 20 张。
 
 | `type` | 专用字段与规则 |
 | --- | --- |
@@ -57,7 +65,7 @@
 
 完整原题保留题干、选项与明确答案；不完整选择题可补齐为四项。知识材料可直接编题。无法辨认、答案冲突、条件不足的内容列入复核报告，解决后进入可导入文件。
 
-AI 编写的教学解析保存在 `explanation` 中。按顺序使用五个独立标题「结论」「核心知识点」「解题过程」「记忆方法」「易错题型」，在每个标题下写出对应内容。提取已有解析时保留原文与来源。
+AI 编写的教学解析保存在 `explanation` 中。缺少解析时逐题补写，阅读子题也要检查。简单题用一两句话说明答案和依据，计算题保留关键算式与单位，阅读题指出材料依据。标记为 AI 补写的解析必须有正文，已有五段式解析可继续导入。提取已有解析时保留原文与来源。
 
 ## 管理员 MCP
 

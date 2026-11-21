@@ -5,7 +5,7 @@ description: Prepare reviewed Qanda questions from PDF, Word, spreadsheets, lega
 
 # Prepare questions
 
-Read [content preparation](references/content.md). Inspect the supplied material, extract necessary images, independently solve each question and preserve its source location. Use the six supported question types. Document any AI additions and unresolved items in a Chinese review report.
+Read [content preparation](references/content.md). For supplied ZIPs, review an unpacked copy and check each answerable item, including reading children, for missing explanations before revalidation. Inspect the supplied material, extract necessary images, independently solve each question and preserve its source location. Use the six supported question types. Document any AI additions and unresolved items in a Chinese review report.
 
 When invoked for a single question or reading group, return its validated content, stable portable ID, source records and referenced images to the calling workflow. For a collection, prepare UTF-8 `bank.json` with format `qanda-question-bank` and version `1.0`. Use the bundled schema and six-type example. Assign each question and child a stable UUID and preserve these IDs when editing.
 
